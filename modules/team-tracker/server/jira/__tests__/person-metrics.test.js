@@ -382,6 +382,52 @@ describe('fetchPersonMetrics', () => {
       displayName: 'Matthew Prahl'
     })
   })
+
+  it('skips user search when jiraAccountId option is provided', async () => {
+    const mockJiraRequest = createMockJiraRequest()
+
+    const result = await fetchPersonMetrics(mockJiraRequest, 'Test User', {
+      nameCache: {},
+      jiraAccountId: '557058:abc-123'
+    })
+
+    // Should not have called user search
+    const userSearchCalls = mockJiraRequest.mock.calls.filter(c => c[0].includes('/rest/api/2/user/search'))
+    expect(userSearchCalls.length).toBe(0)
+    // Should have made JQL search calls using the provided accountId (URL-encoded)
+    const searchCalls = mockJiraRequest.mock.calls.filter(c => c[0].startsWith('/rest/api/3/search/jql'))
+    expect(searchCalls.length).toBe(2)
+    const jql = decodeURIComponent(searchCalls[0][0])
+    expect(jql).toContain('557058:abc-123')
+    expect(result.jiraAccountId).toBe('557058:abc-123')
+  })
+
+  it('falls back to user search when jiraAccountId is null', async () => {
+    const mockJiraRequest = createMockJiraRequest({
+      userSearch: () => [{ displayName: 'Test User', accountId: 'resolved-id' }]
+    })
+
+    const result = await fetchPersonMetrics(mockJiraRequest, 'Test User', {
+      nameCache: {},
+      jiraAccountId: null
+    })
+
+    const userSearchCalls = mockJiraRequest.mock.calls.filter(c => c[0].includes('/rest/api/2/user/search'))
+    expect(userSearchCalls.length).toBeGreaterThan(0)
+    expect(result.jiraAccountId).toBe('resolved-id')
+  })
+
+  it('falls back to user search when jiraAccountId is not in options', async () => {
+    const mockJiraRequest = createMockJiraRequest({
+      userSearch: () => [{ displayName: 'Test User', accountId: 'resolved-id' }]
+    })
+
+    const result = await fetchPersonMetrics(mockJiraRequest, 'Test User', { nameCache: {} })
+
+    const userSearchCalls = mockJiraRequest.mock.calls.filter(c => c[0].includes('/rest/api/2/user/search'))
+    expect(userSearchCalls.length).toBeGreaterThan(0)
+    expect(result.jiraAccountId).toBe('resolved-id')
+  })
 })
 
 describe('namesMatch', () => {

@@ -358,10 +358,16 @@ async function fetchPersonMetrics(jiraRequest, jiraDisplayName, options = {}) {
   const email = options.email || null;
   const projectFilter = buildProjectFilter(options.projectKeys);
 
-  // Resolve the roster name to the Jira Cloud accountId
-  const resolved = await resolveJiraDisplayName(jiraRequest, jiraDisplayName, nameCache, email);
-  const accountId = resolved.accountId;
-  const resolvedDisplayName = resolved.displayName;
+  // Use pre-resolved accountId when available; otherwise resolve via Jira API
+  let accountId, resolvedDisplayName;
+  if (options.jiraAccountId) {
+    accountId = options.jiraAccountId;
+    resolvedDisplayName = jiraDisplayName;
+  } else {
+    const resolved = await resolveJiraDisplayName(jiraRequest, jiraDisplayName, nameCache, email);
+    accountId = resolved.accountId;
+    resolvedDisplayName = resolved.displayName;
+  }
 
   if (!accountId) {
     return {

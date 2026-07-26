@@ -49,6 +49,7 @@ function readRosterFull(storage) {
   return {
     orgs: orgMap,
     generatedAt: registry.meta?.generatedAt,
+    provider: registry.meta?.provider || null,
     vp: registry.meta?.vp
   };
 }

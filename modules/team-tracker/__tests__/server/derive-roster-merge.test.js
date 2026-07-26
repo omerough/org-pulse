@@ -371,3 +371,63 @@ describe('deriveRoster org merging', () => {
     expect(body.orgs[0]).not.toHaveProperty('mergedKeys')
   })
 })
+
+describe('deriveRoster jiraAccountId provider gate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    rosterSyncConfig.clearDisplayNamesCache()
+  })
+
+  function makeRegistryDirect(provider, people) {
+    return {
+      'team-data/registry.json': {
+        meta: {
+          generatedAt: '2026-01-15T00:00:00.000Z',
+          provider,
+          orgRoots: ['org1'],
+          vp: { name: 'VP', uid: 'vp1' }
+        },
+        people
+      },
+      'team-data/config.json': {
+        orgRoots: [{ uid: 'org1', displayName: 'Org' }]
+      }
+    }
+  }
+
+  it('populates jiraAccountId from registry jiraAccountId when provider is atlassian-teams', async () => {
+    const canonicalUid = 'testperson'
+    const rawAccountId = '557058:00000000-0000-4000-8000-000000000001'
+    const data = makeRegistryDirect('atlassian-teams', {
+      [canonicalUid]: {
+        uid: canonicalUid, name: 'Test Person', status: 'active',
+        orgRoot: 'org1', email: null, title: 'Engineer',
+        _teamGrouping: 'TeamA', managerUid: null,
+        jiraAccountId: rawAccountId
+      }
+    })
+    const app = createTestServer(data)
+
+    const { body } = await requestGet(app, '/roster')
+    const members = Object.values(body.orgs[0].teams)[0].members
+    const person = members.find(m => m.uid === canonicalUid)
+    expect(person.jiraAccountId).toBe(rawAccountId)
+  })
+
+  it('does not expose uid as jiraAccountId when provider is consolidated', async () => {
+    const ldapUid = 'jsmith'
+    const data = makeRegistryDirect('consolidated', {
+      [ldapUid]: {
+        uid: ldapUid, name: 'John Smith', status: 'active',
+        orgRoot: 'org1', email: 'jsmith@example.com', title: 'Engineer',
+        _teamGrouping: 'TeamA', managerUid: null
+      }
+    })
+    const app = createTestServer(data)
+
+    const { body } = await requestGet(app, '/roster')
+    const members = Object.values(body.orgs[0].teams)[0].members
+    const person = members.find(m => m.uid === ldapUid)
+    expect(person.jiraAccountId).toBeNull()
+  })
+})

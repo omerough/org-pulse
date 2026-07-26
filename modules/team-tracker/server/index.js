@@ -122,6 +122,7 @@ module.exports = function registerRoutes(router, context) {
   function deriveRoster() {
     const full = readRosterFull();
     const orgs = [];
+    const registryProvider = full?.provider || null;
 
     const orgDisplayNames = getOrgDisplayNames();
     const liveConfig = rosterSyncConfig.loadConfig(storage);
@@ -169,6 +170,9 @@ module.exports = function registerRoutes(router, context) {
           name: person.name,
           jiraDisplayName: person.name,
           uid: person.uid,
+          jiraAccountId: registryProvider === 'atlassian-teams' && person.jiraAccountId
+            ? person.jiraAccountId
+            : null,
           email: person.email,
           title: person.title,
           manager: person.managerUid || null,
@@ -2251,7 +2255,8 @@ module.exports = function registerRoutes(router, context) {
             nameCache: jiraNameCache,
             existingData,
             email: member.email,
-            projectKeys: jiraProjectKeys
+            projectKeys: jiraProjectKeys,
+            jiraAccountId: member.jiraAccountId
           });
           if (metrics._resolvedName) delete metrics._resolvedName;
           writeToStorage(`people/${sanitizeFilename(member.jiraDisplayName)}.json`, metrics);
@@ -2317,7 +2322,8 @@ module.exports = function registerRoutes(router, context) {
               nameCache: jiraNameCache,
               existingData,
               email: member.email,
-              projectKeys: jiraProjectKeys
+              projectKeys: jiraProjectKeys,
+              jiraAccountId: member.jiraAccountId
             });
             if (metrics._resolvedName) {
               persistNameCache();
@@ -4122,7 +4128,8 @@ module.exports = function registerRoutes(router, context) {
             nameCache: jiraNameCache,
             existingData,
             email: member.email,
-            projectKeys: jiraProjectKeys
+            projectKeys: jiraProjectKeys,
+            jiraAccountId: member.jiraAccountId
           });
           if (metrics._resolvedName) delete metrics._resolvedName;
           writeToStorage(`people/${sanitizeFilename(member.jiraDisplayName)}.json`, metrics);

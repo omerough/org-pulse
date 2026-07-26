@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-const { splitByKnownNames, getTeamRollup, collectRoleNames } = require('../roster')
+const { splitByKnownNames, getTeamRollup, collectRoleNames, readRosterFull } = require('../roster')
 
 describe('splitByKnownNames', () => {
   const knownNames = new Set([
@@ -213,5 +213,55 @@ describe('collectRoleNames', () => {
     ]
     const result = collectRoleNames(people, ['productManager'], new Set())
     expect(result.has('Custom PM')).toBe(true)
+  })
+})
+
+describe('readRosterFull', () => {
+  function mockStorage(registryData, configData) {
+    return {
+      readFromStorage(key) {
+        if (key === 'team-data/registry.json') return registryData
+        if (key === 'team-data/config.json') return configData || null
+        return null
+      },
+      writeToStorage() {}
+    }
+  }
+
+  function makeRegistry(provider, people) {
+    return {
+      meta: {
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        provider,
+        orgRoots: ['org1'],
+        vp: { name: 'VP', uid: 'vp1' }
+      },
+      people
+    }
+  }
+
+  it('returns provider from registry meta', () => {
+    const registry = makeRegistry('atlassian-teams', {
+      user1: { uid: '557058:abc', name: 'User One', status: 'active', orgRoot: 'org1' }
+    })
+    const result = readRosterFull(mockStorage(registry, { orgRoots: [{ uid: 'org1', name: 'Org' }] }))
+    expect(result.provider).toBe('atlassian-teams')
+  })
+
+  it('returns null provider when meta.provider is absent', () => {
+    const registry = {
+      meta: { generatedAt: '2026-01-01T00:00:00.000Z', orgRoots: ['org1'] },
+      people: { user1: { uid: 'u1', name: 'User One', status: 'active', orgRoot: 'org1' } }
+    }
+    const result = readRosterFull(mockStorage(registry, { orgRoots: [{ uid: 'org1', name: 'Org' }] }))
+    expect(result.provider).toBeNull()
+  })
+
+  it('returns provider for consolidated registries', () => {
+    const registry = makeRegistry('consolidated', {
+      jsmith: { uid: 'jsmith', name: 'John Smith', status: 'active', orgRoot: 'org1' }
+    })
+    const result = readRosterFull(mockStorage(registry, { orgRoots: [{ uid: 'org1', name: 'Org' }] }))
+    expect(result.provider).toBe('consolidated')
   })
 })
