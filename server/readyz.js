@@ -14,9 +14,11 @@ function createReadyzHandler(storageModule) {
     if (checks.length > 0) {
       res.status(503).json({ status: 'error', reasons: checks });
     } else {
-      res.json({ status: 'ok' });
+      res.json({ status: 'ok', sha: process.env.GIT_SHA || 'dev', upSince: startedAt });
     }
   };
 }
+
+const startedAt = new Date().toISOString();
 
 module.exports = { createReadyzHandler };

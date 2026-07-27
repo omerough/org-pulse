@@ -33,7 +33,9 @@ describe('readyz', () => {
     handler({}, res)
 
     expect(res.statusCode).toBe(200)
-    expect(res.body).toEqual({ status: 'ok' })
+    expect(res.body.status).toBe('ok')
+    expect(res.body.sha).toBeDefined()
+    expect(res.body.upSince).toBeDefined()
   })
 
   it('returns 503 when data directory does not exist', () => {
@@ -52,7 +54,9 @@ describe('readyz', () => {
     handler({}, res)
 
     expect(res.statusCode).toBe(200)
-    expect(res.body).toEqual({ status: 'ok' })
+    expect(res.body.status).toBe('ok')
+    expect(res.body.sha).toBeDefined()
+    expect(res.body.upSince).toBeDefined()
   })
 
   it('returns 503 when FIXTURES_DIR does not exist', () => {
