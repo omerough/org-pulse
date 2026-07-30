@@ -12,4 +12,5 @@ export const routes = {
   'security': ComingSoonView,
   'documentation': defineAsyncComponent(() => import('./views/DocumentationView.vue')),
   'build-release': defineAsyncComponent(() => import('./views/BuildReleaseView.vue')),
+  'ai-commits': defineAsyncComponent(() => import('./views/AICommitsView.vue')),
 }

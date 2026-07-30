@@ -11,6 +11,7 @@ module.exports = function registerRoutes(router, context) {
   const DEMO_MODE = process.env.DEMO_MODE === 'true';
 
   // Jira helpers from shared package (no duplication)
+  const https = require('https');
   const { createJiraClient } = require('../../../shared/server/jira');
   const jira = createJiraClient({
     email: (context.secrets && context.secrets.JIRA_EMAIL) || '',
@@ -474,4 +475,91 @@ module.exports = function registerRoutes(router, context) {
       };
     });
   }
+
+  // --- AI Commits Scanner proxy ---
+
+  const AI_COMMITS_URL = 'https://ai-commits-scanner-fd01cc.pages.redhat.com/osac/index.html';
+  let aiCommitsCache = { html: null, fetchedAt: 0 };
+  const AI_COMMITS_TTL = 60 * 60 * 1000;
+  const MAX_REDIRECTS = 5;
+  const FETCH_TIMEOUT_MS = 15000;
+
+  function fetchPage(url, redirectCount) {
+    if (redirectCount === undefined) redirectCount = 0;
+    return new Promise((resolve, reject) => {
+      // eslint-disable-next-line org-pulse/no-module-process-env -- NODE_EXTRA_CA_CERTS is Node.js runtime config, not a secret
+      const tlsOptions = process.env.NODE_EXTRA_CA_CERTS ? {} : { rejectUnauthorized: false };
+      const req = https.get(url, tlsOptions, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          if (redirectCount >= MAX_REDIRECTS) return reject(new Error('Too many redirects'));
+          const nextUrl = new URL(res.headers.location, url).toString();
+          res.resume();
+          return resolve(fetchPage(nextUrl, redirectCount + 1));
+        }
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          res.resume();
+          return reject(new Error(`Upstream returned ${res.statusCode}`));
+        }
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+        res.on('error', reject);
+      });
+      req.on('error', reject);
+      req.setTimeout(FETCH_TIMEOUT_MS, () => {
+        req.destroy(new Error('Upstream request timed out'));
+      });
+    });
+  }
+
+  /**
+   * @openapi
+   * /api/modules/ai-impact/ai-commits-proxy:
+   *   get:
+   *     summary: Proxy the AI Commits Scanner report with modifications
+   *     tags: [ai-impact]
+   *     responses:
+   *       200:
+   *         description: Modified HTML report
+   */
+  router.get('/ai-commits-proxy', requireScope('ai-impact:read'), async function(req, res) {
+    try {
+      const now = Date.now();
+      if (!aiCommitsCache.html || now - aiCommitsCache.fetchedAt > AI_COMMITS_TTL) {
+        let html = await fetchPage(AI_COMMITS_URL);
+
+        // Make osac-project link open in a new tab
+        html = html.replace(
+          /(<a\s+href="https:\/\/github\.com\/osac-project")/g,
+          '$1 target="_blank" rel="noopener noreferrer"'
+        );
+
+        // Remove rh-ecosystem-edge <details> block
+        html = html.replace(
+          /<details>\s*<summary><a[^>]*>rh-ecosystem-edge<\/a>[\s\S]*?<\/details>/g,
+          ''
+        );
+
+        // Remove "Monthly Trend — Red Hat" section (match from <section> to next </section>)
+        html = html.replace(
+          /<section><h2>Monthly Trend — Red Hat<\/h2>[\s\S]*?<\/section>/,
+          ''
+        );
+
+        // Remove rh-ecosystem-edge rows from tables
+        html = html.replace(
+          /<tr><td>(?:[^<](?!<\/td>))*rh-ecosystem-edge(?:[^<](?!<\/td>))*<\/td>(?:<td[^>]*>[^<]*<\/td>)*<\/tr>/g,
+          ''
+        );
+
+        aiCommitsCache = { html, fetchedAt: now };
+      }
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; frame-ancestors 'self'");
+      res.send(aiCommitsCache.html);
+    } catch (err) {
+      console.error('[ai-commits-proxy]', err.message);
+      res.redirect(AI_COMMITS_URL);
+    }
+  });
 };
