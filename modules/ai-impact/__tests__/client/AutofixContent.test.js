@@ -1,6 +1,34 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AutofixContent from '../../client/components/AutofixContent.vue'
+
+// Mock vue-chartjs
+vi.mock('vue-chartjs', () => ({
+  Line: {
+    name: 'Line',
+    props: ['data', 'options'],
+    template: '<canvas data-testid="line-canvas"></canvas>'
+  },
+  Bar: {
+    name: 'Bar',
+    props: ['data', 'options'],
+    template: '<canvas data-testid="bar-canvas"></canvas>'
+  }
+}))
+
+// Mock chart.js
+vi.mock('chart.js', () => ({
+  Chart: { register: vi.fn() },
+  CategoryScale: 'CategoryScale',
+  LinearScale: 'LinearScale',
+  PointElement: 'PointElement',
+  LineElement: 'LineElement',
+  BarElement: 'BarElement',
+  BarController: 'BarController',
+  Filler: 'Filler',
+  Tooltip: 'Tooltip',
+  Legend: 'Legend'
+}))
 
 // Use relative dates so time-window filtering never ages out of the 30-day window
 const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString()
@@ -234,14 +262,17 @@ describe('AutofixContent', () => {
         ...MOCK_DATA,
         issues: [
           { created: daysAgo(1), key: 'PROJ-1', labels: ['jira-autofix'], pipelineState: 'autofix-ready', components: [] },
-          { created: daysAgo(2), key: 'PROJ-2', labels: ['jira-autofix'], pipelineState: 'autofix-merged', components: [] },
-          { created: daysAgo(3), key: 'OTHER-1', labels: ['jira-triage-stale'], pipelineState: 'triage-stale', components: [] }
+          { created: daysAgo(2), key: 'PROJ-2', labels: ['jira-autofix', 'jira-autofix-merged'], pipelineState: 'autofix-merged', components: [] },
+          { created: daysAgo(3), key: 'PROJ-3', labels: ['jira-autofix-merged'], pipelineState: 'autofix-merged', components: [] },
+          { created: daysAgo(4), key: 'OTHER-1', labels: ['jira-triage-stale'], pipelineState: 'triage-stale', components: [] }
         ],
         metrics: {
           ...MOCK_DATA.metrics,
-          windowTotal: 3,
+          windowTotal: 4,
           eligibleCount: 2,
-          eligibilityRate: 67
+          eligibilityRate: 50,
+          autofixStates: { ...MOCK_DATA.metrics.autofixStates, merged: 2 },
+          successRate: 100
         }
       }
       const wrapper = mount(AutofixContent, { props: { autofixData: data, loading: false, timeWindow: 'month' } })
@@ -250,9 +281,27 @@ describe('AutofixContent', () => {
       const projectSelect = wrapper.find('select')
       await projectSelect.setValue('PROJ')
 
-      // After filtering to PROJ only, should show 2 eligible of 2 total = 100%
-      expect(wrapper.text()).toContain('100%')
-      expect(wrapper.text()).toContain('2 eligible of 2 total')
+      // After filtering to PROJ only:
+      // - 3 total issues (PROJ-1, PROJ-2, PROJ-3)
+      // - 2 eligible (PROJ-1, PROJ-2 have jira-autofix)
+      // - PROJ-3 has jira-autofix-merged but NOT jira-autofix, so excluded from numerator
+      // - 2/3 = 67% (different from 100% Success Rate)
+
+      // Find the "Eligibility Rate" label and scope assertions to its containing card
+      const eligibilityLabel = wrapper.findAll('div').find(div =>
+        div.text() === 'Eligibility Rate' &&
+        div.classes().includes('uppercase')
+      )
+      expect(eligibilityLabel).toBeDefined()
+
+      // The card is the parent with class 'relative'
+      const eligibilityCard = eligibilityLabel.element.closest('div.relative')
+      expect(eligibilityCard).toBeTruthy()
+
+      // Verify the card independently contains both the percentage and count
+      const cardText = eligibilityCard.textContent
+      expect(cardText).toContain('67%')
+      expect(cardText).toContain('2 eligible of 3 total')
     })
 
     it('does not change triage outcomes display', () => {

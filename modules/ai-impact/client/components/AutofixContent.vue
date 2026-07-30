@@ -748,7 +748,7 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div class="absolute right-0 top-6 z-20 hidden group-hover:block w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 p-3 text-xs text-gray-700 dark:text-gray-300 text-left">
-                Percentage of all issues that carry the <span class="font-mono">jira-autofix</span> label. Calculated as: <span class="font-medium">eligible ÷ total × 100</span>. Issues with this label are queued for AI-driven automated fixing.
+                Percentage of all issues that carry the <span class="font-mono">jira-autofix</span> label. Calculated as: <span class="font-medium">eligible ÷ total × 100</span>. Issues with this label are eligible for AI-driven automated fixing.
               </div>
             </div>
             <div class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
