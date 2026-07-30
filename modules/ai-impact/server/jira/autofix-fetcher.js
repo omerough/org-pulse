@@ -133,11 +133,16 @@ function computeAutofixMetrics(issues, timeWindow) {
 
   const counts = {};
   let windowTotal = 0;
+  let eligibleCount = 0;
 
   for (const issue of issues) {
     if (!issueInWindow(issue, windowStart, windowEnd, isLastWeek)) continue;
     windowTotal++;
     counts[issue.pipelineState] = (counts[issue.pipelineState] || 0) + 1;
+    // Count issues with exact 'jira-autofix' label for eligibility rate
+    if (Array.isArray(issue.labels) && issue.labels.includes('jira-autofix')) {
+      eligibleCount++;
+    }
   }
 
   function get(state) { return counts[state] || 0; }
@@ -174,6 +179,10 @@ function computeAutofixMetrics(issues, timeWindow) {
     ? Math.round((autofixStates.merged / terminalTotal) * 100)
     : 0;
 
+  const eligibilityRate = windowTotal > 0
+    ? Math.round((eligibleCount / windowTotal) * 100)
+    : 0;
+
   return {
     triageTotal,
     triageVerdicts,
@@ -182,7 +191,9 @@ function computeAutofixMetrics(issues, timeWindow) {
     terminalTotal,
     successRate,
     windowTotal,
-    totalIssues: issues.length
+    totalIssues: issues.length,
+    eligibleCount,
+    eligibilityRate
   };
 }
 

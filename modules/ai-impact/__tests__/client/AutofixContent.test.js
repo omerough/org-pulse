@@ -1,6 +1,34 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AutofixContent from '../../client/components/AutofixContent.vue'
+
+// Mock vue-chartjs
+vi.mock('vue-chartjs', () => ({
+  Line: {
+    name: 'Line',
+    props: ['data', 'options'],
+    template: '<canvas data-testid="line-canvas"></canvas>'
+  },
+  Bar: {
+    name: 'Bar',
+    props: ['data', 'options'],
+    template: '<canvas data-testid="bar-canvas"></canvas>'
+  }
+}))
+
+// Mock chart.js
+vi.mock('chart.js', () => ({
+  Chart: { register: vi.fn() },
+  CategoryScale: 'CategoryScale',
+  LinearScale: 'LinearScale',
+  PointElement: 'PointElement',
+  LineElement: 'LineElement',
+  BarElement: 'BarElement',
+  BarController: 'BarController',
+  Filler: 'Filler',
+  Tooltip: 'Tooltip',
+  Legend: 'Legend'
+}))
 
 // Use relative dates so time-window filtering never ages out of the 30-day window
 const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString()
@@ -15,7 +43,9 @@ const MOCK_DATA = {
     autofixTotal: 6,
     successRate: 100,
     windowTotal: 10,
-    totalIssues: 10
+    totalIssues: 10,
+    eligibleCount: 1,
+    eligibilityRate: 10
   },
   trendData: [
     { date: daysAgo(7).slice(0, 10), triaged: 3, autofixed: 2, merged: 1, total: 3, review: 1, ciFailing: 0, blocked: 0, maxRetries: 0, missingInfo: 1, stale: 0, external: 0, securityReview: 0 },
@@ -33,7 +63,7 @@ const MOCK_DATA = {
       priority: 'Major',
       created: daysAgo(2),
       updated: daysAgo(1),
-      labels: ['jira-autofix-review'],
+      labels: ['jira-autofix', 'jira-autofix-review'],
       components: ['Model Server'],
       assignee: 'Jane Doe',
       pipelineState: 'autofix-review'
@@ -151,5 +181,139 @@ describe('AutofixContent', () => {
     const rows = findIssueTableRows(wrapper)
     expect(rows).toHaveLength(1)
     expect(rows[0].text()).toContain('RHOAIENG-200')
+  })
+
+  describe('eligibility rate calculation', () => {
+    it('calculates eligibility from exact jira-autofix label count / total issues', () => {
+      const data = {
+        ...MOCK_DATA,
+        issues: [
+          { key: 'TEST-1', created: daysAgo(1), labels: ['jira-autofix', 'jira-autofix-merged'], pipelineState: 'autofix-merged', components: [] },
+          { key: 'TEST-2', created: daysAgo(2), labels: ['jira-autofix', 'jira-autofix-review'], pipelineState: 'autofix-review', components: [] },
+          { key: 'TEST-3', created: daysAgo(3), labels: ['jira-triage-not-fixable'], pipelineState: 'triage-not-fixable', components: [] },
+          { key: 'TEST-4', created: daysAgo(4), labels: ['other-label'], pipelineState: 'unknown', components: [] }
+        ],
+        metrics: {
+          ...MOCK_DATA.metrics,
+          windowTotal: 4,
+          eligibleCount: 2,
+          eligibilityRate: 50
+        }
+      }
+      const wrapper = mount(AutofixContent, { props: { autofixData: data, loading: false, timeWindow: 'month' } })
+      expect(wrapper.text()).toContain('50%')
+      expect(wrapper.text()).toContain('2 eligible of 4 total')
+    })
+
+    it('counts issues with exact jira-autofix label even when they have other labels', () => {
+      const data = {
+        ...MOCK_DATA,
+        issues: [
+          { key: 'TEST-1', created: daysAgo(1), labels: ['jira-autofix', 'jira-autofix-merged', 'other'], pipelineState: 'autofix-merged', components: [] },
+          { key: 'TEST-2', created: daysAgo(2), labels: ['jira-triage-stale'], pipelineState: 'triage-stale', components: [] }
+        ],
+        metrics: {
+          ...MOCK_DATA.metrics,
+          windowTotal: 2,
+          eligibleCount: 1,
+          eligibilityRate: 50
+        }
+      }
+      const wrapper = mount(AutofixContent, { props: { autofixData: data, loading: false, timeWindow: 'month' } })
+      expect(wrapper.text()).toContain('1 eligible of 2 total')
+    })
+
+    it('does not count autofix-* pipeline states without exact jira-autofix label', () => {
+      const data = {
+        ...MOCK_DATA,
+        issues: [
+          { key: 'TEST-1', created: daysAgo(1), labels: ['jira-autofix-merged'], pipelineState: 'autofix-merged', components: [] },
+          { key: 'TEST-2', created: daysAgo(2), labels: ['jira-autofix'], pipelineState: 'autofix-ready', components: [] }
+        ],
+        metrics: {
+          ...MOCK_DATA.metrics,
+          windowTotal: 2,
+          eligibleCount: 1,
+          eligibilityRate: 50
+        }
+      }
+      const wrapper = mount(AutofixContent, { props: { autofixData: data, loading: false, timeWindow: 'month' } })
+      expect(wrapper.text()).toContain('1 eligible of 2 total')
+    })
+
+    it('shows 0% when window is empty', () => {
+      const data = {
+        ...MOCK_DATA,
+        issues: [],
+        metrics: {
+          ...MOCK_DATA.metrics,
+          windowTotal: 0,
+          eligibleCount: 0,
+          eligibilityRate: 0
+        }
+      }
+      const wrapper = mount(AutofixContent, { props: { autofixData: data, loading: false, timeWindow: 'month' } })
+      expect(wrapper.text()).toContain('0%')
+      expect(wrapper.text()).toContain('0 eligible of 0 total')
+    })
+
+    it('recomputes eligibility when filters are active', async () => {
+      const data = {
+        ...MOCK_DATA,
+        issues: [
+          { created: daysAgo(1), key: 'PROJ-1', labels: ['jira-autofix'], pipelineState: 'autofix-ready', components: [] },
+          { created: daysAgo(2), key: 'PROJ-2', labels: ['jira-autofix', 'jira-autofix-merged'], pipelineState: 'autofix-merged', components: [] },
+          { created: daysAgo(3), key: 'PROJ-3', labels: ['jira-autofix-merged'], pipelineState: 'autofix-merged', components: [] },
+          { created: daysAgo(4), key: 'OTHER-1', labels: ['jira-triage-stale'], pipelineState: 'triage-stale', components: [] }
+        ],
+        metrics: {
+          ...MOCK_DATA.metrics,
+          windowTotal: 4,
+          eligibleCount: 2,
+          eligibilityRate: 50,
+          autofixStates: { ...MOCK_DATA.metrics.autofixStates, merged: 2 },
+          successRate: 100
+        }
+      }
+      const wrapper = mount(AutofixContent, { props: { autofixData: data, loading: false, timeWindow: 'month' } })
+
+      // With filters, client should recompute
+      const projectSelect = wrapper.find('select')
+      await projectSelect.setValue('PROJ')
+
+      // After filtering to PROJ only:
+      // - 3 total issues (PROJ-1, PROJ-2, PROJ-3)
+      // - 2 eligible (PROJ-1, PROJ-2 have jira-autofix)
+      // - PROJ-3 has jira-autofix-merged but NOT jira-autofix, so excluded from numerator
+      // - 2/3 = 67% (different from 100% Success Rate)
+
+      // Find the "Eligibility Rate" label and scope assertions to its containing card
+      const eligibilityLabel = wrapper.findAll('div').find(div =>
+        div.text() === 'Eligibility Rate' &&
+        div.classes().includes('uppercase')
+      )
+      expect(eligibilityLabel).toBeDefined()
+
+      // The card is the parent with class 'relative'
+      const eligibilityCard = eligibilityLabel.element.closest('div.relative')
+      expect(eligibilityCard).toBeTruthy()
+
+      // Verify the card independently contains both the percentage and count
+      const cardText = eligibilityCard.textContent
+      expect(cardText).toContain('67%')
+      expect(cardText).toContain('2 eligible of 3 total')
+    })
+
+    it('does not change triage outcomes display', () => {
+      const wrapper = mount(AutofixContent, { props: { autofixData: MOCK_DATA, loading: false, timeWindow: 'month' } })
+      expect(wrapper.text()).toContain('Triage Outcomes')
+      expect(wrapper.text()).toContain('Ready for AI')
+    })
+
+    it('does not change success rate display', () => {
+      const wrapper = mount(AutofixContent, { props: { autofixData: MOCK_DATA, loading: false, timeWindow: 'month' } })
+      expect(wrapper.text()).toContain('Success Rate')
+      expect(wrapper.text()).toContain('100%')
+    })
   })
 })

@@ -251,7 +251,24 @@ const metrics = computed(() => {
   const terminalTotal = autofixStates.merged + autofixStates.rejected + autofixStates.maxRetries
   const successRate = terminalTotal > 0 ? Math.round((autofixStates.merged / terminalTotal) * 100) : 0
 
-  return { triageTotal, triageVerdicts, autofixStates, autofixTotal: triageVerdicts.ready, successRate, windowTotal: windowIssues.length, totalIssues: issues.length }
+  const eligibleCount = windowIssues.filter(i =>
+    Array.isArray(i.labels) && i.labels.includes('jira-autofix')
+  ).length
+  const eligibilityRate = windowIssues.length > 0
+    ? Math.round((eligibleCount / windowIssues.length) * 100)
+    : 0
+
+  return {
+    triageTotal,
+    triageVerdicts,
+    autofixStates,
+    autofixTotal: triageVerdicts.ready,
+    successRate,
+    windowTotal: windowIssues.length,
+    totalIssues: issues.length,
+    eligibleCount,
+    eligibilityRate
+  }
 })
 
 const trendData = computed(() => {
@@ -731,14 +748,14 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div class="absolute right-0 top-6 z-20 hidden group-hover:block w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 p-3 text-xs text-gray-700 dark:text-gray-300 text-left">
-                Percentage of triaged issues that qualified for autofix. Calculated as: <span class="font-medium">eligible ÷ total triaged × 100</span>. The AI triage bot evaluates each issue and labels it as fixable or not.
+                Percentage of all issues that carry the <span class="font-mono">jira-autofix</span> label. Calculated as: <span class="font-medium">eligible ÷ total × 100</span>. Issues with this label are eligible for AI-driven automated fixing.
               </div>
             </div>
             <div class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-              {{ metrics.triageTotal > 0 ? Math.round((metrics.triageVerdicts.ready || 0) / metrics.triageTotal * 100) : 0 }}%
+              {{ metrics.eligibilityRate }}%
             </div>
             <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 uppercase tracking-wide">Eligibility Rate</div>
-            <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{{ metrics.triageVerdicts.ready || 0 }} of {{ metrics.triageTotal }} triaged</div>
+            <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{{ metrics.eligibleCount }} eligible of {{ metrics.windowTotal }} total</div>
           </div>
           <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
             <div class="absolute top-2 right-2 group">
