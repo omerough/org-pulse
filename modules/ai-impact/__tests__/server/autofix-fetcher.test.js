@@ -178,6 +178,110 @@ describe('computeAutofixMetrics', () => {
     const m = computeAutofixMetrics([], 'week')
     expect(m.successRate).toBe(0)
   })
+
+  describe('eligibility rate', () => {
+    const now = new Date()
+    const recent = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString()
+
+    it('counts issues with exact jira-autofix label even when they have other labels', () => {
+      const issues = [
+        { created: recent, labels: ['jira-autofix', 'jira-autofix-merged', 'other-label'], pipelineState: 'autofix-merged' },
+        { created: recent, labels: ['jira-autofix', 'jira-autofix-review'], pipelineState: 'autofix-review' },
+        { created: recent, labels: ['jira-triage-not-fixable'], pipelineState: 'triage-not-fixable' }
+      ]
+      const m = computeAutofixMetrics(issues, 'week')
+      expect(m.eligibleCount).toBe(2)
+      expect(m.windowTotal).toBe(3)
+      expect(m.eligibilityRate).toBe(67) // 2/3 = 66.666... rounds to 67
+    })
+
+    it('does not count autofix-* pipeline states without the exact jira-autofix label', () => {
+      const issues = [
+        { created: recent, labels: ['jira-autofix-merged'], pipelineState: 'autofix-merged' },
+        { created: recent, labels: ['jira-autofix'], pipelineState: 'autofix-ready' },
+        { created: recent, labels: ['jira-triage-pending'], pipelineState: 'triage-pending' }
+      ]
+      const m = computeAutofixMetrics(issues, 'week')
+      expect(m.eligibleCount).toBe(1) // Only the one with exact 'jira-autofix' label
+      expect(m.windowTotal).toBe(3)
+      expect(m.eligibilityRate).toBe(33) // 1/3 = 33.333... rounds to 33
+    })
+
+    it('includes issues without the label in denominator but not numerator', () => {
+      const issues = [
+        { created: recent, labels: ['jira-autofix'], pipelineState: 'autofix-ready' },
+        { created: recent, labels: ['other-label'], pipelineState: 'unknown' },
+        { created: recent, labels: ['jira-triage-stale'], pipelineState: 'triage-stale' }
+      ]
+      const m = computeAutofixMetrics(issues, 'week')
+      expect(m.eligibleCount).toBe(1)
+      expect(m.windowTotal).toBe(3)
+      expect(m.eligibilityRate).toBe(33)
+    })
+
+    it('returns 0% when window is empty', () => {
+      const m = computeAutofixMetrics([], 'week')
+      expect(m.eligibleCount).toBe(0)
+      expect(m.windowTotal).toBe(0)
+      expect(m.eligibilityRate).toBe(0)
+    })
+
+    it('returns 0% when no issues have the jira-autofix label', () => {
+      const issues = [
+        { created: recent, labels: ['jira-triage-not-fixable'], pipelineState: 'triage-not-fixable' },
+        { created: recent, labels: ['other-label'], pipelineState: 'unknown' }
+      ]
+      const m = computeAutofixMetrics(issues, 'week')
+      expect(m.eligibleCount).toBe(0)
+      expect(m.windowTotal).toBe(2)
+      expect(m.eligibilityRate).toBe(0)
+    })
+
+    it('handles issues with missing or null labels array', () => {
+      const issues = [
+        { created: recent, labels: ['jira-autofix'], pipelineState: 'autofix-ready' },
+        { created: recent, labels: null, pipelineState: 'unknown' },
+        { created: recent, labels: undefined, pipelineState: 'unknown' },
+        { created: recent, pipelineState: 'unknown' }
+      ]
+      const m = computeAutofixMetrics(issues, 'week')
+      expect(m.eligibleCount).toBe(1)
+      expect(m.windowTotal).toBe(4)
+      expect(m.eligibilityRate).toBe(25)
+    })
+  })
+
+  it('does not change triage outcomes calculation', () => {
+    const now = new Date()
+    const recent = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString()
+    const issues = [
+      { created: recent, labels: ['jira-autofix'], pipelineState: 'autofix-merged' },
+      { created: recent, labels: ['jira-triage-not-fixable'], pipelineState: 'triage-not-fixable' },
+      { created: recent, labels: ['jira-triage-stale'], pipelineState: 'triage-stale' }
+    ]
+    const m = computeAutofixMetrics(issues, 'week')
+    // Triage outcomes should remain unchanged
+    expect(m.triageVerdicts.ready).toBe(1) // Still counts autofix states
+    expect(m.triageVerdicts.notFixable).toBe(1)
+    expect(m.triageVerdicts.stale).toBe(1)
+    expect(m.triageTotal).toBe(3)
+  })
+
+  it('does not change success rate calculation', () => {
+    const now = new Date()
+    const recent = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString()
+    const issues = [
+      { created: recent, labels: ['jira-autofix'], pipelineState: 'autofix-merged' },
+      { created: recent, labels: ['jira-autofix'], pipelineState: 'autofix-rejected' },
+      { created: recent, labels: ['jira-autofix'], pipelineState: 'autofix-max-retries' }
+    ]
+    const m = computeAutofixMetrics(issues, 'week')
+    // Success rate should still be merged / (merged + rejected + maxRetries)
+    expect(m.successRate).toBe(33) // 1/3 = 33.333... rounds to 33
+    expect(m.autofixStates.merged).toBe(1)
+    expect(m.autofixStates.rejected).toBe(1)
+    expect(m.autofixStates.maxRetries).toBe(1)
+  })
 })
 
 describe('buildTrendData', () => {
