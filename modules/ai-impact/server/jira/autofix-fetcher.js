@@ -73,6 +73,7 @@ function processIssue(issue) {
     created: issue.fields.created,
     updated: issue.fields.updated,
     terminalAt: null,
+    wasEligible: labels.includes('jira-autofix') ? true : null,
     labels,
     components,
     assignee: issue.fields.assignee?.displayName || null,
@@ -95,6 +96,40 @@ function extractTerminalAt(changelog, pipelineState) {
     }
   }
   return latest ? new Date(latest).toISOString() : null;
+}
+
+function extractWasEligible(changelog) {
+  if (!changelog || !changelog.histories) return false;
+  for (const history of changelog.histories) {
+    for (const item of history.items) {
+      if (item.field !== 'labels') continue;
+      const after = item.toString || '';
+      const tokens = after.split(/\s+/);
+      if (tokens.includes('jira-autofix')) return true;
+    }
+  }
+  return false;
+}
+
+async function fetchFullChangelog(jiraRequest, issueKey) {
+  const histories = [];
+  let startAt = 0;
+  const maxResults = 100;
+  for (;;) {
+    const page = await jiraRequest(
+      '/rest/api/3/issue/' + encodeURIComponent(issueKey) +
+      '/changelog?startAt=' + startAt + '&maxResults=' + maxResults
+    );
+    if (!page || !Array.isArray(page.values)) return null;
+    if (page.values.length === 0) {
+      if (histories.length < (page.total || 0)) return null;
+      break;
+    }
+    histories.push.apply(histories, page.values);
+    if (histories.length >= page.total) break;
+    startAt += page.values.length;
+  }
+  return { histories: histories };
 }
 
 function getLastWeekBounds() {
@@ -134,14 +169,16 @@ function computeAutofixMetrics(issues, timeWindow) {
   const counts = {};
   let windowTotal = 0;
   let eligibleCount = 0;
+  let hasUnknownEligibility = false;
 
   for (const issue of issues) {
     if (!issueInWindow(issue, windowStart, windowEnd, isLastWeek)) continue;
     windowTotal++;
     counts[issue.pipelineState] = (counts[issue.pipelineState] || 0) + 1;
-    // Count issues with exact 'jira-autofix' label for eligibility rate
-    if (Array.isArray(issue.labels) && issue.labels.includes('jira-autofix')) {
+    if (issue.wasEligible === true) {
       eligibleCount++;
+    } else if (issue.wasEligible == null) {
+      hasUnknownEligibility = true;
     }
   }
 
@@ -179,8 +216,8 @@ function computeAutofixMetrics(issues, timeWindow) {
     ? Math.round((autofixStates.merged / terminalTotal) * 100)
     : 0;
 
-  const eligibilityRate = windowTotal > 0
-    ? Math.round((eligibleCount / windowTotal) * 100)
+  const eligibilityRate = hasUnknownEligibility ? null
+    : windowTotal > 0 ? Math.round((eligibleCount / windowTotal) * 100)
     : 0;
 
   return {
@@ -192,7 +229,7 @@ function computeAutofixMetrics(issues, timeWindow) {
     successRate,
     windowTotal,
     totalIssues: issues.length,
-    eligibleCount,
+    eligibleCount: hasUnknownEligibility ? null : eligibleCount,
     eligibilityRate
   };
 }
@@ -302,15 +339,20 @@ async function fetchAutofixData(jiraRequest, config) {
 
   const processed = rawIssues.map(processIssue);
 
-  const terminalIssues = processed.filter(i => TERMINAL_STATES.has(i.pipelineState));
+  const needChangelog = processed.filter(function(i) {
+    return TERMINAL_STATES.has(i.pipelineState) || i.wasEligible === null;
+  });
   const BATCH = 10;
-  for (let i = 0; i < terminalIssues.length; i += BATCH) {
-    const batch = terminalIssues.slice(i, i + BATCH);
+  for (let i = 0; i < needChangelog.length; i += BATCH) {
+    const batch = needChangelog.slice(i, i + BATCH);
     const results = await Promise.allSettled(batch.map(function(issue) {
-      return jiraRequest(
-        '/rest/api/3/issue/' + encodeURIComponent(issue.key) + '?expand=changelog&fields=labels'
-      ).then(function(detail) {
-        issue.terminalAt = extractTerminalAt(detail.changelog, issue.pipelineState);
+      return fetchFullChangelog(jiraRequest, issue.key).then(function(changelog) {
+        if (TERMINAL_STATES.has(issue.pipelineState)) {
+          issue.terminalAt = extractTerminalAt(changelog, issue.pipelineState);
+        }
+        if (issue.wasEligible === null) {
+          issue.wasEligible = changelog ? extractWasEligible(changelog) : null;
+        }
       });
     }));
     for (const r of results) {
@@ -328,6 +370,8 @@ module.exports = {
   processIssue,
   classifyIssue,
   extractTerminalAt,
+  extractWasEligible,
+  fetchFullChangelog,
   getLastWeekBounds,
   computeAutofixMetrics,
   buildTrendData,
