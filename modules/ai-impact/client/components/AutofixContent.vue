@@ -223,12 +223,13 @@ const metrics = computed(() => {
     return ts >= windowStart && ts < windowEnd
   })
 
-  const triageTotal = windowIssues.filter(i =>
-    i.pipelineState.startsWith('triage-') || i.pipelineState.startsWith('autofix-')
-  ).length
+  const triageTotal = windowIssues.filter(i => {
+    const pipelineState = i.pipelineState ?? ''
+    return pipelineState.startsWith('triage-') || pipelineState.startsWith('autofix-')
+  }).length
 
   const triageVerdicts = {
-    ready: windowIssues.filter(i => i.pipelineState.startsWith('autofix-')).length,
+    ready: windowIssues.filter(i => (i.pipelineState ?? '').startsWith('autofix-')).length,
     missingInfo: windowIssues.filter(i => i.pipelineState === 'triage-missing-info').length,
     notFixable: windowIssues.filter(i => i.pipelineState === 'triage-not-fixable').length,
     stale: windowIssues.filter(i => i.pipelineState === 'triage-stale').length,
@@ -294,8 +295,11 @@ const trendData = computed(() => {
       const ts = issueTimestamp(i, isLW)
       return ts >= weekStart.getTime() && ts < weekEnd.getTime()
     })
-    const triaged = weekIssues.filter(i => i.pipelineState.startsWith('triage-') || i.pipelineState.startsWith('autofix-')).length
-    const autofixed = weekIssues.filter(i => i.pipelineState.startsWith('autofix-')).length
+    const triaged = weekIssues.filter(i => {
+      const pipelineState = i.pipelineState ?? ''
+      return pipelineState.startsWith('triage-') || pipelineState.startsWith('autofix-')
+    }).length
+    const autofixed = weekIssues.filter(i => (i.pipelineState ?? '').startsWith('autofix-')).length
     const merged = weekIssues.filter(i => i.pipelineState === 'autofix-merged').length
     const review = weekIssues.filter(i => i.pipelineState === 'autofix-review').length
     const ciFailing = weekIssues.filter(i => i.pipelineState === 'autofix-ci-failing').length
@@ -749,7 +753,7 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div class="absolute right-0 top-6 z-20 hidden group-hover:block w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 p-3 text-xs text-gray-700 dark:text-gray-300 text-left">
-                Percentage of all issues that carry the <span class="font-mono">jira-autofix</span> label. Calculated as: <span class="font-medium">eligible ÷ total × 100</span>. Issues with this label are eligible for AI-driven automated fixing.
+                Percentage of issues in the reporting window that currently carry the <span class="font-mono">jira-autofix</span> trigger label or have an <span class="font-mono">autofix-*</span> pipeline state. Calculated as: <span class="font-medium">eligible ÷ total × 100</span>.
               </div>
             </div>
             <div class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
