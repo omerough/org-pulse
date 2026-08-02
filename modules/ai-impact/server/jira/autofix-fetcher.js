@@ -139,8 +139,10 @@ function computeAutofixMetrics(issues, timeWindow) {
     if (!issueInWindow(issue, windowStart, windowEnd, isLastWeek)) continue;
     windowTotal++;
     counts[issue.pipelineState] = (counts[issue.pipelineState] || 0) + 1;
-    // Count issues with exact 'jira-autofix' label for eligibility rate
-    if (Array.isArray(issue.labels) && issue.labels.includes('jira-autofix')) {
+    if (
+      issue.pipelineState?.startsWith('autofix-') ||
+      (Array.isArray(issue.labels) && issue.labels.includes('jira-autofix'))
+    ) {
       eligibleCount++;
     }
   }
