@@ -252,7 +252,8 @@ const metrics = computed(() => {
   const successRate = terminalTotal > 0 ? Math.round((autofixStates.merged / terminalTotal) * 100) : 0
 
   const eligibleCount = windowIssues.filter(i =>
-    Array.isArray(i.labels) && i.labels.includes('jira-autofix')
+    i.pipelineState?.startsWith('autofix-') ||
+    (Array.isArray(i.labels) && i.labels.includes('jira-autofix'))
   ).length
   const eligibilityRate = windowIssues.length > 0
     ? Math.round((eligibleCount / windowIssues.length) * 100)

@@ -183,10 +183,10 @@ describe('computeAutofixMetrics', () => {
     const now = new Date()
     const recent = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString()
 
-    it('counts issues with exact jira-autofix label even when they have other labels', () => {
+    it('counts issues with autofix-* pipeline state as eligible', () => {
       const issues = [
-        { created: recent, labels: ['jira-autofix', 'jira-autofix-merged', 'other-label'], pipelineState: 'autofix-merged' },
-        { created: recent, labels: ['jira-autofix', 'jira-autofix-review'], pipelineState: 'autofix-review' },
+        { created: recent, labels: ['jira-autofix-merged', 'other-label'], pipelineState: 'autofix-merged' },
+        { created: recent, labels: ['jira-autofix-review'], pipelineState: 'autofix-review' },
         { created: recent, labels: ['jira-triage-not-fixable'], pipelineState: 'triage-not-fixable' }
       ]
       const m = computeAutofixMetrics(issues, 'week')
@@ -195,19 +195,19 @@ describe('computeAutofixMetrics', () => {
       expect(m.eligibilityRate).toBe(67) // 2/3 = 66.666... rounds to 67
     })
 
-    it('does not count autofix-* pipeline states without the exact jira-autofix label', () => {
+    it('counts issues with autofix-* pipeline state regardless of labels', () => {
       const issues = [
         { created: recent, labels: ['jira-autofix-merged'], pipelineState: 'autofix-merged' },
         { created: recent, labels: ['jira-autofix'], pipelineState: 'autofix-ready' },
         { created: recent, labels: ['jira-triage-pending'], pipelineState: 'triage-pending' }
       ]
       const m = computeAutofixMetrics(issues, 'week')
-      expect(m.eligibleCount).toBe(1) // Only the one with exact 'jira-autofix' label
+      expect(m.eligibleCount).toBe(2) // Both autofix-merged and autofix-ready count
       expect(m.windowTotal).toBe(3)
-      expect(m.eligibilityRate).toBe(33) // 1/3 = 33.333... rounds to 33
+      expect(m.eligibilityRate).toBe(67) // 2/3 = 66.666... rounds to 67
     })
 
-    it('includes issues without the label in denominator but not numerator', () => {
+    it('includes non-autofix issues in denominator but not numerator', () => {
       const issues = [
         { created: recent, labels: ['jira-autofix'], pipelineState: 'autofix-ready' },
         { created: recent, labels: ['other-label'], pipelineState: 'unknown' },
@@ -226,7 +226,7 @@ describe('computeAutofixMetrics', () => {
       expect(m.eligibilityRate).toBe(0)
     })
 
-    it('returns 0% when no issues have the jira-autofix label', () => {
+    it('returns 0% when no issues have autofix-* pipeline state', () => {
       const issues = [
         { created: recent, labels: ['jira-triage-not-fixable'], pipelineState: 'triage-not-fixable' },
         { created: recent, labels: ['other-label'], pipelineState: 'unknown' }
@@ -237,17 +237,53 @@ describe('computeAutofixMetrics', () => {
       expect(m.eligibilityRate).toBe(0)
     })
 
-    it('handles issues with missing or null labels array', () => {
+    it('handles issues with missing or null pipelineState', () => {
       const issues = [
         { created: recent, labels: ['jira-autofix'], pipelineState: 'autofix-ready' },
-        { created: recent, labels: null, pipelineState: 'unknown' },
-        { created: recent, labels: undefined, pipelineState: 'unknown' },
-        { created: recent, pipelineState: 'unknown' }
+        { created: recent, labels: ['other'], pipelineState: null },
+        { created: recent, labels: ['other'], pipelineState: undefined },
+        { created: recent, labels: ['other'] }
       ]
       const m = computeAutofixMetrics(issues, 'week')
       expect(m.eligibleCount).toBe(1)
       expect(m.windowTotal).toBe(4)
       expect(m.eligibilityRate).toBe(25)
+    })
+
+    it('counts union of autofix-* state OR jira-autofix label', () => {
+      const issues = [
+        // Has autofix-* state but NOT label (bot removed label during processing)
+        { created: recent, labels: ['jira-autofix-merged'], pipelineState: 'autofix-merged' },
+        { created: recent, labels: ['jira-autofix-review'], pipelineState: 'autofix-review' },
+        // Has jira-autofix label but NOT autofix-* state (queued, not yet processed or human took over)
+        { created: recent, labels: ['jira-autofix'], pipelineState: 'triage-pending' },
+        { created: recent, labels: ['jira-autofix'], pipelineState: 'unknown' },
+        // Has BOTH state and label (rare but possible)
+        { created: recent, labels: ['jira-autofix', 'jira-autofix-pending'], pipelineState: 'autofix-pending' },
+        // Has NEITHER (not eligible)
+        { created: recent, labels: ['jira-triage-not-fixable'], pipelineState: 'triage-not-fixable' },
+        { created: recent, labels: ['other'], pipelineState: 'unknown' }
+      ]
+      const m = computeAutofixMetrics(issues, 'week')
+      expect(m.eligibleCount).toBe(5) // Union: 2 state-only + 2 label-only + 1 both
+      expect(m.windowTotal).toBe(7)
+      expect(m.eligibilityRate).toBe(71) // 5/7 = 71.428... rounds to 71
+    })
+
+    it('eligibleCount can exceed autofixTotal when jira-autofix label exists without autofix-* state', () => {
+      const issues = [
+        // 3 issues with autofix-* state (counted in autofixTotal)
+        { created: recent, labels: ['jira-autofix-merged'], pipelineState: 'autofix-merged' },
+        { created: recent, labels: ['jira-autofix-review'], pipelineState: 'autofix-review' },
+        { created: recent, labels: ['jira-autofix-pending'], pipelineState: 'autofix-pending' },
+        // 2 issues with jira-autofix label but no autofix-* state (NOT in autofixTotal, but eligible)
+        { created: recent, labels: ['jira-autofix'], pipelineState: 'triage-pending' },
+        { created: recent, labels: ['jira-autofix'], pipelineState: 'unknown' }
+      ]
+      const m = computeAutofixMetrics(issues, 'week')
+      expect(m.autofixTotal).toBe(3) // Only autofix-* states
+      expect(m.eligibleCount).toBe(5) // Union includes label-only issues
+      expect(m.eligibleCount).toBeGreaterThan(m.autofixTotal)
     })
   })
 
