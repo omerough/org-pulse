@@ -6,6 +6,13 @@ This file extends AGENTS.md with architecture details, integration specifics,
 and API routes that Claude Code needs for deep codebase work. For conventions,
 hard constraints, and code style: see AGENTS.md (imported above).
 
+## Data Provenance
+
+* `fixtures/` contains demo/test data and may include content from the reference project, such as `RHOAIENG` project keys or AI Engineering team names; treat it as test input, not evidence of current Ecosystem data.
+* `data/` is application storage and may contain generated snapshots, sidecar-delivered artifacts, runtime-written state, or stale leftovers; file presence alone is not evidence of current Ecosystem data.
+* Source code, routes, manifests, and configuration show defined capabilities and configured paths—not successful execution, deployment, delivery, freshness, or runtime receipt.
+* Only when making a claim about current Ecosystem data or operational state, verify it using evidence relevant to that claim; if it cannot be verified, label the claim `Unknown`.
+
 ## Local Development
 
 ### Quick Start
