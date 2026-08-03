@@ -10,6 +10,9 @@
 # GitHub enforces that pull_request_target always runs the workflow file from
 # the default branch, so a fork cannot modify these steps.
 #
+# Approvers are read from the OWNERS file on the default branch (not the PR
+# branch) so a PR cannot grant itself approval by modifying OWNERS.
+#
 # Trade-off: changes to THIS workflow file cannot be tested in a PR — the
 # version on main always runs. This is an acceptable security posture for a
 # guard workflow.
@@ -54,14 +57,14 @@ jobs:
     if: github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     permissions:
+      contents: read        # To fetch OWNERS from the default branch
       pull-requests: write  # To post comments and read reviews
       statuses: write       # To set commit status via the API
     env:
-      # GitHub team allowed to approve AI config changes (format: org/team-slug)
-      ALLOWED_APPROVER_TEAM: "red-hat-data-services/org-pulse-maintainers"
       # Space-separated list of files/directories requiring owner approval.
-      # Keep THIS workflow file in the list so it can't be changed without approval.
-      SENSITIVE_FILES: ".claude/ AGENTS.md .github/workflows/guard-ai-configs.yml .github/instructions/review.instructions.md"
+      # Keep THIS workflow file and OWNERS in the list so they can't be
+      # changed without approval.
+      SENSITIVE_FILES: ".claude/ AGENTS.md OWNERS .github/workflows/guard-ai-configs.yml .github/instructions/review.instructions.md"
       STATUS_CONTEXT: "AI Config Guard"
     steps:
       - name: Resolve Pull Request Metadata
@@ -138,51 +141,49 @@ jobs:
         run: |
           COMMENT_EXISTS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json comments -q '.comments[] | select(.author.login=="github-actions") | select(.body | contains("AI Configuration Guard")) | .id' | head -1)
           if [ -z "$COMMENT_EXISTS" ]; then
-            COMMENT_BODY=$(printf "**AI Configuration Guard**\n\nThis PR modifies sensitive AI configuration files or workflows that require approval from a member of: **@%s**\n\nThe following sensitive files were detected:\n%s\nAn approval from an authorized team member is required before this PR can be merged." "${ALLOWED_APPROVER_TEAM}" "${MODIFIED_FILES_LIST}")
+            COMMENT_BODY=$(printf "**AI Configuration Guard**\n\nThis PR modifies sensitive AI configuration files that require approval from an OWNERS file approver.\n\nThe following sensitive files were detected:\n%s\nAn approval from a listed approver is required before this PR can be merged." "${MODIFIED_FILES_LIST}")
             gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$COMMENT_BODY"
           else
             echo "Comment already exists (ID: $COMMENT_EXISTS), skipping duplicate."
           fi
 
-      # Generates "APP_TOKEN" to verify the reviewer belongs to the team of
-      # approvers AND to write commit statuses. The GITHUB_TOKEN on
-      # pull_request_review events lacks statuses:write for fork PRs, so the
-      # App token is used for all status writes in the sensitive-files path.
-      - name: Generate GitHub App token
-        id: app-token
-        if: steps.check_sensitive_files.outputs.detected == 'true'
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-
-      - name: Check for team approval and set status
+      - name: Check for OWNERS approval and set status
         if: steps.check_sensitive_files.outputs.detected == 'true'
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.metadata.outputs.pr_number }}
           HEAD_SHA: ${{ steps.metadata.outputs.head_sha }}
           REPO: ${{ github.repository }}
         run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "::error::App token unavailable — cannot verify team membership."
+          # Fetch OWNERS from the default branch (not the PR) so a PR cannot
+          # grant itself approval by modifying the file.
+          OWNERS_CONTENT=$(gh api "repos/${REPO}/contents/OWNERS" \
+            --jq '.content' | base64 -d)
+
+          if [ -z "$OWNERS_CONTENT" ]; then
+            echo "::error::OWNERS file not found on default branch."
+            gh api "repos/${REPO}/statuses/${HEAD_SHA}" \
+              -f state=error \
+              -f context="${STATUS_CONTEXT}" \
+              -f description="OWNERS file not found"
             exit 1
           fi
 
-          # App token is used for all calls: team membership, PR reviews, and
-          # commit status writes. This ensures fork PRs work (GITHUB_TOKEN on
-          # pull_request_review lacks statuses:write for forks).
-          REVIEWS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json reviews -q '.reviews[] | select(.state=="APPROVED") | .author.login')
+          APPROVERS=$(echo "$OWNERS_CONTENT" \
+            | sed -n '/^approvers:/,/^[^ ]/p' \
+            | grep '^\s*-' \
+            | sed -E 's/^[[:space:]]*-[[:space:]]*//')
 
-          ORG=$(echo "${ALLOWED_APPROVER_TEAM}" | cut -d'/' -f1)
-          TEAM_SLUG=$(echo "${ALLOWED_APPROVER_TEAM}" | cut -d'/' -f2)
-          TEAM_MEMBERS=$(gh api "/orgs/${ORG}/teams/${TEAM_SLUG}/members" -q '.[].login')
+          # Reduce to each author's latest review, then keep only approvals.
+          # This ensures a later CHANGES_REQUESTED overrides an earlier APPROVED.
+          REVIEWS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json reviews \
+            -q '[.reviews | group_by(.author.login)[] | sort_by(.submittedAt) | last | select(.state=="APPROVED") | .author.login] | .[]')
 
           APPROVED=false
           APPROVER=""
           while IFS= read -r reviewer; do
             [ -z "$reviewer" ] && continue
-            if echo "$TEAM_MEMBERS" | grep -qx "$reviewer"; then
+            if echo "$APPROVERS" | grep -qx "$reviewer"; then
               APPROVED=true
               APPROVER="$reviewer"
               break
@@ -190,15 +191,15 @@ jobs:
           done <<< "$REVIEWS"
 
           if [ "$APPROVED" = true ]; then
-            echo "Approved by @$APPROVER (member of ${ALLOWED_APPROVER_TEAM})."
+            echo "Approved by @$APPROVER (listed in OWNERS)."
             gh api "repos/${REPO}/statuses/${HEAD_SHA}" \
               -f state=success \
               -f context="${STATUS_CONTEXT}" \
               -f description="Approved by @${APPROVER}"
           else
-            echo "No approval from ${ALLOWED_APPROVER_TEAM} yet."
+            echo "No approval from an OWNERS approver yet."
             gh api "repos/${REPO}/statuses/${HEAD_SHA}" \
-              -f state=failure \
+              -f state=pending \
               -f context="${STATUS_CONTEXT}" \
-              -f description="Requires approval from ${ALLOWED_APPROVER_TEAM}"
+              -f description="Awaiting approval from an OWNERS approver"
           fi
