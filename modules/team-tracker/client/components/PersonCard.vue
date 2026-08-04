@@ -22,7 +22,7 @@
     </div>
     <div class="mt-2 text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
       <p v-if="member.manager" class="truncate">
-        <span class="text-gray-400 dark:text-gray-500">Mgr:</span> {{ member.manager }}
+        <span class="text-gray-400 dark:text-gray-500">Mgr:</span> {{ managerNames[member.manager] || member.manager }}
       </p>
       <template v-if="member.customFields">
         <p
@@ -71,7 +71,7 @@ const props = defineProps({
 })
 defineEmits(['select'])
 
-const { visibleFields, primaryDisplayField } = useRoster()
+const { visibleFields, primaryDisplayField, managerNames } = useRoster()
 const { getContributions } = useGithubStats()
 const { getContributions: getGitlabContributionsFn } = useGitlabStats()
 const githubContributions = computed(() => getContributions(props.member.githubUsername))

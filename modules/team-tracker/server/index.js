@@ -311,7 +311,23 @@ module.exports = function registerRoutes(router, context) {
       console.log(`[roster] Merged org "${displayName}": ${mergedKeys.slice(1).join(', ')} merged into ${canonical.key}`);
     }
 
-    const result = { vp: full.vp, orgs, visibleFields, primaryDisplayField, mergedKeyMap, teamDataSource };
+    // Intentional second registry read: readRosterFull() excludes auxiliary
+    // profiles, but managerNames must include them for manager UID resolution.
+    let managerNames = {};
+    try {
+      const registry = readFromStorage('team-data/registry.json');
+      if (registry?.people) {
+        for (const [uid, person] of Object.entries(registry.people)) {
+          if (person.status === 'active' && person.name) {
+            managerNames[uid] = person.name;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[roster] Failed to build managerNames from registry:', err.message);
+    }
+
+    const result = { vp: full.vp, orgs, visibleFields, primaryDisplayField, mergedKeyMap, teamDataSource, managerNames };
 
     // Add field definitions and permissions in in-app mode
     if (teamDataSource === 'in-app') {
