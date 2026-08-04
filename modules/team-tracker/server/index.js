@@ -311,14 +311,25 @@ module.exports = function registerRoutes(router, context) {
       console.log(`[roster] Merged org "${displayName}": ${mergedKeys.slice(1).join(', ')} merged into ${canonical.key}`);
     }
 
+    // Collect manager UIDs actually referenced by visible roster members.
+    const referencedManagerUids = new Set();
+    for (const org of orgs) {
+      for (const team of Object.values(org.teams)) {
+        for (const m of team.members) {
+          if (m.manager) referencedManagerUids.add(m.manager);
+        }
+      }
+    }
+
     // Intentional second registry read: readRosterFull() excludes auxiliary
     // profiles, but managerNames must include them for manager UID resolution.
     let managerNames = {};
     try {
       const registry = readFromStorage('team-data/registry.json');
       if (registry?.people) {
-        for (const [uid, person] of Object.entries(registry.people)) {
-          if (person.status === 'active' && person.name) {
+        for (const uid of referencedManagerUids) {
+          const person = registry.people[uid];
+          if (person?.status === 'active' && person.name) {
             managerNames[uid] = person.name;
           }
         }

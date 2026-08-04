@@ -21,8 +21,8 @@
       </span>
     </div>
     <div class="mt-2 text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
-      <p v-if="member.manager" class="truncate">
-        <span class="text-gray-400 dark:text-gray-500">Mgr:</span> {{ managerNames[member.manager] || member.manager }}
+      <p v-if="member.managerUid || member.manager" class="truncate">
+        <span class="text-gray-400 dark:text-gray-500">Mgr:</span> {{ managerNames[member.managerUid || member.manager] || member.managerUid || member.manager }}
       </p>
       <template v-if="member.customFields">
         <p

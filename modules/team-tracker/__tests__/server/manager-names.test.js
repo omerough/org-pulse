@@ -124,7 +124,6 @@ describe('deriveRoster managerNames', () => {
     const { body } = await requestGet(app, '/roster')
     expect(body.managerNames).toBeDefined()
     expect(body.managerNames.org1).toBe('Leader One')
-    expect(body.managerNames.alice).toBe('Alice Chen')
   })
 
   it('resolves an auxiliary manager UID to a display name', async () => {
@@ -141,6 +140,22 @@ describe('deriveRoster managerNames', () => {
 
     const { body } = await requestGet(app, '/roster')
     expect(body.managerNames.pm_mgr).toBe('Dana PMLeader')
+  })
+
+  it('excludes unreferenced active people from managerNames', async () => {
+    const people = {
+      org1: makePerson('org1', 'Leader One'),
+      alice: makePerson('alice', 'Alice Chen', { managerUid: 'org1' }),
+      bob: makePerson('bob', 'Bob Smith', { managerUid: 'org1' })
+    }
+    const app = createTestServer(makeRegistryData(people, { orgRoots: ['org1'] }))
+
+    const { body } = await requestGet(app, '/roster')
+    // org1 is referenced as a manager — should be included
+    expect(body.managerNames.org1).toBe('Leader One')
+    // alice and bob are not anyone's manager — should be excluded
+    expect(body.managerNames).not.toHaveProperty('alice')
+    expect(body.managerNames).not.toHaveProperty('bob')
   })
 
   it('does not include unknown UIDs in managerNames', async () => {

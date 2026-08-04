@@ -165,7 +165,12 @@ function createOpenApiSpec() {
                 }
               },
               visibleFields: { type: 'array', items: { type: 'object' } },
-              primaryDisplayField: { type: 'string', nullable: true }
+              primaryDisplayField: { type: 'string', nullable: true },
+              managerNames: {
+                type: 'object',
+                additionalProperties: { type: 'string' },
+                description: 'UID-to-display-name lookup for referenced managers, used for manager rendering'
+              }
             }
           },
           GitHubContributions: {
