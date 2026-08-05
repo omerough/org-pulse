@@ -528,6 +528,11 @@ module.exports = function registerRoutes(router, context) {
       if (!aiCommitsCache.html || now - aiCommitsCache.fetchedAt > AI_COMMITS_TTL) {
         let html = await fetchPage(AI_COMMITS_URL);
 
+        // Inject <base> so relative paths (../vendor/apexcharts.min.js etc.)
+        // resolve against the original site, not the proxy URL.
+        const baseHref = AI_COMMITS_URL.replace(/\/[^/]*$/, '/');
+        html = html.replace(/<head([^>]*)>/, `<head$1><base href="${baseHref}">`);
+
         // Make osac-project link open in a new tab
         html = html.replace(
           /(<a\s+href="https:\/\/github\.com\/osac-project")/g,
