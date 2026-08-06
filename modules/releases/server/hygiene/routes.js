@@ -121,11 +121,60 @@ const refreshState = {
  *         description: Cross-version hygiene summary for program reporting
  */
 
+/**
+ * @openapi
+ * /api/modules/releases/hygiene/project-hygiene:
+ *   get:
+ *     summary: Get OSAC-style project-wide Jira hygiene results
+ *     description: Read-only. Published by the org-pulse-data CI pipeline; the app performs no Jira calls or writes for this contract.
+ *     tags: [Releases - Hygiene]
+ *     responses:
+ *       200:
+ *         description: Project hygiene result contract
+ *       404:
+ *         description: No results have been published yet
+ *       503:
+ *         description: Published results could not be read (e.g. malformed JSON)
+ */
+
+/**
+ * @openapi
+ * /api/modules/releases/hygiene/project-hygiene/config:
+ *   get:
+ *     summary: Get OSAC-style project-wide Jira hygiene rule configuration
+ *     description: Read-only. Rule definitions are owned and committed by org-pulse-data.
+ *     tags: [Releases - Hygiene]
+ *     responses:
+ *       200:
+ *         description: Project hygiene config contract
+ *       404:
+ *         description: No configuration has been published yet
+ *       503:
+ *         description: Published configuration could not be read (e.g. malformed JSON)
+ */
+
 module.exports = function registerHygieneRoutes(router, context) {
   const { storage, requireAuth, requirePlanningManager, requireScope, registerDiagnostics } = context;
 
   function storageKey(version) {
     return DATA_PREFIX + '/features-' + version + '.json';
+  }
+
+  // Reads a data-side JSON contract file as-is. Distinct from the release-scoped
+  // `storage.readFromStorage` calls below — readFromStorage only catches ENOENT,
+  // so malformed JSON must be caught here and turned into an explicit 503.
+  function readHygieneContract(res, key, notFoundMessage) {
+    var data;
+    try {
+      data = storage.readFromStorage(key);
+    } catch (err) {
+      console.error('[hygiene] Failed to read ' + key + ':', err.message);
+      return res.status(503).json({ error: 'Project hygiene data is temporarily unavailable' });
+    }
+    if (!data) {
+      return res.status(404).json({ error: notFoundMessage });
+    }
+    return res.json(data);
   }
 
   async function runHygieneRefreshAll(options) {
@@ -690,6 +739,24 @@ module.exports = function registerHygieneRoutes(router, context) {
       },
       ruleDefinitions: ruleMap
     });
+  });
+
+  // GET /project-hygiene — OSAC-style project-wide Jira hygiene results (read-only, data-side owned)
+  router.get('/project-hygiene', requireAuth, requireScope('releases:read'), function(req, res) {
+    readHygieneContract(
+      res,
+      DATA_PREFIX + '/project-hygiene-results.json',
+      'Project hygiene results have not been published yet'
+    );
+  });
+
+  // GET /project-hygiene/config — OSAC-style project-wide Jira hygiene rule config (read-only, data-side owned)
+  router.get('/project-hygiene/config', requireAuth, requireScope('releases:read'), function(req, res) {
+    readHygieneContract(
+      res,
+      DATA_PREFIX + '/project-hygiene-config.json',
+      'Project hygiene configuration has not been published yet'
+    );
   });
 
   // Diagnostics
