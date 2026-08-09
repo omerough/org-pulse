@@ -151,7 +151,7 @@ import { useRoster } from '@shared/client/composables/useRoster'
 import { useFieldFilters } from '../composables/useFieldFilters'
 
 const { linkTo } = useModuleLink()
-const { teams: allTeams } = useRoster()
+const { managerNames } = useRoster()
 
 const props = defineProps({
   members: { type: Array, required: true },
@@ -203,28 +203,16 @@ const isMemberFieldFilterActive = computed(() =>
   Object.values(memberFieldFilters.value).some(v => v && v.length > 0)
 )
 
-const uidToMember = computed(() => {
-  const map = new Map()
-  for (const t of allTeams.value) {
-    for (const m of t.members) {
-      if (m.uid) map.set(m.uid, m)
-    }
-  }
-  return map
-})
-
 function getManagerName(member) {
   const uid = member.managerUid || member.manager
   if (!uid) return '—'
-  const mgr = uidToMember.value.get(uid)
-  return mgr?.name || uid
+  return managerNames.value[uid] || uid
 }
 
 function managerLink(member) {
   const uid = member.managerUid || member.manager
   if (!uid) return null
-  const mgr = uidToMember.value.get(uid)
-  if (mgr?.uid) return linkTo('team-tracker', 'person-detail', { uid: mgr.uid })
+  if (managerNames.value[uid]) return linkTo('team-tracker', 'person-detail', { uid })
   return null
 }
 

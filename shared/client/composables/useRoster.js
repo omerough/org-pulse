@@ -20,6 +20,10 @@ export function useRoster() {
     return rosterData.value?.primaryDisplayField || null
   })
 
+  const managerNames = computed(() => {
+    return rosterData.value?.managerNames || {}
+  })
+
   const selectedOrg = computed(() => {
     if (!selectedOrgKey.value) return null
     return orgs.value.find(o => o.key === selectedOrgKey.value || o.displayName === selectedOrgKey.value) || null
@@ -131,6 +135,7 @@ export function useRoster() {
     uniqueMemberCount,
     visibleFields,
     primaryDisplayField,
+    managerNames,
     loadRoster,
     reloadRoster
   }
