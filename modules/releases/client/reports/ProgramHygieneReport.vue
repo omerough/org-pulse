@@ -148,6 +148,9 @@ function toggleRuleFilter(ruleId) {
 // ── Pagination ──
 
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredIssues.value.length / PAGE_SIZE)))
+watch(totalPages, (pages) => {
+  if (currentPage.value > pages) currentPage.value = pages
+})
 const paginatedIssues = computed(() => {
   const start = (currentPage.value - 1) * PAGE_SIZE
   return filteredIssues.value.slice(start, start + PAGE_SIZE)

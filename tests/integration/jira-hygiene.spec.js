@@ -127,11 +127,14 @@ test.describe('Releases — Manage Hygiene Rules (read-only) @jira-hygiene', () 
       return;
     }
 
-    await expect(page.locator('text=Open issue without Team')).toBeVisible();
+    // Scope to the Hygiene Rules panel itself, not application chrome
+    // (sidebar/header controls would otherwise make these assertions meaningless)
+    const hygienePanel = page.locator('.max-w-4xl.mx-auto').first();
+    await expect(hygienePanel.locator('text=Open issue without Team')).toBeVisible();
 
-    // Read-only: no save/refresh/toggle/threshold controls
-    expect(await page.locator('button', { hasText: 'Save' }).count()).toBe(0);
-    expect(await page.locator('input, select').count()).toBe(0);
+    // Read-only: no save/refresh/toggle/threshold controls within the panel
+    expect(await hygienePanel.locator('button', { hasText: 'Save' }).count()).toBe(0);
+    expect(await hygienePanel.locator('input, select').count()).toBe(0);
 
     expect(page.errors).toHaveLength(0);
   });

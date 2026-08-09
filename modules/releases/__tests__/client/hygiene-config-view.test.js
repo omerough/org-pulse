@@ -54,21 +54,18 @@ describe('HygieneConfigView', () => {
     apiRequest.mockResolvedValue(sampleConfig())
     mount(HygieneConfigView)
     await flushPromises()
-    expect(apiRequest).toHaveBeenCalledWith('/modules/releases/hygiene/project-hygiene/config')
-    expect(apiRequest).not.toHaveBeenCalledWith(expect.stringContaining('/hygiene/config'), expect.anything())
+    expect(apiRequest.mock.calls.map(([path]) => path)).toEqual([
+      '/modules/releases/hygiene/project-hygiene/config'
+    ])
   })
 
   it('never calls the legacy POST /config or POST /refresh endpoints', async () => {
     apiRequest.mockResolvedValue(sampleConfig())
     mount(HygieneConfigView)
     await flushPromises()
-    for (const call of apiRequest.mock.calls) {
-      const [path, options] = call
-      if (options && options.method === 'POST') {
-        expect(path).not.toBe('/modules/releases/hygiene/config')
-        expect(path).not.toMatch(/^\/modules\/releases\/hygiene\/refresh/)
-      }
-    }
+    const calledPaths = apiRequest.mock.calls.map(([path]) => path)
+    expect(calledPaths).not.toContain('/modules/releases/hygiene/config')
+    expect(calledPaths.some(path => /^\/modules\/releases\/hygiene\/refresh/.test(path))).toBe(false)
   })
 
   it('shows a loading state before the request resolves', () => {

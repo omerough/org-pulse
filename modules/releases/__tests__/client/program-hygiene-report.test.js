@@ -279,6 +279,44 @@ describe('ProgramHygieneReport (Jira Hygiene)', () => {
     expect(wrapper.findAll('tbody tr').length).toBe(5)
   })
 
+  it('clamps the current page when the filtered set shrinks below it, instead of rendering a blank page', async () => {
+    const issues = []
+    for (let i = 0; i < 78; i++) {
+      issues.push(makeIssue({ key: `OSAC-${200 + i}`, team: 'Platform', jiraUrl: `https://redhat.atlassian.net/browse/OSAC-${200 + i}` }))
+    }
+    issues.push(makeIssue({ key: 'OSAC-300', team: 'Data', jiraUrl: 'https://redhat.atlassian.net/browse/OSAC-300' }))
+    issues.push(makeIssue({ key: 'OSAC-301', team: 'Data', jiraUrl: 'https://redhat.atlassian.net/browse/OSAC-301' }))
+
+    apiRequest.mockResolvedValue(sampleResults({
+      rules: [{ id: 'big-rule', name: 'Big Rule', description: 'd', category: 'ownership', count: 80, issues }],
+      partial: false,
+      errors: [],
+      summary: { uniqueIssueCount: 80, totalRuleMatches: 80, affectedRuleCount: 1, failedRuleCount: 0, generatedAt: '2026-08-09T00:00:00Z' }
+    }))
+    const wrapper = mount(ProgramHygieneReport)
+    await flushPromises()
+
+    // Move to page 2 of the unfiltered 80-issue set
+    const nextButton = wrapper.findAll('button').find(b => b.text() === 'Next')
+    await nextButton.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Page 2 of 2')
+
+    // Filtering down to the 2 "Data" team issues shrinks totalPages to 1 while
+    // currentPage is still 2. This regression-tests the end-user-visible
+    // invariant (never show a page past the available range, or render a
+    // spuriously blank table) that both the pre-existing filter-reset watcher
+    // and the totalPages clamp watcher are jointly responsible for keeping true.
+    const teamSelect = wrapper.findAllComponents(HygieneSelect)[0]
+    await teamSelect.vm.$emit('update:modelValue', ['Data'])
+    await flushPromises()
+
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows.length).toBe(2)
+    expect(rows.map(r => r.text()).join(' ')).toContain('OSAC-300')
+    expect(wrapper.text()).not.toContain('Page 2 of')
+  })
+
   it('counts unique affected issues per team in the Violations by Team chart, not raw rule matches', async () => {
     apiRequest.mockResolvedValue(sampleResults())
     const wrapper = mount(ProgramHygieneReport)
