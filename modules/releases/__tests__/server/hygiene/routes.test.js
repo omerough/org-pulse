@@ -168,8 +168,8 @@ describe('hygiene routes — GET /project-hygiene/config', () => {
   })
 })
 
-describe('hygiene routes — existing release-scoped endpoints remain intact (CP3 is additive-only)', () => {
-  it('still registers every pre-existing GET and POST route unmodified', () => {
+describe('hygiene routes — release-scoped endpoints outside this migration remain intact', () => {
+  it('still registers every route consumed outside this migration', () => {
     const storage = makeStorage()
     const router = makeRouter()
     registerHygieneRoutes(router, makeContext(storage))
@@ -181,7 +181,17 @@ describe('hygiene routes — existing release-scoped endpoints remain intact (CP
       '/features', '/summary', '/refresh/status', '/config', '/program-report',
       '/project-hygiene', '/project-hygiene/config'
     ]))
-    expect(postPaths).toEqual(expect.arrayContaining(['/refresh', '/refresh-all', '/config']))
+    expect(postPaths).toEqual(expect.arrayContaining(['/refresh-all']))
+  })
+
+  it('no longer registers the legacy version-scoped POST /refresh or POST /config routes (CP4: HygieneConfigView.vue rewired, orphaning them)', () => {
+    const storage = makeStorage()
+    const router = makeRouter()
+    registerHygieneRoutes(router, makeContext(storage))
+
+    const postPaths = Object.keys(router._routes.post)
+    expect(postPaths).not.toContain('/refresh')
+    expect(postPaths).not.toContain('/config')
   })
 
   it('GET /features still serves release-scoped feature data unaffected by the new routes', () => {
