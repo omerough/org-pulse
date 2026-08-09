@@ -235,7 +235,8 @@ const metrics = computed(() => {
     stale: windowIssues.filter(i => i.pipelineState === 'triage-stale').length,
     pending: windowIssues.filter(i => i.pipelineState === 'triage-pending').length,
     external: windowIssues.filter(i => i.pipelineState === 'triage-external').length,
-    securityReview: windowIssues.filter(i => i.pipelineState === 'triage-security-review').length
+    securityReview: windowIssues.filter(i => i.pipelineState === 'triage-security-review').length,
+    humanAssigned: windowIssues.filter(i => i.pipelineState === 'triage-human-assigned').length
   }
 
   const autofixStates = {
@@ -309,9 +310,10 @@ const trendData = computed(() => {
     const stale = weekIssues.filter(i => i.pipelineState === 'triage-stale').length
     const external = weekIssues.filter(i => i.pipelineState === 'triage-external').length
     const securityReview = weekIssues.filter(i => i.pipelineState === 'triage-security-review').length
+    const humanAssigned = weekIssues.filter(i => i.pipelineState === 'triage-human-assigned').length
     points.push({
       date: weekEnd.toISOString().slice(0, 10), triaged, autofixed, merged, total: weekIssues.length,
-      review, ciFailing, blocked, maxRetries, missingInfo, stale, external, securityReview
+      review, ciFailing, blocked, maxRetries, missingInfo, stale, external, securityReview, humanAssigned
     })
   }
   return points
@@ -325,6 +327,7 @@ const STATE_OPTIONS = [
   { value: 'triage-stale', label: 'Stale' },
   { value: 'triage-external', label: 'External Reporter' },
   { value: 'triage-security-review', label: 'Security Review' },
+  { value: 'triage-human-assigned', label: 'Deferred to Human' },
   { value: 'autofix-ready', label: 'Queued for AI' },
   { value: 'autofix-pending', label: 'AI Working' },
   { value: 'autofix-review', label: 'AI Fix Under Review' },
@@ -472,6 +475,7 @@ const waitingChartOptions = computed(() => ({
 const triageWaitingData = computed(() => ({
   labels: trendData.value.map(p => p.date),
   datasets: [
+    { label: 'Deferred to Human', data: trendData.value.map(p => p.humanAssigned || 0), backgroundColor: 'rgba(6, 182, 212, 0.6)' },
     { label: 'Missing Info', data: trendData.value.map(p => p.missingInfo || 0), backgroundColor: 'rgba(245, 158, 11, 0.6)' },
     { label: 'External Reporter', data: trendData.value.map(p => p.external || 0), backgroundColor: 'rgba(168, 85, 247, 0.6)' },
     { label: 'Security Review', data: trendData.value.map(p => p.securityReview || 0), backgroundColor: 'rgba(244, 63, 94, 0.6)' },
@@ -508,6 +512,7 @@ function stateColorClass(state) {
   if (state === 'triage-stale') return 'bg-gray-100 dark:bg-gray-600/20 text-gray-600 dark:text-gray-400'
   if (state === 'triage-external') return 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400'
   if (state === 'triage-security-review') return 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400'
+  if (state === 'triage-human-assigned') return 'bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-400'
   return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
 }
 
@@ -526,6 +531,7 @@ const triageSegments = computed(() => {
     { label: 'External Reporter', count: v.external || 0, color: 'bg-purple-500', textClass: 'text-purple-600 dark:text-purple-400', jiraLabels: ['jira-triage-external'] },
     { label: 'Security Review', count: v.securityReview || 0, color: 'bg-rose-500', textClass: 'text-rose-600 dark:text-rose-400', jiraLabels: ['jira-triage-security-review'] },
     { label: 'Stale', count: v.stale || 0, color: 'bg-gray-400', textClass: 'text-gray-500 dark:text-gray-400', jiraLabels: ['jira-triage-stale'] },
+    { label: 'Deferred to Human', count: v.humanAssigned || 0, color: 'bg-cyan-500', textClass: 'text-cyan-600 dark:text-cyan-400', jiraLabels: [], jqlOverride: buildHumanAssignedJql() },
     { label: 'AI Assessing', count: v.pending || 0, color: 'bg-gray-300 dark:bg-gray-600', textClass: 'text-gray-500 dark:text-gray-400', jiraLabels: ['jira-triage-pending'] }
   ].filter(s => s.count > 0)
 })
@@ -613,6 +619,18 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
   }
   return `${host}/issues/?jql=${encodeURIComponent(jql)}`
 }
+
+function buildHumanAssignedJql() {
+  const host = jiraHost.value
+  const keys = timeFilteredIssues.value
+    .filter(i => i.pipelineState === 'triage-human-assigned')
+    .map(i => i.key)
+  if (keys.length > 0) {
+    const jql = `key IN (${keys.map(k => `"${k}"`).join(', ')}) ORDER BY updated DESC`
+    return `${host}/issues/?jql=${encodeURIComponent(jql)}`
+  }
+  return `${host}/issues/?jql=${encodeURIComponent('labels = "jira-autofix" AND assignee IS NOT EMPTY ORDER BY updated DESC')}`
+}
 </script>
 
 <template>
@@ -637,6 +655,7 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
                   <tr><td class="font-medium pr-4 py-0.5 whitespace-nowrap">External Reporter</td><td class="text-gray-400 py-0.5">Non-RH reporter, needs RH engineer approval</td></tr>
                   <tr><td class="font-medium pr-4 py-0.5 whitespace-nowrap">Security Review</td><td class="text-gray-400 py-0.5">Flagged as security-sensitive, needs human review</td></tr>
                   <tr><td class="font-medium pr-4 py-0.5 whitespace-nowrap">Stale</td><td class="text-gray-400 py-0.5">No response for 14+ days</td></tr>
+                  <tr><td class="font-medium pr-4 py-0.5 whitespace-nowrap">Deferred to Human</td><td class="text-gray-400 py-0.5">Assigned to a human engineer</td></tr>
                   <tr><td colspan="2" class="font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide text-[10px] pb-1 pt-3">Autofix</td></tr>
                   <tr><td class="font-medium pr-4 py-0.5 whitespace-nowrap">Queued for AI</td><td class="text-gray-400 py-0.5">Waiting for bot pickup</td></tr>
                   <tr><td class="font-medium pr-4 py-0.5 whitespace-nowrap">AI Working</td><td class="text-gray-400 py-0.5">Bot is generating a fix</td></tr>
@@ -733,8 +752,8 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
 
       <template v-else>
         <!-- Summary Stats -->
-        <div class="p-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+        <div class="p-6 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-center">
             <div class="absolute top-2 right-2 group">
               <svg class="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -747,7 +766,7 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
             <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 uppercase tracking-wide">{{ selectedProject !== 'all' ? selectedProject + ' Issues' : 'Total Issues' }}</div>
             <div v-if="metrics.totalIssues !== metrics.windowTotal" class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{{ metrics.totalIssues }} all time</div>
           </div>
-          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-center">
             <div class="absolute top-2 right-2 group">
               <svg class="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -762,7 +781,7 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
             <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 uppercase tracking-wide">Eligibility Rate</div>
             <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{{ metrics.eligibleCount }} eligible of {{ metrics.windowTotal }} total</div>
           </div>
-          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-center">
             <div class="absolute top-2 right-2 group">
               <svg class="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -777,7 +796,7 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
             <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 uppercase tracking-wide">Success Rate</div>
             <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{{ metrics.autofixStates.merged || 0 }} of {{ (metrics.autofixStates.merged || 0) + (metrics.autofixStates.rejected || 0) + (metrics.autofixStates.maxRetries || 0) }} resolved</div>
           </div>
-          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-center">
             <div class="absolute top-2 right-2 group">
               <svg class="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -789,7 +808,19 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
             <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ metrics.autofixStates.review || 0 }}</div>
             <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 uppercase tracking-wide">In Review</div>
           </div>
-          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-center">
+            <div class="absolute top-2 right-2 group">
+              <svg class="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div class="absolute right-0 top-6 z-20 hidden group-hover:block w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50 p-3 text-xs text-gray-700 dark:text-gray-300 text-left">
+                Bugs queued for AI fix (jira-autofix) but assigned to a human engineer instead.
+              </div>
+            </div>
+            <a :href="buildHumanAssignedJql()" target="_blank" rel="noopener" class="text-2xl font-bold text-cyan-600 dark:text-cyan-400 hover:underline">{{ metrics.triageVerdicts.humanAssigned || 0 }}</a>
+            <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 uppercase tracking-wide">Deferred to Human</div>
+          </div>
+          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-center">
             <div class="absolute top-2 right-2 group">
               <svg class="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -808,7 +839,7 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
             <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 uppercase tracking-wide">Needs Attention</div>
             <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{{ (metrics.triageVerdicts.missingInfo || 0) + (metrics.triageVerdicts.stale || 0) + (metrics.triageVerdicts.external || 0) + (metrics.triageVerdicts.securityReview || 0) }} triage · {{ (metrics.autofixStates.ciFailing || 0) + (metrics.autofixStates.blocked || 0) + (metrics.autofixStates.maxRetries || 0) }} autofix</div>
           </div>
-          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
+          <div class="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-center">
             <div class="absolute top-2 right-2 group">
               <svg class="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -850,6 +881,7 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
                       <div class="flex justify-between"><span class="font-medium">External Reporter</span><span class="text-gray-400">Needs RH approval</span></div>
                       <div class="flex justify-between"><span class="font-medium">Security Review</span><span class="text-gray-400">Needs human review</span></div>
                       <div class="flex justify-between"><span class="font-medium">Stale</span><span class="text-gray-400">No response 14+ days</span></div>
+                      <div class="flex justify-between"><span class="font-medium">Deferred to Human</span><span class="text-gray-400">Human is working on it</span></div>
                       <div class="flex justify-between"><span class="font-medium">AI Assessing</span><span class="text-gray-400">Bot is evaluating</span></div>
                     </div>
                   </div>
@@ -879,7 +911,7 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
                 </div>
                 <div class="flex items-center gap-2">
                   <a
-                    :href="buildJiraLabelUrl(seg.jiraLabels, seg.excludeLabels)"
+                    :href="seg.jqlOverride || buildJiraLabelUrl(seg.jiraLabels, seg.excludeLabels)"
                     target="_blank" rel="noopener"
                     class="text-sm font-semibold hover:underline"
                     :class="seg.textClass"
@@ -1037,6 +1069,7 @@ function buildJiraLabelUrl(jiraLabels, excludeLabels) {
                       <div class="flex justify-between"><span>External Reporter</span><span class="text-gray-400">Needs RH approval</span></div>
                       <div class="flex justify-between"><span>Security Review</span><span class="text-gray-400">Needs human review</span></div>
                       <div class="flex justify-between"><span>Stale</span><span class="text-gray-400">No response 14+ days</span></div>
+                      <div class="flex justify-between"><span>Deferred to Human</span><span class="text-gray-400">Human is working on it</span></div>
                     </div>
                     <p class="font-medium text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide text-[10px]">Autofix</p>
                     <div class="space-y-1">

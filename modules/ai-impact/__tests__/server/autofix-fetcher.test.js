@@ -86,6 +86,31 @@ describe('classifyIssue', () => {
   it('prioritizes autofix-blocked over autofix-pending when both present', () => {
     expect(classifyIssue(['jira-autofix', 'jira-autofix-pending', 'jira-autofix-blocked'])).toBe('autofix-blocked')
   })
+
+  it('returns triage-human-assigned for jira-autofix bug with human assignee', () => {
+    expect(classifyIssue(['jira-autofix'], 'In Progress', 'Jane Doe')).toBe('triage-human-assigned')
+  })
+
+  it('does not return human-assigned for bot assignees', () => {
+    expect(classifyIssue(['jira-autofix'], 'In Progress', 'osac-dev-bot')).toBe('unknown')
+  })
+
+  it('does not return human-assigned without jira-autofix label', () => {
+    expect(classifyIssue([], 'Open', 'Jane Doe')).toBe('unknown')
+    expect(classifyIssue(['jira-triage-stale'], 'Open', 'Jane Doe')).toBe('triage-stale')
+  })
+
+  it('autofix sub-state labels take priority over human assignee', () => {
+    expect(classifyIssue(['jira-autofix-review'], 'In Progress', 'Jane Doe')).toBe('autofix-review')
+  })
+
+  it('returns unknown for unlabeled bug without assignee', () => {
+    expect(classifyIssue([], 'Open', null)).toBe('unknown')
+  })
+
+  it('security-review takes precedence over human assignee', () => {
+    expect(classifyIssue(['jira-autofix', 'jira-triage-security-review'], 'Open', 'Jane Doe')).toBe('triage-security-review')
+  })
 })
 
 describe('processIssue', () => {
@@ -318,6 +343,16 @@ describe('computeAutofixMetrics', () => {
     expect(m.autofixStates.rejected).toBe(1)
     expect(m.autofixStates.maxRetries).toBe(1)
   })
+
+  it('includes humanAssigned in triageVerdicts and triageTotal', () => {
+    const issues = [
+      { created: recent, pipelineState: 'triage-human-assigned', components: [] },
+      { created: recent, pipelineState: 'autofix-merged', components: [] }
+    ]
+    const m = computeAutofixMetrics(issues, 'week')
+    expect(m.triageVerdicts.humanAssigned).toBe(1)
+    expect(m.triageTotal).toBe(2)
+  })
 })
 
 describe('buildTrendData', () => {
@@ -339,6 +374,7 @@ describe('buildTrendData', () => {
     expect(trend[0]).toHaveProperty('stale')
     expect(trend[0]).toHaveProperty('external')
     expect(trend[0]).toHaveProperty('securityReview')
+    expect(trend[0]).toHaveProperty('humanAssigned')
   })
 
   it('returns 13 points for 3months window', () => {
@@ -372,6 +408,17 @@ describe('buildTrendData', () => {
     expect(lastPoint.stale).toBe(1)
     expect(lastPoint.external).toBe(1)
     expect(lastPoint.securityReview).toBe(1)
+  })
+
+  it('counts humanAssigned in trend data', () => {
+    const now = new Date()
+    const recent = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
+    const issues = [
+      { created: recent, pipelineState: 'triage-human-assigned', components: [] }
+    ]
+    const trend = buildTrendData(issues, 'week')
+    const lastPoint = trend[trend.length - 1]
+    expect(lastPoint.humanAssigned).toBe(1)
   })
 
   it('returns 4 points for lastWeek window', () => {

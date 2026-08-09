@@ -34,7 +34,9 @@ const AUTOFIX_LABELS = [
 
 const ALL_PIPELINE_LABELS = [...TRIAGE_LABELS, ...AUTOFIX_LABELS];
 
-function classifyIssue(labels, status) {
+const BOT_ACCOUNTS = new Set(['osac-dev-bot']);
+
+function classifyIssue(labels, status, assignee) {
   const labelSet = new Set(labels);
 
   // Terminal autofix states (check first — most specific)
@@ -48,9 +50,10 @@ function classifyIssue(labels, status) {
   if (labelSet.has('jira-autofix-review')) return 'autofix-review';
   if (labelSet.has('jira-autofix-pending')) return 'autofix-pending';
   if (labelSet.has('jira-autofix') && status === 'New') return 'autofix-ready';
-  // Triage states (security-review first: it's added alongside other verdicts
-  // and should take precedence since it requires human review)
+  // Security review takes precedence over human-assigned — don't hide the reason code
   if (labelSet.has('jira-triage-security-review')) return 'triage-security-review';
+  if (labelSet.has('jira-autofix') && assignee && !BOT_ACCOUNTS.has(assignee)) return 'triage-human-assigned';
+  // Triage states
   if (labelSet.has('jira-triage-external')) return 'triage-external';
   if (labelSet.has('jira-triage-not-fixable')) return 'triage-not-fixable';
   if (labelSet.has('jira-triage-stale')) return 'triage-stale';
@@ -76,7 +79,7 @@ function processIssue(issue) {
     labels,
     components,
     assignee: issue.fields.assignee?.displayName || null,
-    pipelineState: classifyIssue(labels, issue.fields.status?.name || 'Unknown')
+    pipelineState: classifyIssue(labels, issue.fields.status?.name || 'Unknown', issue.fields.assignee?.displayName || null)
   };
 }
 
@@ -169,12 +172,13 @@ function computeAutofixMetrics(issues, timeWindow) {
     stale: get('triage-stale'),
     pending: get('triage-pending'),
     external: get('triage-external'),
-    securityReview: get('triage-security-review')
+    securityReview: get('triage-security-review'),
+    humanAssigned: get('triage-human-assigned')
   };
 
   const triageTotal = autofixTotal + triageVerdicts.missingInfo +
     triageVerdicts.notFixable + triageVerdicts.stale + triageVerdicts.pending +
-    triageVerdicts.external + triageVerdicts.securityReview;
+    triageVerdicts.external + triageVerdicts.securityReview + triageVerdicts.humanAssigned;
 
   const terminalTotal = autofixStates.merged + autofixStates.rejected + autofixStates.maxRetries;
   const successRate = terminalTotal > 0
@@ -221,7 +225,7 @@ function buildTrendData(issues, timeWindow) {
       weekEnd: weekEnd.getTime(),
       triaged: 0, autofixed: 0, merged: 0, total: 0,
       review: 0, ciFailing: 0, blocked: 0, maxRetries: 0,
-      missingInfo: 0, stale: 0, external: 0, securityReview: 0
+      missingInfo: 0, stale: 0, external: 0, securityReview: 0, humanAssigned: 0
     });
   }
 
@@ -258,6 +262,7 @@ function buildTrendData(issues, timeWindow) {
     else if (state === 'triage-stale') bucket.stale++;
     else if (state === 'triage-external') bucket.external++;
     else if (state === 'triage-security-review') bucket.securityReview++;
+    else if (state === 'triage-human-assigned') bucket.humanAssigned++;
   }
 
   return buckets.map(function(b) {
@@ -266,7 +271,8 @@ function buildTrendData(issues, timeWindow) {
       merged: b.merged, total: b.total, review: b.review,
       ciFailing: b.ciFailing, blocked: b.blocked, maxRetries: b.maxRetries,
       missingInfo: b.missingInfo, stale: b.stale,
-      external: b.external, securityReview: b.securityReview
+      external: b.external, securityReview: b.securityReview,
+      humanAssigned: b.humanAssigned
     };
   });
 }
