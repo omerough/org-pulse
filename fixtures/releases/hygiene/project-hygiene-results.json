@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-06T13:36:34Z",
+  "source": "jira-dashboard-26582",
+  "configVersion": "2fe9bf49a199",
+  "results": {
+    "OSAC": {
+      "projectKey": "OSAC",
+      "displayName": "OSAC",
+      "jiraBaseUrl": "https://redhat.atlassian.net",
+      "partial": true,
+      "errors": [
+        { "ruleId": "no-team", "message": "Jira query timed out after 3 retries" }
+      ],
+      "summary": {
+        "uniqueIssueCount": 4,
+        "totalRuleMatches": 5,
+        "affectedRuleCount": 3,
+        "failedRuleCount": 1,
+        "generatedAt": "2026-08-06T13:36:34Z"
+      },
+      "rules": [
+        {
+          "id": "in-progress-no-fix-version",
+          "name": "In Progress Feature/Epic without Fix Version",
+          "description": "Features and Epics that are In Progress must have a Fix Version.",
+          "category": "lifecycle",
+          "count": 2,
+          "issues": [
+            {
+              "key": "OSAC-101",
+              "summary": "Support disconnected install for VM workloads",
+              "issueType": "Epic",
+              "status": "In Progress",
+              "assignee": "Alex Kim",
+              "parentKey": "OSAC-50",
+              "fixVersions": [],
+              "components": ["Console"],
+              "team": null,
+              "teamId": null,
+              "jiraUrl": "https://redhat.atlassian.net/browse/OSAC-101"
+            },
+            {
+              "key": "OSAC-102",
+              "summary": "Add agentic workflow triage view",
+              "issueType": "Feature",
+              "status": "In Progress",
+              "assignee": "Priya Patel",
+              "parentKey": null,
+              "fixVersions": [],
+              "components": [],
+              "team": "Platform",
+              "teamId": "10031",
+              "jiraUrl": "https://redhat.atlassian.net/browse/OSAC-102"
+            }
+          ]
+        },
+        {
+          "id": "in-progress-no-assignee",
+          "name": "In Progress issue without Assignee",
+          "description": "All In Progress issues must have an assignee.",
+          "category": "ownership",
+          "count": 1,
+          "issues": [
+            {
+              "key": "OSAC-103",
+              "summary": "Investigate CI flake in triage pipeline",
+              "issueType": "Feature",
+              "status": "In Progress",
+              "assignee": null,
+              "parentKey": null,
+              "fixVersions": [],
+              "components": ["API"],
+              "team": "Data",
+              "teamId": null,
+              "jiraUrl": "https://redhat.atlassian.net/browse/OSAC-103"
+            }
+          ]
+        },
+        {
+          "id": "epic-no-parent-feature",
+          "name": "Open Epic without parent Feature",
+          "description": "Epics that are not Done should be linked to a parent Feature.",
+          "category": "lifecycle",
+          "count": 0,
+          "issues": []
+        },
+        {
+          "id": "no-component",
+          "name": "Open issue without Component",
+          "description": "All issues that are not Done should have at least one Component.",
+          "category": "classification",
+          "count": 2,
+          "issues": [
+            {
+              "key": "OSAC-102",
+              "summary": "Add agentic workflow triage view",
+              "issueType": "Feature",
+              "status": "In Progress",
+              "assignee": "Priya Patel",
+              "parentKey": null,
+              "fixVersions": [],
+              "components": [],
+              "team": "Platform",
+              "teamId": "10031",
+              "jiraUrl": "https://redhat.atlassian.net/browse/OSAC-102"
+            },
+            {
+              "key": "OSAC-104",
+              "summary": "Triage bug backlog for disconnected installs",
+              "issueType": "Bug",
+              "status": "New",
+              "assignee": "Priya Patel",
+              "parentKey": null,
+              "fixVersions": ["OSAC 1.2"],
+              "components": [],
+              "team": "Platform",
+              "teamId": "10031",
+              "jiraUrl": "https://redhat.atlassian.net/browse/OSAC-104"
+            }
+          ]
+        },
+        {
+          "id": "no-team",
+          "name": "Open issue without Team",
+          "description": "All issues that are not Done should have a Team assigned.",
+          "category": "ownership",
+          "count": -1,
+          "issues": []
+        }
+      ]
+    }
+  }
+}
