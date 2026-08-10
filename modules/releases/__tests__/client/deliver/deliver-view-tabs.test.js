@@ -1,5 +1,5 @@
 /**
- * CP2 — Conforma tab must no longer be reachable from Deliver nav.
+ * Conforma tab must no longer be reachable from Deliver nav.
  */
 import { describe, it, expect, vi } from 'vitest'
 import { shallowMount, flushPromises } from '@vue/test-utils'

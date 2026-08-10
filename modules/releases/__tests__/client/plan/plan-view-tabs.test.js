@@ -1,6 +1,6 @@
 /**
- * CP2 — Sustaining ("BU Feedback") tab must no longer be reachable from Plan nav.
- * CP3 — PM Hub tab must no longer be reachable from Plan nav.
+ * Sustaining ("BU Feedback") tab must no longer be reachable from Plan nav.
+ * PM Hub tab must no longer be reachable from Plan nav.
  */
 import { describe, it, expect } from 'vitest'
 import { shallowMount } from '@vue/test-utils'

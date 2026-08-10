@@ -16,11 +16,11 @@ describe('reports registry', () => {
     expect(reports[0].id).toBe('program-hygiene')
   })
 
-  it('hides the Release Performance report (CP2 — legacy non-OSAC nav surface)', () => {
+  it('hides the Release Performance report (legacy non-OSAC nav surface)', () => {
     expect(reports.find(r => r.id === 'release-performance')).toBeUndefined()
   })
 
-  it('hides the TV/FV Delta report (CP2 — legacy non-OSAC nav surface)', () => {
+  it('hides the TV/FV Delta report (legacy non-OSAC nav surface)', () => {
     expect(reports.find(r => r.id === 'tv-fv-delta')).toBeUndefined()
   })
 

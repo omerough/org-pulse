@@ -1,5 +1,5 @@
 /**
- * CP2 — Feature Pressure must drop visible RHAISTRAT/RHAIRFE wording and
+ * Feature Pressure must drop visible RHAISTRAT/RHAIRFE wording and
  * must not render the RFE Pipeline section/header when there is no RFE data.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
