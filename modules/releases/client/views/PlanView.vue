@@ -33,7 +33,6 @@ import PmHubView from '../plan/views/PmHubView.vue'
 
 const tabs = [
   { id: 'outcomes', label: 'Big Rocks' },
-  { id: 'pm-hub', label: 'PM Hub' },
   { id: 'feature-readiness', label: 'Features List (1-n)' },
 ]
 
