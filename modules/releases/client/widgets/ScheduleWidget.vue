@@ -31,6 +31,14 @@ onMounted(fetchRegistry)
 
 function parseDate(val) {
   if (!val) return null
+  // Bare YYYY-MM-DD registry milestones must land on that calendar day locally;
+  // new Date('YYYY-MM-DD') parses as UTC midnight, which renders a day early
+  // west of UTC.
+  const bareDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(val)
+  if (bareDate) {
+    const [, year, month, day] = bareDate
+    return new Date(Number(year), Number(month) - 1, Number(day))
+  }
   const d = new Date(val)
   return isNaN(d.getTime()) ? null : d
 }
@@ -74,8 +82,15 @@ const filteredReleases = computed(() => {
   return releases.value.filter(r => getProduct(r) === selectedProduct.value)
 })
 
+// releaseStart is the current contract; planningFreeze is the deployed-but-deprecated
+// Registry field name it replaces. Fall back until org-pulse-data's CP5 migration lands.
+function getReleaseStartDate(release) {
+  const ms = release.milestones || {}
+  return ms.releaseStart || ms.planningFreeze || null
+}
+
 const milestoneTypes = [
-  { key: 'planningFreeze', label: 'Plan Freeze' },
+  { key: 'releaseStart', label: 'Release Start' },
   { key: 'codeFreeze', label: 'Code Freeze' },
   { key: 'ga', label: 'Release' }
 ]
@@ -85,13 +100,14 @@ const upcomingMilestones = computed(() => {
   for (const r of filteredReleases.value) {
     const ms = r.milestones || {}
     for (const mt of milestoneTypes) {
-      const days = daysFromNow(ms[mt.key])
+      const dateVal = mt.key === 'releaseStart' ? getReleaseStartDate(r) : ms[mt.key]
+      const days = daysFromNow(dateVal)
       if (days !== null && days >= 0) {
         items.push({
           id: `${r.id}-${mt.key}`,
           release: r.displayName || r.id,
           label: mt.label,
-          date: ms[mt.key],
+          date: dateVal,
           days
         })
       }
