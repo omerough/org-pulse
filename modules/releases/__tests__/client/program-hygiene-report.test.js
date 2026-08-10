@@ -255,6 +255,50 @@ describe('ProgramHygieneReport (Jira Hygiene)', () => {
     expect(rows[0].text()).toContain('OSAC-3')
   })
 
+  it('exposes an Unassigned option in the Team filter for issues with no team', async () => {
+    apiRequest.mockResolvedValue(sampleResults())
+    const wrapper = mount(ProgramHygieneReport)
+    await flushPromises()
+
+    const teamSelect = wrapper.findAllComponents(HygieneSelect)[0]
+    expect(teamSelect.props('options')).toEqual(expect.arrayContaining(['Platform', 'Data', 'Unassigned']))
+  })
+
+  it('selecting the Unassigned team filter shows only issues with no team', async () => {
+    apiRequest.mockResolvedValue(sampleResults())
+    const wrapper = mount(ProgramHygieneReport)
+    await flushPromises()
+
+    const teamSelect = wrapper.findAllComponents(HygieneSelect)[0]
+    await teamSelect.vm.$emit('update:modelValue', ['Unassigned'])
+    await flushPromises()
+
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows.length).toBe(1)
+    expect(rows[0].text()).toContain('OSAC-1')
+  })
+
+  it('surfaces a brand-new team value from the data automatically, with no hardcoded team list', async () => {
+    apiRequest.mockResolvedValue(sampleResults({
+      rules: [{
+        id: 'no-team',
+        name: 'Open issue without Team',
+        description: 'All issues that are not Done should have a Team assigned.',
+        category: 'ownership',
+        count: 1,
+        issues: [makeIssue({ key: 'OSAC-9', team: 'Quasar Squad', jiraUrl: 'https://redhat.atlassian.net/browse/OSAC-9' })]
+      }],
+      partial: false,
+      errors: [],
+      summary: { uniqueIssueCount: 1, totalRuleMatches: 1, affectedRuleCount: 1, failedRuleCount: 0, generatedAt: '2026-08-09T00:00:00Z' }
+    }))
+    const wrapper = mount(ProgramHygieneReport)
+    await flushPromises()
+
+    const teamSelect = wrapper.findAllComponents(HygieneSelect)[0]
+    expect(teamSelect.props('options')).toEqual(['Quasar Squad'])
+  })
+
   it('paginates the issue table client-side over the full deduplicated set', async () => {
     const issues = []
     for (let i = 0; i < 80; i++) {
