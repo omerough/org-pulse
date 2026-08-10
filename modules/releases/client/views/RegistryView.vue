@@ -452,11 +452,9 @@
                 </span>
                 <span
                   class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                  :class="release.source === 'product-pages'
-                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                    : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'"
+                  :class="sourceBadgeClass(release.source)"
                 >
-                  {{ release.source === 'product-pages' ? 'Product Pages' : 'Manual' }}
+                  {{ sourceLabel(release.source) }}
                 </span>
               </div>
               <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">{{ release.id }}</p>
@@ -910,6 +908,18 @@ function extraMilestones(release) {
 function formatDate(dateStr) {
   if (!dateStr) return ''
   return new Date(dateStr).toLocaleDateString()
+}
+
+function sourceLabel(source) {
+  if (source === 'product-pages') return 'Product Pages'
+  if (source === 'jira') return 'Jira'
+  return 'Manual'
+}
+
+function sourceBadgeClass(source) {
+  if (source === 'product-pages') return 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+  if (source === 'jira') return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+  return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
 }
 
 onMounted(() => {
