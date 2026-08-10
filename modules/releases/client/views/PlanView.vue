@@ -18,6 +18,16 @@
     <div class="p-6">
       <DashboardView v-if="activeTab === 'outcomes'" />
       <FeatureReadinessView v-else-if="activeTab === 'feature-readiness'" />
+      <!--
+        bu-feedback and pm-hub are removed from `tabs` below and from
+        validTabIds, so activeTab can never actually resolve to either id
+        (getTabFromParams falls back to 'outcomes') — these two branches are
+        unreachable. Left in place intentionally rather than deleted: both
+        views/routes still have live consumers/backends pending a fresh
+        caller search (bu-feedback) or the future OSAC Team/component model
+        (pm-hub), so removing these branches is a separate, dependency-
+        sensitive cleanup, not a nav-hide task.
+      -->
       <BuFeedbackView v-else-if="activeTab === 'bu-feedback'" />
       <PmHubView v-else-if="activeTab === 'pm-hub'" />
     </div>

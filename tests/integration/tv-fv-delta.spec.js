@@ -25,9 +25,13 @@ test.describe('TV/FV Delta @tv-fv-delta', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
+    // Positive precondition: prove the Reports hub actually rendered (falls
+    // back to the hub grid since ?report=tv-fv-delta no longer resolves)
+    // before asserting TV/FV Delta's absence, so a broken/blank page can't
+    // pass this test for free.
+    await expect(page.locator('.cursor-pointer', { hasText: 'Jira Hygiene' }).first()).toBeVisible();
+
     await expect(page.getByRole('heading', { name: 'TV vs FV Delta' })).toHaveCount(0);
-    const bodyText = await page.locator('body').textContent();
-    expect(bodyText).not.toContain('TV/FV Delta');
 
     expect(page.errors).toHaveLength(0);
   });

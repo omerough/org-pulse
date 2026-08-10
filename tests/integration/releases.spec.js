@@ -206,6 +206,10 @@ test.describe('Releases PM Hub @releases', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
+    // Positive precondition: prove Plan actually rendered before asserting
+    // PM Hub's absence, so a broken/blank page can't pass this test for free.
+    await expect(page.locator('button', { hasText: 'Big Rocks' })).toBeVisible();
+
     const pmHubTab = page.locator('button', { hasText: 'PM Hub' });
     await expect(pmHubTab).toHaveCount(0);
 
