@@ -74,8 +74,15 @@ const filteredReleases = computed(() => {
   return releases.value.filter(r => getProduct(r) === selectedProduct.value)
 })
 
+// releaseStart is the current contract; planningFreeze is the deployed-but-deprecated
+// Registry field name it replaces. Fall back until org-pulse-data's CP5 migration lands.
+function getReleaseStartDate(release) {
+  const ms = release.milestones || {}
+  return ms.releaseStart || ms.planningFreeze || null
+}
+
 const milestoneTypes = [
-  { key: 'planningFreeze', label: 'Plan Freeze' },
+  { key: 'releaseStart', label: 'Release Start' },
   { key: 'codeFreeze', label: 'Code Freeze' },
   { key: 'ga', label: 'Release' }
 ]
@@ -85,13 +92,14 @@ const upcomingMilestones = computed(() => {
   for (const r of filteredReleases.value) {
     const ms = r.milestones || {}
     for (const mt of milestoneTypes) {
-      const days = daysFromNow(ms[mt.key])
+      const dateVal = mt.key === 'releaseStart' ? getReleaseStartDate(r) : ms[mt.key]
+      const days = daysFromNow(dateVal)
       if (days !== null && days >= 0) {
         items.push({
           id: `${r.id}-${mt.key}`,
           release: r.displayName || r.id,
           label: mt.label,
-          date: ms[mt.key],
+          date: dateVal,
           days
         })
       }

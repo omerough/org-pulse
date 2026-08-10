@@ -24,6 +24,7 @@ function makeRelease(id, opts = {}) {
     milestones: {
       ga: opts.ga || null,
       codeFreeze: opts.codeFreeze || null,
+      releaseStart: opts.releaseStart || null,
       planningFreeze: opts.planningFreeze || null
     }
   }
@@ -60,16 +61,16 @@ describe('ScheduleWidget', () => {
     expect(apiRequest).toHaveBeenCalledWith('/modules/releases/registry')
   })
 
-  it('shows upcoming milestones sorted by soonest first', async () => {
+  it('shows upcoming milestones sorted by soonest first (releaseStart contract)', async () => {
     apiRequest.mockResolvedValue({
       releases: [
         makeRelease('rhoai-3.5', {
-          planningFreeze: futureDate(20),
+          releaseStart: futureDate(20),
           codeFreeze: futureDate(40),
           ga: futureDate(60)
         }),
         makeRelease('rhoai-3.4', {
-          planningFreeze: futureDate(5),
+          releaseStart: futureDate(5),
           ga: futureDate(30)
         })
       ]
@@ -80,6 +81,42 @@ describe('ScheduleWidget', () => {
     const items = wrapper.findAll('[class*="px-5 py-2"]')
     expect(items.length).toBeGreaterThanOrEqual(2)
     expect(items[0].text()).toContain('RHOAI-3.4')
+    expect(items[0].text()).toContain('5d')
+    expect(wrapper.text()).toContain('Release Start')
+    expect(wrapper.text()).not.toContain('Plan Freeze')
+  })
+
+  it('falls back to planningFreeze when releaseStart is absent (old contract)', async () => {
+    apiRequest.mockResolvedValue({
+      releases: [
+        makeRelease('rhoai-3.5', {
+          planningFreeze: futureDate(5),
+          ga: futureDate(30)
+        })
+      ]
+    })
+    const wrapper = mount(ScheduleWidget)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Release Start')
+    expect(wrapper.text()).toContain('5d')
+    expect(wrapper.text()).not.toContain('Plan Freeze')
+  })
+
+  it('prefers releaseStart over planningFreeze when both are present', async () => {
+    apiRequest.mockResolvedValue({
+      releases: [
+        makeRelease('rhoai-3.5', {
+          releaseStart: futureDate(5),
+          planningFreeze: futureDate(20),
+          ga: futureDate(30)
+        })
+      ]
+    })
+    const wrapper = mount(ScheduleWidget)
+    await flushPromises()
+
+    const items = wrapper.findAll('[class*="px-5 py-2"]')
     expect(items[0].text()).toContain('5d')
   })
 
@@ -111,7 +148,7 @@ describe('ScheduleWidget', () => {
     })
     const wrapper = mount(ScheduleWidget)
     await flushPromises()
-    expect(wrapper.text()).not.toContain('Plan Freeze')
+    expect(wrapper.text()).not.toContain('Release Start')
     expect(wrapper.text()).toContain('Release')
   })
 

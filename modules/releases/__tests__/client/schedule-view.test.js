@@ -17,6 +17,7 @@ function makeRelease(id, opts = {}) {
     milestones: {
       ga: opts.ga || null,
       codeFreeze: opts.codeFreeze || null,
+      releaseStart: opts.releaseStart || null,
       planningFreeze: opts.planningFreeze || null
     }
   }
@@ -40,7 +41,29 @@ describe('ScheduleView', () => {
     expect(wrapper.text()).toContain('No releases found')
   })
 
-  it('renders releases table with milestone data', async () => {
+  it('renders releases table with milestone data (releaseStart contract)', async () => {
+    apiRequest.mockResolvedValue({
+      releases: [
+        makeRelease('rhoai-3.5', {
+          ga: '2026-09-15',
+          codeFreeze: '2026-08-20',
+          releaseStart: '2026-07-10'
+        })
+      ]
+    })
+    const wrapper = mount(ScheduleView)
+    await flushPromises()
+
+    expect(wrapper.find('table').exists()).toBe(true)
+    expect(wrapper.text()).toContain('RHOAI-3.5')
+    expect(wrapper.text()).toContain('Sep 15, 2026')
+    expect(wrapper.text()).toContain('Aug 20, 2026')
+    expect(wrapper.text()).toContain('Jul 10, 2026')
+    expect(wrapper.text()).toContain('Release Start')
+    expect(wrapper.text()).not.toContain('Plan Freeze')
+  })
+
+  it('falls back to planningFreeze when releaseStart is absent (old contract)', async () => {
     apiRequest.mockResolvedValue({
       releases: [
         makeRelease('rhoai-3.5', {
@@ -53,11 +76,26 @@ describe('ScheduleView', () => {
     const wrapper = mount(ScheduleView)
     await flushPromises()
 
-    expect(wrapper.find('table').exists()).toBe(true)
-    expect(wrapper.text()).toContain('RHOAI-3.5')
-    expect(wrapper.text()).toContain('Sep 15, 2026')
-    expect(wrapper.text()).toContain('Aug 20, 2026')
     expect(wrapper.text()).toContain('Jul 10, 2026')
+    expect(wrapper.text()).toContain('Release Start')
+    expect(wrapper.text()).not.toContain('Plan Freeze')
+  })
+
+  it('prefers releaseStart over planningFreeze when both are present', async () => {
+    apiRequest.mockResolvedValue({
+      releases: [
+        makeRelease('rhoai-3.5', {
+          ga: '2026-09-15',
+          releaseStart: '2026-07-10',
+          planningFreeze: '2026-05-01'
+        })
+      ]
+    })
+    const wrapper = mount(ScheduleView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Jul 10, 2026')
+    expect(wrapper.text()).not.toContain('May 1, 2026')
   })
 
   it('shows em-dash for missing milestone dates', async () => {
@@ -130,14 +168,15 @@ describe('ScheduleView', () => {
 
     apiRequest.mockResolvedValue({
       releases: [
-        makeRelease('rhoai-3.5', { planningFreeze: dateStr, ga: '2028-12-01' })
+        makeRelease('rhoai-3.5', { releaseStart: dateStr, ga: '2028-12-01' })
       ]
     })
     const wrapper = mount(ScheduleView)
     await flushPromises()
 
     expect(wrapper.text()).toContain('RHOAI-3.5')
-    expect(wrapper.text()).toContain('Plan Freeze')
+    expect(wrapper.text()).toContain('Release Start')
+    expect(wrapper.text()).not.toContain('Plan Freeze')
     expect(wrapper.text()).toContain('5d')
   })
 
