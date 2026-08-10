@@ -186,8 +186,11 @@ test.describe('Releases Views @releases', () => {
 /**
  * PM Hub
  *
- * Verify the PM Hub tab loads under Plan, the Component Release Load Tracking
- * report card is visible and clickable, and the PM Hub API endpoints respond.
+ * PM Hub's tab is hidden from Plan nav pending the future OSAC Team/component
+ * model — its view is unreachable through any nav path by design, so there is
+ * no "load report card via nav" path left to test. Its backend and Jira/velocity
+ * endpoints remain in place (prepare-now/enable-later) and are still covered
+ * below via direct API calls.
  */
 test.describe('Releases PM Hub @releases', () => {
   test.beforeEach(async ({ page }) => {
@@ -198,39 +201,13 @@ test.describe('Releases PM Hub @releases', () => {
     logCapturedErrors(page, testInfo);
   });
 
-  test('should show PM Hub tab under Plan and load report card', async ({ page }) => {
+  test('should not show a PM Hub tab under Plan', async ({ page }) => {
     await page.goto('/#/releases/plan');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
     const pmHubTab = page.locator('button', { hasText: 'PM Hub' });
-    await expect(pmHubTab).toBeVisible();
-
-    await pmHubTab.click();
-    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
-
-    const reportCard = page.locator('text=Component Release Load Tracking');
-    await expect(reportCard.first()).toBeVisible();
-
-    expect(page.errors).toHaveLength(0);
-  });
-
-  test('should open Component Release Load report with filter dropdowns', async ({ page }) => {
-    await page.goto('/#/releases/plan');
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
-
-    await page.locator('button', { hasText: 'PM Hub' }).click();
-    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
-
-    const reportCard = page.locator('.cursor-pointer', { hasText: 'Component Release Load Tracking' });
-    await reportCard.first().click();
-    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
-
-    const componentFilter = page.locator('text=Jira Component');
-    const releaseFilter = page.locator('text=Release');
-    await expect(componentFilter.first()).toBeVisible();
-    await expect(releaseFilter.first()).toBeVisible();
+    await expect(pmHubTab).toHaveCount(0);
 
     expect(page.errors).toHaveLength(0);
   });
@@ -291,43 +268,6 @@ test.describe('Releases PM Hub @releases', () => {
       expect(typeof comp.isPartialYear).toBe('boolean');
       expect(typeof comp.activeWeeks).toBe('number');
     }
-  });
-
-  test('should show velocity summary card and per-component badges', async ({ page }) => {
-    await page.goto('/#/releases/plan');
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
-
-    await page.locator('button', { hasText: 'PM Hub' }).click();
-    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
-
-    var reportCard = page.locator('.cursor-pointer', { hasText: 'Component Release Load Tracking' });
-    await reportCard.first().click();
-    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
-
-    // Select a component from the dropdown to trigger data load
-    var componentInput = page.locator('input[placeholder="Search…"]').first();
-    await componentInput.click();
-    await page.waitForTimeout(500);
-
-    var firstOption = page.locator('button', { hasText: /^(?!.*Clear)/ }).filter({ has: page.locator('.rounded.border') }).first();
-    if (await firstOption.count() > 0) {
-      await firstOption.click();
-      await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
-
-      // Verify the Avg / Monthly Release summary card is visible
-      var avgCard = page.locator('text=Avg / Monthly Release');
-      await expect(avgCard.first()).toBeVisible();
-
-      // Check for component rows with velocity badges (avg/rel text)
-      var velocityBadges = page.locator('text=avg/rel');
-      var badgeCount = await velocityBadges.count();
-      // Velocity badges appear on component rows when data is loaded
-      // May be 0 if the component has no resolved features in the last year
-      expect(badgeCount).toBeGreaterThanOrEqual(0);
-    }
-
-    expect(page.errors).toHaveLength(0);
   });
 
   test('pillar-config endpoint returns valid config', async ({ request }) => {
