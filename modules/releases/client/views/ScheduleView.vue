@@ -41,7 +41,7 @@
     >
       <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">No releases found</h3>
       <p class="text-sm text-gray-500 dark:text-gray-400">
-        Run a registry sync from Product Pages to populate release milestones.
+        The release registry is empty.
       </p>
     </div>
 
