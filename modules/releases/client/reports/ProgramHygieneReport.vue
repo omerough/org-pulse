@@ -115,7 +115,7 @@ function uniqueSorted(values) {
   return [...new Set(values.filter(Boolean))].sort()
 }
 
-const teamOptions = computed(() => uniqueSorted(dedupedIssues.value.map(i => i.team)))
+const teamOptions = computed(() => uniqueSorted(dedupedIssues.value.map(i => i.team || 'Unassigned')))
 const componentOptions = computed(() => uniqueSorted(dedupedIssues.value.flatMap(i => i.components || [])))
 const issueTypeOptions = computed(() => uniqueSorted(dedupedIssues.value.map(i => i.issueType)))
 
@@ -125,7 +125,7 @@ const filteredIssues = computed(() => {
     list = list.filter(i => i.rules.some(r => r.id === activeRuleFilter.value))
   }
   if (teamFilter.value.length) {
-    list = list.filter(i => teamFilter.value.includes(i.team))
+    list = list.filter(i => teamFilter.value.includes(i.team || 'Unassigned'))
   }
   if (componentFilter.value.length) {
     list = list.filter(i => (i.components || []).some(c => componentFilter.value.includes(c)))
