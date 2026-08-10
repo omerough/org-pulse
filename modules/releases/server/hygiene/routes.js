@@ -5,7 +5,7 @@
  * and Jira data refresh with fire-and-forget pattern.
  */
 
-const { loadConfig, saveConfig } = require('./config');
+const { loadConfig } = require('./config');
 const { evaluateHygiene, hygieneRules, RULE_CATEGORIES } = require('./hygiene-rules');
 const { fetchHygieneFeatures } = require('./jira-fetch');
 const { logAudit } = require('../planning/audit-log');
@@ -63,27 +63,6 @@ const refreshState = {
 
 /**
  * @openapi
- * /api/modules/releases/hygiene/refresh:
- *   post:
- *     summary: Trigger hygiene data refresh from Jira (planning-manager only)
- *     tags: [Releases - Hygiene]
- *     parameters:
- *       - in: query
- *         name: version
- *         required: true
- *         schema: { type: string }
- *         description: Release version string
- *     responses:
- *       200:
- *         description: Refresh started or already running
- *       429:
- *         description: Cooldown active
- *       400:
- *         description: Missing version parameter
- */
-
-/**
- * @openapi
  * /api/modules/releases/hygiene/refresh/status:
  *   get:
  *     summary: Get current hygiene refresh status
@@ -102,12 +81,6 @@ const refreshState = {
  *     responses:
  *       200:
  *         description: Hygiene config with rule definitions
- *   post:
- *     summary: Save hygiene rule configuration (planning-manager only)
- *     tags: [Releases - Hygiene]
- *     responses:
- *       200:
- *         description: Save result
  */
 
 /**
@@ -121,11 +94,60 @@ const refreshState = {
  *         description: Cross-version hygiene summary for program reporting
  */
 
+/**
+ * @openapi
+ * /api/modules/releases/hygiene/project-hygiene:
+ *   get:
+ *     summary: Get OSAC-style project-wide Jira hygiene results
+ *     description: Read-only. Published by the org-pulse-data CI pipeline; the app performs no Jira calls or writes for this contract.
+ *     tags: [Releases - Hygiene]
+ *     responses:
+ *       200:
+ *         description: Project hygiene result contract
+ *       404:
+ *         description: No results have been published yet
+ *       503:
+ *         description: Published results could not be read (e.g. malformed JSON)
+ */
+
+/**
+ * @openapi
+ * /api/modules/releases/hygiene/project-hygiene/config:
+ *   get:
+ *     summary: Get OSAC-style project-wide Jira hygiene rule configuration
+ *     description: Read-only. Rule definitions are owned and committed by org-pulse-data.
+ *     tags: [Releases - Hygiene]
+ *     responses:
+ *       200:
+ *         description: Project hygiene config contract
+ *       404:
+ *         description: No configuration has been published yet
+ *       503:
+ *         description: Published configuration could not be read (e.g. malformed JSON)
+ */
+
 module.exports = function registerHygieneRoutes(router, context) {
   const { storage, requireAuth, requirePlanningManager, requireScope, registerDiagnostics } = context;
 
   function storageKey(version) {
     return DATA_PREFIX + '/features-' + version + '.json';
+  }
+
+  // Reads a data-side JSON contract file as-is. Distinct from the release-scoped
+  // `storage.readFromStorage` calls below — readFromStorage only catches ENOENT,
+  // so malformed JSON must be caught here and turned into an explicit 503.
+  function readHygieneContract(res, key, notFoundMessage) {
+    var data;
+    try {
+      data = storage.readFromStorage(key);
+    } catch (err) {
+      console.error('[hygiene] Failed to read ' + key + ':', err.message);
+      return res.status(503).json({ error: 'Project hygiene data is temporarily unavailable' });
+    }
+    if (!data) {
+      return res.status(404).json({ error: notFoundMessage });
+    }
+    return res.json(data);
   }
 
   async function runHygieneRefreshAll(options) {
@@ -330,127 +352,6 @@ module.exports = function registerHygieneRoutes(router, context) {
     });
   });
 
-  // POST /refresh — trigger Jira data refresh (fire-and-forget)
-  router.post('/refresh', requirePlanningManager, requireScope('releases:write'), function(req, res) {
-    var version = req.query.version;
-    if (!version) {
-      return res.status(400).json({ error: 'version query parameter is required' });
-    }
-
-    if (refreshState.running || (context.isRefreshRunning && context.isRefreshRunning())) {
-      return res.json({ status: 'already_running' });
-    }
-
-    if (refreshState.lastSuccessAt &&
-        Date.now() - new Date(refreshState.lastSuccessAt).getTime() < COOLDOWN_MS) {
-      var retryAfter = Math.ceil(
-        (COOLDOWN_MS - (Date.now() - new Date(refreshState.lastSuccessAt).getTime())) / 1000
-      );
-      return res.status(429).json({ status: 'cooldown', retryAfter: retryAfter });
-    }
-
-    refreshState.running = true;
-    refreshState.startedAt = new Date().toISOString();
-    refreshState.completedAt = null;
-    refreshState.lastResult = null;
-    refreshState.progress = { stage: 'starting', message: 'Initializing refresh' };
-
-    res.json({ status: 'started' });
-
-    var userEmail = req.userEmail || 'unknown';
-
-    setImmediate(function() {
-      var config = loadConfig(storage);
-
-      var jira = require('../../../../shared/server/jira');
-      var jiraRequest = jira.jiraRequest;
-      var fetchAllJqlResults = jira.fetchAllJqlResults;
-
-      // Look up fixVersions from registry for JQL queries
-      var registry = readRegistry(storage.readFromStorage);
-      var registryReleases = registry.releases || [];
-      var jqlVersions = null;
-      for (var rli = 0; rli < registryReleases.length; rli++) {
-        var rl = registryReleases[rli];
-        if (rl.displayName === version || rl.id === version) {
-          if (rl.fixVersions && rl.fixVersions.length > 0) {
-            jqlVersions = rl.fixVersions;
-          }
-          break;
-        }
-      }
-
-      function onProgress(stage, detail) {
-        refreshState.progress = { stage: stage, message: detail.message || stage };
-      }
-
-      fetchHygieneFeatures(jiraRequest, fetchAllJqlResults, version, config, onProgress, { jqlVersions: jqlVersions })
-        .then(function(result) {
-          // Enrich with version-released status from registry
-          var registryReleases = registry.releases || [];
-          var versionReleased = false;
-          var versionGaDate = null;
-
-          for (var ri = 0; ri < registryReleases.length; ri++) {
-            var reg = registryReleases[ri];
-            if (reg.id === version || reg.displayName === version) {
-              var gaDate = reg.milestones && (reg.milestones.gaDate || reg.milestones.ga);
-              if (gaDate) {
-                var gaTime = new Date(gaDate + 'T00:00:00Z').getTime();
-                if (!isNaN(gaTime) && Date.now() > gaTime) {
-                  versionReleased = true;
-                  versionGaDate = gaDate;
-                }
-              }
-              break;
-            }
-          }
-
-          // Evaluate hygiene rules on each feature
-          var rulesConfig = config.rules || {};
-          var featureKeys = Object.keys(result.features);
-          for (var i = 0; i < featureKeys.length; i++) {
-            var feature = result.features[featureKeys[i]];
-            feature.versionReleased = versionReleased;
-            feature.versionGaDate = versionGaDate;
-            feature.violations = evaluateHygiene(feature, rulesConfig);
-          }
-
-          storage.writeToStorage(storageKey(version), result);
-
-          refreshState.running = false;
-          refreshState.completedAt = new Date().toISOString();
-          refreshState.lastSuccessAt = refreshState.completedAt;
-          refreshState.lastResult = {
-            status: 'success',
-            totalFeatures: featureKeys.length,
-            version: version
-          };
-          refreshState.progress = null;
-
-          logAudit(storage.readFromStorage, storage.writeToStorage, {
-            domain: 'hygiene',
-            action: 'hygiene_refresh',
-            user: userEmail,
-            version: version,
-            summary: 'Hygiene data refreshed for ' + version + ' (' + featureKeys.length + ' features)',
-            details: { totalFeatures: featureKeys.length, version: version }
-          });
-        })
-        .catch(function(err) {
-          console.error('[hygiene] Refresh failed:', err.message);
-          refreshState.running = false;
-          refreshState.completedAt = new Date().toISOString();
-          refreshState.lastResult = {
-            status: 'error',
-            message: err.message,
-            version: version
-          };
-          refreshState.progress = null;
-        });
-    });
-  });
-
   /**
    * @openapi
    * /api/modules/releases/hygiene/refresh-all:
@@ -524,30 +425,6 @@ module.exports = function registerHygieneRoutes(router, context) {
       config: config,
       ruleDefinitions: ruleDefinitions
     });
-  });
-
-  // POST /config — save hygiene rule configuration
-  router.post('/config', requirePlanningManager, requireScope('releases:write'), function(req, res) {
-    try {
-      saveConfig(storage, req.body);
-
-      logAudit(storage.readFromStorage, storage.writeToStorage, {
-        domain: 'hygiene',
-        action: 'hygiene_config_update',
-        user: req.userEmail || 'unknown',
-        summary: 'Updated hygiene rule configuration',
-        details: {
-          projects: req.body.projects || null,
-          issueTypes: req.body.issueTypes || null,
-          rulesChanged: req.body.rules ? Object.keys(req.body.rules).length : 0
-        }
-      });
-
-      res.json({ status: 'saved' });
-    } catch (err) {
-      var status = err.message && err.message.includes('must be') ? 400 : 500;
-      res.status(status).json({ error: err.message });
-    }
   });
 
   // GET /program-report — aggregate hygiene across all versions
@@ -690,6 +567,24 @@ module.exports = function registerHygieneRoutes(router, context) {
       },
       ruleDefinitions: ruleMap
     });
+  });
+
+  // GET /project-hygiene — OSAC-style project-wide Jira hygiene results (read-only, data-side owned)
+  router.get('/project-hygiene', requireAuth, requireScope('releases:read'), function(req, res) {
+    readHygieneContract(
+      res,
+      DATA_PREFIX + '/project-hygiene-results.json',
+      'Project hygiene results have not been published yet'
+    );
+  });
+
+  // GET /project-hygiene/config — OSAC-style project-wide Jira hygiene rule config (read-only, data-side owned)
+  router.get('/project-hygiene/config', requireAuth, requireScope('releases:read'), function(req, res) {
+    readHygieneContract(
+      res,
+      DATA_PREFIX + '/project-hygiene-config.json',
+      'Project hygiene configuration has not been published yet'
+    );
   });
 
   // Diagnostics

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "projects": {
+    "OSAC": {
+      "displayName": "OSAC",
+      "jiraBaseUrl": "https://redhat.atlassian.net",
+      "rules": [
+        {
+          "id": "in-progress-no-fix-version",
+          "name": "In Progress Feature/Epic without Fix Version",
+          "description": "Features and Epics that are In Progress must have a Fix Version.",
+          "category": "lifecycle",
+          "jql": "project = OSAC AND status = \"In Progress\" AND fixVersion is EMPTY AND issuetype in (Epic, Feature)",
+          "fields": "summary,status,issuetype,assignee,fixVersions,components,parent,customfield_10001"
+        },
+        {
+          "id": "in-progress-no-assignee",
+          "name": "In Progress issue without Assignee",
+          "description": "All In Progress issues must have an assignee.",
+          "category": "ownership",
+          "jql": "project = OSAC AND status = \"In Progress\" AND assignee is EMPTY",
+          "fields": "summary,status,issuetype,assignee,fixVersions,components,parent,customfield_10001"
+        },
+        {
+          "id": "epic-no-parent-feature",
+          "name": "Open Epic without parent Feature",
+          "description": "Epics that are not Done should be linked to a parent Feature.",
+          "category": "lifecycle",
+          "jql": "project = OSAC AND issuetype = Epic AND parent is EMPTY AND statusCategory != Done",
+          "fields": "summary,status,issuetype,assignee,fixVersions,components,parent,customfield_10001"
+        },
+        {
+          "id": "no-component",
+          "name": "Open issue without Component",
+          "description": "All issues that are not Done should have at least one Component.",
+          "category": "classification",
+          "jql": "project = OSAC AND component is EMPTY AND statusCategory != Done",
+          "fields": "summary,status,issuetype,assignee,fixVersions,components,parent,customfield_10001"
+        },
+        {
+          "id": "no-team",
+          "name": "Open issue without Team",
+          "description": "All issues that are not Done should have a Team assigned.",
+          "category": "ownership",
+          "jql": "project = OSAC AND cf[10001] is EMPTY AND statusCategory != Done",
+          "fields": "summary,status,issuetype,assignee,fixVersions,components,parent,customfield_10001"
+        }
+      ],
+      "fieldMappings": {
+        "team": "customfield_10001"
+      }
+    }
+  }
+}
