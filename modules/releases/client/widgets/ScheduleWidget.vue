@@ -31,6 +31,14 @@ onMounted(fetchRegistry)
 
 function parseDate(val) {
   if (!val) return null
+  // Bare YYYY-MM-DD registry milestones must land on that calendar day locally;
+  // new Date('YYYY-MM-DD') parses as UTC midnight, which renders a day early
+  // west of UTC.
+  const bareDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(val)
+  if (bareDate) {
+    const [, year, month, day] = bareDate
+    return new Date(Number(year), Number(month) - 1, Number(day))
+  }
   const d = new Date(val)
   return isNaN(d.getTime()) ? null : d
 }

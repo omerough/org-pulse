@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
 vi.mock('@shared/client/services/api.js', () => ({
@@ -279,6 +279,74 @@ describe('ScheduleWidget', () => {
       await wrapper.find('select').setValue('')
       expect(wrapper.text()).toContain('RHOAI-3.5')
       expect(wrapper.text()).toContain('RHELAI-1.0')
+    })
+  })
+
+  describe('milestone dates in a non-UTC timezone (America/Los_Angeles)', () => {
+    const originalTZ = process.env.TZ
+
+    beforeEach(() => {
+      process.env.TZ = 'America/Los_Angeles'
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(2026, 6, 15)) // "today" = Jul 15, 2026 local
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+      process.env.TZ = originalTZ
+    })
+
+    it('renders a bare YYYY-MM-DD milestone on its intended calendar day', async () => {
+      apiRequest.mockResolvedValue({
+        releases: [makeRelease('rhoai-3.5', { releaseStart: '2026-07-20' })]
+      })
+      const wrapper = mount(ScheduleWidget)
+      await flushPromises()
+
+      const items = wrapper.findAll('[class*="px-5 py-2"]')
+      expect(items[0].text()).toContain('Jul 20')
+      expect(items[0].text()).not.toContain('Jul 19')
+    })
+
+    it('counts down the correct number of days, not one short', async () => {
+      apiRequest.mockResolvedValue({
+        releases: [makeRelease('rhoai-3.5', { releaseStart: '2026-07-20' })]
+      })
+      const wrapper = mount(ScheduleWidget)
+      await flushPromises()
+
+      // "today" is Jul 15; Jul 20 is exactly 5 days away, not 4.
+      const items = wrapper.findAll('[class*="px-5 py-2"]')
+      expect(items[0].text()).toContain('5d')
+      expect(items[0].text()).not.toContain('4d')
+    })
+
+    it('keeps milestones sorted soonest-first', async () => {
+      apiRequest.mockResolvedValue({
+        releases: [
+          makeRelease('rhoai-3.5', { releaseStart: '2026-07-25' }),
+          makeRelease('rhoai-3.4', { releaseStart: '2026-07-20' })
+        ]
+      })
+      const wrapper = mount(ScheduleWidget)
+      await flushPromises()
+
+      const items = wrapper.findAll('[class*="px-5 py-2"]')
+      expect(items[0].text()).toContain('RHOAI-3.4')
+      expect(items[1].text()).toContain('RHOAI-3.5')
+    })
+
+    it('still falls back from releaseStart to planningFreeze correctly', async () => {
+      apiRequest.mockResolvedValue({
+        releases: [makeRelease('rhoai-3.5', { planningFreeze: '2026-07-20' })]
+      })
+      const wrapper = mount(ScheduleWidget)
+      await flushPromises()
+
+      const items = wrapper.findAll('[class*="px-5 py-2"]')
+      expect(items[0].text()).toContain('Jul 20')
+      expect(wrapper.text()).toContain('Release Start')
+      expect(wrapper.text()).not.toContain('Plan Freeze')
     })
   })
 })

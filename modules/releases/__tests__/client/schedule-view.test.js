@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
 vi.mock('@shared/client/services/api.js', () => ({
@@ -281,5 +281,70 @@ describe('ScheduleView', () => {
 
     expect(apiRequest).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('Sep 20, 2026')
+  })
+
+  describe('milestone dates in a non-UTC timezone (America/Los_Angeles)', () => {
+    const originalTZ = process.env.TZ
+
+    beforeEach(() => {
+      process.env.TZ = 'America/Los_Angeles'
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(2026, 6, 15)) // "today" = Jul 15, 2026 local
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+      process.env.TZ = originalTZ
+    })
+
+    it('renders a bare YYYY-MM-DD milestone on its intended calendar day', async () => {
+      apiRequest.mockResolvedValue({
+        releases: [makeRelease('rhoai-3.5', { releaseStart: '2026-07-10', ga: '2026-09-15' })]
+      })
+      const wrapper = mount(ScheduleView)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Jul 10, 2026')
+      expect(wrapper.text()).not.toContain('Jul 9, 2026')
+    })
+
+    it('counts down the correct number of days, not one short', async () => {
+      apiRequest.mockResolvedValue({
+        releases: [makeRelease('rhoai-3.5', { releaseStart: '2026-07-10', ga: '2026-09-15' })]
+      })
+      const wrapper = mount(ScheduleView)
+      await flushPromises()
+
+      // "today" is Jul 15; Jul 10 is exactly 5 days ago, not 4.
+      expect(wrapper.text()).toContain('5d ago')
+      expect(wrapper.text()).not.toContain('4d ago')
+    })
+
+    it('keeps releases sorted by GA date correctly', async () => {
+      apiRequest.mockResolvedValue({
+        releases: [
+          makeRelease('rhoai-3.6', { ga: '2026-07-25' }),
+          makeRelease('rhoai-3.5', { ga: '2026-07-20' })
+        ]
+      })
+      const wrapper = mount(ScheduleView)
+      await flushPromises()
+
+      const rows = wrapper.findAll('tbody tr')
+      expect(rows[0].text()).toContain('RHOAI-3.5')
+      expect(rows[1].text()).toContain('RHOAI-3.6')
+    })
+
+    it('still falls back from releaseStart to planningFreeze correctly', async () => {
+      apiRequest.mockResolvedValue({
+        releases: [makeRelease('rhoai-3.5', { planningFreeze: '2026-07-10', ga: '2026-09-15' })]
+      })
+      const wrapper = mount(ScheduleView)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Jul 10, 2026')
+      expect(wrapper.text()).toContain('Release Start')
+      expect(wrapper.text()).not.toContain('Plan Freeze')
+    })
   })
 })
