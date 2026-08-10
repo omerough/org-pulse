@@ -62,7 +62,6 @@ provide('conformaState', conformaState)
 
 const tabs = [
   { id: 'risk-dashboard', label: 'Risk Dashboard' },
-  { id: 'conforma-insights', label: 'Conforma Insights' },
   { id: 'post-release-defects', label: 'Post-Release Defects' },
 ]
 

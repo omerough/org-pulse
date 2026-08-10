@@ -20,21 +20,9 @@ export const reports = [
     component: defineAsyncComponent(() => import('./CommitmentTrackingReport.vue'))
   },
   {
-    id: 'tv-fv-delta',
-    label: 'TV vs FV Delta',
-    description: 'Target Version (PM intent) vs Fix Version (engineering commitment) — alignment, mismatches, and component breakdown.',
-    component: defineAsyncComponent(() => import('../views/TvFvDeltaView.vue'))
-  },
-  {
     id: 'feature-pressure',
     label: 'Feature Pressure',
-    description: 'Where feature inflow exceeds capacity to burn down — RHAI-wide pressure by component, with RFE pipeline and risk scorecard.',
+    description: 'Where feature inflow exceeds capacity to burn down — pressure by component, with RFE pipeline and risk scorecard.',
     component: defineAsyncComponent(() => import('../views/FeaturePressureView.vue'))
-  },
-  {
-    id: 'release-performance',
-    label: 'Release Performance',
-    description: 'Cross-releases, and competitive comparisons performance dashboard',
-    externalUrl: 'https://aidash.app.intlab.redhat.com/'
   }
 ]
