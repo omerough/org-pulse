@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-const { readRegistry, writeRegistry, validateRelease, normalizeRelease, migrateNormalizedIds, REGISTRY_FILE } = require('../../server/registry');
+const { readRegistry, writeRegistry, validateRelease, normalizeRelease, migrateNormalizedIds, registerRegistryRoutes, REGISTRY_FILE } = require('../../server/registry');
 
 function createMockStorage(initial = {}) {
   const store = { ...initial };
@@ -297,5 +297,42 @@ describe('migrateNormalizedIds', () => {
     const rhaii = registry.releases.find(r => r.id === 'rhaii-3.5.ea1');
     expect(rhaii).toBeDefined();
     expect(rhaii.fixVersions).toEqual(['RHAII-3.5 EA1']);
+  });
+});
+
+describe('registerRegistryRoutes', () => {
+  function makeRouter() {
+    return { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() };
+  }
+
+  function makeContext() {
+    return {
+      storage: createMockStorage(),
+      requireAuth: (req, res, next) => next(),
+      requirePlanningManager: (req, res, next) => next(),
+      requireScope: () => (req, res, next) => next(),
+      registerRefresh: vi.fn()
+    };
+  }
+
+  it('does not register any scheduled refresh jobs (no app-side background writers)', () => {
+    const router = makeRouter();
+    const context = makeContext();
+    registerRegistryRoutes(router, context);
+    expect(context.registerRefresh).not.toHaveBeenCalled();
+  });
+
+  it('only registers read-only routes plus the (already-orphaned, out-of-scope) config routes', () => {
+    const router = makeRouter();
+    registerRegistryRoutes(router, makeContext());
+
+    const getPaths = router.get.mock.calls.map(call => call[0]);
+    expect(getPaths).toEqual(['/registry', '/registry/config', '/registry/:id']);
+
+    const postPaths = router.post.mock.calls.map(call => call[0]);
+    expect(postPaths).toEqual(['/registry/config']);
+
+    expect(router.put).not.toHaveBeenCalled();
+    expect(router.delete).not.toHaveBeenCalled();
   });
 });
