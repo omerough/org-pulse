@@ -15,4 +15,18 @@ describe('reports registry', () => {
   it('places the program-hygiene report first in the reports array', () => {
     expect(reports[0].id).toBe('program-hygiene')
   })
+
+  it('hides the Release Performance report (legacy non-OSAC nav surface)', () => {
+    expect(reports.find(r => r.id === 'release-performance')).toBeUndefined()
+  })
+
+  it('hides the TV/FV Delta report (legacy non-OSAC nav surface)', () => {
+    expect(reports.find(r => r.id === 'tv-fv-delta')).toBeUndefined()
+  })
+
+  it('keeps Feature Pressure but drops inherited RHAI wording from its description', () => {
+    const entry = reports.find(r => r.id === 'feature-pressure')
+    expect(entry).toBeTruthy()
+    expect(entry.description).not.toMatch(/RHAI/)
+  })
 })

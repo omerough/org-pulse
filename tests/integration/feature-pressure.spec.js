@@ -259,8 +259,8 @@ test.describe('Feature Pressure - Executive Summary @feature-pressure', () => {
 
     // Check for key values in the split Features / RFEs summary
     const summarySection = page.locator('section').first();
-    await expect(page.locator('text=Features (RHAISTRAT)')).toBeVisible();
-    await expect(page.locator('text=Feature Requests (RHAIRFE)')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 3, name: 'Features', exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 3, name: 'Feature Requests', exact: true }).first()).toBeVisible();
     await expect(summarySection.locator('text=Open').first()).toBeVisible();
     await expect(page.locator('text=Burn rate:')).toBeVisible();
     await expect(page.locator('text=Time to clear:')).toBeVisible();

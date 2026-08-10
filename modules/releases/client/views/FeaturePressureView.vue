@@ -122,7 +122,7 @@ onBeforeUnmount(() => { cleanup() })
       <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Feature Pressure</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Where feature inflow exceeds capacity to burn down — RHAI-wide, by component.
+          Where feature inflow exceeds capacity to burn down, by component.
         </p>
       </div>
       <div class="flex items-center gap-3">
@@ -174,7 +174,7 @@ onBeforeUnmount(() => { cleanup() })
       <section>
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">Executive Summary</h2>
 
-        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Features (RHAISTRAT)</h3>
+        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Features</h3>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div class="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4">
             <div class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total</div>
@@ -223,7 +223,7 @@ onBeforeUnmount(() => { cleanup() })
         </div>
 
         <!-- Executive Summary — RFEs (RHAIRFE) -->
-        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-5 mb-2">Feature Requests (RHAIRFE)</h3>
+        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-5 mb-2">Feature Requests</h3>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           <div class="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4">
             <div class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total RFEs</div>
@@ -303,7 +303,7 @@ onBeforeUnmount(() => { cleanup() })
             <span class="text-sm font-normal text-gray-400 dark:text-gray-500 ml-2">({{ filteredComponents.length }} components)</span>
           </summary>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            RHAISTRAT Features created vs resolved in the lookback window. Ratio > 1 means inflow exceeds burn.
+            Features created vs resolved in the lookback window. Ratio > 1 means inflow exceeds burn.
           </p>
           <div class="mt-3">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 mb-3">
@@ -357,10 +357,10 @@ onBeforeUnmount(() => { cleanup() })
       </section>
 
       <!-- 4. RFE Pipeline -->
-      <section>
+      <section v-if="rfePipeline">
         <details>
           <summary class="text-lg font-semibold text-gray-800 dark:text-gray-200 cursor-pointer">
-            RFE Pipeline (RHAIRFE)
+            RFE Pipeline
             <span class="text-sm font-normal text-gray-400 dark:text-gray-500 ml-2">
               {{ rfePipeline?.status_breakdown?.total?.count || 0 }} total |
               {{ rfePipeline?.status_breakdown?.pending?.count || 0 }} pending
@@ -369,7 +369,7 @@ onBeforeUnmount(() => { cleanup() })
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
             Customer and field Feature Requests — pending review, accepted for planning, or other.
           </p>
-          <div v-if="rfePipeline" class="mt-3 space-y-4">
+          <div class="mt-3 space-y-4">
             <div class="flex flex-wrap gap-4 text-sm">
               <div>Total: <ClickableCount :count="rfePipeline.status_breakdown.total.count" :jql="rfePipeline.status_breakdown.total.jql" /></div>
               <div>Accepted: <ClickableCount :count="rfePipeline.status_breakdown.accepted.count" :jql="rfePipeline.status_breakdown.accepted.jql" color="green" /></div>

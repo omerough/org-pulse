@@ -4,8 +4,7 @@
       <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Release Schedule</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Milestone dates sourced from
-          <a href="https://productpages.redhat.com" target="_blank" rel="noopener noreferrer" class="text-primary-600 dark:text-primary-400 hover:underline">Product Pages</a>
+          Milestone dates sourced from Jira release versions
         </p>
       </div>
       <button
@@ -42,7 +41,7 @@
     >
       <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">No releases found</h3>
       <p class="text-sm text-gray-500 dark:text-gray-400">
-        Run a registry sync from Product Pages to populate release milestones.
+        The release registry is empty.
       </p>
     </div>
 
