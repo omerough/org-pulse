@@ -1001,7 +1001,7 @@ Unified per-feature file combining data from pipeline (GitLab CI), Jira enrichme
 
 ```json
 {
-  "key": "RHAISTRAT-123",
+  "key": "OSAC-123",
   "summary": "Implement model serving autoscaling",
 
   "_sources": {
@@ -1020,7 +1020,7 @@ Unified per-feature file combining data from pipeline (GitLab CI), Jira enrichme
   "pm": { "displayName": "Jane PM" },
   "team": "Model Serving",
   "releaseType": "Feature",
-  "fixVersions": ["rhoai-3.5"],
+  "fixVersions": ["0.4"],
   "labels": ["core"],
   "components": ["Model Serving"],
   "docsRequired": "Yes",
@@ -1034,7 +1034,20 @@ Unified per-feature file combining data from pipeline (GitLab CI), Jira enrichme
     { "type": "Cloners", "direction": "outward", "linkedKey": "RHAIRFE-1234", "linkedSummary": "...", "linkedStatus": "Approved" }
   ],
   "epics": [
-    { "key": "RHOAIENG-456", "summary": "Epic: Autoscaling backend", "status": "In Progress" }
+    {
+      "key": "OSAC-456",
+      "summary": "Epic: Autoscaling backend",
+      "status": "In Progress",
+      "fixVersions": ["0.4"],
+      "fixVersionSource": "direct",
+      "components": ["Model Serving"],
+      "componentSource": "direct",
+      "parentFeatureKey": "OSAC-123",
+      "issueCount": 12,
+      "blockerCount": 1,
+      "pct": 40,
+      "progress": 40
+    }
   ],
   "architect": "Architect Name",
   "parentKey": "RHAISTRAT-100",
@@ -1061,6 +1074,8 @@ Unified per-feature file combining data from pipeline (GitLab CI), Jira enrichme
 - `statusNotes` (pipeline) and `statusSummary` (Jira) are different fields with different formats
 - Jira-owned fields are authoritative when present; pipeline-owned fields (`metrics`, `topology`) are preserved across Jira syncs
 - `aiReview` is optional; only present for features that have been scored by the AI review pipeline
+
+**Epic provenance (`fixVersionSource`, `componentSource`):** each is one of `direct`, `via-parent-feature`, or `unknown`. Consumers must render `via-parent-feature` values with a visible inherited-source indicator — never as if they were the epic's own — and render `unknown` as an explicit unknown state rather than leaving it blank. `parentFeatureKey`, `issueCount`, `blockerCount`, and `pct`/`progress` (`progress` is an alias of `pct`) make each epic object self-contained for consumers, without a separate lookup into `metrics.epicMetrics[]`.
 
 **Optional — AI Review (`aiReview`):**
 

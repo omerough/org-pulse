@@ -19,6 +19,7 @@
       <OverviewView v-if="activeTab === 'feature-list'" />
       <HygieneView v-else-if="activeTab === 'feature-status'" />
       <FeatureTrackingView v-else-if="activeTab === 'feature-tracking'" />
+      <EpicsByReleaseView v-else-if="activeTab === 'epics-by-release'" />
     </div>
   </div>
 </template>
@@ -28,6 +29,7 @@ import { ref, watch, nextTick, inject } from 'vue'
 import OverviewView from '../execute/views/OverviewView.vue'
 import HygieneView from '../execute/views/HygieneView.vue'
 import FeatureTrackingView from '../execute/views/FeatureTrackingView.vue'
+import EpicsByReleaseView from '../execute/views/EpicsByReleaseView.vue'
 
 const nav = inject('moduleNav')
 
@@ -35,6 +37,7 @@ const tabs = [
   { id: 'feature-list', label: 'Feature List' },
   { id: 'feature-status', label: 'Feature Status' },
   { id: 'feature-tracking', label: 'Feature Tracking' },
+  { id: 'epics-by-release', label: 'Epics by Release' },
 ]
 
 const VALID_TABS = tabs.map(t => t.id)

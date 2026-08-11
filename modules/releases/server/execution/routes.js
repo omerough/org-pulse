@@ -27,6 +27,10 @@ function stripZStream(value) {
   return String(value).replace(/\.z\b/gi, '')
 }
 
+function matchesVersion(feature, normalizedFilter) {
+  return !!(feature.fixVersions && feature.fixVersions.some(v => stripZStream(v) === normalizedFilter));
+}
+
 /**
  * @openapi
  * /api/modules/releases/execution/features:
@@ -94,6 +98,24 @@ function stripZStream(value) {
  *     responses:
  *       200:
  *         description: Version list
+ */
+
+/**
+ * @openapi
+ * /api/modules/releases/execution/epics:
+ *   get:
+ *     summary: Feature → Epics tree for a release (Features whose Fix Version matches the given version)
+ *     tags: [Releases - Execution]
+ *     parameters:
+ *       - in: query
+ *         name: version
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Features matching the release, each with its full epics array
+ *       400:
+ *         description: Missing version query parameter
  */
 
 /**
@@ -183,9 +205,7 @@ module.exports = function registerExecutionRoutes(router, context) {
     const versionFilter = req.query.version;
     if (versionFilter) {
       const normalizedFilter = stripZStream(versionFilter);
-      features = features.filter(f =>
-        f.fixVersions && f.fixVersions.some(v => stripZStream(v) === normalizedFilter)
-      );
+      features = features.filter(f => matchesVersion(f, normalizedFilter));
     }
 
     const healthFilter = req.query.health;
@@ -361,6 +381,44 @@ module.exports = function registerExecutionRoutes(router, context) {
     }
 
     res.json({ versions: [...versions].sort() });
+  });
+
+  // GET /epics — Release → Feature → Epics tree.
+  // Membership is by Feature Fix Version, not by filtering epics individually: every
+  // epic under a matching Feature is included, even one whose own fixVersions names a
+  // different version (rendered as-is, not hidden or recategorized).
+  router.get('/epics', requireAuth, requireScope('releases:read'), function(req, res) {
+    const version = req.query.version;
+    if (!version) {
+      return res.status(400).json({ error: 'version query parameter is required' });
+    }
+
+    const index = readDataFile('index.json');
+    if (!index || !index.features) {
+      return res.json({ version, fetchedAt: null, featureCount: 0, features: [] });
+    }
+
+    const normalizedFilter = stripZStream(version);
+    const matching = index.features.filter(f => matchesVersion(f, normalizedFilter));
+
+    const features = matching.map(function(entry) {
+      const detail = readDataFile(`features/${entry.key}.json`);
+      return {
+        key: entry.key,
+        summary: entry.summary,
+        status: entry.status,
+        statusCategory: entry.statusCategory,
+        fixVersions: entry.fixVersions || [],
+        epics: (detail && detail.epics) || []
+      };
+    });
+
+    res.json({
+      version,
+      fetchedAt: index.fetchedAt,
+      featureCount: features.length,
+      features
+    });
   });
 
   // POST /refresh — trigger manual data refresh (admin only)

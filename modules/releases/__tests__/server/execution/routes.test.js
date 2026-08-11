@@ -76,6 +76,7 @@ describe('execution routes', () => {
       expect(paths).toContain('/features/:key')
       expect(paths).toContain('/status')
       expect(paths).toContain('/versions')
+      expect(paths).toContain('/epics')
       expect(paths).toContain('/config')
     })
 
@@ -265,6 +266,95 @@ describe('execution routes', () => {
   describe('diagnostics', () => {
     it('registers diagnostics hook', () => {
       expect(context.registerDiagnostics).toHaveBeenCalledWith(expect.any(Function))
+    })
+  })
+
+  describe('GET /epics', () => {
+    function setupData() {
+      storage = makeStorage({
+        'releases/execution/index.json': {
+          fetchedAt: '2026-08-01T00:00:00Z',
+          features: [
+            { key: 'OSAC-100', summary: 'Feature A', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.4'] },
+            { key: 'OSAC-200', summary: 'Feature B', status: 'To Do', statusCategory: 'To Do', fixVersions: ['0.5'] }
+          ]
+        },
+        'releases/execution/features/OSAC-100.json': {
+          key: 'OSAC-100',
+          epics: [
+            {
+              key: 'OSAC-101', summary: 'Epic 1', fixVersions: ['0.4'], fixVersionSource: 'direct',
+              components: ['Comp A'], componentSource: 'direct', parentFeatureKey: 'OSAC-100',
+              blockerCount: 1, issueCount: 5, pct: 40, progress: 40
+            },
+            {
+              key: 'OSAC-102', summary: 'Epic 2', fixVersions: [], fixVersionSource: 'unknown',
+              components: [], componentSource: 'unknown', parentFeatureKey: 'OSAC-100',
+              blockerCount: 0, issueCount: 2, pct: 0, progress: 0
+            }
+          ]
+        },
+        'releases/execution/features/OSAC-200.json': {
+          key: 'OSAC-200',
+          epics: [
+            {
+              key: 'OSAC-201', summary: 'Epic 3', fixVersions: ['0.9'], fixVersionSource: 'via-parent-feature',
+              components: ['Comp B'], componentSource: 'via-parent-feature', parentFeatureKey: 'OSAC-200',
+              blockerCount: 0, issueCount: 1, pct: 100, progress: 100
+            }
+          ]
+        }
+      })
+      router = makeRouter()
+      context = { ...context, storage }
+      registerExecutionRoutes(router, context)
+    }
+
+    it('requires a version query parameter', () => {
+      setupData()
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: {} }, res)
+
+      expect(res._status).toBe(400)
+    })
+
+    it('returns only Features whose Fix Version matches, each with its full epics array', () => {
+      setupData()
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: { version: '0.4' } }, res)
+
+      expect(res._json.featureCount).toBe(1)
+      expect(res._json.features[0].key).toBe('OSAC-100')
+      expect(res._json.features[0].epics).toHaveLength(2)
+      expect(res._json.features[0].epics[0].fixVersionSource).toBe('direct')
+      expect(res._json.features[0].epics[1].fixVersionSource).toBe('unknown')
+    })
+
+    it('includes an epic under its parent Feature even when the epic names a different Fix Version', () => {
+      // OSAC-200's own fixVersions is 0.5, but its epic OSAC-201 names 0.9 — the tree is
+      // built by Feature membership, so the epic must still appear, with its real value visible.
+      setupData()
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: { version: '0.5' } }, res)
+
+      expect(res._json.features[0].key).toBe('OSAC-200')
+      expect(res._json.features[0].epics[0].fixVersions).toEqual(['0.9'])
+    })
+
+    it('returns empty result when no index data is available', () => {
+      storage = makeStorage()
+      router = makeRouter()
+      context = { ...context, storage }
+      registerExecutionRoutes(router, context)
+
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: { version: '0.4' } }, res)
+
+      expect(res._json).toEqual({ version: '0.4', fetchedAt: null, featureCount: 0, features: [] })
     })
   })
 })

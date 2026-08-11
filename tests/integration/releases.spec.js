@@ -343,6 +343,67 @@ test.describe('Releases Unified Feature Store @releases', () => {
 });
 
 /**
+ * Epics by Release
+ *
+ * Verify the Release -> Feature -> Epics tree: the tab is reachable under Execute,
+ * loads Features/Epics for a selected release, and the underlying API enforces a
+ * required version and returns each epic's Fix Version/Component provenance.
+ */
+test.describe('Releases Epics by Release @releases', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  test('should show Epics by Release tab under Execute and render Features/Epics', async ({ page }) => {
+    await page.goto('/#/releases/execute');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const tab = page.locator('button', { hasText: 'Epics by Release' });
+    await expect(tab).toBeVisible();
+
+    await tab.click();
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    // Demo fixtures include TEST1-1120 (fixVersions: ["rhoai-3.4"]) with 2 epics
+    const releaseSelect = page.locator('#epics-by-release-version');
+    await expect(releaseSelect).toBeVisible();
+    await releaseSelect.selectOption('rhoai-3.4');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    await expect(page.locator('text=TEST1-1120').first()).toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('epics API requires a version and returns Fix Version/Component provenance', async ({ request }) => {
+    const missingVersion = await request.get('/api/modules/releases/execution/epics');
+    expect(missingVersion.status()).toBe(400);
+
+    const res = await request.get('/api/modules/releases/execution/epics?version=rhoai-3.4');
+    expect(res.ok()).toBe(true);
+    const body = await res.json();
+    expect(body).toHaveProperty('features');
+    expect(Array.isArray(body.features)).toBe(true);
+    expect(body.features.length).toBeGreaterThan(0);
+
+    const feature = body.features.find(f => f.key === 'TEST1-1120');
+    expect(feature).toBeTruthy();
+    expect(feature.epics.length).toBeGreaterThan(0);
+
+    const directEpic = feature.epics.find(e => e.fixVersionSource === 'direct');
+    const inheritedEpic = feature.epics.find(e => e.fixVersionSource === 'via-parent-feature');
+    expect(directEpic).toBeTruthy();
+    expect(inheritedEpic).toBeTruthy();
+    expect(inheritedEpic.fixVersions).toEqual(feature.fixVersions);
+  });
+});
+
+/**
  * Planning Health Checks
  *
  * Verify planning health UI renders correctly in demo mode.

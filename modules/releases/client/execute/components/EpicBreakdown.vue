@@ -3,7 +3,10 @@ import { computed } from 'vue'
 import StatusBadge from './StatusBadge.vue'
 
 const props = defineProps({
-  epics: { type: Array, required: true }
+  epics: { type: Array, required: true },
+  // Opt-in: shows Fix Version/Component provenance (direct vs inherited vs unknown)
+  // and parent Feature. Off by default so the existing Feature Detail Epics tab is unchanged.
+  showProvenance: { type: Boolean, default: false }
 })
 
 const JIRA_BASE = 'https://redhat.atlassian.net/browse/'
@@ -53,6 +56,14 @@ function isStale(epic) {
   if (epic.statusCategory !== 'In Progress') return false
   const age = ageDays(epic.updated)
   return age !== null && age > 7
+}
+
+// `direct` values are the epic's own data and need no badge. `via-parent-feature`
+// values must always be visibly tagged so they're never mistaken for epic-owned data.
+// Missing/unrecognized source on a non-empty value is treated as direct (safe default
+// for data predating this provenance contract) rather than flagged as inherited.
+function isInherited(source) {
+  return source === 'via-parent-feature'
 }
 
 function progressBarColor(pct) {
@@ -154,6 +165,37 @@ const epicData = computed(() =>
         </div>
       </div>
 
+      <!-- Provenance: Fix Version / Components sources, parent Feature (opt-in, Epics-by-Release view) -->
+      <div v-if="showProvenance" class="px-4 pb-2 pt-1 border-t border-gray-100 dark:border-gray-700/50 space-y-1.5">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide font-medium">Fix Version</span>
+          <template v-if="(epic.fixVersions || []).length > 0">
+            <span
+              v-for="v in epic.fixVersions"
+              :key="v"
+              class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400"
+            >{{ v }}</span>
+            <span
+              v-if="isInherited(epic.fixVersionSource)"
+              class="px-1.5 py-0.5 rounded text-[9px] font-medium italic bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400"
+              title="Inherited from the parent Feature — not the Epic's own Fix Version"
+            >inherited from Feature</span>
+          </template>
+          <span
+            v-else
+            class="px-2 py-0.5 rounded-full text-[10px] font-medium italic bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500"
+          >Unknown</span>
+        </div>
+        <div v-if="epic.parentFeatureKey" class="text-[10px] text-gray-400 dark:text-gray-500">
+          Parent Feature:
+          <a
+            :href="JIRA_BASE + epic.parentFeatureKey"
+            target="_blank"
+            class="text-primary-600 dark:text-blue-400 hover:underline font-mono"
+          >{{ epic.parentFeatureKey }}</a>
+        </div>
+      </div>
+
       <!-- Footer pills -->
       <div class="px-4 pb-3 pt-1 flex flex-wrap items-center gap-1.5">
         <!-- Components -->
@@ -166,6 +208,15 @@ const epicData = computed(() =>
           v-if="(epic.components || []).length > 2"
           class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
         >+{{ epic.components.length - 2 }}</span>
+        <span
+          v-if="showProvenance && (epic.components || []).length === 0"
+          class="px-2 py-0.5 rounded-full text-[10px] font-medium italic bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500"
+        >Components: Unknown</span>
+        <span
+          v-if="showProvenance && (epic.components || []).length > 0 && isInherited(epic.componentSource)"
+          class="px-1.5 py-0.5 rounded text-[9px] font-medium italic bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400"
+          title="Inherited from the parent Feature — not the Epic's own Components"
+        >components inherited</span>
 
         <!-- Labels -->
         <span
