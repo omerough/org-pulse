@@ -450,28 +450,6 @@ const funnelChartOptions = computed(() => ({
   }
 }))
 
-const waitingChartData = computed(() => ({
-  labels: trendData.value.map(p => p.date),
-  datasets: [
-    { label: 'Under Review', data: trendData.value.map(p => p.review || 0), backgroundColor: 'rgba(59, 130, 246, 0.6)' },
-    { label: 'CI Failing', data: trendData.value.map(p => p.ciFailing || 0), backgroundColor: 'rgba(249, 115, 22, 0.6)' },
-    { label: 'Blocked', data: trendData.value.map(p => p.blocked || 0), backgroundColor: 'rgba(234, 179, 8, 0.6)' },
-    { label: 'Max Retries', data: trendData.value.map(p => p.maxRetries || 0), backgroundColor: 'rgba(239, 68, 68, 0.6)' }
-  ]
-}))
-
-const waitingChartOptions = computed(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: { display: true, position: 'top', labels: { font: { size: 10 }, color: textColor.value } }
-  },
-  scales: {
-    x: { stacked: true, ticks: { font: { size: 10 }, color: textColor.value, maxRotation: 0 }, grid: { color: gridColor.value } },
-    y: { stacked: true, beginAtZero: true, ticks: { font: { size: 10 }, color: textColor.value, precision: 0 }, title: { display: true, text: 'Issues waiting', font: { size: 11 }, color: textColor.value }, grid: { color: gridColor.value } }
-  }
-}))
-
 const triageWaitingData = computed(() => ({
   labels: trendData.value.map(p => p.date),
   datasets: [
@@ -983,7 +961,7 @@ function buildHumanAssignedJql() {
         </div>
 
         <!-- Pipeline Trends -->
-        <div class="px-6 pb-6 grid grid-cols-1 lg:grid-cols-3 gap-6" v-if="trendData.length > 0 && hasTrendActivity">
+        <div class="px-6 pb-6 grid grid-cols-1 lg:grid-cols-2 gap-6" v-if="trendData.length > 0 && hasTrendActivity">
           <!-- Waiting on Humans: Triage -->
           <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
             <div class="flex items-center justify-between mb-3">
@@ -1001,26 +979,6 @@ function buildHumanAssignedJql() {
             </div>
             <div class="h-[180px]">
               <Bar :data="triageWaitingData" :options="triageWaitingOptions" />
-            </div>
-          </div>
-
-          <!-- Waiting on Humans: Autofix -->
-          <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
-                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Waiting on Humans: Autofix</h3>
-                <div class="relative group">
-                  <svg class="h-3.5 w-3.5 text-gray-400 dark:text-gray-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div class="absolute right-0 top-6 z-10 hidden group-hover:block w-72 p-2 text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50">
-                    Autofix issues where a human can help. Under Review: MR waiting for code review. CI Failing: MR exists but CI is red. Blocked: AI got stuck. Max Retries: AI exhausted its attempts.
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="h-[180px]">
-              <Bar :data="waitingChartData" :options="waitingChartOptions" />
             </div>
           </div>
 

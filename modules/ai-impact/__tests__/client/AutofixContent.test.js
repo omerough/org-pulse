@@ -111,6 +111,15 @@ describe('AutofixContent', () => {
     expect(wrapper.text()).toContain('AI Fix Under Review')
   })
 
+  it('does not render the removed Waiting on Humans: Autofix chart', () => {
+    const wrapper = mount(AutofixContent, {
+      props: { autofixData: MOCK_DATA, loading: false, timeWindow: 'month' }
+    })
+    expect(wrapper.text()).not.toContain('Waiting on Humans: Autofix')
+    expect(wrapper.text()).toContain('Waiting on Humans: Triage')
+    expect(wrapper.text()).toContain('Adoption Over Time')
+  })
+
   it('renders issue table with Jira links', () => {
     const wrapper = mount(AutofixContent, {
       props: { autofixData: MOCK_DATA, loading: false, timeWindow: 'month' }
