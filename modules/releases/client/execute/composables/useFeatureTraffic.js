@@ -90,6 +90,8 @@ export function useEpicsByRelease() {
     if (!version) {
       features.value = []
       fetchedAt.value = null
+      loading.value = false
+      error.value = null
       return
     }
 
