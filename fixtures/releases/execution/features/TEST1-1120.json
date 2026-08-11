@@ -83,7 +83,7 @@
       "type": "Blocks",
       "direction": "inward",
       "linkedKey": "RHAIRFE-1487",
-      "linkedSummary": "[TP] MaaS Multi-Tenancy — Per-Tenant Gateway and Identity Isolation",
+      "linkedSummary": "[TP] MaaS Multi-Tenancy \u2014 Per-Tenant Gateway and Identity Isolation",
       "linkedStatus": "New"
     }
   ],
@@ -162,7 +162,17 @@
           "updated": "2026-04-01T14:05:10.833+0000",
           "resolutionDate": null
         }
-      ]
+      ],
+      "fixVersions": [
+        "rhoai-3.4"
+      ],
+      "fixVersionSource": "direct",
+      "componentSource": "direct",
+      "parentFeatureKey": "TEST1-1120",
+      "issueCount": 3,
+      "blockerCount": 0,
+      "pct": 33,
+      "progress": 33
     },
     {
       "key": "TEST2-49149",
@@ -179,7 +189,17 @@
       "storyPoints": 0,
       "created": "2026-02-10T17:42:47.196+0000",
       "updated": "2026-04-01T14:03:18.533+0000",
-      "issues": []
+      "issues": [],
+      "fixVersions": [
+        "rhoai-3.4"
+      ],
+      "fixVersionSource": "via-parent-feature",
+      "componentSource": "direct",
+      "parentFeatureKey": "TEST1-1120",
+      "issueCount": 0,
+      "blockerCount": 0,
+      "pct": 0,
+      "progress": 0
     }
   ],
   "metrics": {

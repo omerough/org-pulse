@@ -73,3 +73,44 @@ export function useVersions() {
 
   return { versions, loadVersions }
 }
+
+export function useEpicsByRelease() {
+  const features = ref([])
+  const fetchedAt = ref(null)
+  const loading = ref(false)
+  const error = ref(null)
+
+  // Guards against out-of-order responses: if the version changes again before an
+  // in-flight request resolves, only the most recently requested version may write state.
+  let latestRequestId = 0
+
+  async function loadEpicsByRelease(version) {
+    const requestId = ++latestRequestId
+
+    if (!version) {
+      features.value = []
+      fetchedAt.value = null
+      loading.value = false
+      error.value = null
+      return
+    }
+
+    loading.value = true
+    error.value = null
+
+    try {
+      const data = await apiRequest(`/modules/releases/execution/epics?version=${encodeURIComponent(version)}`)
+      if (requestId !== latestRequestId) return
+      features.value = data.features || []
+      fetchedAt.value = data.fetchedAt || null
+    } catch (err) {
+      if (requestId !== latestRequestId) return
+      error.value = err.message
+      features.value = []
+    } finally {
+      if (requestId === latestRequestId) loading.value = false
+    }
+  }
+
+  return { features, fetchedAt, loading, error, loadEpicsByRelease }
+}
