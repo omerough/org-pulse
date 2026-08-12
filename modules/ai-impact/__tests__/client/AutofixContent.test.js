@@ -415,4 +415,55 @@ describe('AutofixContent', () => {
       expect(wrapper.text()).toContain('100%')
     })
   })
+
+  describe('Ready for AI Jira link', () => {
+    it('uses OR-based JQL excluding human-assigned issues', () => {
+      const wrapper = mount(AutofixContent, {
+        props: { autofixData: MOCK_DATA, loading: false, timeWindow: 'month' }
+      })
+      const links = wrapper.findAll('a[href*="jql"]')
+      const readyLink = links.find(l => {
+        const href = decodeURIComponent(l.attributes('href'))
+        return href.includes('jira-autofix-blocked') && href.includes('OR')
+      })
+      expect(readyLink).toBeTruthy()
+      const jql = decodeURIComponent(readyLink.attributes('href'))
+      expect(jql).toContain('labels IN ("jira-autofix-pending"')
+      expect(jql).toContain('jira-autofix-blocked")')
+      expect(jql).toContain('OR (labels = "jira-autofix" AND (assignee is EMPTY OR assignee = "osac-dev-bot" OR status = "New"))')
+      expect(jql).toContain('ORDER BY created DESC')
+      expect(jql).toContain('created >= "')
+    })
+
+    it('includes project and component filters in Ready for AI JQL', () => {
+      const wrapper = mount(AutofixContent, {
+        props: { autofixData: MOCK_DATA, loading: false, timeWindow: 'month' }
+      })
+      const links = wrapper.findAll('a[href*="jql"]')
+      const readyLink = links.find(l => {
+        const href = decodeURIComponent(l.attributes('href'))
+        return href.includes('jira-autofix-blocked') && href.includes('OR')
+      })
+      const jql = decodeURIComponent(readyLink.attributes('href'))
+      expect(jql).toContain('project IN (')
+      expect(jql).toContain('component is EMPTY OR component NOT IN ("Enclave", "agentic-sdlc")')
+    })
+
+    it('triage segment links exclude higher-priority labels', () => {
+      const wrapper = mount(AutofixContent, {
+        props: { autofixData: MOCK_DATA, loading: false, timeWindow: 'month' }
+      })
+      const links = wrapper.findAll('a[href*="jql"]')
+      const notFixableLink = links.find(l => {
+        const href = decodeURIComponent(l.attributes('href'))
+        return href.includes('jira-triage-not-fixable') && !href.includes('OR')
+      })
+      if (notFixableLink) {
+        const jql = decodeURIComponent(notFixableLink.attributes('href'))
+        expect(jql).toContain('labels NOT IN')
+        expect(jql).toContain('jira-autofix')
+        expect(jql).toContain('jira-triage-security-review')
+      }
+    })
+  })
 })
