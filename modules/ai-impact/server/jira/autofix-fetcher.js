@@ -29,7 +29,8 @@ const AUTOFIX_LABELS = [
   'jira-autofix-merged',
   'jira-autofix-rejected',
   'jira-autofix-max-retries',
-  'jira-autofix-blocked'
+  'jira-autofix-blocked',
+  'jira-autofix-fork-user-missing'
 ];
 
 const ALL_PIPELINE_LABELS = [...TRIAGE_LABELS, ...AUTOFIX_LABELS];
@@ -46,6 +47,7 @@ function classifyIssue(labels, status, assignee) {
   // Active autofix states (blocked before pending — blocked is added when
   // the bot gets stuck after starting, but pending may not be removed)
   if (labelSet.has('jira-autofix-blocked')) return 'autofix-blocked';
+  if (labelSet.has('jira-autofix-fork-user-missing')) return 'autofix-fork-user-missing';
   if (labelSet.has('jira-autofix-ci-failing')) return 'autofix-ci-failing';
   if (labelSet.has('jira-autofix-review')) return 'autofix-review';
   if (labelSet.has('jira-autofix-pending')) return 'autofix-pending';
@@ -160,7 +162,8 @@ function computeAutofixMetrics(issues, timeWindow) {
     merged: get('autofix-merged'),
     rejected: get('autofix-rejected'),
     maxRetries: get('autofix-max-retries'),
-    blocked: get('autofix-blocked')
+    blocked: get('autofix-blocked'),
+    forkUserMissing: get('autofix-fork-user-missing')
   };
 
   const autofixTotal = Object.values(autofixStates).reduce(function(s, v) { return s + v; }, 0);

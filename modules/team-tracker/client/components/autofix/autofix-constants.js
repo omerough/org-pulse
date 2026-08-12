@@ -19,7 +19,8 @@ export const STATE_OPTIONS = [
   { value: 'autofix-merged', label: 'AI Fix Merged' },
   { value: 'autofix-rejected', label: 'AI Fix Rejected' },
   { value: 'autofix-max-retries', label: 'AI Max Retries' },
-  { value: 'autofix-blocked', label: 'AI Blocked' }
+  { value: 'autofix-blocked', label: 'AI Blocked' },
+  { value: 'autofix-fork-user-missing', label: 'Fork Not Installed' }
 ]
 
 export const PIPELINE_BAR_SEGMENTS = [
@@ -28,7 +29,8 @@ export const PIPELINE_BAR_SEGMENTS = [
   { state: 'autofix-pending', label: 'Pending', color: 'bg-gray-400' },
   { state: 'autofix-ci-failing', label: 'CI Failing', color: 'bg-orange-500' },
   { state: 'autofix-blocked', label: 'Blocked', color: 'bg-yellow-500' },
-  { state: 'autofix-max-retries', label: 'Max Retries', color: 'bg-red-500' }
+  { state: 'autofix-max-retries', label: 'Max Retries', color: 'bg-red-500' },
+  { state: 'autofix-fork-user-missing', label: 'Fork Missing', color: 'bg-amber-500' }
 ]
 
 export function stateLabel(state) {
@@ -48,6 +50,7 @@ export function stateColorClass(state) {
   if (state === 'triage-stale') return 'bg-gray-100 dark:bg-gray-600/20 text-gray-600 dark:text-gray-400'
   if (state === 'triage-external') return 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400'
   if (state === 'triage-security-review') return 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400'
+  if (state === 'autofix-fork-user-missing') return 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400'
   return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
 }
 
@@ -118,7 +121,8 @@ export function computeTeamMetrics(issues, timeWindow) {
     merged: windowIssues.filter(i => i.pipelineState === 'autofix-merged').length,
     rejected: windowIssues.filter(i => i.pipelineState === 'autofix-rejected').length,
     maxRetries: windowIssues.filter(i => i.pipelineState === 'autofix-max-retries').length,
-    blocked: windowIssues.filter(i => i.pipelineState === 'autofix-blocked').length
+    blocked: windowIssues.filter(i => i.pipelineState === 'autofix-blocked').length,
+    forkUserMissing: windowIssues.filter(i => i.pipelineState === 'autofix-fork-user-missing').length
   }
 
   const terminalTotal = autofixStates.merged + autofixStates.rejected + autofixStates.maxRetries

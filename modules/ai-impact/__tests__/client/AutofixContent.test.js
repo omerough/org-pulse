@@ -429,7 +429,7 @@ describe('AutofixContent', () => {
       expect(readyLink).toBeTruthy()
       const jql = decodeURIComponent(readyLink.attributes('href'))
       expect(jql).toContain('labels IN ("jira-autofix-pending"')
-      expect(jql).toContain('jira-autofix-blocked")')
+      expect(jql).toContain('jira-autofix-fork-user-missing")')
       expect(jql).toContain('OR (labels = "jira-autofix" AND (assignee is EMPTY OR assignee = "osac-dev-bot" OR status = "New"))')
       expect(jql).toContain('ORDER BY created DESC')
       expect(jql).toContain('created >= "')
