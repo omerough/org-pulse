@@ -37,7 +37,7 @@ permissions:
 
 concurrency:
   group: build-images-${{ github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   BACKEND_IMAGE: ${{ vars.BACKEND_IMAGE || 'quay.io/org-pulse/team-tracker-backend' }}

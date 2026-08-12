@@ -1,5 +1,6 @@
 const fs = require('fs');
 
+// Readiness check for the backend container.
 function createReadyzHandler(storageModule) {
   return function readyzHandler(req, res) {
     var dataRoot = storageModule.DATA_DIR || storageModule.FIXTURES_DIR;
