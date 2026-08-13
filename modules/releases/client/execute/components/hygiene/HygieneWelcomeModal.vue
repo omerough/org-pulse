@@ -125,10 +125,10 @@ const enabledRuleCount = computed(() => {
           </p>
 
           <p v-if="isPlanningManager" class="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700 pt-3">
-            As a planning manager, you can configure which rules are active and adjust
+            As a planning manager, you can view which rules are enabled and their
             thresholds on the
             <button @click="goToManage" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Manage</button>
-            page.
+            page. Rules are configured in org-pulse-data, not here.
           </p>
         </div>
 
@@ -175,9 +175,9 @@ const enabledRuleCount = computed(() => {
             v-if="isPlanningManager && ruleDetails"
             class="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700 pt-3 mt-4"
           >
-            You can enable, disable, or adjust thresholds for these rules on the
+            See the full read-only rule configuration on the
             <button @click="goToManage" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Manage</button>
-            page.
+            page. Rules are configured in org-pulse-data, not here.
           </p>
         </div>
 

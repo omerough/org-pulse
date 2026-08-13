@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "rhoai-2.15",
+  "displayName": "RHOAI 2.15",
+  "fixVersions": ["RHOAI-2.15"],
+  "baselineDate": null,
+  "baselineSource": "unknown",
+  "fetchedAt": "2026-08-13T07:56:10Z",
+  "featureCount": 2,
+  "counts": {
+    "committed": 0,
+    "added": 0,
+    "dropped": 0,
+    "moved": 0,
+    "unknown": 2,
+    "blockerPriority": 0
+  },
+  "wasQueryFailed": true,
+  "features": [
+    {
+      "key": "TEST1-2001",
+      "summary": "GPU node pool preflight checks",
+      "status": "In Progress",
+      "statusCategory": "In Progress",
+      "priority": "Major",
+      "assignee": "Priya Anand",
+      "components": ["Infrastructure"],
+      "isBlockerPriority": false,
+      "scopeChange": "unknown",
+      "fixVersionAddedAt": null,
+      "fixVersionRemovedAt": null,
+      "movedTo": null
+    },
+    {
+      "key": "TEST1-2002",
+      "summary": "Feature store schema migration",
+      "status": "To Do",
+      "statusCategory": "To Do",
+      "priority": "Normal",
+      "assignee": "Lior Ben-David",
+      "components": ["Core"],
+      "isBlockerPriority": false,
+      "scopeChange": "unknown",
+      "fixVersionAddedAt": null,
+      "fixVersionRemovedAt": null,
+      "movedTo": null
+    }
+  ]
+}
