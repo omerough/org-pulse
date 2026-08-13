@@ -29,6 +29,10 @@ const counts = computed(() => (currentData.value && currentData.value.counts) ||
 const baselineDate = computed(() => currentData.value ? currentData.value.baselineDate : null)
 const baselineSource = computed(() => currentData.value ? currentData.value.baselineSource : null)
 const wasQueryFailed = computed(() => !!(currentData.value && currentData.value.wasQueryFailed))
+const baselineNotYetReached = computed(() => {
+  if (!baselineDate.value) return false
+  return new Date(baselineDate.value + 'T00:00:00') > new Date()
+})
 
 function baselineSourceLabel(source) {
   if (source === 'override') return 'manual override'
@@ -117,6 +121,17 @@ onMounted(async () => {
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
       </svg>
       Dropped/moved feature data for this release may be incomplete — the scope-change query failed during the last data refresh.
+    </div>
+
+    <!-- Baseline not yet reached -->
+    <div
+      v-if="currentData && baselineNotYetReached"
+      class="mb-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-2.5 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2"
+    >
+      <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      This release's baseline ({{ formatDate(baselineDate) }}) hasn't been reached yet — scope shown below is provisional and may still change before the freeze.
     </div>
 
     <!-- Summary cards -->
