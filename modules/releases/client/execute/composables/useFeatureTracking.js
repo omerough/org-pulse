@@ -11,8 +11,10 @@ export function useFeatureTracking() {
     try {
       var data = await apiRequest('/modules/releases/execution/tracking/releases')
       releases.value = data.releases || []
-    } catch {
+      error.value = null
+    } catch (err) {
       releases.value = []
+      error.value = err.message
     }
   }
 

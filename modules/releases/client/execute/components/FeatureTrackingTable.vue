@@ -43,7 +43,7 @@ function scopeTooltip(feature) {
 
 function formatDate(dateStr) {
   if (!dateStr) return ''
-  var d = new Date(dateStr)
+  var d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr + 'T00:00:00' : dateStr)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 </script>

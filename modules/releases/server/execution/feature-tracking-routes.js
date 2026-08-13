@@ -11,6 +11,7 @@ const { readRegistry } = require('../registry')
 
 const TRACKING_DIR = 'releases/execution'
 const TRACKING_PREFIX = 'tracking-data-'
+const VALID_RELEASE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 function trackingFileKey(releaseId) {
   return TRACKING_DIR + '/' + TRACKING_PREFIX + releaseId + '.json'
@@ -115,11 +116,17 @@ module.exports = function registerFeatureTrackingRoutes(router, context) {
    */
   router.get('/tracking/data', requireAuth, requireScope('releases:read'), function (req, res) {
     const releaseId = req.query.releaseId
-    if (typeof releaseId !== 'string' || !releaseId.trim()) {
+    if (typeof releaseId !== 'string' || !VALID_RELEASE_ID.test(releaseId)) {
       return res.status(400).json({ error: 'releaseId query parameter must be a non-empty string' })
     }
 
-    const data = storage.readFromStorage(trackingFileKey(releaseId))
+    let data
+    try {
+      data = storage.readFromStorage(trackingFileKey(releaseId))
+    } catch (err) {
+      console.error('[feature-tracking] Failed to read tracking data for', releaseId, err.message)
+      return res.status(500).json({ error: 'Feature tracking data for release is unreadable: ' + releaseId })
+    }
     if (!data) {
       return res.status(404).json({ error: 'No feature tracking data found for release: ' + releaseId })
     }

@@ -45,7 +45,7 @@ function baselineSourceLabel(source) {
 const filteredFeatures = computed(() => {
   if (!activeFilter.value) return features.value
   return features.value.filter(function (f) {
-    if (activeFilter.value === 'blocker') return f.isBlockerPriority && f.scopeChange !== 'dropped'
+    if (activeFilter.value === 'blocker') return f.isBlockerPriority && f.scopeChange !== 'dropped' && f.scopeChange !== 'moved'
     return f.scopeChange === activeFilter.value
   })
 })
