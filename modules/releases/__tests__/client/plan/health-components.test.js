@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import RiskBadge from '../../../client/plan/components/RiskBadge.vue'
 import HealthSummaryCards from '../../../client/plan/components/HealthSummaryCards.vue'
@@ -318,6 +318,19 @@ describe('MilestoneTimeline', function() {
     gaTarget: '2026-08-15'
   }
 
+  // MilestoneTimeline computes "today" and the next-milestone countdown from
+  // the real clock (Date.now()/new Date()), so freeze it between two fixture
+  // milestones — otherwise these dates eventually fall entirely in the past
+  // and the countdown this suite asserts on stops rendering.
+  beforeEach(function() {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 5, 1)) // "today" = Jun 1, 2026 local, between ea1Target and ea2Freeze
+  })
+
+  afterEach(function() {
+    vi.useRealTimers()
+  })
+
   it('shows fallback when milestones is null', function() {
     var wrapper = mount(MilestoneTimeline, { props: { milestones: null } })
     expect(wrapper.text()).toContain('Milestone')
@@ -331,10 +344,7 @@ describe('MilestoneTimeline', function() {
 
   it('shows next milestone countdown', function() {
     var wrapper = mount(MilestoneTimeline, { props: { milestones: milestones } })
-    var text = wrapper.text()
-    if (text.includes('day')) {
-      expect(text).toMatch(/\d+\s*day/)
-    }
+    expect(wrapper.text()).toMatch(/\d+\s*days? to EA2 Code Freeze/)
   })
 
   it('renders milestone points', function() {
