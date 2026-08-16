@@ -226,5 +226,38 @@ describe('registerFeatureTrackingRoutes', () => {
       handler({ query: { releaseId: 'osac-9.9' } }, res)
       expect(res._status).toBe(404)
     })
+
+    it('rejects a path-traversal releaseId with 400', () => {
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/data'].at(-1)
+      const res = makeRes()
+      handler({ query: { releaseId: '../../registry' } }, res)
+      expect(res._status).toBe(400)
+    })
+
+    it('rejects a releaseId containing a path separator with 400', () => {
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/data'].at(-1)
+      const res = makeRes()
+      handler({ query: { releaseId: 'osac-0.2/../../registry' } }, res)
+      expect(res._status).toBe(400)
+    })
+
+    it('returns a clean 500 and logs when the tracking file is corrupt', () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      context.storage = makeStorage({
+        'releases/execution/tracking-data-osac-0.2.json': makeTrackingData()
+      }, ['releases/execution/tracking-data-osac-0.2.json'])
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/data'].at(-1)
+      const res = makeRes()
+      handler({ query: { releaseId: 'osac-0.2' } }, res)
+
+      expect(res._status).toBe(500)
+      expect(res._json).toEqual({ error: 'Feature tracking data for release is unreadable: osac-0.2' })
+      expect(errorSpy).toHaveBeenCalledWith('[feature-tracking] Failed to read tracking data for', 'osac-0.2', expect.any(String))
+
+      errorSpy.mockRestore()
+    })
   })
 })

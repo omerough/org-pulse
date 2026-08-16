@@ -475,3 +475,98 @@ test.describe('Releases Planning Health @releases', () => {
     }
   });
 });
+
+/**
+ * Feature Tracking
+ *
+ * Verify the Feature Tracking tab under Execute: release selection swaps
+ * datasets, filter chips narrow the flat feature table, and scope-change
+ * badges render per feature. Also covers a real bug found in review: a
+ * feature that is both "moved" and blocker-priority must be excluded from
+ * the Blocker Priority filter, matching counts.blockerPriority (which
+ * excludes dropped/moved features).
+ *
+ * Demo fixture (fixtures/releases/execution/tracking-data-rhoai-2.14.json)
+ * has one feature per scope-change state: TEST1-1001 (committed),
+ * TEST1-1002 (added, blocker priority), TEST1-1003 (dropped),
+ * TEST1-1004 (moved, also blocker priority).
+ */
+test.describe('Releases Feature Tracking @releases', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  async function openFeatureTrackingTab(page) {
+    await page.goto('/#/releases/execute');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+    await page.locator('button', { hasText: 'Feature Tracking' }).click();
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+  }
+
+  test('loads the default release and renders flat feature rows with scope-change state', async ({ page }) => {
+    await openFeatureTrackingTab(page);
+
+    // RHOAI 2.14 sorts first in the registry, so it's the default selection.
+    await expect(page.locator('button', { hasText: 'RHOAI 2.14' })).toBeVisible();
+
+    const table = page.locator('table');
+    await expect(page.locator('table tbody tr')).toHaveCount(4);
+    await expect(table.getByText('TEST1-1001')).toBeVisible();
+    await expect(table.getByText('Committed', { exact: true })).toBeVisible();
+    await expect(table.getByText('Added', { exact: true })).toBeVisible();
+    await expect(table.getByText('Dropped', { exact: true })).toBeVisible();
+    await expect(table.getByText('Moved', { exact: true })).toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('switching the release selector loads a different dataset', async ({ page }) => {
+    await openFeatureTrackingTab(page);
+
+    await expect(page.locator('table').getByText('TEST1-1001')).toBeVisible();
+
+    await page.locator('button', { hasText: 'RHOAI 2.15' }).click();
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    await expect(page.locator('table').getByText('TEST1-2001')).toBeVisible();
+    await expect(page.locator('table').getByText('TEST1-1001')).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('a filter chip narrows the table to that scope change', async ({ page }) => {
+    await openFeatureTrackingTab(page);
+
+    await page.getByText('Added', { exact: true }).first().click();
+    await page.waitForTimeout(500);
+
+    await expect(page.locator('table tbody tr')).toHaveCount(1);
+    await expect(page.locator('table').getByText('TEST1-1002')).toBeVisible();
+
+    await page.locator('button', { hasText: 'Clear filter' }).click();
+    await page.waitForTimeout(500);
+    await expect(page.locator('table tbody tr')).toHaveCount(4);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('the Blocker Priority filter excludes a moved feature even though it is blocker priority', async ({ page }) => {
+    await openFeatureTrackingTab(page);
+
+    await page.getByText('Blocker Priority', { exact: true }).first().click();
+    await page.waitForTimeout(500);
+
+    // Only TEST1-1002 (added) qualifies; TEST1-1004 (moved) is blocker
+    // priority too but must stay excluded, consistent with counts.blockerPriority.
+    await expect(page.locator('table tbody tr')).toHaveCount(1);
+    await expect(page.locator('table').getByText('TEST1-1002')).toBeVisible();
+    await expect(page.locator('table').getByText('TEST1-1004')).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+});
