@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "rhoai-2.14",
+  "displayName": "RHOAI 2.14",
+  "fixVersions": ["RHOAI-2.14"],
+  "baselineDate": "2026-04-22",
+  "baselineSource": "releaseStart+7d",
+  "fetchedAt": "2026-08-13T07:56:10Z",
+  "featureCount": 4,
+  "counts": {
+    "committed": 1,
+    "added": 1,
+    "dropped": 1,
+    "moved": 1,
+    "unknown": 0,
+    "blockerPriority": 1
+  },
+  "wasQueryFailed": false,
+  "features": [
+    {
+      "key": "TEST1-1001",
+      "summary": "Add model registry versioning UI",
+      "status": "In Progress",
+      "statusCategory": "In Progress",
+      "priority": "Major",
+      "assignee": "Frankie Clay",
+      "components": ["Dashboard"],
+      "isBlockerPriority": false,
+      "scopeChange": null,
+      "fixVersionAddedAt": null,
+      "fixVersionRemovedAt": null,
+      "movedTo": null
+    },
+    {
+      "key": "TEST1-1002",
+      "summary": "Improve pipeline retry backoff",
+      "status": "Review",
+      "statusCategory": "In Progress",
+      "priority": "Blocker",
+      "assignee": "Jamie Rios",
+      "components": ["API"],
+      "isBlockerPriority": true,
+      "scopeChange": "added",
+      "fixVersionAddedAt": "2026-05-01T10:00:00.000+0000",
+      "fixVersionRemovedAt": null,
+      "movedTo": null
+    },
+    {
+      "key": "TEST1-1003",
+      "summary": "Deprecate legacy notebook image",
+      "status": "Closed",
+      "statusCategory": "Done",
+      "priority": "Minor",
+      "assignee": "Sam Okafor",
+      "components": ["Notebooks"],
+      "isBlockerPriority": false,
+      "scopeChange": "dropped",
+      "fixVersionAddedAt": null,
+      "fixVersionRemovedAt": "2026-05-10T09:00:00.000+0000",
+      "movedTo": null
+    },
+    {
+      "key": "TEST1-1004",
+      "summary": "Model serving autoscaling policy",
+      "status": "In Progress",
+      "statusCategory": "In Progress",
+      "priority": "Critical",
+      "assignee": "Robin Vance",
+      "components": ["Model Serving"],
+      "isBlockerPriority": true,
+      "scopeChange": "moved",
+      "fixVersionAddedAt": null,
+      "fixVersionRemovedAt": "2026-05-12T11:30:00.000+0000",
+      "movedTo": { "releaseId": "rhoai-2.15", "fixVersion": "RHOAI-2.15" }
+    }
+  ]
+}

@@ -1,529 +1,263 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-const { transformIssue, CUSTOM_FIELDS } = require('../../../server/hygiene/jira-fetch')
-const { findFixVersionAddedDate, findFixVersionRemovedDate, classifyFeature, normalizeVersionName, fetchDroppedFeatures } = require('../../../server/execution/feature-tracking-routes')
+const registerFeatureTrackingRoutes = require('../../../server/execution/feature-tracking-routes')
+const { trackingFileKey, listTrackingReleaseIds, orderReleaseIds } = registerFeatureTrackingRoutes
 
-function makeRawIssue(overrides) {
-  var fields = {}
-  fields.summary = 'Test feature'
-  fields.issuetype = { name: 'Feature' }
-  fields.status = { name: 'In Progress', statusCategory: { name: 'In Progress' } }
-  fields.assignee = { displayName: 'Jane Doe' }
-  fields.fixVersions = [{ name: 'rhoai-3.5.EA1' }]
-  fields.components = [{ name: 'Model Serving' }]
-  fields.labels = []
-  fields.issuelinks = []
-  fields[CUSTOM_FIELDS.team] = { name: 'Model Serving' }
-  fields[CUSTOM_FIELDS.colorStatus] = { value: 'Green' }
-
-  if (overrides) {
-    Object.assign(fields, overrides)
-  }
-
+function makeStorage(data = {}, throwOnKeys = []) {
+  const store = { ...data }
   return {
-    key: 'RHAISTRAT-100',
-    fields: fields,
-    renderedFields: {}
+    readFromStorage(key) {
+      if (throwOnKeys.includes(key)) {
+        throw new SyntaxError('Unexpected token in JSON')
+      }
+      return Object.prototype.hasOwnProperty.call(store, key) ? JSON.parse(JSON.stringify(store[key])) : null
+    },
+    writeToStorage(key, value) {
+      store[key] = value
+    },
+    listStorageFiles(dir) {
+      const prefix = dir + '/'
+      return Object.keys(store)
+        .filter(k => k.startsWith(prefix) && k.slice(prefix.length).indexOf('/') === -1 && k.endsWith('.json'))
+        .map(k => k.slice(prefix.length))
+    },
+    _store: store
   }
 }
 
-// ─── isBlocked derivation ──────────────────────────────────────────
-
-describe('transformIssue — isBlocked', function () {
-  it('sets isBlocked=false when no issue links exist', function () {
-    var result = transformIssue(makeRawIssue(), {})
-    expect(result.isBlocked).toBe(false)
-  })
-
-  it('sets isBlocked=true when an unresolved inward Blocks link exists', function () {
-    var result = transformIssue(makeRawIssue({
-      issuelinks: [{
-        type: { name: 'Blocks', inward: 'is blocked by' },
-        inwardIssue: {
-          key: 'RHOAIENG-500',
-          fields: { status: { name: 'In Progress' } }
-        }
-      }]
-    }), {})
-    expect(result.isBlocked).toBe(true)
-  })
-
-  it('sets isBlocked=false when blocking issue is Closed', function () {
-    var result = transformIssue(makeRawIssue({
-      issuelinks: [{
-        type: { name: 'Blocks', inward: 'is blocked by' },
-        inwardIssue: {
-          key: 'RHOAIENG-500',
-          fields: { status: { name: 'Closed', statusCategory: { name: 'Done' } } }
-        }
-      }]
-    }), {})
-    expect(result.isBlocked).toBe(false)
-  })
-
-  it('sets isBlocked=false when blocking issue is Resolved', function () {
-    var result = transformIssue(makeRawIssue({
-      issuelinks: [{
-        type: { name: 'Blocks', inward: 'is blocked by' },
-        inwardIssue: {
-          key: 'RHOAIENG-500',
-          fields: { status: { name: 'Resolved', statusCategory: { name: 'Done' } } }
-        }
-      }]
-    }), {})
-    expect(result.isBlocked).toBe(false)
-  })
-
-  it('sets isBlocked=false when blocking issue is Done', function () {
-    var result = transformIssue(makeRawIssue({
-      issuelinks: [{
-        type: { name: 'Blocks', inward: 'is blocked by' },
-        inwardIssue: {
-          key: 'RHOAIENG-500',
-          fields: { status: { name: 'Done', statusCategory: { name: 'Done' } } }
-        }
-      }]
-    }), {})
-    expect(result.isBlocked).toBe(false)
-  })
-
-  it('ignores outward Blocks links (this issue blocks something else)', function () {
-    var result = transformIssue(makeRawIssue({
-      issuelinks: [{
-        type: { name: 'Blocks', outward: 'blocks' },
-        outwardIssue: {
-          key: 'RHOAIENG-600',
-          fields: { status: { name: 'In Progress' } }
-        }
-      }]
-    }), {})
-    expect(result.isBlocked).toBe(false)
-  })
-
-  it('ignores non-Blocks link types', function () {
-    var result = transformIssue(makeRawIssue({
-      issuelinks: [{
-        type: { name: 'Relates', inward: 'relates to' },
-        inwardIssue: {
-          key: 'RHOAIENG-700',
-          fields: { status: { name: 'In Progress' } }
-        }
-      }]
-    }), {})
-    expect(result.isBlocked).toBe(false)
-  })
-
-  it('detects blocked via "is blocked by" inward label', function () {
-    var result = transformIssue(makeRawIssue({
-      issuelinks: [{
-        type: { name: 'SomeType', inward: 'is blocked by' },
-        inwardIssue: {
-          key: 'RHOAIENG-800',
-          fields: { status: { name: 'To Do' } }
-        }
-      }]
-    }), {})
-    expect(result.isBlocked).toBe(true)
-  })
-})
-
-// ─── priority derivation ──────────────────────────────────────────
-
-describe('transformIssue — priority', function () {
-  it('extracts priority name from priority field', function () {
-    var result = transformIssue(makeRawIssue({ priority: { name: 'Major' } }), {})
-    expect(result.priority).toBe('Major')
-  })
-
-  it('returns null when priority field is not set', function () {
-    var result = transformIssue(makeRawIssue(), {})
-    expect(result.priority).toBeNull()
-  })
-
-  it('returns null when priority field is null', function () {
-    var result = transformIssue(makeRawIssue({ priority: null }), {})
-    expect(result.priority).toBeNull()
-  })
-
-  it('extracts Blocker priority', function () {
-    var result = transformIssue(makeRawIssue({ priority: { name: 'Blocker' } }), {})
-    expect(result.priority).toBe('Blocker')
-  })
-
-  it('extracts Critical priority', function () {
-    var result = transformIssue(makeRawIssue({ priority: { name: 'Critical' } }), {})
-    expect(result.priority).toBe('Critical')
-  })
-
-  it('extracts Minor priority', function () {
-    var result = transformIssue(makeRawIssue({ priority: { name: 'Minor' } }), {})
-    expect(result.priority).toBe('Minor')
-  })
-
-  it('extracts Trivial priority', function () {
-    var result = transformIssue(makeRawIssue({ priority: { name: 'Trivial' } }), {})
-    expect(result.priority).toBe('Trivial')
-  })
-})
-
-// ─── pmOwner derivation ────────────────────────────────────────────
-
-describe('transformIssue — pmOwner', function () {
-  it('extracts pmOwner from productManager custom field', function () {
-    var overrides = {}
-    overrides[CUSTOM_FIELDS.productManager] = { displayName: 'Bob Smith' }
-    var result = transformIssue(makeRawIssue(overrides), {})
-    expect(result.pmOwner).toBe('Bob Smith')
-  })
-
-  it('returns null when productManager field is not set', function () {
-    var result = transformIssue(makeRawIssue(), {})
-    expect(result.pmOwner).toBeNull()
-  })
-
-  it('returns null when productManager field is null', function () {
-    var overrides = {}
-    overrides[CUSTOM_FIELDS.productManager] = null
-    var result = transformIssue(makeRawIssue(overrides), {})
-    expect(result.pmOwner).toBeNull()
-  })
-})
-
-// ─── productManager custom field ID ────────────────────────────────
-
-describe('CUSTOM_FIELDS', function () {
-  it('includes productManager field ID', function () {
-    expect(CUSTOM_FIELDS.productManager).toBe('customfield_10469')
-  })
-})
-
-// ─── findFixVersionAddedDate ──────────────────────────────────────
-
-describe('findFixVersionAddedDate', function () {
-  it('returns the timestamp when fixVersion was added', function () {
-    var changelog = {
-      histories: [{
-        created: '2026-05-15T10:30:00.000+0000',
-        items: [{
-          field: 'Fix Version',
-          fieldId: 'fixVersions',
-          toString: 'rhoai-3.5.EA1'
-        }]
-      }]
-    }
-    expect(findFixVersionAddedDate(changelog, 'rhoai-3.5.EA1')).toBe('2026-05-15T10:30:00.000+0000')
-  })
-
-  it('returns null when fixVersion not found in changelog', function () {
-    var changelog = {
-      histories: [{
-        created: '2026-05-15T10:30:00.000+0000',
-        items: [{
-          field: 'Fix Version',
-          fieldId: 'fixVersions',
-          toString: 'rhoai-3.5.EA2'
-        }]
-      }]
-    }
-    expect(findFixVersionAddedDate(changelog, 'rhoai-3.5.EA1')).toBeNull()
-  })
-
-  it('returns null when changelog is empty', function () {
-    expect(findFixVersionAddedDate({ histories: [] }, 'rhoai-3.5.EA1')).toBeNull()
-  })
-
-  it('returns null when changelog is null', function () {
-    expect(findFixVersionAddedDate(null, 'rhoai-3.5.EA1')).toBeNull()
-  })
-
-  it('matches case-insensitively', function () {
-    var changelog = {
-      histories: [{
-        created: '2026-05-15T10:30:00.000+0000',
-        items: [{
-          field: 'Fix Version',
-          fieldId: 'fixVersions',
-          toString: 'RHOAI-3.5.EA1'
-        }]
-      }]
-    }
-    expect(findFixVersionAddedDate(changelog, 'rhoai-3.5.EA1')).toBe('2026-05-15T10:30:00.000+0000')
-  })
-
-  it('matches any version in an array of fixVersion names', function () {
-    var changelog = {
-      histories: [{
-        created: '2026-05-15T10:30:00.000+0000',
-        items: [{
-          field: 'Fix Version',
-          fieldId: 'fixVersions',
-          toString: 'rhelai-3.5 EA2 release'
-        }]
-      }]
-    }
-    expect(findFixVersionAddedDate(changelog, ['rhelai-3.5EA2', 'rhelai-3.5 EA2 release'])).toBe('2026-05-15T10:30:00.000+0000')
-  })
-})
-
-// ─── findFixVersionRemovedDate ────────────────────────────────────
-
-describe('findFixVersionRemovedDate', function () {
-  it('returns the timestamp when fixVersion was removed', function () {
-    var changelog = {
-      histories: [{
-        created: '2026-05-20T14:00:00.000+0000',
-        items: [{
-          field: 'Fix Version',
-          fieldId: 'fixVersions',
-          fromString: 'rhoai-3.5.EA1',
-          toString: ''
-        }]
-      }]
-    }
-    expect(findFixVersionRemovedDate(changelog, 'rhoai-3.5.EA1')).toBe('2026-05-20T14:00:00.000+0000')
-  })
-
-  it('returns the most recent removal when fixVersion was removed multiple times', function () {
-    var changelog = {
-      histories: [
-        {
-          created: '2026-05-10T10:00:00.000+0000',
-          items: [{
-            field: 'Fix Version',
-            fieldId: 'fixVersions',
-            fromString: 'rhoai-3.5.EA1',
-            toString: ''
-          }]
-        },
-        {
-          created: '2026-05-20T14:00:00.000+0000',
-          items: [{
-            field: 'Fix Version',
-            fieldId: 'fixVersions',
-            fromString: 'rhoai-3.5.EA1',
-            toString: 'rhoai-3.6'
-          }]
-        }
-      ]
-    }
-    expect(findFixVersionRemovedDate(changelog, 'rhoai-3.5.EA1')).toBe('2026-05-20T14:00:00.000+0000')
-  })
-
-  it('returns null when fixVersion was never removed', function () {
-    var changelog = {
-      histories: [{
-        created: '2026-05-15T10:00:00.000+0000',
-        items: [{
-          field: 'Fix Version',
-          fieldId: 'fixVersions',
-          fromString: '',
-          toString: 'rhoai-3.5.EA1'
-        }]
-      }]
-    }
-    expect(findFixVersionRemovedDate(changelog, 'rhoai-3.5.EA1')).toBeNull()
-  })
-
-  it('matches any version in an array of fixVersion names', function () {
-    var changelog = {
-      histories: [{
-        created: '2026-05-20T14:00:00.000+0000',
-        items: [{
-          field: 'Fix Version',
-          fieldId: 'fixVersions',
-          fromString: 'rhelai-3.5 EA2 release',
-          toString: ''
-        }]
-      }]
-    }
-    expect(findFixVersionRemovedDate(changelog, ['rhelai-3.5EA2', 'rhelai-3.5 EA2 release'])).toBe('2026-05-20T14:00:00.000+0000')
-  })
-
-  it('matches case-insensitively', function () {
-    var changelog = {
-      histories: [{
-        created: '2026-05-20T14:00:00.000+0000',
-        items: [{
-          field: 'Fix Version',
-          fieldId: 'fixVersions',
-          fromString: 'RHOAI-3.5.EA1',
-          toString: ''
-        }]
-      }]
-    }
-    expect(findFixVersionRemovedDate(changelog, 'rhoai-3.5.EA1')).toBe('2026-05-20T14:00:00.000+0000')
-  })
-
-  it('returns null when changelog is null', function () {
-    expect(findFixVersionRemovedDate(null, 'rhoai-3.5.EA1')).toBeNull()
-  })
-
-  it('returns null when changelog is empty', function () {
-    expect(findFixVersionRemovedDate({ histories: [] }, 'rhoai-3.5.EA1')).toBeNull()
-  })
-})
-
-// ─── classifyFeature ──────────────────────────────────────────────
-
-describe('classifyFeature', function () {
-  it('returns "added" when fixVersion was applied after freeze date', function () {
-    var feature = { fixVersionAddedAt: '2026-06-01T10:00:00.000+0000' }
-    expect(classifyFeature(feature, '2026-05-20')).toBe('added')
-  })
-
-  it('returns null when fixVersion was applied before freeze date', function () {
-    var feature = { fixVersionAddedAt: '2026-05-10T10:00:00.000+0000' }
-    expect(classifyFeature(feature, '2026-05-20')).toBeNull()
-  })
-
-  it('returns null when no freeze date is available', function () {
-    var feature = { fixVersionAddedAt: '2026-06-01T10:00:00.000+0000' }
-    expect(classifyFeature(feature, null)).toBeNull()
-  })
-
-  it('returns null when fixVersionAddedAt is not available', function () {
-    var feature = { fixVersionAddedAt: null }
-    expect(classifyFeature(feature, '2026-05-20')).toBeNull()
-  })
-})
-
-// ─── normalizeVersionName ─────────────────────────────────────────
-
-describe('normalizeVersionName', function () {
-  it('normalizes dot-separated EA tag (rhoai style)', function () {
-    expect(normalizeVersionName('rhoai-3.5.EA2')).toBe('rhoai-3.5ea2')
-  })
-
-  it('normalizes space-separated EA tag (RHAII style)', function () {
-    expect(normalizeVersionName('RHAII-3.5 EA2')).toBe('rhaii-3.5ea2')
-  })
-
-  it('normalizes concatenated EA tag (rhelai style)', function () {
-    expect(normalizeVersionName('rhelai-3.5EA2')).toBe('rhelai-3.5ea2')
-  })
-
-  it('strips trailing "release" suffix', function () {
-    expect(normalizeVersionName('rhelai-3.5 EA2 release')).toBe('rhelai-3.5ea2')
-  })
-
-  it('normalizes hyphenated EA tag (RHELAI-3.4 EA-1)', function () {
-    expect(normalizeVersionName('RHELAI-3.4 EA-1')).toBe('rhelai-3.4ea1')
-  })
-
-  it('normalizes GA versions consistently', function () {
-    expect(normalizeVersionName('rhoai-3.5')).toBe('rhoai-3.5')
-    expect(normalizeVersionName('RHAII-3.5')).toBe('rhaii-3.5')
-  })
-
-  it('normalizes space-separated GA tag', function () {
-    expect(normalizeVersionName('RHAII-3.5 GA')).toBe('rhaii-3.5ga')
-    expect(normalizeVersionName('RHAII-3.5 ga')).toBe('rhaii-3.5ga')
-  })
-
-  it('strips .z notation from z-stream releases', function () {
-    expect(normalizeVersionName('rhoai-3.5.z')).toBe('rhoai-3.5')
-    expect(normalizeVersionName('rhoai-3.5.z.EA1')).toBe('rhoai-3.5ea1')
-    expect(normalizeVersionName('RHAI-3.6.z.EA2')).toBe('rhai-3.6ea2')
-    expect(normalizeVersionName('rhelai-3.5.z EA2 release')).toBe('rhelai-3.5ea2')
-  })
-
-  it('handles null/empty gracefully', function () {
-    expect(normalizeVersionName(null)).toBe('')
-    expect(normalizeVersionName('')).toBe('')
-  })
-})
-
-// ─── fetchDroppedFeatures — freeze date filtering ─────────────────
-
-describe('fetchDroppedFeatures — freeze date filtering', function () {
-  function makeDroppedRawIssue(key, removedAt) {
-    return {
-      key: key,
-      fields: {
-        summary: 'Dropped feature ' + key,
-        issuetype: { name: 'Feature' },
-        status: { name: 'In Progress', statusCategory: { name: 'In Progress' } },
-        assignee: { displayName: 'Jane Doe' },
-        fixVersions: [],
-        components: [{ name: 'Model Serving' }],
-        labels: [],
-        issuelinks: []
-      },
-      renderedFields: {},
-      changelog: {
-        histories: [{
-          created: removedAt,
-          items: [{
-            field: 'Fix Version',
-            fieldId: 'fixVersions',
-            fromString: 'rhoai-3.5.EA2',
-            toString: ''
-          }]
-        }]
-      }
-    }
+function makeRouter() {
+  const routes = { get: {} }
+  return {
+    get: vi.fn(function (path, ...handlers) {
+      routes.get[path] = handlers
+    }),
+    _routes: routes
   }
+}
 
-  var mockJiraRequest = function () {}
-
-  function makeFetchAll(rawIssues) {
-    return async function () { return rawIssues }
+function makeRes() {
+  const res = {
+    _status: 200,
+    _json: null,
+    status(code) { res._status = code; return res },
+    json(data) { res._json = data; return res }
   }
+  return res
+}
 
-  it('includes features removed after the freeze date', async function () {
-    var issues = [makeDroppedRawIssue('RHAISTRAT-200', '2026-05-25T10:00:00.000+0000')]
-    var result = await fetchDroppedFeatures('rhoai-3.5.EA2', mockJiraRequest, makeFetchAll(issues), {}, '2026-05-20')
-    expect(result).toHaveLength(1)
-    expect(result[0].key).toBe('RHAISTRAT-200')
-    expect(result[0].scopeChange).toBe('dropped')
-  })
-
-  it('excludes features removed before the freeze date', async function () {
-    var issues = [makeDroppedRawIssue('RHAISTRAT-201', '2026-05-15T10:00:00.000+0000')]
-    var result = await fetchDroppedFeatures('rhoai-3.5.EA2', mockJiraRequest, makeFetchAll(issues), {}, '2026-05-20')
-    expect(result).toHaveLength(0)
-  })
-
-  it('includes features removed on the same day as the freeze date', async function () {
-    var issues = [makeDroppedRawIssue('RHAISTRAT-202', '2026-05-20T08:00:00.000+0000')]
-    var result = await fetchDroppedFeatures('rhoai-3.5.EA2', mockJiraRequest, makeFetchAll(issues), {}, '2026-05-20')
-    expect(result).toHaveLength(1)
-    expect(result[0].scopeChange).toBe('dropped')
-  })
-
-  it('shows all dropped features when no freeze date is provided', async function () {
-    var issues = [
-      makeDroppedRawIssue('RHAISTRAT-203', '2026-04-01T10:00:00.000+0000'),
-      makeDroppedRawIssue('RHAISTRAT-204', '2026-06-01T10:00:00.000+0000')
+function makeTrackingData(overrides) {
+  return Object.assign({
+    schemaVersion: 1,
+    releaseId: 'osac-0.2',
+    displayName: 'OSAC 0.2',
+    fixVersions: ['0.2'],
+    baselineDate: '2026-07-08',
+    baselineSource: 'releaseStart+7d',
+    fetchedAt: '2026-08-13T07:56:10Z',
+    featureCount: 2,
+    counts: { committed: 1, added: 1, dropped: 0, moved: 0, unknown: 0, blockerPriority: 0 },
+    wasQueryFailed: false,
+    features: [
+      { key: 'OSAC-1', summary: 'A', scopeChange: null },
+      { key: 'OSAC-2', summary: 'B', scopeChange: 'added' }
     ]
-    var result = await fetchDroppedFeatures('rhoai-3.5.EA2', mockJiraRequest, makeFetchAll(issues), {}, null)
-    expect(result).toHaveLength(2)
-    expect(result.every(function (f) { return f.scopeChange === 'dropped' })).toBe(true)
+  }, overrides)
+}
+
+const REGISTRY = {
+  schemaVersion: 1,
+  releases: [
+    { id: 'osac-0.1', displayName: 'OSAC 0.1', state: 'active' },
+    { id: 'osac-0.2', displayName: 'OSAC 0.2', state: 'active' },
+    { id: 'osac-0.3', displayName: 'OSAC 0.3', state: 'active' }
+  ]
+}
+
+describe('trackingFileKey', () => {
+  it('builds the tracking-data storage key for a release id', () => {
+    expect(trackingFileKey('osac-0.2-M1')).toBe('releases/execution/tracking-data-osac-0.2-M1.json')
+  })
+})
+
+describe('listTrackingReleaseIds', () => {
+  it('extracts release ids from tracking-data-*.json filenames', () => {
+    const storage = makeStorage({
+      'releases/execution/tracking-data-osac-0.1.json': makeTrackingData({ releaseId: 'osac-0.1' }),
+      'releases/execution/tracking-data-osac-0.2-M1.json': makeTrackingData({ releaseId: 'osac-0.2-M1' }),
+      'releases/execution/feature-tracking-config.json': { schemaVersion: 1 },
+      'releases/execution/index.json': { schemaVersion: 1 }
+    })
+    const ids = listTrackingReleaseIds(storage)
+    expect(ids.sort()).toEqual(['osac-0.1', 'osac-0.2-M1'])
   })
 
-  it('excludes features with no changelog when freeze date is set', async function () {
-    var issue = {
-      key: 'RHAISTRAT-205',
-      fields: {
-        summary: 'No changelog feature',
-        issuetype: { name: 'Feature' },
-        status: { name: 'In Progress', statusCategory: { name: 'In Progress' } },
-        assignee: null,
-        fixVersions: [],
-        components: [],
-        labels: [],
-        issuelinks: []
-      },
-      renderedFields: {},
-      changelog: { histories: [] }
+  it('returns an empty array when the directory has no tracking files', () => {
+    const storage = makeStorage()
+    expect(listTrackingReleaseIds(storage)).toEqual([])
+  })
+})
+
+describe('orderReleaseIds', () => {
+  it('orders by registry position', () => {
+    const ordered = orderReleaseIds(['osac-0.3', 'osac-0.1', 'osac-0.2'], REGISTRY)
+    expect(ordered).toEqual(['osac-0.1', 'osac-0.2', 'osac-0.3'])
+  })
+
+  it('sorts ids absent from the registry alphabetically after known ones', () => {
+    const ordered = orderReleaseIds(['osac-9.9', 'osac-0.1'], REGISTRY)
+    expect(ordered).toEqual(['osac-0.1', 'osac-9.9'])
+  })
+})
+
+describe('registerFeatureTrackingRoutes', () => {
+  let router, context
+
+  beforeEach(() => {
+    router = makeRouter()
+    context = {
+      storage: makeStorage(),
+      requireAuth: (req, res, next) => next(),
+      requireScope: () => (req, res, next) => next()
     }
-    var result = await fetchDroppedFeatures('rhoai-3.5.EA2', mockJiraRequest, makeFetchAll([issue]), {}, '2026-05-20')
-    expect(result).toHaveLength(0)
   })
 
-  it('skips issues already in currentKeys', async function () {
-    var issues = [makeDroppedRawIssue('RHAISTRAT-206', '2026-05-25T10:00:00.000+0000')]
-    var result = await fetchDroppedFeatures('rhoai-3.5.EA2', mockJiraRequest, makeFetchAll(issues), { 'RHAISTRAT-206': true }, '2026-05-20')
-    expect(result).toHaveLength(0)
+  it('only registers read-only GET routes', () => {
+    registerFeatureTrackingRoutes(router, context)
+    expect(Object.keys(router._routes.get)).toEqual(['/tracking/releases', '/tracking/data'])
+  })
+
+  describe('GET /tracking/releases', () => {
+    it('returns a summary for every release with tracking data, ordered by the registry', () => {
+      context.storage = makeStorage({
+        'releases/registry.json': REGISTRY,
+        'releases/execution/tracking-data-osac-0.2.json': makeTrackingData(),
+        'releases/execution/tracking-data-osac-0.1.json': makeTrackingData({ releaseId: 'osac-0.1', displayName: 'OSAC 0.1' })
+      })
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/releases'].at(-1)
+      const res = makeRes()
+      handler({}, res)
+
+      expect(res._json.releases.map(r => r.releaseId)).toEqual(['osac-0.1', 'osac-0.2'])
+      expect(res._json.releases[1]).toEqual({
+        releaseId: 'osac-0.2',
+        displayName: 'OSAC 0.2',
+        fixVersions: ['0.2'],
+        baselineDate: '2026-07-08',
+        baselineSource: 'releaseStart+7d',
+        fetchedAt: '2026-08-13T07:56:10Z',
+        featureCount: 2,
+        counts: { committed: 1, added: 1, dropped: 0, moved: 0, unknown: 0, blockerPriority: 0 },
+        wasQueryFailed: false
+      })
+    })
+
+    it('does not include the features array in the summary', () => {
+      context.storage = makeStorage({
+        'releases/execution/tracking-data-osac-0.2.json': makeTrackingData()
+      })
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/releases'].at(-1)
+      const res = makeRes()
+      handler({}, res)
+      expect(res._json.releases[0].features).toBeUndefined()
+    })
+
+    it('returns an empty list when no tracking data has been published', () => {
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/releases'].at(-1)
+      const res = makeRes()
+      handler({}, res)
+      expect(res._json).toEqual({ releases: [] })
+    })
+
+    it('surfaces wasQueryFailed per release', () => {
+      context.storage = makeStorage({
+        'releases/execution/tracking-data-osac-0.2.json': makeTrackingData({ wasQueryFailed: true })
+      })
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/releases'].at(-1)
+      const res = makeRes()
+      handler({}, res)
+      expect(res._json.releases[0].wasQueryFailed).toBe(true)
+    })
+
+    it('skips a release whose tracking-data file is corrupt/unreadable, without failing the rest', () => {
+      context.storage = makeStorage({
+        'releases/execution/tracking-data-osac-0.1.json': makeTrackingData({ releaseId: 'osac-0.1' }),
+        'releases/execution/tracking-data-osac-0.2.json': makeTrackingData({ releaseId: 'osac-0.2' })
+      }, ['releases/execution/tracking-data-osac-0.2.json'])
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/releases'].at(-1)
+      const res = makeRes()
+      handler({}, res)
+      expect(res._status).toBe(200)
+      expect(res._json.releases.map(r => r.releaseId)).toEqual(['osac-0.1'])
+    })
+  })
+
+  describe('GET /tracking/data', () => {
+    it('returns the full tracking data file for the requested release', () => {
+      context.storage = makeStorage({
+        'releases/execution/tracking-data-osac-0.2.json': makeTrackingData()
+      })
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/data'].at(-1)
+      const res = makeRes()
+      handler({ query: { releaseId: 'osac-0.2' } }, res)
+
+      expect(res._status).toBe(200)
+      expect(res._json.features).toHaveLength(2)
+      expect(res._json.releaseId).toBe('osac-0.2')
+    })
+
+    it('rejects a missing releaseId with 400', () => {
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/data'].at(-1)
+      const res = makeRes()
+      handler({ query: {} }, res)
+      expect(res._status).toBe(400)
+    })
+
+    it('returns 404 when no tracking data exists for the release', () => {
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/data'].at(-1)
+      const res = makeRes()
+      handler({ query: { releaseId: 'osac-9.9' } }, res)
+      expect(res._status).toBe(404)
+    })
+
+    it('rejects a path-traversal releaseId with 400', () => {
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/data'].at(-1)
+      const res = makeRes()
+      handler({ query: { releaseId: '../../registry' } }, res)
+      expect(res._status).toBe(400)
+    })
+
+    it('rejects a releaseId containing a path separator with 400', () => {
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/data'].at(-1)
+      const res = makeRes()
+      handler({ query: { releaseId: 'osac-0.2/../../registry' } }, res)
+      expect(res._status).toBe(400)
+    })
+
+    it('returns a clean 500 and logs when the tracking file is corrupt', () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      context.storage = makeStorage({
+        'releases/execution/tracking-data-osac-0.2.json': makeTrackingData()
+      }, ['releases/execution/tracking-data-osac-0.2.json'])
+      registerFeatureTrackingRoutes(router, context)
+      const handler = router._routes.get['/tracking/data'].at(-1)
+      const res = makeRes()
+      handler({ query: { releaseId: 'osac-0.2' } }, res)
+
+      expect(res._status).toBe(500)
+      expect(res._json).toEqual({ error: 'Feature tracking data for release is unreadable: osac-0.2' })
+      expect(errorSpy).toHaveBeenCalledWith('[feature-tracking] Failed to read tracking data for', 'osac-0.2', expect.any(String))
+
+      errorSpy.mockRestore()
+    })
   })
 })
