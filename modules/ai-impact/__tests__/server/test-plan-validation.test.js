@@ -103,6 +103,12 @@ describe('validateTestPlan', () => {
     expect(validateTestPlan(makeValid({ sourceKey: 'RHAIRFE-999' })).valid).toBe(true);
   });
 
+  it('accepts OSAC sourceKey', () => {
+    const result = validateTestPlan(makeValid({ sourceKey: 'OSAC-2540' }));
+    expect(result.valid).toBe(true);
+    expect(result.data.sourceKey).toBe('OSAC-2540');
+  });
+
   it('rejects beforeScore without beforeScores', () => {
     const result = validateTestPlan(makeValid({ beforeScore: 5, beforeScores: null }));
     expect(result.valid).toBe(false);

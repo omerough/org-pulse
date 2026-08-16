@@ -122,10 +122,6 @@ test.describe('AI Impact Disabled Menu Items @ai-impact', () => {
     await testDisabledMenuItem(page, 'Security Review');
   });
 
-  test('Test Plan Review menu item should be disabled', async ({ page }) => {
-    await testDisabledMenuItem(page, 'Test Plan Review');
-  });
-
   test('Documentation menu item should be disabled', async ({ page }) => {
     await testDisabledMenuItem(page, 'Documentation');
   });
