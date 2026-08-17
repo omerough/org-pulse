@@ -401,6 +401,61 @@ test.describe('Releases Epics by Release @releases', () => {
     expect(inheritedEpic).toBeTruthy();
     expect(inheritedEpic.fixVersions).toEqual(feature.fixVersions);
   });
+
+  /**
+   * Demo fixture: TEST1-1120's own Fix Version is "rhoai-3.4", but its direct
+   * Epic TEST2-45862 is directly assigned to milestone "rhoai-3.4-m1" — a version
+   * that appears on no Feature. This exercises the Epic-direct-membership rule:
+   * a milestone-only version is discoverable (scope=epics), and querying it
+   * surfaces TEST1-1120 as context, with its real Fix Version and only the
+   * matching Epic shown.
+   */
+  test('versions endpoint is Feature-only by default and adds direct-Epic-only versions with scope=epics', async ({ request }) => {
+    const defaultRes = await request.get('/api/modules/releases/execution/versions');
+    expect(defaultRes.ok()).toBe(true);
+    const defaultBody = await defaultRes.json();
+    expect(defaultBody.versions).not.toContain('rhoai-3.4-m1');
+
+    const epicsScopeRes = await request.get('/api/modules/releases/execution/versions?scope=epics');
+    expect(epicsScopeRes.ok()).toBe(true);
+    const epicsScopeBody = await epicsScopeRes.json();
+    expect(epicsScopeBody.versions).toContain('rhoai-3.4-m1');
+  });
+
+  test('epics API surfaces a non-matching parent Feature as context for a direct-Epic-only milestone', async ({ request }) => {
+    const res = await request.get('/api/modules/releases/execution/epics?version=rhoai-3.4-m1');
+    expect(res.ok()).toBe(true);
+    const body = await res.json();
+
+    const feature = body.features.find(f => f.key === 'TEST1-1120');
+    expect(feature).toBeTruthy();
+    expect(feature.isContext).toBe(true);
+    // Real Fix Version preserved — never relabeled to the queried milestone.
+    expect(feature.fixVersions).toEqual(['rhoai-3.4']);
+    // Only the directly-matching Epic is shown, not the full sibling list.
+    expect(feature.epics).toHaveLength(1);
+    expect(feature.epics[0].key).toBe('TEST2-45862');
+    expect(feature.totalEpicCount).toBeGreaterThan(feature.epics.length);
+  });
+
+  test('UI badges a context Feature and explains hidden sibling Epics for a direct-Epic-only milestone', async ({ page }) => {
+    await page.goto('/#/releases/execute');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    await page.locator('button', { hasText: 'Epics by Release' }).click();
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const releaseSelect = page.locator('#epics-by-release-version');
+    await releaseSelect.selectOption('rhoai-3.4-m1');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    await expect(page.locator('text=TEST1-1120').first()).toBeVisible();
+    await expect(page.getByText('context', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/Showing 1 of \d+ Epic/).first()).toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
 });
 
 /**
@@ -566,6 +621,23 @@ test.describe('Releases Feature Tracking @releases', () => {
     await expect(page.locator('table tbody tr')).toHaveCount(1);
     await expect(page.locator('table').getByText('TEST1-1002')).toBeVisible();
     await expect(page.locator('table').getByText('TEST1-1004')).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  /**
+   * Demo fixture (fixtures/releases/execution/tracking-data-osac-0.2-m1.json) has a
+   * successfully-collected, already-reached baseline with zero Features — the case the
+   * genuine-zero empty state exists for, distinct from a failed/incomplete collection.
+   */
+  test('shows the genuine-zero empty state for a release with a resolved baseline and no Feature-level scope', async ({ page }) => {
+    await openFeatureTrackingTab(page);
+
+    await page.locator('button', { hasText: 'OSAC 0.2-M1' }).click();
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    await expect(page.getByText('No Feature-level scope was found for this release or milestone.')).toBeVisible();
+    await expect(page.getByText('Epics may still be assigned to this milestone and are shown in Epics by Release.')).toBeVisible();
 
     expect(page.errors).toHaveLength(0);
   });

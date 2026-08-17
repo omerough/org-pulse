@@ -164,7 +164,7 @@
         }
       ],
       "fixVersions": [
-        "rhoai-3.4"
+        "rhoai-3.4-m1"
       ],
       "fixVersionSource": "direct",
       "componentSource": "direct",

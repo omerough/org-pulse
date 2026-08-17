@@ -1,7 +1,9 @@
 <script setup>
 const props = defineProps({
   features: { type: Array, default: () => [] },
-  releaseNames: { type: Object, default: () => ({}) }
+  releaseNames: { type: Object, default: () => ({}) },
+  emptyMessage: { type: String, default: 'No features match this filter.' },
+  emptyMessageDetail: { type: String, default: '' }
 })
 
 const JIRA_BASE = 'https://redhat.atlassian.net/browse'
@@ -138,7 +140,8 @@ function formatDate(dateStr) {
 
         <tr v-if="features.length === 0">
           <td colspan="7" class="px-8 py-6 text-sm text-gray-400 dark:text-gray-500 italic text-center">
-            No features match this filter.
+            <p>{{ emptyMessage }}</p>
+            <p v-if="emptyMessageDetail" class="mt-1 not-italic text-xs">{{ emptyMessageDetail }}</p>
           </td>
         </tr>
       </tbody>

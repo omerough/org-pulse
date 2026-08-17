@@ -62,9 +62,14 @@ export function useFeatureDetail() {
 export function useVersions() {
   const versions = ref([])
 
-  async function loadVersions() {
+  // scope: 'epics' also includes versions that only appear on a directly-versioned
+  // Epic (see GET /versions) — needed by consumers like Epics by Release that surface
+  // context Features via Epic-level milestone membership. Omit for Feature-only scopes
+  // (e.g. Overview), where a milestone version /features can't filter on would be a dead end.
+  async function loadVersions(scope) {
     try {
-      const data = await apiRequest('/modules/releases/execution/versions')
+      const qs = scope ? `?scope=${encodeURIComponent(scope)}` : ''
+      const data = await apiRequest(`/modules/releases/execution/versions${qs}`)
       versions.value = data.versions || []
     } catch {
       versions.value = []

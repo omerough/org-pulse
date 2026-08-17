@@ -19,7 +19,7 @@ watch(selectedVersion, (v) => {
 })
 
 onMounted(async () => {
-  await loadVersions()
+  await loadVersions('epics')
   if (versions.value.length > 0 && !selectedVersion.value) {
     selectedVersion.value = versions.value[0]
   }
@@ -33,7 +33,10 @@ onMounted(async () => {
       <div>
         <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">Epics by Release</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Release &rarr; Feature &rarr; Epics, grouped by the Feature's Fix Version
+          Release &rarr; Feature &rarr; Epics, grouped by the Feature's Fix Version. A Feature may
+          also appear as <strong>context</strong> when one of its Epics is directly assigned to this
+          milestone even though the Feature's own Fix Version is different — its real Fix Version is
+          shown as-is, and only the matching Epic(s) are listed.
           <span v-if="fetchedAt" class="ml-2">&middot; Data from {{ formatDate(fetchedAt) }}</span>
         </p>
       </div>
@@ -86,14 +89,26 @@ onMounted(async () => {
               >{{ feature.key }}</a>
               <StatusBadge :status="feature.status" />
               <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ feature.summary }}</h3>
+              <span
+                v-if="feature.isContext"
+                class="px-1.5 py-0.5 rounded text-[9px] font-medium italic bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 flex-shrink-0"
+                :title="'This Feature is assigned to ' + (feature.fixVersions.join(', ') || 'no Fix Version') + ', but has an Epic directly assigned to ' + selectedVersion"
+              >context</span>
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
               <span
                 v-for="v in feature.fixVersions"
                 :key="v"
                 class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400"
+                :title="feature.isContext ? 'Feature\'s real Fix Version — not relabeled to ' + selectedVersion : undefined"
               >{{ v }}</span>
             </div>
+          </div>
+
+          <div v-if="feature.isContext" class="px-4 pt-2 text-xs text-gray-500 dark:text-gray-400">
+            Showing {{ feature.epics.length }} of {{ feature.totalEpicCount }} Epic{{ feature.totalEpicCount === 1 ? '' : 's' }}
+            &mdash; only the one{{ feature.epics.length === 1 ? '' : 's' }} directly assigned to {{ selectedVersion }}.
+            See Feature Detail for the rest.
           </div>
 
           <div class="p-3">
