@@ -34,6 +34,30 @@ const baselineNotYetReached = computed(() => {
   return new Date(baselineDate.value + 'T00:00:00') > new Date()
 })
 
+// Only a successful collection, with a resolvable and already-reached baseline, and
+// no active filter, can confidently be read as "this release genuinely has no
+// Feature-level scope" rather than a failed/incomplete/not-yet-evaluable collection.
+const isGenuineZeroScope = computed(() => {
+  if (!currentData.value) return false
+  if (activeFilter.value) return false
+  if (wasQueryFailed.value) return false
+  if (baselineSource.value === 'unknown') return false
+  if (baselineNotYetReached.value) return false
+  return features.value.length === 0
+})
+
+const tableEmptyMessage = computed(() => {
+  return isGenuineZeroScope.value
+    ? 'No Feature-level scope was found for this release or milestone.'
+    : 'No features match this filter.'
+})
+
+const tableEmptyMessageDetail = computed(() => {
+  return isGenuineZeroScope.value
+    ? 'Epics may still be assigned to this milestone and are shown in Epics by Release.'
+    : ''
+})
+
 function baselineSourceLabel(source) {
   if (source === 'override') return 'manual override'
   if (source === 'unknown') return 'unknown'
@@ -265,7 +289,12 @@ onMounted(async () => {
           </svg>
         </button>
       </div>
-      <FeatureTrackingTable :features="filteredFeatures" :release-names="releaseNames" />
+      <FeatureTrackingTable
+        :features="filteredFeatures"
+        :release-names="releaseNames"
+        :empty-message="tableEmptyMessage"
+        :empty-message-detail="tableEmptyMessageDetail"
+      />
     </template>
   </div>
 </template>

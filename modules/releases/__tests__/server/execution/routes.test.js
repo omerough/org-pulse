@@ -269,6 +269,113 @@ describe('execution routes', () => {
     })
   })
 
+  describe('GET /versions', () => {
+    it('includes a version that appears only on a direct Epic, alongside Feature-level versions', () => {
+      storage = makeStorage({
+        'releases/execution/index.json': {
+          fetchedAt: '2026-08-01T00:00:00Z',
+          features: [
+            { key: 'OSAC-1061', summary: 'Parent Feature', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.2'] }
+          ]
+        },
+        'releases/execution/features/OSAC-1061.json': {
+          key: 'OSAC-1061',
+          epics: [
+            {
+              key: 'OSAC-2767', summary: 'Direct M1 epic', fixVersions: ['0.2-M1'], fixVersionSource: 'direct',
+              components: [], componentSource: 'unknown', parentFeatureKey: 'OSAC-1061',
+              blockerCount: 0, issueCount: 1, pct: 0, progress: 0
+            }
+          ]
+        }
+      })
+      router = makeRouter()
+      context = { ...context, storage }
+      registerExecutionRoutes(router, context)
+
+      const handler = router._routes.get['/versions'].at(-1)
+      const res = makeRes()
+      handler({}, res)
+
+      expect(res._json.versions).toContain('0.2-M1')
+      // Existing Feature-level version is preserved alongside it.
+      expect(res._json.versions).toContain('0.2')
+    })
+
+    it('does not add a spurious version from an inherited (via-parent-feature) Epic', () => {
+      storage = makeStorage({
+        'releases/execution/index.json': {
+          fetchedAt: '2026-08-01T00:00:00Z',
+          features: [
+            { key: 'OSAC-400', summary: 'Feature', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.3'] }
+          ]
+        },
+        'releases/execution/features/OSAC-400.json': {
+          key: 'OSAC-400',
+          epics: [
+            {
+              key: 'OSAC-401', summary: 'Inherited epic', fixVersions: ['0.9'], fixVersionSource: 'via-parent-feature',
+              components: [], componentSource: 'unknown', parentFeatureKey: 'OSAC-400',
+              blockerCount: 0, issueCount: 1, pct: 0, progress: 0
+            }
+          ]
+        }
+      })
+      router = makeRouter()
+      context = { ...context, storage }
+      registerExecutionRoutes(router, context)
+
+      const handler = router._routes.get['/versions'].at(-1)
+      const res = makeRes()
+      handler({}, res)
+
+      expect(res._json.versions).toEqual(['0.3'])
+    })
+
+    it('deduplicates a version that appears on both a Feature and a direct Epic', () => {
+      storage = makeStorage({
+        'releases/execution/index.json': {
+          fetchedAt: '2026-08-01T00:00:00Z',
+          features: [
+            { key: 'OSAC-100', summary: 'Feature A', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.4'] }
+          ]
+        },
+        'releases/execution/features/OSAC-100.json': {
+          key: 'OSAC-100',
+          epics: [
+            {
+              key: 'OSAC-101', summary: 'Epic 1', fixVersions: ['0.4'], fixVersionSource: 'direct',
+              components: [], componentSource: 'unknown', parentFeatureKey: 'OSAC-100',
+              blockerCount: 0, issueCount: 1, pct: 0, progress: 0
+            }
+          ]
+        }
+      })
+      router = makeRouter()
+      context = { ...context, storage }
+      registerExecutionRoutes(router, context)
+
+      const handler = router._routes.get['/versions'].at(-1)
+      const res = makeRes()
+      handler({}, res)
+
+      expect(res._json.versions).toEqual(['0.4'])
+    })
+
+    it('returns an empty list when no index data is available', () => {
+      storage = makeStorage()
+      router = makeRouter()
+      context = { ...context, storage }
+      registerExecutionRoutes(router, context)
+
+      const handler = router._routes.get['/versions'].at(-1)
+      const res = makeRes()
+      handler({}, res)
+
+      expect(res._json).toEqual({ versions: [] })
+    })
+  })
+
   describe('GET /epics', () => {
     function setupData() {
       storage = makeStorage({
@@ -355,6 +462,130 @@ describe('execution routes', () => {
       handler({ query: { version: '0.4' } }, res)
 
       expect(res._json).toEqual({ version: '0.4', fetchedAt: null, featureCount: 0, features: [] })
+    })
+
+    // Feature represents the overall release; its Epics may be spread across that
+    // release's milestones (real example: Feature OSAC-1061 -> 0.2, child Epic
+    // OSAC-2767 -> direct 0.2-M1). These cover the context-Feature membership path.
+    function setupMilestoneData() {
+      storage = makeStorage({
+        'releases/execution/index.json': {
+          fetchedAt: '2026-08-01T00:00:00Z',
+          features: [
+            { key: 'OSAC-1061', summary: 'Parent Feature', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.2'] },
+            { key: 'OSAC-400', summary: 'Unrelated Feature', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.3'] },
+            { key: 'OSAC-9000', summary: 'No overlap Feature', status: 'To Do', statusCategory: 'To Do', fixVersions: ['0.5'] }
+          ]
+        },
+        'releases/execution/features/OSAC-1061.json': {
+          key: 'OSAC-1061',
+          epics: [
+            {
+              key: 'OSAC-2767', summary: 'Direct M1 epic', fixVersions: ['0.2-M1'], fixVersionSource: 'direct',
+              components: [], componentSource: 'unknown', parentFeatureKey: 'OSAC-1061',
+              blockerCount: 0, issueCount: 1, pct: 0, progress: 0
+            },
+            {
+              key: 'OSAC-2768', summary: 'Direct M2 sibling epic', fixVersions: ['0.2-M2'], fixVersionSource: 'direct',
+              components: [], componentSource: 'unknown', parentFeatureKey: 'OSAC-1061',
+              blockerCount: 0, issueCount: 1, pct: 0, progress: 0
+            },
+            {
+              key: 'OSAC-2769', summary: 'Inherited epic', fixVersions: ['0.2'], fixVersionSource: 'via-parent-feature',
+              components: [], componentSource: 'unknown', parentFeatureKey: 'OSAC-1061',
+              blockerCount: 0, issueCount: 1, pct: 0, progress: 0
+            }
+          ]
+        },
+        'releases/execution/features/OSAC-400.json': {
+          key: 'OSAC-400',
+          epics: [
+            {
+              // Contrived: fixVersionSource is via-parent-feature, but its fixVersions value
+              // happens to equal the queried milestone. Must NOT qualify — only a `direct`
+              // Epic can pull an unmatched Feature in as context, regardless of value.
+              key: 'OSAC-401', summary: 'Inherited value coincidentally matching', fixVersions: ['0.2-M1'], fixVersionSource: 'via-parent-feature',
+              components: [], componentSource: 'unknown', parentFeatureKey: 'OSAC-400',
+              blockerCount: 0, issueCount: 1, pct: 0, progress: 0
+            }
+          ]
+        },
+        'releases/execution/features/OSAC-9000.json': {
+          key: 'OSAC-9000',
+          epics: [
+            {
+              key: 'OSAC-9001', summary: 'Z-stream direct epic', fixVersions: ['0.2-M1.z'], fixVersionSource: 'direct',
+              components: [], componentSource: 'unknown', parentFeatureKey: 'OSAC-9000',
+              blockerCount: 0, issueCount: 1, pct: 0, progress: 0
+            }
+          ]
+        }
+      })
+      router = makeRouter()
+      context = { ...context, storage }
+      registerExecutionRoutes(router, context)
+    }
+
+    it('surfaces a non-matching parent Feature as context when it has a directly-versioned Epic (OSAC-1061 -> 0.2-M1)', () => {
+      setupMilestoneData()
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: { version: '0.2-M1' } }, res)
+
+      const parent = res._json.features.find(f => f.key === 'OSAC-1061')
+      expect(parent).toBeTruthy()
+      // Preserves its true Fix Version — never relabeled to the queried milestone.
+      expect(parent.fixVersions).toEqual(['0.2'])
+    })
+
+    it('shows only the directly-matching Epic(s) under a context Feature, not its full sibling Epic list', () => {
+      setupMilestoneData()
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: { version: '0.2-M1' } }, res)
+
+      const parent = res._json.features.find(f => f.key === 'OSAC-1061')
+      expect(parent.epics).toHaveLength(1)
+      expect(parent.epics[0].key).toBe('OSAC-2767')
+      // Sibling epics scoped to a different milestone, and the inherited (non-direct) epic,
+      // must not leak in under the context Feature.
+      expect(parent.epics.map(e => e.key)).not.toContain('OSAC-2768')
+      expect(parent.epics.map(e => e.key)).not.toContain('OSAC-2769')
+    })
+
+    it('does not pull in a Feature via an inherited (via-parent-feature) Epic even if its value happens to match', () => {
+      setupMilestoneData()
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: { version: '0.2-M1' } }, res)
+
+      expect(res._json.features.find(f => f.key === 'OSAC-400')).toBeUndefined()
+    })
+
+    it('normalizes z-stream suffixes for direct Epic matching the same way Feature matching does', () => {
+      setupMilestoneData()
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: { version: '0.2-M1' } }, res)
+
+      const contextFeature = res._json.features.find(f => f.key === 'OSAC-9000')
+      expect(contextFeature).toBeTruthy()
+      expect(contextFeature.epics.map(e => e.key)).toEqual(['OSAC-9001'])
+    })
+
+    it('does not duplicate a Feature/Epic when the Feature itself already matches the selected version', () => {
+      setupMilestoneData()
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: { version: '0.2' } }, res)
+
+      const matches = res._json.features.filter(f => f.key === 'OSAC-1061')
+      expect(matches).toHaveLength(1)
+      // Feature-level match keeps its full, unfiltered Epic list — the context path must
+      // not additionally re-add it or any of its Epics.
+      expect(matches[0].epics).toHaveLength(3)
+      const epicKeys = matches[0].epics.map(e => e.key)
+      expect(new Set(epicKeys).size).toBe(epicKeys.length)
     })
   })
 })

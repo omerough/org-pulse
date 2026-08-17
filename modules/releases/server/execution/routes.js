@@ -31,6 +31,15 @@ function matchesVersion(feature, normalizedFilter) {
   return !!(feature.fixVersions && feature.fixVersions.some(v => stripZStream(v) === normalizedFilter));
 }
 
+// An Epic can carry its own Fix Version independent of its parent Feature's (a Feature
+// scopes the overall release; its Epics may be spread across that release's milestones).
+// Only a directly-versioned Epic (never one merely displaying an inherited value) qualifies
+// a Feature as context under a milestone its own Fix Version doesn't match.
+function epicDirectlyMatchesVersion(epic, normalizedFilter) {
+  return epic.fixVersionSource === 'direct' &&
+    !!(epic.fixVersions && epic.fixVersions.some(v => stripZStream(v) === normalizedFilter));
+}
+
 /**
  * @openapi
  * /api/modules/releases/execution/features:
@@ -93,7 +102,7 @@ function matchesVersion(feature, normalizedFilter) {
  * @openapi
  * /api/modules/releases/execution/versions:
  *   get:
- *     summary: List unique fix versions across all features
+ *     summary: List unique fix versions across all features and their directly-versioned epics
  *     tags: [Releases - Execution]
  *     responses:
  *       200:
@@ -366,7 +375,9 @@ module.exports = function registerExecutionRoutes(router, context) {
     res.json(result);
   });
 
-  // GET /versions — list unique fix versions across all features
+  // GET /versions — list unique fix versions across all features, plus any version
+  // that only appears on a directly-versioned Epic (a Feature scopes the overall
+  // release; its Epics may be spread across that release's milestones — see /epics).
   router.get('/versions', requireAuth, requireScope('releases:read'), function(req, res) {
     const index = readDataFile('index.json');
     if (!index || !index.features) {
@@ -378,15 +389,26 @@ module.exports = function registerExecutionRoutes(router, context) {
       for (const v of (f.fixVersions || [])) {
         versions.add(stripZStream(v));
       }
+      const detail = readDataFile(`features/${f.key}.json`);
+      for (const e of ((detail && detail.epics) || [])) {
+        if (e.fixVersionSource === 'direct') {
+          for (const v of (e.fixVersions || [])) {
+            versions.add(stripZStream(v));
+          }
+        }
+      }
     }
 
     res.json({ versions: [...versions].sort() });
   });
 
   // GET /epics — Release → Feature → Epics tree.
-  // Membership is by Feature Fix Version, not by filtering epics individually: every
-  // epic under a matching Feature is included, even one whose own fixVersions names a
-  // different version (rendered as-is, not hidden or recategorized).
+  // Primary membership is by Feature Fix Version: every epic under a matching Feature is
+  // included, even one whose own fixVersions names a different version (rendered as-is,
+  // not hidden or recategorized). Secondarily, a Feature whose own Fix Version does not
+  // match is still surfaced as context when it has a directly-versioned Epic assigned to
+  // the selected version — its true Fix Version is preserved (never relabeled), and only
+  // the directly-matching Epic(s) are shown under it, not its full Epic list.
   router.get('/epics', requireAuth, requireScope('releases:read'), function(req, res) {
     const version = req.query.version;
     if (!version) {
@@ -400,6 +422,7 @@ module.exports = function registerExecutionRoutes(router, context) {
 
     const normalizedFilter = stripZStream(version);
     const matching = index.features.filter(f => matchesVersion(f, normalizedFilter));
+    const matchedKeys = new Set(matching.map(f => f.key));
 
     const features = matching.map(function(entry) {
       const detail = readDataFile(`features/${entry.key}.json`);
@@ -411,6 +434,21 @@ module.exports = function registerExecutionRoutes(router, context) {
         fixVersions: entry.fixVersions || [],
         epics: (detail && detail.epics) || []
       };
+    });
+
+    index.features.forEach(function(entry) {
+      if (matchedKeys.has(entry.key)) return;
+      const detail = readDataFile(`features/${entry.key}.json`);
+      const directEpics = ((detail && detail.epics) || []).filter(e => epicDirectlyMatchesVersion(e, normalizedFilter));
+      if (directEpics.length === 0) return;
+      features.push({
+        key: entry.key,
+        summary: entry.summary,
+        status: entry.status,
+        statusCategory: entry.statusCategory,
+        fixVersions: entry.fixVersions || [],
+        epics: directEpics
+      });
     });
 
     res.json({
