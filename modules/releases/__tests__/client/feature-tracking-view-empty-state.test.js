@@ -62,6 +62,13 @@ describe('FeatureTrackingView empty-state messaging', function() {
     expect(wrapper.text()).toContain('No features match this filter.')
   })
 
+  it('treats a missing/falsy baselineSource the same as "unknown" instead of a resolvable baseline', async function() {
+    const wrapper = await mountWith(withData({ baselineSource: '' }))
+    expect(wrapper.text()).not.toContain('No Feature-level scope was found for this release or milestone.')
+    expect(wrapper.text()).toContain('No features match this filter.')
+    expect(wrapper.text()).toContain('No baseline could be established for this release')
+  })
+
   it('does not use the semantic zero-scope message when the baseline has not been reached yet', async function() {
     const wrapper = await mountWith(withData({ baselineDate: '2099-01-01' }))
     expect(wrapper.text()).not.toContain('No Feature-level scope was found for this release or milestone.')

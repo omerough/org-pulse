@@ -270,7 +270,7 @@ describe('execution routes', () => {
   })
 
   describe('GET /versions', () => {
-    it('includes a version that appears only on a direct Epic, alongside Feature-level versions', () => {
+    function setupDirectEpicVersionData() {
       storage = makeStorage({
         'releases/execution/index.json': {
           fetchedAt: '2026-08-01T00:00:00Z',
@@ -292,17 +292,30 @@ describe('execution routes', () => {
       router = makeRouter()
       context = { ...context, storage }
       registerExecutionRoutes(router, context)
+    }
 
+    it('by default (no scope) omits a version that only appears on a direct Epic, since /features cannot filter on it', () => {
+      setupDirectEpicVersionData()
       const handler = router._routes.get['/versions'].at(-1)
       const res = makeRes()
-      handler({}, res)
+      handler({ query: {} }, res)
+
+      expect(res._json.versions).toEqual(['0.2'])
+      expect(res._json.versions).not.toContain('0.2-M1')
+    })
+
+    it('with scope=epics, includes a version that appears only on a direct Epic, alongside Feature-level versions', () => {
+      setupDirectEpicVersionData()
+      const handler = router._routes.get['/versions'].at(-1)
+      const res = makeRes()
+      handler({ query: { scope: 'epics' } }, res)
 
       expect(res._json.versions).toContain('0.2-M1')
       // Existing Feature-level version is preserved alongside it.
       expect(res._json.versions).toContain('0.2')
     })
 
-    it('does not add a spurious version from an inherited (via-parent-feature) Epic', () => {
+    it('does not add a spurious version from an inherited (via-parent-feature) Epic even with scope=epics', () => {
       storage = makeStorage({
         'releases/execution/index.json': {
           fetchedAt: '2026-08-01T00:00:00Z',
@@ -327,7 +340,7 @@ describe('execution routes', () => {
 
       const handler = router._routes.get['/versions'].at(-1)
       const res = makeRes()
-      handler({}, res)
+      handler({ query: { scope: 'epics' } }, res)
 
       expect(res._json.versions).toEqual(['0.3'])
     })
@@ -357,7 +370,7 @@ describe('execution routes', () => {
 
       const handler = router._routes.get['/versions'].at(-1)
       const res = makeRes()
-      handler({}, res)
+      handler({ query: { scope: 'epics' } }, res)
 
       expect(res._json.versions).toEqual(['0.4'])
     })
@@ -370,7 +383,7 @@ describe('execution routes', () => {
 
       const handler = router._routes.get['/versions'].at(-1)
       const res = makeRes()
-      handler({}, res)
+      handler({ query: {} }, res)
 
       expect(res._json).toEqual({ versions: [] })
     })
@@ -434,6 +447,8 @@ describe('execution routes', () => {
 
       expect(res._json.featureCount).toBe(1)
       expect(res._json.features[0].key).toBe('OSAC-100')
+      expect(res._json.features[0].isContext).toBe(false)
+      expect(res._json.features[0].totalEpicCount).toBe(2)
       expect(res._json.features[0].epics).toHaveLength(2)
       expect(res._json.features[0].epics[0].fixVersionSource).toBe('direct')
       expect(res._json.features[0].epics[1].fixVersionSource).toBe('unknown')
@@ -536,6 +551,7 @@ describe('execution routes', () => {
       expect(parent).toBeTruthy()
       // Preserves its true Fix Version — never relabeled to the queried milestone.
       expect(parent.fixVersions).toEqual(['0.2'])
+      expect(parent.isContext).toBe(true)
     })
 
     it('shows only the directly-matching Epic(s) under a context Feature, not its full sibling Epic list', () => {
@@ -551,6 +567,8 @@ describe('execution routes', () => {
       // must not leak in under the context Feature.
       expect(parent.epics.map(e => e.key)).not.toContain('OSAC-2768')
       expect(parent.epics.map(e => e.key)).not.toContain('OSAC-2769')
+      // The full sibling count is still surfaced so the UI can indicate epics are hidden.
+      expect(parent.totalEpicCount).toBe(3)
     })
 
     it('does not pull in a Feature via an inherited (via-parent-feature) Epic even if its value happens to match', () => {

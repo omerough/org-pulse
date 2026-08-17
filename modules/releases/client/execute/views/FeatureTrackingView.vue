@@ -27,7 +27,7 @@ const currentData = computed(() => trackingData.value)
 const features = computed(() => (currentData.value && currentData.value.features) || [])
 const counts = computed(() => (currentData.value && currentData.value.counts) || null)
 const baselineDate = computed(() => currentData.value ? currentData.value.baselineDate : null)
-const baselineSource = computed(() => currentData.value ? currentData.value.baselineSource : null)
+const baselineSource = computed(() => currentData.value ? (currentData.value.baselineSource || 'unknown') : null)
 const wasQueryFailed = computed(() => !!(currentData.value && currentData.value.wasQueryFailed))
 const baselineNotYetReached = computed(() => {
   if (!baselineDate.value) return false

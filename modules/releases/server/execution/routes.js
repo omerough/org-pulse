@@ -35,8 +35,12 @@ function matchesVersion(feature, normalizedFilter) {
 // scopes the overall release; its Epics may be spread across that release's milestones).
 // Only a directly-versioned Epic (never one merely displaying an inherited value) qualifies
 // a Feature as context under a milestone its own Fix Version doesn't match.
+function isDirectEpic(epic) {
+  return epic.fixVersionSource === 'direct';
+}
+
 function epicDirectlyMatchesVersion(epic, normalizedFilter) {
-  return epic.fixVersionSource === 'direct' &&
+  return isDirectEpic(epic) &&
     !!(epic.fixVersions && epic.fixVersions.some(v => stripZStream(v) === normalizedFilter));
 }
 
@@ -102,8 +106,16 @@ function epicDirectlyMatchesVersion(epic, normalizedFilter) {
  * @openapi
  * /api/modules/releases/execution/versions:
  *   get:
- *     summary: List unique fix versions across all features and their directly-versioned epics
+ *     summary: List unique fix versions. By default, only Feature-level versions (what
+ *       GET /features?version= can actually filter on). Pass scope=epics to also include
+ *       versions that appear only on a directly-versioned Epic — used by Epics by Release,
+ *       whose tree can surface a Feature as context via such an Epic (see GET /epics).
  *     tags: [Releases - Execution]
+ *     parameters:
+ *       - in: query
+ *         name: scope
+ *         schema: { type: string, enum: [epics] }
+ *         description: Pass "epics" to union in directly-versioned-Epic-only versions.
  *     responses:
  *       200:
  *         description: Version list
@@ -113,7 +125,11 @@ function epicDirectlyMatchesVersion(epic, normalizedFilter) {
  * @openapi
  * /api/modules/releases/execution/epics:
  *   get:
- *     summary: Feature → Epics tree for a release (Features whose Fix Version matches the given version)
+ *     summary: Feature → Epics tree for a release. Includes Features whose own Fix Version
+ *       matches (full epics array), plus non-matching "context" Features that are surfaced
+ *       solely because they have a directly-versioned Epic matching the given version (only
+ *       that Epic is included for those, and the Feature's true Fix Version is preserved,
+ *       never relabeled). Each returned feature carries isContext to distinguish the two.
  *     tags: [Releases - Execution]
  *     parameters:
  *       - in: query
@@ -122,7 +138,9 @@ function epicDirectlyMatchesVersion(epic, normalizedFilter) {
  *         schema: { type: string }
  *     responses:
  *       200:
- *         description: Features matching the release, each with its full epics array
+ *         description: Features matching the release or included as context, each with its
+ *           applicable epics array. featureCount is the total number of features returned,
+ *           including context features.
  *       400:
  *         description: Missing version query parameter
  */
@@ -375,23 +393,29 @@ module.exports = function registerExecutionRoutes(router, context) {
     res.json(result);
   });
 
-  // GET /versions — list unique fix versions across all features, plus any version
-  // that only appears on a directly-versioned Epic (a Feature scopes the overall
-  // release; its Epics may be spread across that release's milestones — see /epics).
+  // GET /versions — by default, unique fix versions across Feature-level data only
+  // (what GET /features?version= can actually filter on). With scope=epics, also
+  // includes any version that only appears on a directly-versioned Epic (a Feature
+  // scopes the overall release; its Epics may be spread across that release's
+  // milestones — see /epics), for consumers like Epics by Release that understand
+  // Epic-level context membership.
   router.get('/versions', requireAuth, requireScope('releases:read'), function(req, res) {
     const index = readDataFile('index.json');
     if (!index || !index.features) {
       return res.json({ versions: [] });
     }
 
+    const includeEpicVersions = req.query.scope === 'epics';
+
     const versions = new Set();
     for (const f of index.features) {
       for (const v of (f.fixVersions || [])) {
         versions.add(stripZStream(v));
       }
+      if (!includeEpicVersions) continue;
       const detail = readDataFile(`features/${f.key}.json`);
       for (const e of ((detail && detail.epics) || [])) {
-        if (e.fixVersionSource === 'direct') {
+        if (isDirectEpic(e)) {
           for (const v of (e.fixVersions || [])) {
             versions.add(stripZStream(v));
           }
@@ -426,20 +450,24 @@ module.exports = function registerExecutionRoutes(router, context) {
 
     const features = matching.map(function(entry) {
       const detail = readDataFile(`features/${entry.key}.json`);
+      const epics = (detail && detail.epics) || [];
       return {
         key: entry.key,
         summary: entry.summary,
         status: entry.status,
         statusCategory: entry.statusCategory,
         fixVersions: entry.fixVersions || [],
-        epics: (detail && detail.epics) || []
+        isContext: false,
+        totalEpicCount: epics.length,
+        epics
       };
     });
 
     index.features.forEach(function(entry) {
       if (matchedKeys.has(entry.key)) return;
       const detail = readDataFile(`features/${entry.key}.json`);
-      const directEpics = ((detail && detail.epics) || []).filter(e => epicDirectlyMatchesVersion(e, normalizedFilter));
+      const allEpics = (detail && detail.epics) || [];
+      const directEpics = allEpics.filter(e => epicDirectlyMatchesVersion(e, normalizedFilter));
       if (directEpics.length === 0) return;
       features.push({
         key: entry.key,
@@ -447,10 +475,15 @@ module.exports = function registerExecutionRoutes(router, context) {
         status: entry.status,
         statusCategory: entry.statusCategory,
         fixVersions: entry.fixVersions || [],
+        isContext: true,
+        totalEpicCount: allEpics.length,
         epics: directEpics
       });
     });
 
+    // featureCount is the total number of features returned above, including context
+    // features surfaced solely via a directly-versioned child Epic — not just Features
+    // whose own Fix Version matched. See isContext on each feature to distinguish them.
     res.json({
       version,
       fetchedAt: index.fetchedAt,

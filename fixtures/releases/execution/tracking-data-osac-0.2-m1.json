@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "osac-0.2-m1",
+  "displayName": "OSAC 0.2-M1",
+  "fixVersions": ["0.2-M1"],
+  "baselineDate": "2026-07-08",
+  "baselineSource": "releaseStart+7d",
+  "fetchedAt": "2026-08-13T07:56:10Z",
+  "featureCount": 0,
+  "counts": {
+    "committed": 0,
+    "added": 0,
+    "dropped": 0,
+    "moved": 0,
+    "unknown": 0,
+    "blockerPriority": 0
+  },
+  "wasQueryFailed": false,
+  "features": []
+}

@@ -115,4 +115,63 @@ describe('EpicsByReleaseView', () => {
 
     expect(wrapper.text()).toContain('Server error')
   })
+
+  it('requests versions with scope=epics, since this view understands Epic-level context membership', async () => {
+    mockApiRequest.mockImplementation((url) => {
+      if (url.includes('/versions')) return Promise.resolve({ versions: ['0.4'] })
+      if (url.includes('/epics')) return Promise.resolve(epicsResponse())
+      return Promise.reject(new Error('unexpected url ' + url))
+    })
+
+    mount(EpicsByReleaseView)
+    await flushPromises()
+
+    expect(mockApiRequest).toHaveBeenCalledWith(expect.stringContaining('/modules/releases/execution/versions?scope=epics'))
+  })
+
+  it('badges a context Feature, preserves its real Fix Version, and notes hidden sibling Epics', async () => {
+    mockApiRequest.mockImplementation((url) => {
+      if (url.includes('/versions')) return Promise.resolve({ versions: ['0.2-M1'] })
+      if (url.includes('/epics')) {
+        return Promise.resolve({
+          version: '0.2-M1',
+          fetchedAt: '2026-08-11T10:33:00Z',
+          featureCount: 1,
+          features: [
+            {
+              key: 'OSAC-1061',
+              summary: 'Parent Feature',
+              status: 'In Progress',
+              statusCategory: 'In Progress',
+              fixVersions: ['0.2'],
+              isContext: true,
+              totalEpicCount: 3,
+              epics: [
+                {
+                  key: 'OSAC-2767', summary: 'Direct M1 epic', status: 'In Progress', statusCategory: 'In Progress',
+                  fixVersions: ['0.2-M1'], fixVersionSource: 'direct',
+                  components: [], componentSource: 'unknown',
+                  parentFeatureKey: 'OSAC-1061', blockerCount: 0, issueCount: 1, pct: 0, progress: 0,
+                  issues: []
+                }
+              ]
+            }
+          ]
+        })
+      }
+      return Promise.reject(new Error('unexpected url ' + url))
+    })
+
+    const wrapper = mount(EpicsByReleaseView)
+    await flushPromises()
+
+    // Real Fix Version is preserved, not relabeled to the filtered milestone (the
+    // release selector legitimately shows "0.2-M1" too, so scope the check to the badge).
+    const fixVersionBadge = wrapper.find('[title*="real Fix Version"]')
+    expect(fixVersionBadge.text()).toBe('0.2')
+    // Badged as context so it isn't mistaken for a Fix-Version data bug.
+    expect(wrapper.text().toLowerCase()).toContain('context')
+    // Hidden siblings are called out (1 of 3 shown), rather than looking like missing data.
+    expect(wrapper.text()).toContain('1 of 3')
+  })
 })
