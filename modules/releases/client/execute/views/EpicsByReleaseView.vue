@@ -92,7 +92,7 @@ onMounted(async () => {
               <span
                 v-if="feature.isContext"
                 class="px-1.5 py-0.5 rounded text-[9px] font-medium italic bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 flex-shrink-0"
-                :title="'Shown as context: this Feature\'s own Fix Version does not match ' + selectedVersion + ', but it has an Epic directly assigned to it'"
+                :title="'This Feature is assigned to ' + (feature.fixVersions.join(', ') || 'no Fix Version') + ', but has an Epic directly assigned to ' + selectedVersion"
               >context</span>
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
