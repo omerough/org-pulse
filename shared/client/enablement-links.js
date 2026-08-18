@@ -141,8 +141,21 @@ export const enablementSections = [
   { id: 'other', label: 'Other Enablement' },
 ]
 
+// OSAC-specific enablement, surfaced only in the AI Impact Tools modal (not in
+// the global About → Docs tab, which renders `enablementCategories`).
+export const aiImpactEnablementCategories = [
+  {
+    id: 'osac-agentic-sdlc',
+    title: 'OSAC Agentic SDLC',
+    section: 'ai-sdlc',
+    links: [
+      { label: 'Agentic SDLC Presentation', icon: 'Presentation', url: 'https://osac-project.github.io/osac-workspace/presentations/ai-assisted-sdlc.html' },
+      { label: 'AI-Assisted Development Workflow', icon: 'StickyNote', url: 'https://github.com/osac-project/osac-workspace/blob/main/AI-assisted-development-workflow.md' },
+      { label: 'OSAC Workspace', icon: 'BookOpen', url: 'https://osac-project.github.io/osac-workspace/' },
+    ],
+  },
+]
+
 export function getAIImpactEnablementCategories() {
-  return enablementCategories.filter(c =>
-    ['rfe-builder', 'strat-builder', 'ai-quality', 'ai-first-documentation', 'component-onboarding'].includes(c.id)
-  )
+  return aiImpactEnablementCategories
 }

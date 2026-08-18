@@ -1,12 +1,12 @@
 <script setup>
 import { ref, watch } from 'vue'
-import { Video, Presentation, StickyNote, Play, ExternalLink } from 'lucide-vue-next'
+import { Video, Presentation, StickyNote, Play, BookOpen, ExternalLink } from 'lucide-vue-next'
 import { getAIImpactEnablementCategories } from '@shared/client/enablement-links.js'
 import { useDisabledPipelines } from '../composables/useDisabledPipelines.js'
 
 const { isDisabled } = useDisabledPipelines()
 
-const iconMap = { Video, Presentation, StickyNote, Play }
+const iconMap = { Video, Presentation, StickyNote, Play, BookOpen }
 function resolveIcon(name) { return iconMap[name] || Video }
 
 const enablementCategories = getAIImpactEnablementCategories()
@@ -125,15 +125,15 @@ function handleClose() {
               <div>
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">How PRD Quality Scoring Works</h3>
                 <p class="text-sm text-gray-600 dark:text-gray-300">
-                  Each PRD is automatically assessed by an AI-powered pipeline that evaluates how well the PRD communicates its intent. Scores range from 0–10 across five criteria, with a pass threshold of 5.
+                  Each PRD is automatically assessed by an AI reviewer that scores how clearly it communicates user-facing intent. Scores range from 0–10 across five criteria (0–2 each). A PRD passes at 7/10 or higher, and any single zero is an automatic fail.
                 </p>
               </div>
 
               <!-- Flow diagram -->
               <div class="flex items-center gap-2 text-xs">
-                <span class="px-2.5 py-1.5 rounded-md bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-200 font-medium">PRD Created</span>
+                <span class="px-2.5 py-1.5 rounded-md bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-200 font-medium">PRD Drafted</span>
                 <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-                <span class="px-2.5 py-1.5 rounded-md bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-200 font-medium">Assessment Pipeline</span>
+                <span class="px-2.5 py-1.5 rounded-md bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-200 font-medium">AI Review</span>
                 <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
                 <span class="px-2.5 py-1.5 rounded-md bg-green-100 dark:bg-green-800/60 text-green-700 dark:text-green-200 font-medium">Quality Score</span>
               </div>
@@ -145,24 +145,24 @@ function handleClose() {
                   <table class="w-full text-sm">
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                       <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100 w-24">What (0–2)</td>
-                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Does the PRD clearly describe the desired outcome?</td>
+                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100 w-40">What (0–2)</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Does the PRD clearly describe what users can do or observe, with affected personas and services identified?</td>
                       </tr>
                       <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">Why (0–2)</td>
-                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Is there a compelling business justification?</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Is there a clear reason this matters — user pain, business need, or strategic goal?</td>
                       </tr>
                       <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">How (0–2)</td>
-                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Are acceptance criteria specific and measurable?</td>
+                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">User-Facing Focus (0–2)</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Does it describe user-observable outcomes without prescribing implementation? A PRD defines WHAT and WHY, not HOW.</td>
                       </tr>
                       <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">Task (0–2)</td>
-                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Is this a true enhancement, not a task or bug?</td>
+                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">Right-Sized (0–2)</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Is it scoped to a coherent set of capabilities, not bundling unrelated work?</td>
                       </tr>
                       <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">Size (0–2)</td>
-                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Is the scope right-sized for a single PRD?</td>
+                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">Testability (0–2)</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Can the requirements be verified by a PM or QA engineer using the product?</td>
                       </tr>
                     </tbody>
                   </table>
@@ -173,16 +173,16 @@ function handleClose() {
               <div class="rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-700 px-4 py-3">
                 <h4 class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">CLI Tools</h4>
                 <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                  The scoring rubric is maintained in the <span class="font-mono text-xs bg-gray-200 dark:bg-gray-600 px-1 py-0.5 rounded">assess-rfe</span> plugin (source: <a href="https://github.com/opendatahub-io/assess-rfe" target="_blank" rel="noopener noreferrer" class="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline">opendatahub-io/assess-rfe</a>).
+                  PRDs are drafted with the <span class="font-mono text-xs bg-gray-200 dark:bg-gray-600 px-1 py-0.5 rounded">/prd</span> workflow (source: <a href="https://github.com/flightctl/ai-workflows" target="_blank" rel="noopener noreferrer" class="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline">flightctl/ai-workflows</a>) and scored by the <span class="font-mono text-xs bg-gray-200 dark:bg-gray-600 px-1 py-0.5 rounded">prd-review</span> skill (source: <a href="https://github.com/osac-project/osac-workspace" target="_blank" rel="noopener noreferrer" class="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline">osac-project/osac-workspace</a>).
                 </p>
                 <div class="space-y-1.5 text-xs font-mono">
                   <div class="flex items-start gap-2">
-                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/assess-rfe</code>
-                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Evaluate a PRD interactively against the rubric</span>
+                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/prd</code>
+                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Draft or refine a PRD (What / Why)</span>
                   </div>
                   <div class="flex items-start gap-2">
-                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/export-rubric</code>
-                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Export the full scoring rubric to a markdown file</span>
+                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/prd-review</code>
+                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Score a PRD against the OSAC rubric</span>
                   </div>
                 </div>
               </div>
@@ -193,45 +193,43 @@ function handleClose() {
               <div>
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">How Design Review Works</h3>
                 <p class="text-sm text-gray-600 dark:text-gray-300">
-                  When a PRD is approved, the <a href="https://github.com/ederign/strat-creator" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">Strat Creator</a> pipeline automatically generates a design document in Jira, then scores it with independent AI reviewers. Every design document needs human sign-off before it's considered complete.
+                  OSAC design documents (<code class="px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-xs">design.md</code> in enhancement-proposal PRs) are reviewed by the EP Review GitHub Action, which scores each design against four dimensions using the <span class="font-mono text-xs bg-gray-200 dark:bg-gray-600 px-1 py-0.5 rounded">ep-review</span> skill. Every design needs human sign-off — PR approval and merge — before it's considered complete.
                 </p>
               </div>
 
               <!-- Flow diagram -->
               <div class="flex items-center gap-2 text-xs flex-wrap">
-                <span class="px-2.5 py-1.5 rounded-md bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-200 font-medium">PRD Approved</span>
-                <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-                <span class="px-2.5 py-1.5 rounded-md bg-purple-100 dark:bg-purple-800/60 text-purple-700 dark:text-purple-200 font-medium">Feature Created</span>
+                <span class="px-2.5 py-1.5 rounded-md bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-200 font-medium">Design Drafted</span>
                 <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
                 <span class="px-2.5 py-1.5 rounded-md bg-purple-100 dark:bg-purple-800/60 text-purple-700 dark:text-purple-200 font-medium">AI Review</span>
                 <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-                <span class="px-2.5 py-1.5 rounded-md bg-green-100 dark:bg-green-800/60 text-green-700 dark:text-green-200 font-medium">Human Sign-off</span>
+                <span class="px-2.5 py-1.5 rounded-md bg-green-100 dark:bg-green-800/60 text-green-700 dark:text-green-200 font-medium">Design Score</span>
               </div>
 
               <!-- Scoring -->
               <div>
                 <h4 class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">AI Scoring Dimensions</h4>
                 <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                  Each feature is scored 0–2 on four dimensions by independent AI reviewers, for a total of 0–8.
+                  Each design is scored 0–2 on four dimensions, for a total of 0–8. A design passes at 5/8 or higher, and any single zero is an automatic fail.
                 </p>
                 <div class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                   <table class="w-full text-sm">
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                       <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100 w-28">Feasibility (0–2)</td>
-                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Can this feature realistically be implemented?</td>
+                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100 w-28">Architecture (0–2)</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Are the technical decisions sound and consistent with OSAC patterns?</td>
                       </tr>
                       <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">Testability (0–2)</td>
-                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Are acceptance criteria measurable and verifiable?</td>
+                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">Feasibility (0–2)</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Is the implementation realistic, specific, and proportional to the scope?</td>
                       </tr>
                       <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">Scope (0–2)</td>
-                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Is the feature right-sized — not too broad or too narrow?</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Is the design right-sized with clear boundaries, covering relevant personas and dimensions?</td>
                       </tr>
                       <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">Architecture (0–2)</td>
-                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Are dependencies and integration patterns sound?</td>
+                        <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">Testability (0–2)</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Does it describe a concrete test strategy that would catch regressions?</td>
                       </tr>
                     </tbody>
                   </table>
@@ -244,10 +242,10 @@ function handleClose() {
                 <div class="space-y-3">
                   <div class="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
                     <div class="flex items-center gap-2 mb-1.5">
-                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Flagged</span>
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Needs Revision</span>
                     </div>
                     <p class="text-sm text-gray-700 dark:text-gray-300">
-                      The AI pipeline flagged concerns with this feature. Open it in Jira, review the AI-generated content, and add your technical corrections or direction in the <strong>Staff Engineer Input</strong> section of the description. Then remove the <code class="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-800/40 text-xs">strat-creator-needs-attention</code> label to unblock the pipeline for re-refinement.
+                      The AI review scored the design below 5/8 or gave a zero on a dimension. Update the <code class="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-800/40 text-xs">design.md</code> in your enhancement-proposal PR and push the change, then add the <code class="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-800/40 text-xs">re-review</code> label to trigger another review.
                     </p>
                   </div>
                   <div class="rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 p-3">
@@ -255,7 +253,7 @@ function handleClose() {
                       <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200">Awaiting Sign-off</span>
                     </div>
                     <p class="text-sm text-gray-700 dark:text-gray-300">
-                      This feature passed AI review but no human has signed off yet. Review the feature in Jira. If it looks good, add the <code class="px-1 py-0.5 rounded bg-yellow-100 dark:bg-yellow-800/40 text-xs">strat-creator-human-sign-off</code> label. If changes are needed, add your feedback in the <strong>Staff Engineer Input</strong> section of the description and the pipeline will incorporate it on the next run.
+                      The design passed AI review (5/8 or higher with no zeros) but no human has signed off yet. Review the <code class="px-1 py-0.5 rounded bg-yellow-100 dark:bg-yellow-800/40 text-xs">design.md</code> in the PR; if it looks good, approve and merge the enhancement-proposal PR.
                     </p>
                   </div>
                   <div class="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-3">
@@ -263,7 +261,7 @@ function handleClose() {
                       <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">Approved</span>
                     </div>
                     <p class="text-sm text-gray-700 dark:text-gray-300">
-                      This feature has been reviewed and signed off by a human engineer. No further action needed.
+                      The design PR has been approved and merged by a human engineer. No further action needed.
                     </p>
                   </div>
                 </div>
@@ -271,19 +269,15 @@ function handleClose() {
 
               <!-- Status badges -->
               <div>
-                <h4 class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">AI Recommendation Badges</h4>
+                <h4 class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">AI Verdict Badges</h4>
                 <div class="space-y-2 text-sm">
                   <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">Approve</span>
-                    <span class="text-gray-600 dark:text-gray-300">All AI reviewers recommend approval</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">Pass</span>
+                    <span class="text-gray-600 dark:text-gray-300">Total 5/8 or higher with no zeros — ready for human sign-off</span>
                   </div>
                   <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Needs Revision</span>
-                    <span class="text-gray-600 dark:text-gray-300">One or more reviewers flagged issues to address</span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200">Reject</span>
-                    <span class="text-gray-600 dark:text-gray-300">Significant concerns — feature needs rework</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200">Fail</span>
+                    <span class="text-gray-600 dark:text-gray-300">Below 5/8 or a zero on any dimension — design needs revision</span>
                   </div>
                 </div>
               </div>
@@ -292,25 +286,18 @@ function handleClose() {
               <div class="rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-700 px-4 py-3">
                 <h4 class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">CLI Tools</h4>
                 <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                  Features are created and reviewed by the <span class="font-mono text-xs bg-gray-200 dark:bg-gray-600 px-1 py-0.5 rounded">strat-creator</span> pipeline (source: <a href="https://github.com/ederign/strat-creator" target="_blank" rel="noopener noreferrer" class="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline">ederign/strat-creator</a>).
+                  Designs are authored with the <span class="font-mono text-xs bg-gray-200 dark:bg-gray-600 px-1 py-0.5 rounded">/design</span> workflow (source: <a href="https://github.com/flightctl/ai-workflows" target="_blank" rel="noopener noreferrer" class="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline">flightctl/ai-workflows</a>) and scored by the <span class="font-mono text-xs bg-gray-200 dark:bg-gray-600 px-1 py-0.5 rounded">ep-review</span> skill (source: <a href="https://github.com/osac-project/osac-workspace" target="_blank" rel="noopener noreferrer" class="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline">osac-project/osac-workspace</a>).
                 </p>
                 <div class="space-y-1.5 text-xs font-mono">
                   <div class="flex items-start gap-2">
-                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/strat.create</code>
-                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Create features from approved PRDs</span>
+                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/design</code>
+                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Draft or refine a design document (How)</span>
                   </div>
                   <div class="flex items-start gap-2">
-                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/strat.refine</code>
-                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Refine features with dependencies, teams, and NFRs</span>
-                  </div>
-                  <div class="flex items-start gap-2">
-                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/strat.review</code>
-                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Adversarial AI review across all four dimensions</span>
+                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/ep-review</code>
+                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Score a design against the OSAC rubric</span>
                   </div>
                 </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Install: <code class="px-1 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200">/plugin install rfe-creator@opendatahub-skills</code>
-                </p>
               </div>
             </div>
 
@@ -416,10 +403,36 @@ function handleClose() {
             <!-- Enablement Tab -->
             <div v-if="activeTab === 'enablement'" class="space-y-5">
               <div>
-                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Enablement Resources</h3>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">How the OSAC Agentic SDLC Works</h3>
                 <p class="text-sm text-gray-600 dark:text-gray-300">
-                  Recordings, slides, and notes from AI SDLC tool enablement sessions. These cover the tools powering the AI Impact module's PRD scoring, feature review, and quality workflows.
+                  The OSAC Agentic SDLC drives a feature from PRD through design, implementation, and testing using Claude Code skills. The presentation and workflow guide below walk through the full flow.
                 </p>
+              </div>
+
+              <!-- Workflow commands -->
+              <div class="rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-700 px-4 py-3">
+                <h4 class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-2">Workflow Commands</h4>
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                  The Agentic SDLC workflows are installed from <a href="https://github.com/flightctl/ai-workflows" target="_blank" rel="noopener noreferrer" class="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline">flightctl/ai-workflows</a>.
+                </p>
+                <div class="space-y-1.5 text-xs font-mono">
+                  <div class="flex items-start gap-2">
+                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/prd</code>
+                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Draft &amp; refine a PRD (What / Why)</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/design</code>
+                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Author the design document (How)</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/implement</code>
+                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Plan &amp; write the implementation with tests</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/e2e</code>
+                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Generate &amp; run end-to-end tests</span>
+                  </div>
+                </div>
               </div>
 
               <div v-for="cat in enablementCategories" :key="cat.id" class="space-y-3">

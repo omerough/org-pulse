@@ -273,3 +273,79 @@ test.describe('AI Impact Views @ai-impact', () => {
     expect(page.errors).toHaveLength(0);
   });
 });
+
+/**
+ * AI Impact Tools guide modal
+ *
+ * Verify the "AI Impact Tools" popup describes the OSAC PRD/design/enablement
+ * process (OSAC-3117), not the legacy opendatahub RFE workflow.
+ */
+test.describe('AI Impact Tools guide modal @ai-impact', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  // Open a view that mounts the guide, then ensure the modal is showing.
+  // The guide auto-opens on first visit (empty localStorage); fall back to the
+  // floating "AI Impact Guide" button if it is not already visible.
+  async function openGuideModal(page) {
+    await page.goto('/#/ai-impact/prd-review');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const heading = page.getByRole('heading', { name: 'AI Impact Tools' });
+    if (!(await heading.isVisible().catch(() => false))) {
+      await page.locator('button').filter({ hasText: 'AI Impact Guide' }).first().click();
+    }
+    await expect(heading).toBeVisible();
+    // Scope all assertions to the modal so we never match the sidebar nav
+    return page.locator('.max-w-2xl').filter({ hasText: 'AI Impact Tools' });
+  }
+
+  test('Quality Scoring tab shows OSAC PRD criteria', async ({ page }) => {
+    const modal = await openGuideModal(page);
+    await modal.getByRole('button', { name: 'Quality Scoring' }).click();
+
+    await expect(modal.getByText('User-Facing Focus')).toBeVisible();
+    await expect(modal.getByText('Right-Sized')).toBeVisible();
+    await expect(modal.getByText(/7\/10/)).toBeVisible();
+    await expect(modal.getByText('/prd-review')).toBeVisible();
+    // Legacy opendatahub tooling should be gone
+    await expect(modal.getByText('assess-rfe')).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Design Review tab shows OSAC design criteria', async ({ page }) => {
+    const modal = await openGuideModal(page);
+    await modal.getByRole('button', { name: 'Design Review' }).click();
+
+    await expect(modal.getByText('Architecture')).toBeVisible();
+    await expect(modal.getByText('ep-review').first()).toBeVisible();
+    await expect(modal.getByText(/5\/8/).first()).toBeVisible();
+    // Legacy strat-creator tooling should be gone
+    await expect(modal.getByText('strat.create')).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Enablement tab shows OSAC Agentic SDLC resources', async ({ page }) => {
+    const modal = await openGuideModal(page);
+    await modal.getByRole('button', { name: 'Enablement' }).click();
+
+    await expect(modal.getByRole('heading', { name: 'OSAC Agentic SDLC', exact: true })).toBeVisible();
+    await expect(modal.getByText('/implement')).toBeVisible();
+    await expect(
+      modal.getByRole('link', { name: 'Agentic SDLC Presentation' })
+    ).toHaveAttribute(
+      'href',
+      /osac-project\.github\.io\/osac-workspace\/presentations\/ai-assisted-sdlc\.html/
+    );
+
+    expect(page.errors).toHaveLength(0);
+  });
+});
