@@ -181,7 +181,7 @@ describe('TeamRosterView', () => {
     expect(wrapper.text()).toContain('Jane Doe')
     expect(wrapper.text()).toContain('Eng Lead:')
     expect(wrapper.text()).toContain('Alice B.')
-    expect(wrapper.text()).toContain('5 open RFEs')
+    expect(wrapper.text()).toContain('5 open PRDs')
   })
 
   it('renders all 3 tabs', async () => {
@@ -191,7 +191,7 @@ describe('TeamRosterView', () => {
     const tabLabels = tabButtons.map(b => b.text())
     expect(tabLabels).toContain('Overview')
     expect(tabLabels).toContain('Delivery')
-    expect(tabLabels).toContain('RFE Backlog')
+    expect(tabLabels).toContain('PRD Backlog')
   })
 
   it('always shows all 5 tabs', async () => {
@@ -229,7 +229,7 @@ describe('TeamRosterView', () => {
     expect(wrapper.text()).not.toContain('Eng Lead:')
 
     // RFE Backlog tab shows fallback
-    const backlogTab = wrapper.findAll('nav button').find(b => b.text() === 'RFE Backlog')
+    const backlogTab = wrapper.findAll('nav button').find(b => b.text() === 'PRD Backlog')
     await backlogTab.trigger('click')
     expect(wrapper.text()).toContain('not yet available')
   })

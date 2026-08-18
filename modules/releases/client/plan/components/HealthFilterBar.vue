@@ -126,7 +126,7 @@ onUnmounted(function() {
       <option value="missing-pm">Missing PM</option>
       <option value="missing-release-type">Missing Release Type</option>
       <option value="missing-epics">Missing Epics</option>
-      <option value="missing-rfe">Missing RFE</option>
+      <option value="missing-rfe">Missing PRD</option>
     </select>
 
     <!-- Component multi-select with chips -->

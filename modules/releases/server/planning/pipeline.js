@@ -369,12 +369,12 @@ function buildCandidateResponse(pipelineResult, version, bigRocks, demoMode) {
       tier1: {
         features: pipelineResult.tier1Features,
         rfes: pipelineResult.tier1Rfes,
-        description: 'Big Rock-associated features and RFEs that PM has identified as essential for this release.'
+        description: 'Big Rock-associated features and PRDs that PM has identified as essential for this release.'
       },
       tier2: {
         features: pipelineResult.tier2Features,
         rfes: pipelineResult.tier2Rfes,
-        description: 'Features and RFEs not tied to Big Rocks, but PM believes are important for customers or represent significant usability improvements.'
+        description: 'Features and PRDs not tied to Big Rocks, but PM believes are important for customers or represent significant usability improvements.'
       },
       tier3: {
         features: pipelineResult.tier3Features,

@@ -84,7 +84,7 @@ function formatFrictionChange(change) {
 
       <!-- Total RFEs -->
       <div class="space-y-1">
-        <p class="text-sm text-gray-500 dark:text-gray-400">Total RFEs</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Total PRDs</p>
         <span class="text-3xl font-bold dark:text-gray-100">{{ metrics.windowTotal }}</span>
         <p class="text-xs text-gray-400 dark:text-gray-500">{{ metrics.totalRFEs }} all time</p>
       </div>

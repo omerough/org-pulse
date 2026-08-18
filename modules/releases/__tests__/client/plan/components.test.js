@@ -72,7 +72,7 @@ describe('SummaryCards', () => {
     expect(table.exists()).toBe(true)
     // Header row
     expect(table.text()).toContain('Features')
-    expect(table.text()).toContain('RFEs')
+    expect(table.text()).toContain('PRDs')
     // Tier rows
     expect(table.text()).toContain('Tier 1')
     expect(table.text()).toContain('Tier 2')

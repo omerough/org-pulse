@@ -55,7 +55,7 @@
         </div>
         <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-center">
           <p class="text-3xl font-bold text-amber-600">{{ summary.totalRfeCount || 0 }}</p>
-          <p class="text-sm text-gray-500 dark:text-gray-400">Open RFEs</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400">Open PRDs</p>
         </div>
       </div>
 
@@ -104,7 +104,7 @@
                   class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 select-none"
                   @click="toggleSort('rfe')"
                 >
-                  Open RFEs <span v-if="teamSort === 'rfe'">{{ teamSortDir === 'asc' ? '▲' : '▼' }}</span>
+                  Open PRDs <span v-if="teamSort === 'rfe'">{{ teamSortDir === 'asc' ? '▲' : '▼' }}</span>
                 </th>
               </tr>
             </thead>
@@ -137,7 +137,7 @@
 
       <!-- RFE by Component (top 10) -->
       <div v-if="topRfeComponents.length > 0" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 mb-6">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Top RFE Backlog by Component</h3>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Top PRD Backlog by Component</h3>
         <div class="space-y-2">
           <div
             v-for="comp in topRfeComponents"

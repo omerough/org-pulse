@@ -29,7 +29,7 @@ const buckets = computed(() => {
 const chartData = computed(() => ({
   labels: Array.from({ length: 11 }, (_, i) => String(i)),
   datasets: [{
-    label: 'RFEs',
+    label: 'PRDs',
     data: buckets.value,
     backgroundColor: buckets.value.map((_, i) => i < 5 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(34, 197, 94, 0.7)'),
     borderColor: buckets.value.map((_, i) => i < 5 ? '#ef4444' : '#22c55e'),
@@ -45,7 +45,7 @@ const chartOptions = {
     tooltip: {
       callbacks: {
         title: (items) => `Score: ${items[0].label}`,
-        label: (item) => `${item.raw} RFE${item.raw !== 1 ? 's' : ''}`
+        label: (item) => `${item.raw} PRD${item.raw !== 1 ? 's' : ''}`
       }
     }
   },
@@ -73,7 +73,7 @@ const chartOptions = {
             d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <div class="absolute right-0 top-6 z-10 hidden group-hover:block w-56 p-2 text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50">
-          Distribution of quality scores across filtered RFEs. Red bars indicate failing scores (0-4), green bars indicate passing scores (5-10).
+          Distribution of quality scores across filtered PRDs. Red bars indicate failing scores (0-4), green bars indicate passing scores (5-10).
         </div>
       </div>
     </div>

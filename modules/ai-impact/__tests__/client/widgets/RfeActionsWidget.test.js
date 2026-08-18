@@ -138,13 +138,13 @@ describe('RfeActionsWidget', () => {
   it('mounts with size prop and renders header', async () => {
     const wrapper = mount(RfeActionsWidget, { props: { size: 'full' } })
     await flushPromises()
-    expect(wrapper.text()).toContain('RFE Action Items')
+    expect(wrapper.text()).toContain('PRD Action Items')
   })
 
   it('accepts half size prop', async () => {
     const wrapper = mount(RfeActionsWidget, { props: { size: 'half' } })
     await flushPromises()
-    expect(wrapper.text()).toContain('RFE Action Items')
+    expect(wrapper.text()).toContain('PRD Action Items')
   })
 
   it('shows loading skeleton when data is loading', async () => {
@@ -193,7 +193,7 @@ describe('RfeActionsWidget', () => {
   it('shows sync timestamp in footer', async () => {
     const wrapper = mount(RfeActionsWidget, { props: { size: 'full' } })
     await flushPromises()
-    expect(wrapper.text()).toContain('RFEs synced')
+    expect(wrapper.text()).toContain('PRDs synced')
     expect(wrapper.text()).toContain('Features:')
   })
 })

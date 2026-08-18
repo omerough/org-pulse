@@ -12,17 +12,17 @@ const CACHE_MAX_AGE_MS = 15 * 60 * 1000 // 15 minutes
 const FEATURE_COLUMNS = [
   'Big Rock', 'Feature', 'Issue status', 'Priority', 'DP/TP/GA',
   'Title', 'Component[s]', 'Target Release', 'Fix Version (Committed)',
-  'PM', 'Delivery Owner', 'RFE', 'Comments'
+  'PM', 'Delivery Owner', 'PRD', 'Comments'
 ]
 
 const RFE_COLUMNS = [
-  'Big Rock', 'RFE', 'RFE Status', 'Priority', 'Title',
+  'Big Rock', 'PRD', 'PRD Status', 'Priority', 'Title',
   'Component[s]', 'PM', 'Labels'
 ]
 
 const BIG_ROCK_COLUMNS = [
   'Pillar', 'Priority', 'Big Rock', 'Outcome', 'Outcome Description',
-  'State', 'Owner', 'Features', 'RFEs', 'Notes'
+  'State', 'Owner', 'Features', 'PRDs', 'Notes'
 ]
 
 const STATUS_STYLES = {

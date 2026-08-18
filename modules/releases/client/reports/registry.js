@@ -22,7 +22,7 @@ export const reports = [
   {
     id: 'feature-pressure',
     label: 'Feature Pressure',
-    description: 'Where feature inflow exceeds capacity to burn down — pressure by component, with RFE pipeline and risk scorecard.',
+    description: 'Where feature inflow exceeds capacity to burn down — pressure by component, with PRD pipeline and risk scorecard.',
     component: defineAsyncComponent(() => import('../views/FeaturePressureView.vue'))
   }
 ]

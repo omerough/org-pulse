@@ -495,7 +495,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
 
               <template v-if="feature.sourceRfe">
-                <dt class="text-gray-400 dark:text-gray-500 self-start">Source RFE</dt>
+                <dt class="text-gray-400 dark:text-gray-500 self-start">Source PRD</dt>
                 <dd>
                   <a
                     :href="`${jiraBaseUrl}/${feature.sourceRfe}`"

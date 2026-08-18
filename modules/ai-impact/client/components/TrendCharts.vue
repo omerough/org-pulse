@@ -152,7 +152,7 @@ const breakdownChartOptions = computed(() => ({
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div class="absolute right-0 top-6 z-10 hidden group-hover:block w-64 p-2 text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50">
-              Percentage of RFEs created with AI per week over the selected time window.
+              Percentage of PRDs created with AI per week over the selected time window.
             </div>
           </div>
         </div>
@@ -170,7 +170,7 @@ const breakdownChartOptions = computed(() => ({
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div class="absolute right-0 top-6 z-10 hidden group-hover:block w-64 p-2 text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50">
-              Count of RFEs revised with AI per week over the selected time window.
+              Count of PRDs revised with AI per week over the selected time window.
             </div>
           </div>
         </div>
@@ -188,7 +188,7 @@ const breakdownChartOptions = computed(() => ({
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div class="absolute right-0 top-6 z-10 hidden group-hover:block w-64 p-2 text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50">
-              Counts of RFEs by AI involvement: created with AI, revised with AI, both, or no AI involvement.
+              Counts of PRDs by AI involvement: created with AI, revised with AI, both, or no AI involvement.
             </div>
           </div>
         </div>

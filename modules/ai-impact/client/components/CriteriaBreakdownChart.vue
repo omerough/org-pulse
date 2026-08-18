@@ -111,7 +111,7 @@ const chartOptions = {
             d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <div class="absolute right-0 top-6 z-10 hidden group-hover:block w-64 p-2 text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50">
-          Average score per criterion (0-2 scale, blue bars) and percentage of RFEs scoring zero per criterion (red bars). Identifies which quality dimensions are weakest.
+          Average score per criterion (0-2 scale, blue bars) and percentage of PRDs scoring zero per criterion (red bars). Identifies which quality dimensions are weakest.
         </div>
       </div>
     </div>

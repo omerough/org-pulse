@@ -111,7 +111,7 @@ const stageOptions = [
   { value: 'passed-with-caveats', label: 'Passed with Caveats' },
   { value: 'ready-to-advance', label: 'Ready for Feature Creation' },
   { value: 'queued-for-pipeline', label: 'Queued for Feature Creation' },
-  { value: 'rejected', label: 'RFE Rejected' },
+  { value: 'rejected', label: 'Feature Rejected' },
   { value: 'revise-required', label: 'Revise Required' },
   { value: 'awaiting-signoff', label: 'Awaiting Sign-off' },
   { value: 'signed-off', label: 'Signed Off' }
@@ -150,7 +150,7 @@ function handleNavigate(item) {
     <!-- Header -->
     <div class="flex items-center justify-between mb-4">
       <div>
-        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">RFE Action Items</h3>
+        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">PRD Action Items</h3>
         <p v-if="componentSubtitleText" class="text-sm text-gray-500 dark:text-gray-400 mt-1">
           <span v-if="userDisplayName">{{ userDisplayName }} — </span>
           {{ componentSubtitleText }}
@@ -224,7 +224,7 @@ function handleNavigate(item) {
       />
 
       <div class="text-xs text-gray-400 dark:text-gray-500 pt-4 border-t border-gray-200 dark:border-gray-700 mt-4">
-        <span v-if="rfeData?.fetchedAt">RFEs synced: {{ new Date(rfeData.fetchedAt).toLocaleString() }}</span>
+        <span v-if="rfeData?.fetchedAt">PRDs synced: {{ new Date(rfeData.fetchedAt).toLocaleString() }}</span>
         <span v-if="rfeData?.fetchedAt && features"> | </span>
         <span>Features: {{ Object.keys(features).length }} tracked</span>
       </div>

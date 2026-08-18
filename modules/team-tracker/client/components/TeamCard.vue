@@ -75,7 +75,7 @@
         v-if="team.rfeCount > 0"
         class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-400"
       >
-        {{ team.rfeCount }} open RFEs
+        {{ team.rfeCount }} open PRDs
       </span>
     </div>
   </div>

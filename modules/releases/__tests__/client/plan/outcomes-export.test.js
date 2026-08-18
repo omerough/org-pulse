@@ -100,10 +100,10 @@ describe('exportMarkdown', function() {
       filteredRfes: sampleRfes
     })
 
-    expect(capturedContent).toContain('# RFEs - 3.5')
+    expect(capturedContent).toContain('# PRDs - 3.5')
     expect(capturedContent).toContain('RHOAIENG-500')
     expect(capturedContent).toContain('Test RFE')
-    expect(capturedFilename).toBe('rfes-3.5.md')
+    expect(capturedFilename).toBe('prds-3.5.md')
   })
 
   it('escapes pipe characters in markdown cells', function() {
@@ -183,9 +183,9 @@ describe('exportCsv', function() {
       filteredRfes: sampleRfes
     })
 
-    expect(capturedContent).toContain('Big Rock,RFE,Status')
+    expect(capturedContent).toContain('Big Rock,PRD,Status')
     expect(capturedContent).toContain('RHOAIENG-500')
-    expect(capturedFilename).toBe('rfes-3.5.csv')
+    expect(capturedFilename).toBe('prds-3.5.csv')
   })
 
   it('quotes CSV values containing commas', function() {

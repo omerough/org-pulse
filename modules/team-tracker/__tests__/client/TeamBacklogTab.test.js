@@ -24,7 +24,7 @@ describe('TeamBacklogTab', () => {
       }
     })
     expect(wrapper.text()).toContain('Components')
-    expect(wrapper.text()).toContain('Open RFEs')
+    expect(wrapper.text()).toContain('Open PRDs')
     expect(wrapper.text()).toContain('3 issues')
   })
 
@@ -36,10 +36,10 @@ describe('TeamBacklogTab', () => {
         rfeConfig
       }
     })
-    // KServe appears in RFE-1 and RFE-2 = 2 RFEs
-    expect(wrapper.text()).toContain('2 RFEs')
-    // Caikit appears in RFE-3 = 1 RFE
-    expect(wrapper.text()).toContain('1 RFEs')
+    // KServe appears in RFE-1 and RFE-2 = 2 PRDs
+    expect(wrapper.text()).toContain('2 PRDs')
+    // Caikit appears in RFE-3 = 1 PRD
+    expect(wrapper.text()).toContain('1 PRDs')
   })
 
   it('hides Components section when components array is empty', () => {
@@ -55,7 +55,7 @@ describe('TeamBacklogTab', () => {
     const headings = wrapper.findAll('h3')
     const headingTexts = headings.map(h => h.text())
     expect(headingTexts).not.toContain('Components')
-    expect(wrapper.text()).toContain('Open RFEs')
+    expect(wrapper.text()).toContain('Open PRDs')
   })
 
   it('shows empty state in RfeBacklogTable when no issues', () => {
@@ -66,6 +66,6 @@ describe('TeamBacklogTab', () => {
         rfeConfig
       }
     })
-    expect(wrapper.text()).toContain('No open RFEs for this team')
+    expect(wrapper.text()).toContain('No open PRDs for this team')
   })
 })

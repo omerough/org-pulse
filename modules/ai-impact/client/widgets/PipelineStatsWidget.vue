@@ -37,7 +37,7 @@ function handleSettingsUpdate(newMode, components) {
 }
 
 const statCards = computed(() => [
-  { label: 'RFEs to Revise', value: stats.value.reviseRfes, color: 'red' },
+  { label: 'PRDs to Revise', value: stats.value.reviseRfes, color: 'red' },
   { label: 'Features to Review', value: stats.value.reviewFeatures, color: 'amber' },
   { label: 'Ready for Strategy', value: stats.value.queuedForStrat, color: 'blue' },
   { label: 'Signed Off', value: stats.value.signedOffFeatures, color: 'green' }

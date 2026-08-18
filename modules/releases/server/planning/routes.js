@@ -194,7 +194,7 @@ module.exports = function registerPlanningRoutes(router, context) {
               lastResult: {
                 status: 'success',
                 version: version,
-                message: 'Pipeline completed: ' + result.features.length + ' features, ' + result.rfes.length + ' RFEs',
+                message: 'Pipeline completed: ' + result.features.length + ' features, ' + result.rfes.length + ' PRDs',
                 completedAt: new Date().toISOString()
               }
             })

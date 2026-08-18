@@ -46,7 +46,7 @@ const stageOptions = [
   { value: 'passed-with-caveats', label: 'Passed with Caveats' },
   { value: 'ready-to-advance', label: 'Ready for Feature Creation' },
   { value: 'queued-for-pipeline', label: 'Queued for Feature Creation' },
-  { value: 'rejected', label: 'RFE Rejected' },
+  { value: 'rejected', label: 'Feature Rejected' },
   { value: 'revise-required', label: 'Revise Required' },
   { value: 'awaiting-signoff', label: 'Awaiting Sign-off' },
   { value: 'signed-off', label: 'Signed Off' }
@@ -116,7 +116,7 @@ function handleSettingsUpdate(newMode, components) {
       v-if="!wizardSeen && !loading"
       class="text-sm text-gray-500 dark:text-gray-400 mb-4"
     >
-      Complete setup in <strong>RFE Action Items</strong> widget to personalize this board.
+      Complete setup in <strong>PRD Action Items</strong> widget to personalize this board.
     </div>
 
     <div v-if="loading" class="space-y-4">

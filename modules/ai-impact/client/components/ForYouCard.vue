@@ -115,27 +115,27 @@ const actionGuidance = computed(() => {
   if (props.item.type === 'rfe') {
     switch (s) {
       case 'needs-revision': return {
-        text: 'This RFE failed the quality rubric and couldn\'t be auto-fixed. Open it in Jira, check the AI comments for what\'s wrong, and revise the description to clearly state the WHAT and WHY.',
+        text: 'This PRD failed the quality rubric and couldn\'t be auto-fixed. Open it in Jira, check the AI comments for what\'s wrong, and revise the description to clearly state the WHAT and WHY.',
         linkUrl: `${guideBase}prd-review`,
         linkLabel: 'PRD Review guide'
       }
       case 'passed-with-caveats': return {
-        text: 'This RFE passed scoring but was flagged for attention — usually minor issues the automation couldn\'t resolve. Check the Jira comments for specifics and address them.',
+        text: 'This PRD passed scoring but was flagged for attention — usually minor issues the automation couldn\'t resolve. Check the Jira comments for specifics and address them.',
         linkUrl: `${guideBase}prd-review`,
         linkLabel: 'PRD Review guide'
       }
       case 'ready-to-advance': return {
-        text: 'This RFE passed quality checks and is ready for feature creation. Add the scope label in Jira to queue it for the strategy creation pipeline.',
+        text: 'This PRD passed quality checks and is ready for feature creation. Add the scope label in Jira to queue it for the strategy creation pipeline.',
         linkUrl: `${guideBase}prd-review`,
         linkLabel: 'PRD Review guide'
       }
       case 'queued-for-pipeline': return {
-        text: 'This RFE is queued and waiting for the automated pipeline to create a strategy feature from it. No action needed — the pipeline runs on a schedule.',
+        text: 'This PRD is queued and waiting for the automated pipeline to create a strategy feature from it. No action needed — the pipeline runs on a schedule.',
         linkUrl: `${guideBase}design-review`,
         linkLabel: 'Design Review guide'
       }
       default: return {
-        text: 'This RFE hasn\'t been assessed yet. The pipeline will pick it up on its next run and score it against the quality rubric.',
+        text: 'This PRD hasn\'t been assessed yet. The pipeline will pick it up on its next run and score it against the quality rubric.',
         linkUrl: `${guideBase}prd-review`,
         linkLabel: 'PRD Review guide'
       }
@@ -143,7 +143,7 @@ const actionGuidance = computed(() => {
   }
   switch (s) {
     case 'rejected': return {
-      text: 'The AI review recommended rejecting this feature. Open it in Jira and check the review comments — decide whether to revise the underlying RFE or close it.',
+      text: 'The AI review recommended rejecting this feature. Open it in Jira and check the review comments — decide whether to revise the underlying PRD or close it.',
       linkUrl: `${guideBase}design-review`,
       linkLabel: 'Design Review guide'
     }

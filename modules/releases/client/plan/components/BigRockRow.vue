@@ -193,6 +193,6 @@ function handleBadgeKeydown(event) {
     <span class="text-xs text-gray-500 dark:text-gray-400 ml-0.5">Features</span>
     <span class="mx-1 text-gray-300 dark:text-gray-600">|</span>
     <span class="font-semibold text-gray-700 dark:text-gray-300">{{ rock.rfeCount }}</span>
-    <span class="text-xs text-gray-500 dark:text-gray-400 ml-0.5">RFEs</span>
+    <span class="text-xs text-gray-500 dark:text-gray-400 ml-0.5">PRDs</span>
   </td>
 </template>

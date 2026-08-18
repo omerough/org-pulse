@@ -305,7 +305,7 @@ describe('missing-rfe-link', function () {
   it('message differs when no RFE key vs unapproved RFE', function () {
     var noLink = makeFeature({ linkedRfeKey: null, linkedRfeApproved: false })
     var unapproved = makeFeature({ linkedRfeKey: 'RHAIRFE-99', linkedRfeApproved: false })
-    expect(rule.message(noLink)).toContain('not linked to an RFE')
+    expect(rule.message(noLink)).toContain('not linked to a PRD')
     expect(rule.message(unapproved)).toContain('RHAIRFE-99')
     expect(rule.message(unapproved)).toContain('not in Approved status')
   })

@@ -51,7 +51,7 @@ const isEmpty = computed(() => !props.rfeData?.fetchedAt)
     <header class="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-3 flex items-center justify-between">
       <div>
         <h2 class="text-lg font-semibold dark:text-gray-100">{{ phase.name }}</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400">AI adoption metrics and RFE tracking</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400">AI adoption metrics and PRD tracking</p>
       </div>
       <div class="flex items-center gap-2">
         <label for="time-window" class="text-sm text-gray-500 dark:text-gray-400">Showing:</label>

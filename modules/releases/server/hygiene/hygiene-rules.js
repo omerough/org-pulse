@@ -147,9 +147,9 @@ const hygieneRules = [
   },
   {
     id: 'missing-rfe-link',
-    name: 'Missing RFE Link',
-    description: 'Features should be cloned from an approved RFE to ensure proper product management review and customer traceability. The feature must use a "clones" link type to the RFE; other link types will still trigger this warning.',
-    remediation: 'Ensure your feature is cloned from an RFE that is in Approved status. Use the "clones" link type when linking to the RFE.',
+    name: 'Missing PRD Link',
+    description: 'Features should be cloned from an approved PRD to ensure proper product management review and customer traceability. The feature must use a "clones" link type to the PRD; other link types will still trigger this warning.',
+    remediation: 'Ensure your feature is cloned from a PRD that is in Approved status. Use the "clones" link type when linking to the PRD.',
     category: 'lifecycle',
     defaultEnabled: true,
     check: (issue) => {
@@ -159,9 +159,9 @@ const hygieneRules = [
     },
     message: (issue) => {
       if (!issue.linkedRfeKey) {
-        return 'This feature is not linked to an RFE. Features should be cloned from an approved RFE.'
+        return 'This feature is not linked to a PRD. Features should be cloned from an approved PRD.'
       }
-      return `This feature is linked to RFE ${issue.linkedRfeKey} which is not in Approved status.`
+      return `This feature is linked to PRD ${issue.linkedRfeKey} which is not in Approved status.`
     }
   },
   {

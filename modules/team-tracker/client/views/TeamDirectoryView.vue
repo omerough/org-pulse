@@ -75,7 +75,7 @@ onMounted(async () => {
         <select v-model="sortBy" class="h-[38px] border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
           <option value="name">A–Z</option>
           <option value="headcount">Headcount</option>
-          <option value="rfe">RFE Count</option>
+          <option value="rfe">PRD Count</option>
         </select>
       </div>
     </div>

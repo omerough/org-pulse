@@ -23,7 +23,7 @@ var planningCards = computed(function() {
   return [
     { label: 'Planning Ready', count: p.fullyReady || 0, total: p.totalChecked || 0, color: 'green', filterKey: 'all-clear' },
     { label: 'Hard Blockers', count: p.withHardBlockers || 0, total: p.totalChecked || 0, color: 'red', invert: true, filterKey: 'has-blockers' },
-    { label: 'RFE Linked', count: byCheck['DoR-P5'] || 0, total: p.totalChecked || 0, color: 'indigo', filterKey: 'missing-rfe' },
+    { label: 'PRD Linked', count: byCheck['DoR-P5'] || 0, total: p.totalChecked || 0, color: 'indigo', filterKey: 'missing-rfe' },
     { label: 'Epics Created', count: byCheck['DoR-P4'] || 0, total: p.totalChecked || 0, color: 'blue', filterKey: 'missing-epics' }
   ]
 })

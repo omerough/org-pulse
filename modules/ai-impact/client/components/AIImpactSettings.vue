@@ -434,8 +434,8 @@ function getAutofixExcludedComponentsDisplay() {
         <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
           <div class="flex items-center justify-between mb-2">
             <div>
-              <h5 class="text-sm font-medium text-gray-800 dark:text-gray-200">RFE & AutoFix Data</h5>
-              <p class="text-xs text-gray-500 dark:text-gray-400">Fetches RFE issues and AutoFix pipeline data from Jira</p>
+              <h5 class="text-sm font-medium text-gray-800 dark:text-gray-200">PRD & AutoFix Data</h5>
+              <p class="text-xs text-gray-500 dark:text-gray-400">Fetches PRD issues and AutoFix pipeline data from Jira</p>
             </div>
             <div class="flex items-center gap-2">
               <button

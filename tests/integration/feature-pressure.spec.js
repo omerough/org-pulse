@@ -257,10 +257,10 @@ test.describe('Feature Pressure - Executive Summary @feature-pressure', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
-    // Check for key values in the split Features / RFEs summary
+    // Check for key values in the split Features / PRDs summary
     const summarySection = page.locator('section').first();
     await expect(page.getByRole('heading', { level: 3, name: 'Features', exact: true }).first()).toBeVisible();
-    await expect(page.getByRole('heading', { level: 3, name: 'Feature Requests', exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 3, name: 'PRDs', exact: true }).first()).toBeVisible();
     await expect(summarySection.locator('text=Open').first()).toBeVisible();
     await expect(page.locator('text=Burn rate:')).toBeVisible();
     await expect(page.locator('text=Time to clear:')).toBeVisible();

@@ -58,7 +58,7 @@ onUnmounted(() => {
           <div v-if="step === 1" class="p-6">
             <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Welcome to State of the Union</h2>
             <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-              Get a personalized view of RFEs and features that matter to you. Choose how to select your components.
+              Get a personalized view of PRDs and features that matter to you. Choose how to select your components.
             </p>
 
             <div class="space-y-3 mb-6">

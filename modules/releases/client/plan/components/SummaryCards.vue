@@ -68,15 +68,15 @@ var totalFeatures = computed(function() {
     <div class="p-4 rounded-lg bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30">
       <div class="text-sm font-semibold text-green-700 dark:text-green-400">Feature Summary</div>
       <div class="text-xs text-green-600/70 dark:text-green-400/70 mt-0.5 leading-snug">
-        {{ summary.totalFeatures || 0 }} Features &nbsp; {{ summary.totalRfes || 0 }} RFEs
+        {{ summary.totalFeatures || 0 }} Features &nbsp; {{ summary.totalRfes || 0 }} PRDs
       </div>
       <!-- Per-tier breakdown table -->
-      <table class="w-full mt-3 text-xs" aria-label="Feature and RFE counts by tier">
+      <table class="w-full mt-3 text-xs" aria-label="Feature and PRD counts by tier">
         <thead>
           <tr class="text-green-600/70 dark:text-green-400/70">
             <th class="text-left font-medium pr-3"></th>
             <th class="text-right font-medium px-2">Features</th>
-            <th class="text-right font-medium pl-2">RFEs</th>
+            <th class="text-right font-medium pl-2">PRDs</th>
           </tr>
         </thead>
         <tbody class="text-green-700 dark:text-green-400 font-semibold">

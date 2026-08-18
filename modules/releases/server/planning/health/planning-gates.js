@@ -217,12 +217,12 @@ function computePlanningChecks(feature) {
   var hasRfe = !!(feature.rfe || feature.parentKey)
   checks.push({
     id: 'DoR-P5',
-    label: 'RFE Linked',
+    label: 'PRD Linked',
     passed: hasRfe,
     severity: 'hard-blocker',
     detail: hasRfe
       ? (feature.rfe || feature.parentKey)
-      : 'No source RFE linked'
+      : 'No source PRD linked'
   })
 
   var hardBlockersFailed = checks.filter(function(c) {

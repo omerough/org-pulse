@@ -10,7 +10,7 @@
     <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Open RFEs
+          Open PRDs
           <span v-if="rfeIssues.length > 0" class="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
             {{ rfeIssues.length }} issue{{ rfeIssues.length !== 1 ? 's' : '' }}
           </span>

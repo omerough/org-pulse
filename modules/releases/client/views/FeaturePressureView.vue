@@ -154,7 +154,7 @@ onBeforeUnmount(() => { cleanup() })
     <p v-if="metadata" class="text-xs text-gray-400 dark:text-gray-500 italic">
       Data fetched: {{ metadata.data_timestamp?.slice(0, 16).replace('T', ' ') }} UTC |
       {{ metadata.total_features?.toLocaleString() }} features,
-      {{ metadata.total_rfes?.toLocaleString() }} RFEs |
+      {{ metadata.total_rfes?.toLocaleString() }} PRDs |
       {{ lookbackMonths }}-month lookback
     </p>
 
@@ -223,10 +223,10 @@ onBeforeUnmount(() => { cleanup() })
         </div>
 
         <!-- Executive Summary — RFEs (RHAIRFE) -->
-        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-5 mb-2">Feature Requests</h3>
+        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mt-5 mb-2">PRDs</h3>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           <div class="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-4">
-            <div class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total RFEs</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total PRDs</div>
             <div class="mt-1 text-2xl font-bold">
               <ClickableCount :count="summary.total_rfes" :jql="summary.total_rfes_jql" />
             </div>
@@ -263,7 +263,7 @@ onBeforeUnmount(() => { cleanup() })
                 <span class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ h.component }}</span>
                 <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   +{{ h.net }} net features |
-                  {{ h.rfe_pending }} RFEs pending |
+                  {{ h.rfe_pending }} PRDs pending |
                   <ClickableCount :count="h.open" :jql="h.open_jql" /> open
                 </div>
               </div>
@@ -360,14 +360,14 @@ onBeforeUnmount(() => { cleanup() })
       <section v-if="rfePipeline">
         <details>
           <summary class="text-lg font-semibold text-gray-800 dark:text-gray-200 cursor-pointer">
-            RFE Pipeline
+            PRD Pipeline
             <span class="text-sm font-normal text-gray-400 dark:text-gray-500 ml-2">
               {{ rfePipeline?.status_breakdown?.total?.count || 0 }} total |
               {{ rfePipeline?.status_breakdown?.pending?.count || 0 }} pending
             </span>
           </summary>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Customer and field Feature Requests — pending review, accepted for planning, or other.
+            Customer and field PRDs — pending review, accepted for planning, or other.
           </p>
           <div class="mt-3 space-y-4">
             <div class="flex flex-wrap gap-4 text-sm">
@@ -377,12 +377,12 @@ onBeforeUnmount(() => { cleanup() })
               <div>Other: <span class="font-semibold">{{ rfePipeline.status_breakdown.other.count }}</span></div>
             </div>
             <div v-if="rfePipeline.per_component_pending.length" class="overflow-x-auto">
-              <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Pending RFEs by Component</h3>
+              <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Pending PRDs by Component</h3>
               <table class="min-w-full text-sm">
                 <thead>
                   <tr class="border-b dark:border-gray-700">
                     <th class="px-3 py-1 text-left text-gray-500 dark:text-gray-400">Component</th>
-                    <th class="px-3 py-1 text-left text-gray-500 dark:text-gray-400">Pending RFEs</th>
+                    <th class="px-3 py-1 text-left text-gray-500 dark:text-gray-400">Pending PRDs</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -485,9 +485,9 @@ onBeforeUnmount(() => { cleanup() })
           </summary>
           <div class="mt-3">
             <div class="bg-gray-50 dark:bg-gray-800/50 rounded border border-gray-200 dark:border-gray-700 p-3 mb-3 text-xs text-gray-600 dark:text-gray-400 space-y-1">
-              <p><strong>What this measures:</strong> Which components are most at risk of becoming overwhelmed. Combines three signals — net feature inflow (are features piling up?), open backlog size (how deep is the hole?), and pending RFE demand (how much more is coming from customers?).</p>
+              <p><strong>What this measures:</strong> Which components are most at risk of becoming overwhelmed. Combines three signals — net feature inflow (are features piling up?), open backlog size (how deep is the hole?), and pending PRD demand (how much more is coming from customers?).</p>
               <p><strong>How to read it:</strong> <span class="text-red-600 dark:text-red-400 font-medium">Critical</span> = immediate leadership attention needed. <span class="text-orange-600 dark:text-orange-400 font-medium">High</span> = at risk without intervention. <span class="text-yellow-600 dark:text-yellow-400 font-medium">Medium</span> = manageable but watch. <span class="text-green-600 dark:text-green-400 font-medium">Low</span> = healthy.</p>
-              <p class="italic">Score = (Net/5, cap 10) x 0.4 + (Open/10, cap 10) x 0.3 + (RFE Pending/5, cap 10) x 0.3</p>
+              <p class="italic">Score = (Net/5, cap 10) x 0.4 + (Open/10, cap 10) x 0.3 + (PRD Pending/5, cap 10) x 0.3</p>
             </div>
             <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
               <table class="min-w-full text-sm">
@@ -498,7 +498,7 @@ onBeforeUnmount(() => { cleanup() })
                     <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400">Score</th>
                     <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400">Net Features</th>
                     <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400">Open Features</th>
-                    <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400">Pending RFEs</th>
+                    <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400">Pending PRDs</th>
                     <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400">Burn-Down</th>
                     <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400">Trend</th>
                   </tr>

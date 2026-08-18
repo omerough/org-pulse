@@ -520,7 +520,7 @@ module.exports = function registerOrgTeamsRoutes(router, context) {
       }
       res.json(data);
     } catch {
-      res.status(500).json({ error: 'Failed to load RFE backlog data' });
+      res.status(500).json({ error: 'Failed to load PRD backlog data' });
     }
   });
 
@@ -544,7 +544,7 @@ module.exports = function registerOrgTeamsRoutes(router, context) {
         componentMapping: config.componentMapping || {}
       });
     } catch {
-      res.status(500).json({ error: 'Failed to load RFE config' });
+      res.status(500).json({ error: 'Failed to load PRD config' });
     }
   });
 

@@ -124,7 +124,7 @@ function getInvolvementClass(involvement) {
           <!-- Header -->
           <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center gap-3 min-w-0">
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">RFE Details</h2>
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">PRD Details</h2>
               <a
                 v-if="issueUrl(rfe.key)"
                 :href="issueUrl(rfe.key)"
@@ -221,7 +221,7 @@ function getInvolvementClass(involvement) {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
                 <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Not yet assessed</p>
-                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Quality scores will appear here once this RFE has been evaluated by the assessment pipeline.</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Quality scores will appear here once this PRD has been evaluated by the assessment pipeline.</p>
               </div>
             </div>
 

@@ -119,7 +119,7 @@ describe('FeatureBoardWidget', () => {
     const wrapper = mount(FeatureBoardWidget, { props: { size: 'full' } })
     await flushPromises()
     expect(wrapper.text()).toContain('Complete setup in')
-    expect(wrapper.text()).toContain('RFE Action Items')
+    expect(wrapper.text()).toContain('PRD Action Items')
   })
 
   it('hides setup notice when wizard is seen', async () => {

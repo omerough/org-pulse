@@ -755,7 +755,7 @@ function registerRoutes(router, context) {
           refreshState.completedAt = new Date().toISOString()
           refreshState.lastResult = {
             status: 'success',
-            message: result.metadata.total_features + ' features, ' + result.metadata.total_rfes + ' RFEs analysed',
+            message: result.metadata.total_features + ' features, ' + result.metadata.total_rfes + ' PRDs analysed',
             completedAt: new Date().toISOString()
           }
           console.log('[releases/feature-pressure] Background refresh completed')

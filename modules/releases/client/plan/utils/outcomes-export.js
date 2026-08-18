@@ -18,7 +18,7 @@ export function exportMarkdown({ activeTab, selectedVersion, bigRocks, filteredF
   if (activeTab === 'big-rocks') {
     lines.push('# Big Rocks - ' + selectedVersion)
     lines.push('')
-    lines.push('| **Priority** | **Pillar** | **Big Rock** | **Release Type** | **Owner** | **Engineering Lead** | **Features** | **RFEs** | **Notes** |')
+    lines.push('| **Priority** | **Pillar** | **Big Rock** | **Release Type** | **Owner** | **Engineering Lead** | **Features** | **PRDs** | **Notes** |')
     lines.push('|:--------:|--------|----------|:--------:|-------|-----------|:--------:|:----:|-------|')
     for (var i = 0; i < bigRocks.length; i++) {
       var rock = bigRocks[i]
@@ -40,7 +40,7 @@ export function exportMarkdown({ activeTab, selectedVersion, bigRocks, filteredF
   } else if (activeTab === 'features') {
     lines.push('# Features - ' + selectedVersion)
     lines.push('')
-    lines.push('| **Big Rock** | **Feature** | **Status** | **Priority** | **Phase** | **Title** | **Components** | **Target Release** | **PM** | **Delivery Owner** | **RFE** | **Fix Version** |')
+    lines.push('| **Big Rock** | **Feature** | **Status** | **Priority** | **Phase** | **Title** | **Components** | **Target Release** | **PM** | **Delivery Owner** | **PRD** | **Fix Version** |')
     lines.push('|----------|---------|--------|----------|-------|-------|------------|----------------|-----|----------------|-----|-------------|')
     for (var j = 0; j < filteredFeatures.length; j++) {
       var f = filteredFeatures[j]
@@ -61,9 +61,9 @@ export function exportMarkdown({ activeTab, selectedVersion, bigRocks, filteredF
     }
     filename = 'features-' + selectedVersion + '.md'
   } else {
-    lines.push('# RFEs - ' + selectedVersion)
+    lines.push('# PRDs - ' + selectedVersion)
     lines.push('')
-    lines.push('| **Big Rock** | **RFE** | **Status** | **Priority** | **Title** | **Components** | **PM** | **Labels** |')
+    lines.push('| **Big Rock** | **PRD** | **Status** | **Priority** | **Title** | **Components** | **PM** | **Labels** |')
     lines.push('|----------|-----|--------|----------|-------|------------|-----|--------|')
     for (var k = 0; k < filteredRfes.length; k++) {
       var r = filteredRfes[k]
@@ -78,7 +78,7 @@ export function exportMarkdown({ activeTab, selectedVersion, bigRocks, filteredF
         escapeCell(r.labels || '-')
       ].join(' | ') + ' |')
     }
-    filename = 'rfes-' + selectedVersion + '.md'
+    filename = 'prds-' + selectedVersion + '.md'
   }
 
   var blob = new Blob([lines.join('\n') + '\n'], { type: 'text/markdown' })
@@ -101,7 +101,7 @@ export function exportCsv({ activeTab, selectedVersion, bigRocks, filteredFeatur
   var filename
 
   if (activeTab === 'big-rocks') {
-    rows.push(['Priority', 'Pillar', 'Big Rock', 'Release Type', 'Owner', 'Engineering Lead', 'Features', 'RFEs', 'Notes'])
+    rows.push(['Priority', 'Pillar', 'Big Rock', 'Release Type', 'Owner', 'Engineering Lead', 'Features', 'PRDs', 'Notes'])
     for (var i = 0; i < bigRocks.length; i++) {
       var rock = bigRocks[i]
       var health = (rockHealth || {})[rock.name] || {}
@@ -120,7 +120,7 @@ export function exportCsv({ activeTab, selectedVersion, bigRocks, filteredFeatur
     }
     filename = 'big-rocks-' + selectedVersion + '.csv'
   } else if (activeTab === 'features') {
-    rows.push(['Big Rock', 'Feature', 'Status', 'Priority', 'Phase', 'Title', 'Components', 'Target Release', 'PM', 'Delivery Owner', 'RFE', 'Fix Version'])
+    rows.push(['Big Rock', 'Feature', 'Status', 'Priority', 'Phase', 'Title', 'Components', 'Target Release', 'PM', 'Delivery Owner', 'PRD', 'Fix Version'])
     for (var j = 0; j < filteredFeatures.length; j++) {
       var f = filteredFeatures[j]
       rows.push([
@@ -140,7 +140,7 @@ export function exportCsv({ activeTab, selectedVersion, bigRocks, filteredFeatur
     }
     filename = 'features-' + selectedVersion + '.csv'
   } else {
-    rows.push(['Big Rock', 'RFE', 'Status', 'Priority', 'Title', 'Components', 'PM', 'Labels'])
+    rows.push(['Big Rock', 'PRD', 'Status', 'Priority', 'Title', 'Components', 'PM', 'Labels'])
     for (var k = 0; k < filteredRfes.length; k++) {
       var r = filteredRfes[k]
       rows.push([
@@ -154,7 +154,7 @@ export function exportCsv({ activeTab, selectedVersion, bigRocks, filteredFeatur
         r.labels || ''
       ])
     }
-    filename = 'rfes-' + selectedVersion + '.csv'
+    filename = 'prds-' + selectedVersion + '.csv'
   }
 
   var csv = rows.map(function(row) { return row.map(escapeCsv).join(',') }).join('\n')

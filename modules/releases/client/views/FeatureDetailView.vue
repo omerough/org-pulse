@@ -400,7 +400,7 @@ onMounted(() => {
               <span v-if="feature.pm">PM: <span class="text-gray-700 dark:text-gray-300">{{ feature.pm.displayName }}</span></span>
               <span v-if="feature.releaseType">Release type: <span class="text-gray-700 dark:text-gray-300">{{ feature.releaseType }}</span></span>
               <span v-if="sourceRfeKey" class="flex items-center gap-1">
-                Source RFE:
+                Source PRD:
                 <button
                   class="font-mono text-primary-600 dark:text-blue-400 hover:underline"
                   @click="crossNavigate('ai-impact', 'prd-review', { select: sourceRfeKey })"

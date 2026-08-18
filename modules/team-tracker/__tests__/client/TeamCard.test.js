@@ -55,7 +55,7 @@ describe('TeamCard', () => {
 
   it('renders RFE count badge', () => {
     const wrapper = mount(TeamCard, { props: { team: baseTeam } })
-    expect(wrapper.text()).toContain('5 open RFEs')
+    expect(wrapper.text()).toContain('5 open PRDs')
   })
 
   it('renders board link icon', () => {
@@ -79,6 +79,6 @@ describe('TeamCard', () => {
 
   it('hides RFE badge when count is 0', () => {
     const wrapper = mount(TeamCard, { props: { team: { ...baseTeam, rfeCount: 0 } } })
-    expect(wrapper.text()).not.toContain('open RFEs')
+    expect(wrapper.text()).not.toContain('open PRDs')
   })
 })

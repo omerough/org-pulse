@@ -397,7 +397,7 @@ module.exports = function registerRoutes(router, context) {
 
     refreshState.lastResult = {
       status: 'success',
-      message: `Fetched ${withLinks.length} RFEs, ${autofixCount} autofix issues, ${docCount} doc issues, ${mrKpiCount} MR KPIs`,
+      message: `Fetched ${withLinks.length} PRDs, ${autofixCount} autofix issues, ${docCount} doc issues, ${mrKpiCount} MR KPIs`,
       completedAt: new Date().toISOString()
     };
   }

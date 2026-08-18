@@ -125,16 +125,16 @@ const scoringCriteria = [
 ]
 
 const rfeLabels = [
-  { name: 'rfe-creator-autofix-rubric-pass', color: 'green', desc: 'RFE passed quality scoring' },
+  { name: 'rfe-creator-autofix-rubric-pass', color: 'green', desc: 'PRD passed quality scoring' },
   { name: 'rfe-creator-needs-attention', color: 'amber', desc: 'Automation couldn\'t resolve all issues — you need to act' },
   { name: 'rfe-creator-auto-revised', color: 'blue', desc: 'Content was improved by automation' },
-  { name: 'rfe-creator-auto-created', color: 'blue', desc: 'RFE was created by the pipeline' },
+  { name: 'rfe-creator-auto-created', color: 'blue', desc: 'PRD was created by the pipeline' },
   { name: 'rfe-creator-feasibility-pass', color: 'green', desc: 'Technically feasible' },
   { name: 'rfe-creator-feasibility-fail', color: 'red', desc: 'Technically infeasible — review and revise' },
   { name: 'rfe-creator-feasibility-unknown', color: 'gray', desc: 'Feasibility couldn\'t be determined' },
-  { name: 'rfe-creator-split-original', color: 'purple', desc: 'This RFE was decomposed into smaller RFEs' },
-  { name: 'rfe-creator-split-result', color: 'purple', desc: 'This RFE was produced by splitting another' },
-  { name: 'rfe-creator-ignore', color: 'gray', desc: 'Permanently excludes this RFE from all pipeline processing' },
+  { name: 'rfe-creator-split-original', color: 'purple', desc: 'This PRD was decomposed into smaller PRDs' },
+  { name: 'rfe-creator-split-result', color: 'purple', desc: 'This PRD was produced by splitting another' },
+  { name: 'rfe-creator-ignore', color: 'gray', desc: 'Permanently excludes this PRD from all pipeline processing' },
 ]
 
 const rfeLearnLinks = [
@@ -153,16 +153,16 @@ const rfeToolLinks = [
 ]
 
 const rfeSteps = [
-  { name: 'RFE Ingestion', desc: 'Pipeline fetches all RFEs from Jira for assessment', ai: true },
-  { name: 'AI Assessment', desc: 'Each RFE is scored independently against the quality rubric', ai: true },
-  { name: 'Auto-Revision', desc: 'Failing RFEs are automatically improved where possible', ai: true },
+  { name: 'PRD Ingestion', desc: 'Pipeline fetches all PRDs from Jira for assessment', ai: true },
+  { name: 'AI Assessment', desc: 'Each PRD is scored independently against the quality rubric', ai: true },
+  { name: 'Auto-Revision', desc: 'Failing PRDs are automatically improved where possible', ai: true },
   { name: 'Feasibility Check', desc: 'Technical feasibility is evaluated and labeled on the Jira ticket', ai: true },
-  { name: 'Human Review', desc: 'RFEs that can\'t be auto-fixed are flagged for PM action', ai: false },
+  { name: 'Human Review', desc: 'PRDs that can\'t be auto-fixed are flagged for PM action', ai: false },
 ]
 
 // Feature Review timeline steps
 const featureSteps = [
-  { name: 'Feature Creation', desc: 'Pipeline clones approved RFEs into RHAISTRAT Jira tickets and captures the business need', ai: true },
+  { name: 'Feature Creation', desc: 'Pipeline clones approved PRDs into RHAISTRAT Jira tickets and captures the business need', ai: true },
   { name: 'Feature Refinement', desc: 'AI adds the "how": technical approach, components, dependencies, acceptance criteria, effort estimates', ai: true, hint: 'opendatahub-io/architecture-context' },
   { name: 'Feature Scoring', desc: 'AI scores across 4 dimensions using independent reviewer agents (one per dimension). Each dimension scored 0–2, total /8', ai: true },
   { name: 'Human Sign-off', desc: 'A staff engineer, architect, or SME for the relevant product space reviews and approves', ai: false },
@@ -551,7 +551,7 @@ function labelColorClasses(color) {
 
         <!-- How to check your RFE's score -->
         <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 mb-6">
-          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">How to check your RFE's assessment score</h3>
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">How to check your PRD's assessment score</h3>
           <div class="space-y-3">
             <div class="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
               <Search :size="20" class="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -564,7 +564,7 @@ function labelColorClasses(color) {
               <Eye :size="20" class="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
               <div>
                 <div class="text-sm font-semibold text-gray-900 dark:text-white">View details in AI Impact</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Find your RFE on the <button @click="goToPage('prd-review')" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">PRD Review</button> page to see the full score breakdown and per-criterion results</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Find your PRD on the <button @click="goToPage('prd-review')" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">PRD Review</button> page to see the full score breakdown and per-criterion results</div>
               </div>
             </div>
           </div>
@@ -576,7 +576,7 @@ function labelColorClasses(color) {
           <ul class="space-y-3">
             <li class="flex items-start gap-3">
               <Sparkles :size="20" class="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-              <span class="text-sm text-gray-700 dark:text-gray-300">Use the <a href="https://github.com/opendatahub-io/skills-registry" target="_blank" rel="noopener" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">rfe-creator</a> skill in Claude Code to draft, review, and improve RFEs before submitting</span>
+              <span class="text-sm text-gray-700 dark:text-gray-300">Use the <a href="https://github.com/opendatahub-io/skills-registry" target="_blank" rel="noopener" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">rfe-creator</a> skill in Claude Code to draft, review, and improve PRDs before submitting</span>
             </li>
             <li class="flex items-start gap-3">
               <Pencil :size="20" class="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -588,7 +588,7 @@ function labelColorClasses(color) {
             </li>
             <li class="flex items-start gap-3">
               <RefreshCw :size="20" class="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-              <span class="text-sm text-gray-700 dark:text-gray-300">If your RFE fails, edit the ticket — it'll be re-assessed on the next daily run</span>
+              <span class="text-sm text-gray-700 dark:text-gray-300">If your PRD fails, edit the ticket — it'll be re-assessed on the next daily run</span>
             </li>
             <li class="flex items-start gap-3">
               <AlertTriangle :size="20" class="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -769,7 +769,7 @@ function labelColorClasses(color) {
                 <div>
                   <span class="text-sm font-semibold text-red-600 dark:text-red-400">REJECT</span>
                   <span class="text-xs text-gray-400 dark:text-gray-500 ml-1.5">&lt;3 or 2+ zeros</span>
-                  <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Fundamental issues — likely needs RFE rework AND architecture context improvements</div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Fundamental issues — likely needs PRD rework AND architecture context improvements</div>
                 </div>
               </div>
             </div>
@@ -845,15 +845,15 @@ function labelColorClasses(color) {
           <h3 class="text-sm font-semibold text-red-700 dark:text-red-400 uppercase tracking-wide mb-3">
             <span class="mr-1.5">❌</span> If your feature's AI verdict was: REJECT
           </h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">This usually signals issues with both the source RFE and the architecture context. Two remediation paths:</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">This usually signals issues with both the source PRD and the architecture context. Two remediation paths:</p>
           <div class="space-y-3">
             <div class="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/40 rounded-lg">
               <div class="w-6 h-6 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center flex-shrink-0 mt-0.5">
                 <span class="text-xs font-bold text-red-600 dark:text-red-400">1</span>
               </div>
               <div>
-                <div class="text-sm font-semibold text-gray-900 dark:text-white">Rework the source RFE</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Improve clarity, scope, and acceptance criteria in the original RFE ticket</div>
+                <div class="text-sm font-semibold text-gray-900 dark:text-white">Rework the source PRD</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Improve clarity, scope, and acceptance criteria in the original PRD ticket</div>
               </div>
             </div>
             <div class="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/40 rounded-lg">

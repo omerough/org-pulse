@@ -95,14 +95,14 @@ describe('RfeBacklogTable', () => {
 
   it('shows empty state when no issues', () => {
     const wrapper = mountTable({ issues: [], rfeConfig, showAssessments: true })
-    expect(wrapper.text()).toContain('No open RFEs for this team')
+    expect(wrapper.text()).toContain('No open PRDs for this team')
   })
 
   it('shows no-match message for empty search results', async () => {
     const wrapper = mountTable({ issues: sampleIssues, rfeConfig, showAssessments: true })
     const input = wrapper.find('input')
     await input.setValue('nonexistent-query-xyz')
-    expect(wrapper.text()).toContain('No RFEs match')
+    expect(wrapper.text()).toContain('No PRDs match')
   })
 
   it('links to AI Impact module when available', () => {

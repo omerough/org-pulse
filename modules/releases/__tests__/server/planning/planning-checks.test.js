@@ -111,7 +111,7 @@ describe('computePlanningChecks', function() {
     var result = computePlanningChecks(makeFeature({ rfe: '', parentKey: '' }))
     var p5 = result.checks.find(function(c) { return c.id === 'DoR-P5' })
     expect(p5.passed).toBe(false)
-    expect(p5.detail).toBe('No source RFE linked')
+    expect(p5.detail).toBe('No source PRD linked')
     expect(result.hasHardBlockers).toBe(true)
   })
 

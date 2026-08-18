@@ -128,7 +128,7 @@ describe('BigRockRow', function() {
     it('shows RFE count with label', function() {
       var wrapper = mountRow()
       expect(wrapper.text()).toContain('3')
-      expect(wrapper.text()).toContain('RFEs')
+      expect(wrapper.text()).toContain('PRDs')
     })
   })
 

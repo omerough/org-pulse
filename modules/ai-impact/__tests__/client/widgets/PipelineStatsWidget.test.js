@@ -97,7 +97,7 @@ describe('PipelineStatsWidget', () => {
   it('renders four stat cards with correct values', async () => {
     const wrapper = mount(PipelineStatsWidget, { props: { size: 'half' } })
     await flushPromises()
-    expect(wrapper.text()).toContain('RFEs to Revise')
+    expect(wrapper.text()).toContain('PRDs to Revise')
     expect(wrapper.text()).toContain('3')
     expect(wrapper.text()).toContain('Features to Review')
     expect(wrapper.text()).toContain('5')

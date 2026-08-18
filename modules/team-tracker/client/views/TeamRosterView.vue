@@ -46,7 +46,7 @@
               v-if="teamDetail?.rfeCount > 0"
               class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-400"
             >
-              {{ teamDetail.rfeCount }} open RFEs
+              {{ teamDetail.rfeCount }} open PRDs
             </span>
             <button
               v-if="isAdmin"
@@ -289,7 +289,7 @@
       <div v-if="tabActivated.backlog" v-show="activeTab === 'backlog'">
         <div v-if="teamDetailError" class="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
           <p class="text-gray-500 dark:text-gray-400 text-sm">
-            Component and RFE data is not yet available for this team. Run org sync from Settings to populate.
+            Component and PRD data is not yet available for this team. Run org sync from Settings to populate.
           </p>
         </div>
         <TeamBacklogTab
@@ -669,7 +669,7 @@ const visibleTabs = computed(() => {
   const tabs = [
     { id: 'overview', label: 'Overview', icon: TAB_ICONS.overview },
     { id: 'delivery', label: 'Delivery', icon: TAB_ICONS.delivery },
-    { id: 'backlog', label: 'RFE Backlog', icon: TAB_ICONS.backlog },
+    { id: 'backlog', label: 'PRD Backlog', icon: TAB_ICONS.backlog },
   ]
   if (allocationConfigured.value) {
     tabs.push({ id: 'allocation', label: 'Allocation', icon: TAB_ICONS.allocation })

@@ -528,7 +528,7 @@ const jiraWarnings = computed(() => {
   const warnings = []
   for (const val of detail.value.values) {
     if (!mapping[val] && Object.keys(mapping).length > 0) {
-      warnings.push(`"${val}" has no Jira component mapping — it will be used as-is in RFE queries`)
+      warnings.push(`"${val}" has no Jira component mapping — it will be used as-is in PRD queries`)
     }
   }
   return warnings

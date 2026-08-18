@@ -445,7 +445,7 @@ async function fetchHygieneFeatures(jiraRequestFn, fetchAllJqlResultsFn, version
   }
 
   // ── RFE Resolution ──
-  notify('rfe-resolution', { message: 'Resolving linked RFEs' })
+  notify('rfe-resolution', { message: 'Resolving linked PRDs' })
 
   const allRfeKeys = []
   const rfeKeySet = {}
@@ -462,7 +462,7 @@ async function fetchHygieneFeatures(jiraRequestFn, fetchAllJqlResultsFn, version
 
   const rfeMap = await fetchRfeMap(jiraRequestFn, fetchAllJqlResultsFn, allRfeKeys)
 
-  notify('rfe-resolution', { message: 'Resolved ' + Object.keys(rfeMap).length + ' RFEs' })
+  notify('rfe-resolution', { message: 'Resolved ' + Object.keys(rfeMap).length + ' PRDs' })
 
   // ── Transform Pass 1 results ──
   const features = {}

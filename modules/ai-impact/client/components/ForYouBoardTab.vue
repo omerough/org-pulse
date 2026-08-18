@@ -49,27 +49,27 @@ const guideBase = '#/ai-impact/ai-factory-guide?from=sotu&section='
 
 const columnGuidance = {
   'not-assessed': {
-    text: 'RFEs that haven\'t been through the quality rubric yet. The pipeline will pick them up on its next run.',
+    text: 'PRDs that haven\'t been through the quality rubric yet. The pipeline will pick them up on its next run.',
     guide: 'prd-review'
   },
   'needs-revision': {
-    text: 'RFEs that failed scoring and couldn\'t be auto-fixed. Open in Jira, check the AI comments, and revise the WHAT and WHY.',
+    text: 'PRDs that failed scoring and couldn\'t be auto-fixed. Open in Jira, check the AI comments, and revise the WHAT and WHY.',
     guide: 'prd-review'
   },
   'passed-with-caveats': {
-    text: 'RFEs that passed scoring but have minor issues the automation couldn\'t resolve. Check Jira comments for specifics.',
+    text: 'PRDs that passed scoring but have minor issues the automation couldn\'t resolve. Check Jira comments for specifics.',
     guide: 'prd-review'
   },
   'ready-to-advance': {
-    text: 'RFEs that passed quality checks. Add the scope label in Jira to queue them for strategy creation.',
+    text: 'PRDs that passed quality checks. Add the scope label in Jira to queue them for strategy creation.',
     guide: 'prd-review'
   },
   'queued-for-pipeline': {
-    text: 'RFEs waiting for the automated pipeline to create a strategy feature. No action needed.',
+    text: 'PRDs waiting for the automated pipeline to create a strategy feature. No action needed.',
     guide: 'design-review'
   },
   'rejected': {
-    text: 'Features the AI review recommended rejecting. Check review comments and decide whether to revise the RFE or close it.',
+    text: 'Features the AI review recommended rejecting. Check review comments and decide whether to revise the PRD or close it.',
     guide: 'design-review'
   },
   'revise-required': {

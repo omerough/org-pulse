@@ -123,15 +123,15 @@ function handleClose() {
             <!-- Scoring Tab -->
             <div v-if="activeTab === 'scoring'" class="space-y-5">
               <div>
-                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">How RFE Quality Scoring Works</h3>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">How PRD Quality Scoring Works</h3>
                 <p class="text-sm text-gray-600 dark:text-gray-300">
-                  Each RFE (Request for Enhancement) is automatically assessed by an AI-powered pipeline that evaluates how well the RFE communicates its intent. Scores range from 0–10 across five criteria, with a pass threshold of 5.
+                  Each PRD is automatically assessed by an AI-powered pipeline that evaluates how well the PRD communicates its intent. Scores range from 0–10 across five criteria, with a pass threshold of 5.
                 </p>
               </div>
 
               <!-- Flow diagram -->
               <div class="flex items-center gap-2 text-xs">
-                <span class="px-2.5 py-1.5 rounded-md bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-200 font-medium">RFE Created</span>
+                <span class="px-2.5 py-1.5 rounded-md bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-200 font-medium">PRD Created</span>
                 <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
                 <span class="px-2.5 py-1.5 rounded-md bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-200 font-medium">Assessment Pipeline</span>
                 <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
@@ -146,7 +146,7 @@ function handleClose() {
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                       <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100 w-24">What (0–2)</td>
-                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Does the RFE clearly describe the desired outcome?</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Does the PRD clearly describe the desired outcome?</td>
                       </tr>
                       <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">Why (0–2)</td>
@@ -162,7 +162,7 @@ function handleClose() {
                       </tr>
                       <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <td class="px-4 py-2.5 font-semibold text-gray-900 dark:text-gray-100">Size (0–2)</td>
-                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Is the scope right-sized for a single RFE?</td>
+                        <td class="px-4 py-2.5 text-gray-600 dark:text-gray-300">Is the scope right-sized for a single PRD?</td>
                       </tr>
                     </tbody>
                   </table>
@@ -178,7 +178,7 @@ function handleClose() {
                 <div class="space-y-1.5 text-xs font-mono">
                   <div class="flex items-start gap-2">
                     <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/assess-rfe</code>
-                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Evaluate an RFE interactively against the rubric</span>
+                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Evaluate a PRD interactively against the rubric</span>
                   </div>
                   <div class="flex items-start gap-2">
                     <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/export-rubric</code>
@@ -199,7 +199,7 @@ function handleClose() {
 
               <!-- Flow diagram -->
               <div class="flex items-center gap-2 text-xs flex-wrap">
-                <span class="px-2.5 py-1.5 rounded-md bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-200 font-medium">RFE Approved</span>
+                <span class="px-2.5 py-1.5 rounded-md bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-200 font-medium">PRD Approved</span>
                 <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
                 <span class="px-2.5 py-1.5 rounded-md bg-purple-100 dark:bg-purple-800/60 text-purple-700 dark:text-purple-200 font-medium">Feature Created</span>
                 <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
@@ -297,7 +297,7 @@ function handleClose() {
                 <div class="space-y-1.5 text-xs font-mono">
                   <div class="flex items-start gap-2">
                     <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/strat.create</code>
-                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Create features from approved RFEs</span>
+                    <span class="text-gray-500 dark:text-gray-400 font-sans pt-0.5">Create features from approved PRDs</span>
                   </div>
                   <div class="flex items-start gap-2">
                     <code class="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 whitespace-nowrap">/strat.refine</code>
@@ -418,7 +418,7 @@ function handleClose() {
               <div>
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Enablement Resources</h3>
                 <p class="text-sm text-gray-600 dark:text-gray-300">
-                  Recordings, slides, and notes from AI SDLC tool enablement sessions. These cover the tools powering the AI Impact module's RFE scoring, feature review, and quality workflows.
+                  Recordings, slides, and notes from AI SDLC tool enablement sessions. These cover the tools powering the AI Impact module's PRD scoring, feature review, and quality workflows.
                 </p>
               </div>
 

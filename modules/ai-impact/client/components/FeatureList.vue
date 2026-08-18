@@ -81,7 +81,7 @@ const sortedAndFilteredFeatures = computed(() => {
         :value="searchQuery"
         @input="emit('update:searchQuery', $event.target.value)"
         type="text"
-        placeholder="Search by key, title, or source RFE..."
+        placeholder="Search by key, title, or source PRD..."
         class="flex-1 min-w-[200px] border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-800 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500"
       />
 

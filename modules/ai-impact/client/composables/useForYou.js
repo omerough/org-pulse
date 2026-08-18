@@ -18,7 +18,7 @@ const RFE_STATES = {
 }
 
 const FEATURE_STATES = {
-  REJECTED: { id: 'rejected', label: 'RFE Rejected', color: 'red', order: 0 },
+  REJECTED: { id: 'rejected', label: 'Feature Rejected', color: 'red', order: 0 },
   REVISE_REQUIRED: { id: 'revise-required', label: 'Revise Required', color: 'red', order: 1 },
   AWAITING_SIGNOFF: { id: 'awaiting-signoff', label: 'Awaiting Sign-off', color: 'amber', order: 2 },
   SIGNED_OFF: { id: 'signed-off', label: 'Signed Off', color: 'green', order: 3 }
@@ -302,9 +302,9 @@ export function useForYou(rosterDataArg, userArg, rfeDataArg, featuresArg, asses
 
   const actionGroups = computed(() => {
     const groups = [
-      { id: 'failed-rubric', label: 'RFEs Failed Rubric', items: [] },
-      { id: 'passed-with-caveats', label: 'RFEs Passed with Caveats', items: [] },
-      { id: 'advance-rfes', label: 'RFEs Ready for Feature Creation', items: [] },
+      { id: 'failed-rubric', label: 'PRDs Failed Rubric', items: [] },
+      { id: 'passed-with-caveats', label: 'PRDs Passed with Caveats', items: [] },
+      { id: 'advance-rfes', label: 'PRDs Ready for Feature Creation', items: [] },
       { id: 'review-features', label: 'Features Needing Review', items: [] }
     ]
     for (const item of actionNeeded.value) {

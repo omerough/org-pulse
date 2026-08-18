@@ -101,11 +101,11 @@ describe('FeaturePressureView RFE Pipeline section', () => {
       },
       per_component_pending: [],
     })
-    expect(wrapper.text()).toContain('RFE Pipeline')
+    expect(wrapper.text()).toContain('PRD Pipeline')
   })
 
   it('does not render the RFE Pipeline section/header when there is no applicable data', async () => {
     const wrapper = await mountView(null)
-    expect(wrapper.text()).not.toContain('RFE Pipeline')
+    expect(wrapper.text()).not.toContain('PRD Pipeline')
   })
 })
