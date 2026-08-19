@@ -13,10 +13,11 @@ const props = defineProps({
   passFailFilter: { type: String, default: 'all' },
   priorityFilter: { type: String, default: 'all' },
   statusFilter: { type: String, default: 'all' },
+  componentFilter: { type: String, default: 'all' },
   rfeToFeature: { type: Object, default: () => ({}) }
 })
 
-const emit = defineEmits(['update:filter', 'update:searchQuery', 'update:sortBy', 'update:passFailFilter', 'update:priorityFilter', 'update:statusFilter', 'selectRFE'])
+const emit = defineEmits(['update:filter', 'update:searchQuery', 'update:sortBy', 'update:passFailFilter', 'update:priorityFilter', 'update:statusFilter', 'update:componentFilter', 'selectRFE'])
 
 // Compute unique priorities and statuses from data for dropdown options
 const availablePriorities = computed(() => {
@@ -31,6 +32,14 @@ const availableStatuses = computed(() => {
   const values = new Set()
   for (const rfe of props.rfes) {
     if (rfe.status) values.add(rfe.status)
+  }
+  return [...values].sort()
+})
+
+const availableComponents = computed(() => {
+  const values = new Set()
+  for (const rfe of props.rfes) {
+    for (const c of (rfe.components || [])) values.add(c)
   }
   return [...values].sort()
 })
@@ -57,6 +66,11 @@ const sortedAndFilteredRFEs = computed(() => {
   // Apply status filter
   if (props.statusFilter !== 'all') {
     rfes = rfes.filter(rfe => rfe.status === props.statusFilter)
+  }
+
+  // Apply component filter
+  if (props.componentFilter !== 'all') {
+    rfes = rfes.filter(rfe => (rfe.components || []).includes(props.componentFilter))
   }
 
   // Apply sort
@@ -94,7 +108,7 @@ const paginatedRFEs = computed(() => {
 })
 
 watch(
-  () => [props.filter, props.searchQuery, props.sortBy, props.passFailFilter, props.priorityFilter, props.statusFilter],
+  () => [props.filter, props.searchQuery, props.sortBy, props.passFailFilter, props.priorityFilter, props.statusFilter, props.componentFilter],
   () => { currentPage.value = 1 }
 )
 
@@ -176,6 +190,14 @@ function handleSelectRFE(rfe) {
         >
           <option value="all">All Statuses</option>
           <option v-for="s in availableStatuses" :key="s" :value="s">{{ s }}</option>
+        </select>
+        <select
+          :value="componentFilter"
+          @change="emit('update:componentFilter', $event.target.value)"
+          class="h-9 border border-gray-300 dark:border-gray-600 rounded-md text-sm px-2 bg-white dark:bg-gray-800 dark:text-gray-300"
+        >
+          <option value="all">All Components</option>
+          <option v-for="c in availableComponents" :key="c" :value="c">{{ c }}</option>
         </select>
         <select
           :value="sortBy"

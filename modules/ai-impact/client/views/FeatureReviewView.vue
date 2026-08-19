@@ -15,6 +15,7 @@ const searchQuery = ref('')
 const recommendationFilter = ref('all')
 const priorityFilter = ref('all')
 const humanReviewFilter = ref('all')
+const componentFilter = ref('all')
 const sortBy = ref('default')
 
 const { features, featureMeta, featureLoading, featureError, loadFeatures, loadFeatureDetail } = useFeatures()
@@ -65,6 +66,7 @@ watch(() => moduleNav.params.value, (params) => {
       recommendationFilter.value = 'all'
       priorityFilter.value = 'all'
       humanReviewFilter.value = 'all'
+      componentFilter.value = 'all'
       sortBy.value = 'default'
       selectedFeature.value = feature
     }
@@ -94,12 +96,14 @@ watch(() => Object.keys(features.value).length, () => {
       :recommendationFilter="recommendationFilter"
       :priorityFilter="priorityFilter"
       :humanReviewFilter="humanReviewFilter"
+      :componentFilter="componentFilter"
       :sortBy="sortBy"
       :selectedFeature="selectedFeature"
       @update:searchQuery="searchQuery = $event"
       @update:recommendationFilter="recommendationFilter = $event"
       @update:priorityFilter="priorityFilter = $event"
       @update:humanReviewFilter="humanReviewFilter = $event"
+      @update:componentFilter="componentFilter = $event"
       @update:sortBy="sortBy = $event"
       @selectFeature="handleSelectFeature"
       @retry="handleRetry"

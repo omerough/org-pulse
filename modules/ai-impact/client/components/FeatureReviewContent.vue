@@ -13,6 +13,7 @@ defineProps({
   recommendationFilter: { type: String, default: 'all' },
   priorityFilter: { type: String, default: 'all' },
   humanReviewFilter: { type: String, default: 'all' },
+  componentFilter: { type: String, default: 'all' },
   sortBy: { type: String, default: 'default' },
   selectedFeature: { type: Object, default: null }
 })
@@ -22,6 +23,7 @@ const emit = defineEmits([
   'update:recommendationFilter',
   'update:priorityFilter',
   'update:humanReviewFilter',
+  'update:componentFilter',
   'update:sortBy',
   'selectFeature',
   'retry'
@@ -70,11 +72,13 @@ const emit = defineEmits([
         :recommendationFilter="recommendationFilter"
         :priorityFilter="priorityFilter"
         :humanReviewFilter="humanReviewFilter"
+        :componentFilter="componentFilter"
         :sortBy="sortBy"
         @update:searchQuery="emit('update:searchQuery', $event)"
         @update:recommendationFilter="emit('update:recommendationFilter', $event)"
         @update:priorityFilter="emit('update:priorityFilter', $event)"
         @update:humanReviewFilter="emit('update:humanReviewFilter', $event)"
+        @update:componentFilter="emit('update:componentFilter', $event)"
         @update:sortBy="emit('update:sortBy', $event)"
         @selectFeature="emit('selectFeature', $event)"
       />

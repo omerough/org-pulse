@@ -9,6 +9,7 @@ const props = defineProps({
   recommendationFilter: { type: String, default: 'all' },
   priorityFilter: { type: String, default: 'all' },
   humanReviewFilter: { type: String, default: 'all' },
+  componentFilter: { type: String, default: 'all' },
   sortBy: { type: String, default: 'default' }
 })
 
@@ -17,6 +18,7 @@ const emit = defineEmits([
   'update:recommendationFilter',
   'update:priorityFilter',
   'update:humanReviewFilter',
+  'update:componentFilter',
   'update:sortBy',
   'selectFeature'
 ])
@@ -27,6 +29,14 @@ const availablePriorities = computed(() => {
   const values = new Set()
   for (const f of featureList.value) {
     if (f.priority) values.add(f.priority)
+  }
+  return [...values].sort()
+})
+
+const availableComponents = computed(() => {
+  const values = new Set()
+  for (const f of featureList.value) {
+    for (const c of (f.components || [])) values.add(c)
   }
   return [...values].sort()
 })
@@ -59,6 +69,11 @@ const sortedAndFilteredFeatures = computed(() => {
   // Review status filter
   if (props.humanReviewFilter !== 'all') {
     items = items.filter(f => f.humanReviewStatus === props.humanReviewFilter)
+  }
+
+  // Component filter
+  if (props.componentFilter !== 'all') {
+    items = items.filter(f => (f.components || []).includes(props.componentFilter))
   }
 
   // Sort
@@ -115,6 +130,15 @@ const sortedAndFilteredFeatures = computed(() => {
         <option value="needs-review">Flagged</option>
         <option value="awaiting-review">Awaiting Sign-off</option>
         <option value="approved">Approved</option>
+      </select>
+
+      <select
+        :value="componentFilter"
+        @change="emit('update:componentFilter', $event.target.value)"
+        class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-800 dark:text-gray-300"
+      >
+        <option value="all">All Components</option>
+        <option v-for="c in availableComponents" :key="c" :value="c">{{ c }}</option>
       </select>
 
       <select

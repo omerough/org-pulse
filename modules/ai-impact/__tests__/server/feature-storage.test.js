@@ -69,6 +69,66 @@ describe('readFeatures', () => {
     expect(result.features['RHAISTRAT-1168'].history).toHaveLength(1);
   });
 
+  it('prefers the canonical Jira components field from the releases index entry over the feature file', () => {
+    const indexEntry = { key: 'RHAISTRAT-1168', aiReview: { recommendation: 'approve' }, components: ['Storage'] };
+    const featureFile = makeFeatureFile();
+    // Per-feature detail file can carry an enhancement-proposal-derived slug here;
+    // the index entry's Jira-sourced value must win regardless.
+    featureFile.components = ['storage-control-plane-osac-2872'];
+    featureFile.aiReview.components = ['Legacy Component'];
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.components).toEqual(['Storage']);
+  });
+
+  it('trusts an explicit empty components array on the index entry as authoritative and does not fall back', () => {
+    const indexEntry = { key: 'RHAISTRAT-1168', aiReview: { recommendation: 'approve' }, components: [] };
+    const featureFile = makeFeatureFile();
+    featureFile.components = ['some-slug'];
+    featureFile.aiReview.components = ['Legacy Component'];
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.components).toEqual([]);
+  });
+
+  it('falls back to aiReview.components when the index entry has no components field (legacy records)', () => {
+    const indexEntry = { key: 'RHAISTRAT-1168', aiReview: { recommendation: 'approve' } };
+    const featureFile = makeFeatureFile();
+    featureFile.aiReview.components = ['Legacy Component'];
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.components).toEqual(['Legacy Component']);
+  });
+
+  it('returns an empty array when neither the index entry nor aiReview have components', () => {
+    const indexEntry = { key: 'RHAISTRAT-1168', aiReview: { recommendation: 'approve' } };
+    const featureFile = makeFeatureFile();
+    delete featureFile.aiReview.components;
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.components).toEqual([]);
+  });
+
   it('falls back to legacy store when no releases index', () => {
     const legacyData = {
       lastSyncedAt: '2026-04-19T12:00:00Z',

@@ -50,6 +50,15 @@ function readFeatures(readFromStorage) {
     // Read the full feature file for history
     var featureFile = readFromStorage(RELEASES_FEATURE_PREFIX + entry.key + '.json');
     var aiReview = featureFile && featureFile.aiReview ? featureFile.aiReview : {};
+    // The index entry's components come straight from Jira's Components field
+    // with no transformation, so it's the canonical source. The per-feature
+    // detail file's top-level components can be overridden by an unrelated
+    // enhancement-proposal-derived value upstream, so it is not trusted here.
+    // Only fall back to aiReview.components when the index entry has no
+    // components field at all, i.e. legacy/unenriched record.
+    var components = Array.isArray(entry.components)
+      ? entry.components
+      : (aiReview.components || []);
 
     features[entry.key] = {
       latest: {
@@ -65,7 +74,7 @@ function readFeatures(readFromStorage) {
         scores: aiReview.scores || (entry.aiReview && entry.aiReview.scores) || null,
         reviewers: aiReview.reviewers || null,
         labels: entry.labels || [],
-        components: aiReview.components || [],
+        components: components,
         reviewedAt: aiReview.reviewedAt || (entry.aiReview && entry.aiReview.reviewedAt) || null,
         runId: aiReview.runId || undefined,
         approvedBy: aiReview.approvedBy || null,

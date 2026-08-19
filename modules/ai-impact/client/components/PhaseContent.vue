@@ -24,6 +24,7 @@ const props = defineProps({
   passFailFilter: { type: String, default: 'all' },
   priorityFilter: { type: String, default: 'all' },
   statusFilter: { type: String, default: 'all' },
+  componentFilter: { type: String, default: 'all' },
   selectedRFE: { type: Object, default: null },
   rfeToFeature: { type: Object, default: () => ({}) },
   pipelineFriction: { type: Object, default: null }
@@ -38,6 +39,7 @@ const emit = defineEmits([
   'update:passFailFilter',
   'update:priorityFilter',
   'update:statusFilter',
+  'update:componentFilter',
   'selectRFE',
   'retry'
 ])
@@ -127,6 +129,7 @@ const isEmpty = computed(() => !props.rfeData?.fetchedAt)
           :passFailFilter="passFailFilter"
           :priorityFilter="priorityFilter"
           :statusFilter="statusFilter"
+          :componentFilter="componentFilter"
           :selectedRFE="selectedRFE"
           :rfeToFeature="rfeToFeature"
           @update:filter="emit('update:filter', $event)"
@@ -135,6 +138,7 @@ const isEmpty = computed(() => !props.rfeData?.fetchedAt)
           @update:passFailFilter="emit('update:passFailFilter', $event)"
           @update:priorityFilter="emit('update:priorityFilter', $event)"
           @update:statusFilter="emit('update:statusFilter', $event)"
+          @update:componentFilter="emit('update:componentFilter', $event)"
           @selectRFE="emit('selectRFE', $event)"
         />
       </template>
