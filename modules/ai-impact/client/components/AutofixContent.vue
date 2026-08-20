@@ -502,20 +502,18 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString()
 }
 
-const AUTOFIX_LABELS_EXCLUDE = ['jira-autofix', 'jira-autofix-pending', 'jira-autofix-review', 'jira-autofix-ci-failing', 'jira-autofix-merged', 'jira-autofix-rejected', 'jira-autofix-max-retries', 'jira-autofix-blocked', 'jira-autofix-researched', 'jira-autofix-fork-user-missing']
-
 const triageSegments = computed(() => {
   if (!metrics.value) return []
   const v = metrics.value.triageVerdicts
   return [
-    { label: 'Ready for AI', count: v.ready || 0, color: 'bg-green-500', textClass: 'text-green-600 dark:text-green-400', jiraLabels: [], jqlOverride: buildReadyForAiJql() },
-    { label: 'Missing Info', count: v.missingInfo || 0, color: 'bg-yellow-500', textClass: 'text-yellow-600 dark:text-yellow-400', jiraLabels: ['jira-triage-missing-info'], excludeLabels: [...AUTOFIX_LABELS_EXCLUDE, 'jira-triage-security-review', 'jira-triage-not-fixable', 'jira-triage-stale'] },
-    { label: 'Not AI-Fixable', count: v.notFixable || 0, color: 'bg-red-500', textClass: 'text-red-600 dark:text-red-400', jiraLabels: ['jira-triage-not-fixable'], excludeLabels: [...AUTOFIX_LABELS_EXCLUDE, 'jira-triage-security-review'] },
-    { label: 'External Reporter', count: v.external || 0, color: 'bg-purple-500', textClass: 'text-purple-600 dark:text-purple-400', jiraLabels: ['jira-triage-external'], excludeLabels: [...AUTOFIX_LABELS_EXCLUDE, 'jira-triage-security-review'] },
-    { label: 'Security Review', count: v.securityReview || 0, color: 'bg-rose-500', textClass: 'text-rose-600 dark:text-rose-400', jiraLabels: ['jira-triage-security-review'], excludeLabels: AUTOFIX_LABELS_EXCLUDE },
-    { label: 'Stale', count: v.stale || 0, color: 'bg-gray-400', textClass: 'text-gray-500 dark:text-gray-400', jiraLabels: ['jira-triage-stale'], excludeLabels: [...AUTOFIX_LABELS_EXCLUDE, 'jira-triage-security-review', 'jira-triage-not-fixable'] },
-    { label: 'Deferred to Human', count: v.humanAssigned || 0, color: 'bg-cyan-500', textClass: 'text-cyan-600 dark:text-cyan-400', jiraLabels: [], jqlOverride: buildHumanAssignedJql() },
-    { label: 'AI Assessing', count: v.pending || 0, color: 'bg-gray-300 dark:bg-gray-600', textClass: 'text-gray-500 dark:text-gray-400', jiraLabels: ['jira-triage-pending'], excludeLabels: [...AUTOFIX_LABELS_EXCLUDE, 'jira-triage-security-review', 'jira-triage-not-fixable', 'jira-triage-stale', 'jira-triage-missing-info'] }
+    { label: 'Ready for AI', count: v.ready || 0, color: 'bg-green-500', textClass: 'text-green-600 dark:text-green-400', jqlOverride: buildKeysJql(i => (i.pipelineState || '').startsWith('autofix-')) },
+    { label: 'Missing Info', count: v.missingInfo || 0, color: 'bg-yellow-500', textClass: 'text-yellow-600 dark:text-yellow-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'triage-missing-info') },
+    { label: 'Not AI-Fixable', count: v.notFixable || 0, color: 'bg-red-500', textClass: 'text-red-600 dark:text-red-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'triage-not-fixable') },
+    { label: 'External Reporter', count: v.external || 0, color: 'bg-purple-500', textClass: 'text-purple-600 dark:text-purple-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'triage-external') },
+    { label: 'Security Review', count: v.securityReview || 0, color: 'bg-rose-500', textClass: 'text-rose-600 dark:text-rose-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'triage-security-review') },
+    { label: 'Stale', count: v.stale || 0, color: 'bg-gray-400', textClass: 'text-gray-500 dark:text-gray-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'triage-stale') },
+    { label: 'Deferred to Human', count: v.humanAssigned || 0, color: 'bg-cyan-500', textClass: 'text-cyan-600 dark:text-cyan-400', jqlOverride: buildHumanAssignedJql() },
+    { label: 'AI Assessing', count: v.pending || 0, color: 'bg-gray-300 dark:bg-gray-600', textClass: 'text-gray-500 dark:text-gray-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'triage-pending') }
   ].filter(s => s.count > 0)
 })
 
@@ -525,137 +523,32 @@ const autofixSegments = computed(() => {
   if (!metrics.value) return []
   const a = metrics.value.autofixStates
   return [
-    { label: 'AI Fix Merged', count: a.merged || 0, color: 'bg-green-500', textClass: 'text-green-600 dark:text-green-400', jiraLabels: ['jira-autofix-merged'] },
-    { label: 'AI Fix Under Review', count: a.review || 0, color: 'bg-blue-500', textClass: 'text-blue-600 dark:text-blue-400', jiraLabels: ['jira-autofix-review'] },
-    { label: 'AI Fix CI Failing', count: a.ciFailing || 0, color: 'bg-orange-500', textClass: 'text-orange-600 dark:text-orange-400', jiraLabels: ['jira-autofix-ci-failing'] },
-    { label: 'AI Working', count: a.pending || 0, color: 'bg-indigo-500', textClass: 'text-indigo-600 dark:text-indigo-400', jiraLabels: ['jira-autofix-pending'], excludeLabels: ['jira-autofix-blocked', 'jira-autofix-ci-failing', 'jira-autofix-review', 'jira-autofix-merged', 'jira-autofix-rejected', 'jira-autofix-max-retries', 'jira-autofix-fork-user-missing'] },
-    { label: 'Queued for AI', count: a.ready || 0, color: 'bg-gray-400', textClass: 'text-gray-500 dark:text-gray-400', jiraLabels: ['jira-autofix'], excludeLabels: ['jira-autofix-pending', 'jira-autofix-review', 'jira-autofix-ci-failing', 'jira-autofix-merged', 'jira-autofix-rejected', 'jira-autofix-max-retries', 'jira-autofix-blocked', 'jira-autofix-fork-user-missing'] },
-    { label: 'AI Fix Rejected', count: a.rejected || 0, color: 'bg-red-500', textClass: 'text-red-600 dark:text-red-400', jiraLabels: ['jira-autofix-rejected'] },
-    { label: 'AI Max Retries', count: a.maxRetries || 0, color: 'bg-orange-500', textClass: 'text-orange-600 dark:text-orange-400', jiraLabels: ['jira-autofix-max-retries'] },
-    { label: 'AI Blocked', count: a.blocked || 0, color: 'bg-yellow-500', textClass: 'text-yellow-600 dark:text-yellow-400', jiraLabels: ['jira-autofix-blocked'] },
-    { label: 'Fork Not Installed', count: a.forkUserMissing || 0, color: 'bg-amber-500', textClass: 'text-amber-600 dark:text-amber-400', jiraLabels: ['jira-autofix-fork-user-missing'] }
+    { label: 'AI Fix Merged', count: a.merged || 0, color: 'bg-green-500', textClass: 'text-green-600 dark:text-green-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'autofix-merged') },
+    { label: 'AI Fix Under Review', count: a.review || 0, color: 'bg-blue-500', textClass: 'text-blue-600 dark:text-blue-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'autofix-review') },
+    { label: 'AI Fix CI Failing', count: a.ciFailing || 0, color: 'bg-orange-500', textClass: 'text-orange-600 dark:text-orange-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'autofix-ci-failing') },
+    { label: 'AI Working', count: a.pending || 0, color: 'bg-indigo-500', textClass: 'text-indigo-600 dark:text-indigo-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'autofix-pending') },
+    { label: 'Queued for AI', count: a.ready || 0, color: 'bg-gray-400', textClass: 'text-gray-500 dark:text-gray-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'autofix-ready') },
+    { label: 'AI Fix Rejected', count: a.rejected || 0, color: 'bg-red-500', textClass: 'text-red-600 dark:text-red-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'autofix-rejected') },
+    { label: 'AI Max Retries', count: a.maxRetries || 0, color: 'bg-orange-500', textClass: 'text-orange-600 dark:text-orange-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'autofix-max-retries') },
+    { label: 'AI Blocked', count: a.blocked || 0, color: 'bg-yellow-500', textClass: 'text-yellow-600 dark:text-yellow-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'autofix-blocked') },
+    { label: 'Fork Not Installed', count: a.forkUserMissing || 0, color: 'bg-amber-500', textClass: 'text-amber-600 dark:text-amber-400', jqlOverride: buildKeysJql(i => i.pipelineState === 'autofix-fork-user-missing') }
   ].filter(s => s.count > 0)
 })
 
 const autofixSegmentTotal = computed(() => autofixSegments.value.reduce((s, v) => s + v.count, 0))
 
-function buildJiraLabelUrl(jiraLabels, excludeLabels) {
+function buildKeysJql(matchFn) {
   const host = jiraHost.value
-
-  if (props.timeWindow === 'lastWeek') {
-    const isTerminalLabel = jiraLabels.some(l =>
-      l === 'jira-autofix-merged' || l === 'jira-autofix-rejected' ||
-      l === 'jira-autofix-max-retries'
-    )
-    if (isTerminalLabel) {
-      const matchingStates = new Set()
-      for (const l of jiraLabels) {
-        const state = l.replace('jira-', '')
-        if (TERMINAL_STATES.has(state)) matchingStates.add(state)
-      }
-      const keys = timeFilteredIssues.value
-        .filter(i => matchingStates.has(i.pipelineState))
-        .map(i => i.key)
-      if (keys.length > 0) {
-        const jql = `key IN (${keys.map(k => `"${k}"`).join(', ')}) ORDER BY updated DESC`
-        return `${host}/issues/?jql=${encodeURIComponent(jql)}`
-      }
-    }
+  const keys = timeFilteredIssues.value.filter(matchFn).map(i => i.key)
+  if (keys.length === 0) {
+    return `${host}/issues/?jql=${encodeURIComponent('key = "NONE-0"')}`
   }
-
-  const labels = jiraLabels.map(l => `"${l}"`).join(', ')
-  let jql = `labels IN (${labels})`
-  if (excludeLabels && excludeLabels.length > 0) {
-    const excluded = excludeLabels.map(l => `"${l}"`).join(', ')
-    jql += ` AND labels NOT IN (${excluded})`
-  }
-  if (selectedProject.value !== 'all') {
-    jql += ` AND project = "${selectedProject.value}"`
-  } else {
-    const projects = availableProjects.value.map(p => `"${p}"`).join(', ')
-    if (projects) jql += ` AND project IN (${projects})`
-  }
-  if (selectedIssueType.value !== 'all') {
-    jql += ` AND issuetype = "${selectedIssueType.value}"`
-  }
-  if (selectedComponent.value !== 'all') {
-    jql += ` AND component = "${selectedComponent.value}"`
-  }
-  jql += ' AND (component is EMPTY OR component NOT IN ("Enclave", "agentic-sdlc"))'
-  if (jiraLabels.length === 1 && jiraLabels[0] === 'jira-autofix') {
-    jql += ' AND status = "New"'
-  }
-  if (props.timeWindow === 'lastWeek') {
-    const { start, end } = getLastWeekBounds()
-    jql += ` AND created >= "${new Date(start).toISOString().slice(0, 10)}"`
-    jql += ` AND created < "${new Date(end).toISOString().slice(0, 10)}"`
-    jql += ' ORDER BY created DESC'
-  } else {
-    const days = props.timeWindow === 'week' ? 7 : props.timeWindow === 'month' ? 30 : 90
-    const windowCutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-    const earliestIssue = projectFilteredIssues.value.length > 0
-      ? projectFilteredIssues.value.reduce((min, i) => i.created < min ? i.created : min, projectFilteredIssues.value[0].created)
-      : null
-    const dataCutoff = earliestIssue ? new Date(earliestIssue) : null
-    const cutoff = dataCutoff && dataCutoff > windowCutoff ? dataCutoff : windowCutoff
-    jql += ` AND created >= "${cutoff.toISOString().slice(0, 10)}"`
-    jql += ' ORDER BY created DESC'
-  }
-  return `${host}/issues/?jql=${encodeURIComponent(jql)}`
-}
-
-function buildReadyForAiJql() {
-  const host = jiraHost.value
-  const stateLabels = [
-    'jira-autofix-pending', 'jira-autofix-review', 'jira-autofix-ci-failing',
-    'jira-autofix-merged', 'jira-autofix-rejected', 'jira-autofix-max-retries',
-    'jira-autofix-blocked', 'jira-autofix-fork-user-missing'
-  ]
-  const stateLabelList = stateLabels.map(l => `"${l}"`).join(', ')
-  let jql = `(labels IN (${stateLabelList}) OR (labels = "jira-autofix" AND (assignee is EMPTY OR assignee = "osac-dev-bot" OR status = "New")))`
-
-  const projects = availableProjects.value.map(p => `"${p}"`).join(', ')
-  if (selectedProject.value !== 'all') {
-    jql += ` AND project = "${selectedProject.value}"`
-  } else if (projects) {
-    jql += ` AND project IN (${projects})`
-  }
-  if (selectedIssueType.value !== 'all') {
-    jql += ` AND issuetype = "${selectedIssueType.value}"`
-  }
-  if (selectedComponent.value !== 'all') {
-    jql += ` AND component = "${selectedComponent.value}"`
-  }
-  jql += ' AND (component is EMPTY OR component NOT IN ("Enclave", "agentic-sdlc"))'
-
-  if (props.timeWindow === 'lastWeek') {
-    const { start, end } = getLastWeekBounds()
-    jql += ` AND created >= "${new Date(start).toISOString().slice(0, 10)}"`
-    jql += ` AND created < "${new Date(end).toISOString().slice(0, 10)}"`
-  } else {
-    const days = props.timeWindow === 'week' ? 7 : props.timeWindow === 'month' ? 30 : 90
-    const windowCutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-    const earliestIssue = projectFilteredIssues.value.length > 0
-      ? projectFilteredIssues.value.reduce((min, i) => i.created < min ? i.created : min, projectFilteredIssues.value[0].created)
-      : null
-    const dataCutoff = earliestIssue ? new Date(earliestIssue) : null
-    const cutoff = dataCutoff && dataCutoff > windowCutoff ? dataCutoff : windowCutoff
-    jql += ` AND created >= "${cutoff.toISOString().slice(0, 10)}"`
-  }
-  jql += ' ORDER BY created DESC'
+  const jql = `key IN (${keys.map(k => `"${k}"`).join(', ')}) ORDER BY updated DESC`
   return `${host}/issues/?jql=${encodeURIComponent(jql)}`
 }
 
 function buildHumanAssignedJql() {
-  const host = jiraHost.value
-  const keys = timeFilteredIssues.value
-    .filter(i => i.pipelineState === 'triage-human-assigned')
-    .map(i => i.key)
-  if (keys.length > 0) {
-    const jql = `key IN (${keys.map(k => `"${k}"`).join(', ')}) ORDER BY updated DESC`
-    return `${host}/issues/?jql=${encodeURIComponent(jql)}`
-  }
-  return `${host}/issues/?jql=${encodeURIComponent('labels = "jira-autofix" AND assignee IS NOT EMPTY ORDER BY updated DESC')}`
+  return buildKeysJql(i => i.pipelineState === 'triage-human-assigned')
 }
 </script>
 
@@ -937,7 +830,7 @@ function buildHumanAssignedJql() {
                 </div>
                 <div class="flex items-center gap-2">
                   <a
-                    :href="seg.jqlOverride || buildJiraLabelUrl(seg.jiraLabels, seg.excludeLabels)"
+                    :href="seg.jqlOverride"
                     target="_blank" rel="noopener"
                     class="text-sm font-semibold hover:underline"
                     :class="seg.textClass"
@@ -995,7 +888,7 @@ function buildHumanAssignedJql() {
                 </div>
                 <div class="flex items-center gap-2">
                   <a
-                    :href="buildJiraLabelUrl(seg.jiraLabels, seg.excludeLabels)"
+                    :href="seg.jqlOverride"
                     target="_blank" rel="noopener"
                     class="text-sm font-semibold hover:underline"
                     :class="seg.textClass"

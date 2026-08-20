@@ -215,6 +215,71 @@ test.describe('AI Impact Views @ai-impact', () => {
     await testView(page, 'autofix', 'AutoFix');
   });
 
+  test('autofix bar Jira links use classified issue keys', async ({ page }) => {
+    // Demo fixtures are dated April 2026 and fall outside every Autofix time
+    // window, so Ready for AI never renders from live API data. Seed a
+    // current-window payload so this test always checks the JQL contract.
+    const created = new Date().toISOString();
+    await page.route('**/api/modules/ai-impact/autofix-data**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          fetchedAt: created,
+          jiraHost: 'https://redhat.atlassian.net',
+          metrics: {
+            triageTotal: 2,
+            triageVerdicts: {
+              ready: 1, missingInfo: 0, notFixable: 0, stale: 1, pending: 0,
+              external: 0, securityReview: 0, humanAssigned: 0
+            },
+            autofixStates: {
+              ready: 1, pending: 0, review: 0, ciFailing: 0, merged: 0,
+              rejected: 0, maxRetries: 0, blocked: 0, forkUserMissing: 0
+            },
+            autofixTotal: 1,
+            successRate: 0,
+            windowTotal: 2,
+            totalIssues: 2,
+            eligibleCount: 1,
+            eligibilityRate: 50
+          },
+          trendData: [],
+          issues: [
+            {
+              key: 'OSAC-READY', summary: 'queued', status: 'New', issueType: 'Bug',
+              priority: 'Normal', created, updated: created, components: [],
+              assignee: null, pipelineState: 'autofix-ready'
+            },
+            {
+              key: 'OSAC-STALE', summary: 'stale leftover jira-autofix', status: 'New',
+              issueType: 'Bug', priority: 'Normal', created, updated: created,
+              components: [], assignee: null, pipelineState: 'triage-stale'
+            }
+          ]
+        })
+      });
+    });
+
+    await page.goto('/#/ai-impact/autofix');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const readyRow = page.locator('div.flex.items-center.justify-between').filter({
+      has: page.locator('span.text-sm', { hasText: /^Ready for AI$/ })
+    });
+    await expect(readyRow).toHaveCount(1);
+    const href = await readyRow.locator('a[href*="jql"]').first().getAttribute('href');
+    expect(href).toBeTruthy();
+    const jql = decodeURIComponent(href);
+    expect(jql).toContain('key IN (');
+    expect(jql).toContain('OSAC-READY');
+    expect(jql).not.toContain('OSAC-STALE');
+    expect(jql).not.toContain('assignee is EMPTY');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
   test('should load AI Commits view', async ({ page }) => {
     await page.goto('/#/ai-impact/ai-commits');
     await page.waitForLoadState('networkidle');

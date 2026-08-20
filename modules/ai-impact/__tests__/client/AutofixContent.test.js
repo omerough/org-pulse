@@ -126,7 +126,7 @@ describe('AutofixContent', () => {
     })
     expect(wrapper.text()).toContain('AIPCC-100')
     expect(wrapper.text()).toContain('Fix null pointer')
-    const link = wrapper.find('a[href*="AIPCC-100"]')
+    const link = wrapper.find('a[href*="browse/AIPCC-100"]')
     expect(link.exists()).toBe(true)
     expect(link.attributes('href')).toBe('https://redhat.atlassian.net/browse/AIPCC-100')
   })
@@ -416,54 +416,85 @@ describe('AutofixContent', () => {
     })
   })
 
-  describe('Ready for AI Jira link', () => {
-    it('uses OR-based JQL excluding human-assigned issues', () => {
+  describe('bar Jira links match classified pipelineState', () => {
+    const dualLabelData = {
+      fetchedAt: daysAgo(0),
+      jiraHost: 'https://redhat.atlassian.net',
+      metrics: {
+        triageTotal: 4,
+        triageVerdicts: {
+          ready: 2, missingInfo: 0, notFixable: 0, stale: 1, pending: 0,
+          external: 0, securityReview: 1, humanAssigned: 0
+        },
+        autofixStates: {
+          ready: 1, pending: 0, review: 0, ciFailing: 0, merged: 1,
+          rejected: 0, maxRetries: 0, blocked: 0, forkUserMissing: 0
+        },
+        autofixTotal: 2,
+        successRate: 100,
+        windowTotal: 4,
+        totalIssues: 4,
+        eligibleCount: 2,
+        eligibilityRate: 50
+      },
+      trendData: MOCK_DATA.trendData,
+      issues: [
+        { key: 'OSAC-READY', summary: 'queued', status: 'New', created: daysAgo(1), labels: ['jira-autofix'], components: [], pipelineState: 'autofix-ready' },
+        { key: 'OSAC-MERGED', summary: 'merged', status: 'ON_QA', created: daysAgo(2), labels: ['jira-autofix-merged'], components: [], pipelineState: 'autofix-merged' },
+        { key: 'OSAC-STALE', summary: 'stale but still jira-autofix', status: 'New', created: daysAgo(3), labels: ['jira-autofix', 'jira-triage-stale'], components: [], pipelineState: 'triage-stale' },
+        { key: 'OSAC-SEC', summary: 'security but still jira-autofix', status: 'New', created: daysAgo(4), labels: ['jira-autofix', 'jira-triage-security-review'], components: [], pipelineState: 'triage-security-review' }
+      ]
+    }
+
+    function jqlForSegment(wrapper, label) {
+      const row = wrapper.findAll('[class*="space-y-2.5"] > div').find(r =>
+        r.findAll('span').some(s => s.text() === label)
+      )
+      expect(row, `legend row for "${label}"`).toBeTruthy()
+      return decodeURIComponent(row.find('a').attributes('href') || '')
+    }
+
+    it('Ready for AI opens key IN of autofix-* issues, not dual-labeled triage tickets', () => {
       const wrapper = mount(AutofixContent, {
-        props: { autofixData: MOCK_DATA, loading: false, timeWindow: 'month' }
+        props: { autofixData: dualLabelData, loading: false, timeWindow: 'month' }
       })
-      const links = wrapper.findAll('a[href*="jql"]')
-      const readyLink = links.find(l => {
-        const href = decodeURIComponent(l.attributes('href'))
-        return href.includes('jira-autofix-blocked') && href.includes('OR')
-      })
-      expect(readyLink).toBeTruthy()
-      const jql = decodeURIComponent(readyLink.attributes('href'))
-      expect(jql).toContain('labels IN ("jira-autofix-pending"')
-      expect(jql).toContain('jira-autofix-fork-user-missing")')
-      expect(jql).toContain('OR (labels = "jira-autofix" AND (assignee is EMPTY OR assignee = "osac-dev-bot" OR status = "New"))')
-      expect(jql).toContain('ORDER BY created DESC')
-      expect(jql).toContain('created >= "')
+      const jql = jqlForSegment(wrapper, 'Ready for AI')
+      expect(jql).toContain('key IN (')
+      expect(jql).toContain('"OSAC-READY"')
+      expect(jql).toContain('"OSAC-MERGED"')
+      expect(jql).not.toContain('"OSAC-STALE"')
+      expect(jql).not.toContain('"OSAC-SEC"')
+      expect(jql).not.toContain('labels IN')
     })
 
-    it('includes project and component filters in Ready for AI JQL', () => {
+    it('Stale includes classified stale tickets that still have jira-autofix', () => {
       const wrapper = mount(AutofixContent, {
-        props: { autofixData: MOCK_DATA, loading: false, timeWindow: 'month' }
+        props: { autofixData: dualLabelData, loading: false, timeWindow: 'month' }
       })
-      const links = wrapper.findAll('a[href*="jql"]')
-      const readyLink = links.find(l => {
-        const href = decodeURIComponent(l.attributes('href'))
-        return href.includes('jira-autofix-blocked') && href.includes('OR')
-      })
-      const jql = decodeURIComponent(readyLink.attributes('href'))
-      expect(jql).toContain('project IN (')
-      expect(jql).toContain('component is EMPTY OR component NOT IN ("Enclave", "agentic-sdlc")')
+      const jql = jqlForSegment(wrapper, 'Stale')
+      expect(jql).toContain('key IN ("OSAC-STALE")')
+      expect(jql).not.toContain('labels NOT IN')
     })
 
-    it('triage segment links exclude higher-priority labels', () => {
+    it('Security Review includes classified security tickets that still have jira-autofix', () => {
       const wrapper = mount(AutofixContent, {
-        props: { autofixData: MOCK_DATA, loading: false, timeWindow: 'month' }
+        props: { autofixData: dualLabelData, loading: false, timeWindow: 'month' }
       })
-      const links = wrapper.findAll('a[href*="jql"]')
-      const notFixableLink = links.find(l => {
-        const href = decodeURIComponent(l.attributes('href'))
-        return href.includes('jira-triage-not-fixable') && !href.includes('OR')
+      const jql = jqlForSegment(wrapper, 'Security Review')
+      expect(jql).toContain('key IN ("OSAC-SEC")')
+      expect(jql).not.toContain('labels NOT IN')
+    })
+
+    it('Queued for AI opens only autofix-ready keys, not stale or security-review', () => {
+      const wrapper = mount(AutofixContent, {
+        props: { autofixData: dualLabelData, loading: false, timeWindow: 'month' }
       })
-      if (notFixableLink) {
-        const jql = decodeURIComponent(notFixableLink.attributes('href'))
-        expect(jql).toContain('labels NOT IN')
-        expect(jql).toContain('jira-autofix')
-        expect(jql).toContain('jira-triage-security-review')
-      }
+      const jql = jqlForSegment(wrapper, 'Queued for AI')
+      expect(jql).toContain('key IN ("OSAC-READY")')
+      expect(jql).not.toContain('"OSAC-STALE"')
+      expect(jql).not.toContain('"OSAC-SEC"')
+      expect(jql).not.toContain('"OSAC-MERGED"')
+      expect(jql).not.toContain('status = "New"')
     })
   })
 })
