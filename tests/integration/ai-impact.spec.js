@@ -371,9 +371,9 @@ test.describe('AI Impact Tools guide modal @ai-impact', () => {
     return page.locator('.max-w-2xl').filter({ hasText: 'AI Impact Tools' });
   }
 
-  test('Quality Scoring tab shows OSAC PRD criteria', async ({ page }) => {
+  test('PRD Scoring tab shows OSAC PRD criteria', async ({ page }) => {
     const modal = await openGuideModal(page);
-    await modal.getByRole('button', { name: 'Quality Scoring' }).click();
+    await modal.getByRole('button', { name: 'PRD Scoring' }).click();
 
     await expect(modal.getByText('User-Facing Focus')).toBeVisible();
     await expect(modal.getByText('Right-Sized')).toBeVisible();
@@ -394,6 +394,20 @@ test.describe('AI Impact Tools guide modal @ai-impact', () => {
     await expect(modal.getByText(/5\/8/).first()).toBeVisible();
     // Legacy strat-creator tooling should be gone
     await expect(modal.getByText('strat.create')).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Test Plan Review tab shows OSAC scoring criteria', async ({ page }) => {
+    const modal = await openGuideModal(page);
+    await modal.getByRole('button', { name: 'Test Plan Review' }).click();
+
+    await expect(modal.getByText('Specificity')).toBeVisible();
+    await expect(modal.getByText('Scope Fidelity')).toBeVisible();
+    await expect(modal.getByText('/decompose').first()).toBeVisible();
+    await expect(modal.getByText('test-plan-review').first()).toBeVisible();
+    // Legacy opendatahub tooling should be gone
+    await expect(modal.getByText('odh-test-gen')).toHaveCount(0);
 
     expect(page.errors).toHaveLength(0);
   });
