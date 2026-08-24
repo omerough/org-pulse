@@ -45,7 +45,8 @@ vi.mock('../../client/composables/useAIImpact.js', () => ({
   useAIImpact: () => ({
     rfeData: ref({ issues: [
       { key: 'RHAIRFE-1', summary: 'RFE with feature', created: '2026-01-01', aiInvolvement: 'created', creatorDisplayName: 'Alice', priority: 'Major', status: 'New' },
-      { key: 'RHAIRFE-2', summary: 'RFE without feature', created: '2026-01-01', aiInvolvement: 'none', creatorDisplayName: 'Bob', priority: 'Minor', status: 'New' }
+      { key: 'RHAIRFE-2', summary: 'RFE without feature', created: '2026-01-01', aiInvolvement: 'none', creatorDisplayName: 'Bob', priority: 'Minor', status: 'New' },
+      { key: 'OSAC-63', summary: 'Feature without a verified PRD', created: '2026-06-01T00:00:00.000Z', aiInvolvement: 'none', creatorDisplayName: 'Dev One', priority: 'Major', status: 'No PR' }
     ], jiraHost: 'https://jira.example.com', fetchedAt: '2026-01-01' }),
     loading: ref(false),
     error: ref(null),
@@ -129,6 +130,22 @@ describe('RFEReviewView navigation', () => {
     expect(phaseContent.props('rfeToFeature')).toEqual({
       'RHAIRFE-1': { key: 'RHAISTRAT-10', summary: 'Linked Feature', status: 'In Progress', fixVersions: [] }
     });
+  });
+
+  it('includes No PR rows only under the "All AI" filter, not under "No AI"', async () => {
+    const wrapper = mountView();
+    const phaseContent = wrapper.findComponent(PhaseContentStub);
+
+    expect(phaseContent.props('filteredRFEs').map(r => r.key)).toEqual(
+      expect.arrayContaining(['RHAIRFE-1', 'RHAIRFE-2', 'OSAC-63'])
+    );
+
+    phaseContent.vm.$emit('update:filter', 'none');
+    await nextTick();
+
+    const filteredKeys = wrapper.findComponent(PhaseContentStub).props('filteredRFEs').map(r => r.key);
+    expect(filteredKeys).toContain('RHAIRFE-2');
+    expect(filteredKeys).not.toContain('OSAC-63');
   });
 
   it('updates componentFilter prop on PhaseContent when it emits update:componentFilter', async () => {

@@ -41,6 +41,13 @@ function getInvolvementClass(involvement) {
         <div class="flex items-center gap-2 mb-1">
           <span class="font-mono text-xs text-gray-500 dark:text-gray-400">{{ rfe.key }}</span>
           <span
+            v-if="rfe.status === 'No PR'"
+            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+          >
+            Missing PRD
+          </span>
+          <span
+            v-else
             class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
             :class="getInvolvementClass(rfe.aiInvolvement)"
           >
@@ -49,11 +56,11 @@ function getInvolvementClass(involvement) {
         </div>
         <h4 class="font-medium text-sm truncate dark:text-gray-200">{{ rfe.summary }}</h4>
         <div class="flex items-center flex-wrap gap-2 mt-2">
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-xs">
+          <span v-if="rfe.status !== 'No PR'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-xs">
             <span class="font-medium text-gray-500 dark:text-gray-400">Author</span>
             <span class="text-gray-800 dark:text-gray-100">{{ rfe.creatorDisplayName }}</span>
           </span>
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-xs">
+          <span v-if="rfe.status !== 'No PR'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-xs">
             <span class="font-medium text-gray-500 dark:text-gray-400">Created</span>
             <span class="text-gray-800 dark:text-gray-100">{{ new Date(rfe.created).toLocaleDateString() }}</span>
           </span>
@@ -62,7 +69,7 @@ function getInvolvementClass(involvement) {
             <span class="text-gray-800 dark:text-gray-100 capitalize">{{ rfe.priority }}</span>
           </span>
           <span
-            v-if="assessment"
+            v-if="assessment && rfe.status !== 'No PR'"
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
             :class="assessment.passFail === 'PASS'
               ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
@@ -72,7 +79,7 @@ function getInvolvementClass(involvement) {
             {{ assessment.total }}/10
           </span>
           <span
-            v-else
+            v-else-if="rfe.status !== 'No PR'"
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-700 border border-dashed border-gray-300 dark:border-gray-600"
           >
             <span class="font-medium text-gray-500 dark:text-gray-400">Score</span>

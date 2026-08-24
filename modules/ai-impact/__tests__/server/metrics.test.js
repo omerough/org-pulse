@@ -197,6 +197,18 @@ describe('computeMetrics', () => {
     expect(result.revisedCount).toBe(0);
     expect(result.priorRevisedCount).toBe(1);
   });
+
+  it('excludes No PR rows from totalRFEs (Total PRDs, all time)', () => {
+    const issues = [
+      makeIssue(5, 'created'),
+      makeIssue(10, 'none'),
+      { ...makeIssue(5, 'none'), status: 'No PR' },
+    ];
+
+    const result = computeMetrics(issues, 'month', { trendThresholdPp: 2 });
+
+    expect(result.totalRFEs).toBe(2);
+  });
 });
 
 describe('buildTrendData', () => {
