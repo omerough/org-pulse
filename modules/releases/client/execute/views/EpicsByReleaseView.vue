@@ -1,11 +1,27 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useVersions, useEpicsByRelease } from '../composables/useFeatureTraffic'
+import {
+  useComponentStatusFilter,
+  collectComponentOptions,
+  collectStatusOptions,
+  matchesComponents,
+  matchesStatus
+} from '../composables/useComponentStatusFilter'
 import StatusBadge from '../components/StatusBadge.vue'
 import EpicBreakdown from '../components/EpicBreakdown.vue'
+import ComponentStatusFilterBar from '../components/ComponentStatusFilterBar.vue'
 
 const { versions, loadVersions } = useVersions()
 const { features, fetchedAt, loading, error, loadEpicsByRelease } = useEpicsByRelease()
+const {
+  selectedComponents,
+  selectedStatuses,
+  toggleComponent,
+  toggleStatus,
+  clearFilters,
+  isFiltered
+} = useComponentStatusFilter()
 
 const selectedVersion = ref('')
 
@@ -14,7 +30,52 @@ function formatDate(iso) {
   return new Date(iso).toLocaleString()
 }
 
+// Options reflect the full tree for the selected release, independent of the
+// current filter selection, so narrowing one field never hides options for the other.
+const componentOptions = computed(() => {
+  const items = []
+  for (const f of features.value) {
+    items.push(f)
+    for (const e of f.epics) items.push(e)
+  }
+  return collectComponentOptions(items, item => item.components)
+})
+
+const statusOptions = computed(() => {
+  const items = []
+  for (const f of features.value) {
+    items.push(f)
+    for (const e of f.epics) items.push(e)
+  }
+  return collectStatusOptions(items, item => item.status)
+})
+
+// A Feature stays visible when it, or at least one of its Epics, matches the active
+// filters — only the matching Epics are shown under it (mirrors how a context Feature
+// already narrows to its directly-matching Epic(s) rather than its full sibling list).
+const filteredFeatures = computed(() => {
+  if (!isFiltered.value) {
+    return features.value.map(feature => ({ ...feature, directEpicCount: feature.epics.length }))
+  }
+  const result = []
+  for (const feature of features.value) {
+    const matchingEpics = feature.epics.filter(e =>
+      matchesComponents(e.components, selectedComponents.value) &&
+      matchesStatus(e.status, selectedStatuses.value)
+    )
+    const featureMatches =
+      matchesComponents(feature.components, selectedComponents.value) &&
+      matchesStatus(feature.status, selectedStatuses.value)
+    if (!featureMatches && matchingEpics.length === 0) continue
+    // directEpicCount preserves the release-context Epic count (pre-filter) so the
+    // caption never attributes Component/Status-filter narrowing to version context.
+    result.push({ ...feature, epics: matchingEpics, directEpicCount: feature.epics.length })
+  }
+  return result
+})
+
 watch(selectedVersion, (v) => {
+  clearFilters()
   loadEpicsByRelease(v)
 })
 
@@ -54,6 +115,17 @@ onMounted(async () => {
       </div>
     </div>
 
+    <ComponentStatusFilterBar
+      v-if="!loading && features.length > 0"
+      :component-options="componentOptions"
+      :status-options="statusOptions"
+      :selected-components="selectedComponents"
+      :selected-statuses="selectedStatuses"
+      @toggle-component="toggleComponent"
+      @toggle-status="toggleStatus"
+      @clear="clearFilters"
+    />
+
     <!-- Error -->
     <div v-if="error" class="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-4 text-red-700 dark:text-red-400 text-sm">
       {{ error }}
@@ -73,9 +145,13 @@ onMounted(async () => {
         No Features found for release {{ selectedVersion }}.
       </div>
 
+      <div v-else-if="filteredFeatures.length === 0" class="text-center py-12 text-gray-500 dark:text-gray-400">
+        No Features match the current filters.
+      </div>
+
       <div v-else class="space-y-5">
         <div
-          v-for="feature in features"
+          v-for="feature in filteredFeatures"
           :key="feature.key"
           class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
         >
@@ -106,9 +182,10 @@ onMounted(async () => {
           </div>
 
           <div v-if="feature.isContext" class="px-4 pt-2 text-xs text-gray-500 dark:text-gray-400">
-            Showing {{ feature.epics.length }} of {{ feature.totalEpicCount }} Epic{{ feature.totalEpicCount === 1 ? '' : 's' }}
-            &mdash; only the one{{ feature.epics.length === 1 ? '' : 's' }} directly assigned to {{ selectedVersion }}.
+            Showing {{ feature.directEpicCount }} of {{ feature.totalEpicCount }} Epic{{ feature.totalEpicCount === 1 ? '' : 's' }}
+            &mdash; only the one{{ feature.directEpicCount === 1 ? '' : 's' }} directly assigned to {{ selectedVersion }}.
             See Feature Detail for the rest.
+            <span v-if="isFiltered && feature.epics.length !== feature.directEpicCount">{{ feature.epics.length }} shown after filters.</span>
           </div>
 
           <div class="p-3">

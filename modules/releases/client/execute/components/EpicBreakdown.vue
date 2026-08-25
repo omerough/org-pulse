@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import StatusBadge from './StatusBadge.vue'
+import { componentDisplayLabel } from '../composables/useComponentStatusFilter'
 
 const props = defineProps({
   epics: { type: Array, required: true },
@@ -203,7 +204,7 @@ const epicData = computed(() =>
           v-for="c in (epic.components || []).slice(0, 2)"
           :key="c"
           class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-400"
-        >{{ c }}</span>
+        >{{ componentDisplayLabel(c) }}</span>
         <span
           v-if="(epic.components || []).length > 2"
           class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"

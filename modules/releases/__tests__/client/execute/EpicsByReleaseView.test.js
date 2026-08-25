@@ -174,4 +174,132 @@ describe('EpicsByReleaseView', () => {
     // Hidden siblings are called out (1 of 3 shown), rather than looking like missing data.
     expect(wrapper.text()).toContain('1 of 3')
   })
+
+  describe('Component / Status filters', () => {
+    function twoFeatureResponse() {
+      return {
+        version: '0.4',
+        fetchedAt: '2026-08-11T10:33:00Z',
+        featureCount: 2,
+        features: [
+          {
+            key: 'OSAC-100', summary: 'Feature A', status: 'In Progress', statusCategory: 'In Progress',
+            fixVersions: ['0.4'], components: ['Comp A'],
+            epics: [
+              {
+                key: 'OSAC-101', summary: 'Epic 1', status: 'In Progress', statusCategory: 'In Progress',
+                fixVersions: ['0.4'], fixVersionSource: 'direct',
+                components: ['Comp A'], componentSource: 'direct',
+                parentFeatureKey: 'OSAC-100', blockerCount: 0, issueCount: 1, pct: 0, progress: 0, issues: []
+              },
+              {
+                key: 'OSAC-102', summary: 'Epic 2', status: 'To Do', statusCategory: 'To Do',
+                fixVersions: [], fixVersionSource: 'unknown',
+                components: [], componentSource: 'unknown',
+                parentFeatureKey: 'OSAC-100', blockerCount: 0, issueCount: 0, pct: 0, progress: 0, issues: []
+              }
+            ]
+          },
+          {
+            key: 'OSAC-200', summary: 'Feature B', status: 'Done', statusCategory: 'Done',
+            fixVersions: ['0.4'], components: [],
+            epics: [
+              {
+                key: 'OSAC-201', summary: 'Epic 3', status: 'Review', statusCategory: 'In Progress',
+                fixVersions: ['0.4'], fixVersionSource: 'direct',
+                components: ['Comp B'], componentSource: 'direct',
+                parentFeatureKey: 'OSAC-200', blockerCount: 0, issueCount: 1, pct: 0, progress: 0, issues: []
+              }
+            ]
+          }
+        ]
+      }
+    }
+
+    async function mountWithFilters() {
+      mockApiRequest.mockImplementation((url) => {
+        if (url.includes('/versions')) return Promise.resolve({ versions: ['0.4'] })
+        if (url.includes('/epics')) return Promise.resolve(twoFeatureResponse())
+        return Promise.reject(new Error('unexpected url ' + url))
+      })
+      const wrapper = mount(EpicsByReleaseView)
+      await flushPromises()
+      return wrapper
+    }
+
+    async function openDropdown(wrapper, currentLabel) {
+      const button = wrapper.findAll('button[aria-haspopup="listbox"]').find(b => b.text().includes(currentLabel))
+      await button.trigger('click')
+    }
+
+    async function checkOption(wrapper, optionText) {
+      const label = wrapper.findAll('label').find(l => l.text() === optionText)
+      await label.find('input[type="checkbox"]').setValue(true)
+    }
+
+    it('keeps a Feature via a matching child Epic (OR across multiple selected Components) and narrows to that Epic', async () => {
+      const wrapper = await mountWithFilters()
+
+      await openDropdown(wrapper, 'All components')
+      await checkOption(wrapper, 'Comp A')
+      await checkOption(wrapper, 'Comp B')
+
+      // OSAC-100 matches at Feature level (Comp A); OSAC-200 only matches via its child Epic (Comp B).
+      expect(wrapper.text()).toContain('OSAC-100')
+      expect(wrapper.text()).toContain('OSAC-200')
+      expect(wrapper.text()).toContain('OSAC-101')
+      expect(wrapper.text()).toContain('OSAC-201')
+      // Non-matching Epics are narrowed out even under a retained Feature.
+      expect(wrapper.text()).not.toContain('OSAC-102')
+    })
+
+    it('treats components-less items as "Unassigned" and keeps them selectable/visible', async () => {
+      const wrapper = await mountWithFilters()
+
+      await openDropdown(wrapper, 'All components')
+      await checkOption(wrapper, 'Unassigned')
+
+      // OSAC-200 (components: []) matches at Feature level.
+      expect(wrapper.text()).toContain('OSAC-200')
+      // OSAC-100 only matches via its Unassigned child Epic (OSAC-102), not OSAC-101 (Comp A).
+      expect(wrapper.text()).toContain('OSAC-100')
+      expect(wrapper.text()).toContain('OSAC-102')
+      expect(wrapper.text()).not.toContain('OSAC-101')
+      // OSAC-201 (Comp B) doesn't match Unassigned at either level under OSAC-200.
+      expect(wrapper.text()).not.toContain('OSAC-201')
+    })
+
+    it('filters by Status and combines with an active Component filter', async () => {
+      const wrapper = await mountWithFilters()
+
+      await openDropdown(wrapper, 'All statuses')
+      await checkOption(wrapper, 'Done')
+
+      // Only Feature B (status Done) matches; Feature A (In Progress) is filtered out entirely,
+      // since neither of its Epics is Done either.
+      expect(wrapper.text()).toContain('OSAC-200')
+      expect(wrapper.text()).not.toContain('OSAC-100')
+    })
+
+    it('clears active Component/Status selections when the selected Version changes', async () => {
+      mockApiRequest.mockImplementation((url) => {
+        if (url.includes('/versions')) return Promise.resolve({ versions: ['0.4', '0.5'] })
+        if (url.includes('/epics')) return Promise.resolve(twoFeatureResponse())
+        return Promise.reject(new Error('unexpected url ' + url))
+      })
+      const wrapper = mount(EpicsByReleaseView)
+      await flushPromises()
+
+      await openDropdown(wrapper, 'All components')
+      await checkOption(wrapper, 'Comp A')
+      expect(wrapper.text()).not.toContain('OSAC-102')
+
+      await wrapper.find('#epics-by-release-version').setValue('0.5')
+      await flushPromises()
+
+      const button = wrapper.findAll('button[aria-haspopup="listbox"]').find(b => b.text().includes('components'))
+      expect(button.text()).toContain('All components')
+      expect(wrapper.text()).toContain('OSAC-102')
+    })
+  })
 })

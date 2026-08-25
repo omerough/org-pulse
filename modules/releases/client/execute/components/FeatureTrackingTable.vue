@@ -1,4 +1,6 @@
 <script setup>
+import { componentDisplayLabel } from '../composables/useComponentStatusFilter'
+
 const props = defineProps({
   features: { type: Array, default: () => [] },
   releaseNames: { type: Object, default: () => ({}) },
@@ -125,7 +127,7 @@ function formatDate(dateStr) {
                 v-for="comp in (feature.components || []).slice(0, 3)"
                 :key="comp"
                 class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700/80 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
-              >{{ comp }}</span>
+              >{{ componentDisplayLabel(comp) }}</span>
               <span
                 v-if="(feature.components || []).length > 3"
                 class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800"
