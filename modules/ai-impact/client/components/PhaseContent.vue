@@ -24,6 +24,7 @@ const props = defineProps({
   passFailFilter: { type: String, default: 'all' },
   priorityFilter: { type: String, default: 'all' },
   statusFilter: { type: String, default: 'all' },
+  reviewStatusFilter: { type: String, default: 'all' },
   componentFilter: { type: String, default: 'all' },
   selectedRFE: { type: Object, default: null },
   rfeToFeature: { type: Object, default: () => ({}) },
@@ -39,6 +40,7 @@ const emit = defineEmits([
   'update:passFailFilter',
   'update:priorityFilter',
   'update:statusFilter',
+  'update:reviewStatusFilter',
   'update:componentFilter',
   'selectRFE',
   'retry'
@@ -108,7 +110,7 @@ const isEmpty = computed(() => !props.rfeData?.fetchedAt)
 
       <!-- Data display -->
       <template v-else>
-        <MetricsRow :metrics="metrics" :pipelineFriction="pipelineFriction" />
+        <MetricsRow :metrics="metrics" :pipelineFriction="pipelineFriction" :rfes="rfeData?.issues || []" />
 
         <TrendCharts
           :trendData="trendData"
@@ -129,6 +131,7 @@ const isEmpty = computed(() => !props.rfeData?.fetchedAt)
           :passFailFilter="passFailFilter"
           :priorityFilter="priorityFilter"
           :statusFilter="statusFilter"
+          :reviewStatusFilter="reviewStatusFilter"
           :componentFilter="componentFilter"
           :selectedRFE="selectedRFE"
           :rfeToFeature="rfeToFeature"
@@ -138,6 +141,7 @@ const isEmpty = computed(() => !props.rfeData?.fetchedAt)
           @update:passFailFilter="emit('update:passFailFilter', $event)"
           @update:priorityFilter="emit('update:priorityFilter', $event)"
           @update:statusFilter="emit('update:statusFilter', $event)"
+          @update:reviewStatusFilter="emit('update:reviewStatusFilter', $event)"
           @update:componentFilter="emit('update:componentFilter', $event)"
           @selectRFE="emit('selectRFE', $event)"
         />

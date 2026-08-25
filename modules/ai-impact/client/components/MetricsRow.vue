@@ -1,5 +1,8 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+import { getPrdSignOffStatus } from '../utils/feature-helpers.js'
+
+const props = defineProps({
   metrics: {
     type: Object,
     default: null
@@ -7,8 +10,14 @@ defineProps({
   pipelineFriction: {
     type: Object,
     default: null
+  },
+  rfes: {
+    type: Array,
+    default: () => []
   }
 })
+
+const signedOffCount = computed(() => props.rfes.filter(rfe => getPrdSignOffStatus(rfe.status) === 'approved').length)
 
 function getTrendClass(trend) {
   if (trend === 'growing') return 'text-green-600 dark:text-green-400'
@@ -30,7 +39,7 @@ function formatFrictionChange(change) {
 
 <template>
   <div v-if="metrics" class="p-6 border-b border-gray-200 dark:border-gray-700">
-    <div class="grid gap-6 grid-cols-2 lg:grid-cols-4">
+    <div class="grid gap-6 grid-cols-2 lg:grid-cols-5">
       <!-- Created with AI -->
       <div class="space-y-1">
         <p class="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
@@ -104,6 +113,14 @@ function formatFrictionChange(change) {
           </svg>
           <span class="text-lg font-semibold capitalize dark:text-gray-100">{{ metrics.trend }}</span>
         </div>
+      </div>
+
+      <!-- Signed Off -->
+      <div class="space-y-1">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Signed Off</p>
+        <span class="text-3xl font-bold" :class="signedOffCount > 0 ? 'text-green-600 dark:text-green-400' : 'dark:text-gray-100'">
+          {{ signedOffCount }}
+        </span>
       </div>
     </div>
   </div>

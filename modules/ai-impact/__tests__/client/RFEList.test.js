@@ -62,6 +62,44 @@ describe('RFEList component filter', () => {
   });
 });
 
+describe('RFEList review status filter', () => {
+  function renderedKeys(wrapper) {
+    return wrapper.findAllComponents(RFEListItem).map(c => c.props('rfe').key);
+  }
+
+  const rfes = [
+    makeRFE({ key: 'OSAC-1', status: 'Merged' }),
+    makeRFE({ key: 'OSAC-2', status: 'Open' }),
+    makeRFE({ key: 'OSAC-3', status: 'Closed' }),
+    makeRFE({ key: 'OSAC-4', status: 'No PR' })
+  ];
+
+  it('Approved includes only verified PRDs with Merged status', () => {
+    const wrapper = mount(RFEList, { props: { rfes, reviewStatusFilter: 'approved' } });
+    expect(renderedKeys(wrapper)).toEqual(['OSAC-1']);
+  });
+
+  it('Awaiting Sign-off includes verified PRDs with Open or Closed status', () => {
+    const wrapper = mount(RFEList, { props: { rfes, reviewStatusFilter: 'awaiting-review' } });
+    expect(renderedKeys(wrapper).sort()).toEqual(['OSAC-2', 'OSAC-3']);
+  });
+
+  it('excludes No PR from both Approved and Awaiting Sign-off', () => {
+    const approved = mount(RFEList, { props: { rfes, reviewStatusFilter: 'approved' } });
+    const awaiting = mount(RFEList, { props: { rfes, reviewStatusFilter: 'awaiting-review' } });
+    expect(renderedKeys(approved)).not.toContain('OSAC-4');
+    expect(renderedKeys(awaiting)).not.toContain('OSAC-4');
+  });
+
+  it('applies both the raw status filter and the review status filter together', () => {
+    const wrapper = mount(RFEList, { props: { rfes, statusFilter: 'Closed', reviewStatusFilter: 'approved' } });
+    expect(renderedKeys(wrapper)).toEqual([]);
+
+    const matching = mount(RFEList, { props: { rfes, statusFilter: 'Closed', reviewStatusFilter: 'awaiting-review' } });
+    expect(renderedKeys(matching)).toEqual(['OSAC-3']);
+  });
+});
+
 describe('RFEList default ordering', () => {
   function renderedKeys(wrapper) {
     return wrapper.findAllComponents(RFEListItem).map(c => c.props('rfe').key);

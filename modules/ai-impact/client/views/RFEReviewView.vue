@@ -19,6 +19,7 @@ const sortBy = ref('default')
 const passFailFilter = ref('all')
 const priorityFilter = ref('all')
 const statusFilter = ref('all')
+const reviewStatusFilter = ref('all')
 const componentFilter = ref('all')
 
 const { rfeData, loading, error, load } = useAIImpact(timeWindow)
@@ -131,6 +132,7 @@ watch([() => moduleNav.params.value, rfeData], ([params]) => {
       passFailFilter.value = 'all'
       priorityFilter.value = 'all'
       statusFilter.value = 'all'
+      reviewStatusFilter.value = 'all'
       componentFilter.value = 'all'
       selectedRFE.value = rfe
       notFoundRFE.value = null
@@ -171,6 +173,7 @@ watch([() => moduleNav.params.value, rfeData], ([params]) => {
       :passFailFilter="passFailFilter"
       :priorityFilter="priorityFilter"
       :statusFilter="statusFilter"
+      :reviewStatusFilter="reviewStatusFilter"
       :componentFilter="componentFilter"
       :selectedRFE="selectedRFE"
       :rfeToFeature="rfeToFeature"
@@ -183,6 +186,7 @@ watch([() => moduleNav.params.value, rfeData], ([params]) => {
       @update:passFailFilter="passFailFilter = $event"
       @update:priorityFilter="priorityFilter = $event"
       @update:statusFilter="statusFilter = $event"
+      @update:reviewStatusFilter="reviewStatusFilter = $event"
       @update:componentFilter="componentFilter = $event"
       @selectRFE="handleSelectRFE"
       @retry="handleRetry"
