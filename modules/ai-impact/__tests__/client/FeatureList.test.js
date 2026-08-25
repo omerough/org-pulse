@@ -12,6 +12,7 @@ function makeFeature(overrides = {}) {
     humanReviewStatus: 'awaiting-review',
     recommendation: 'approve',
     components: [],
+    fixVersions: ['rhoai-3.5'],
     ...overrides
   };
 }
@@ -155,5 +156,32 @@ describe('FeatureList sort (aligned with PRD Review)', () => {
 
     const oldest = mount(FeatureList, { props: { features, sortBy: 'oldest' } });
     expect(renderedKeys(oldest)).toEqual(['A', 'C', 'B']);
+  });
+});
+
+describe('FeatureList fixVersions filter', () => {
+  it('excludes features with missing, undefined, or empty fixVersions', () => {
+    const features = {
+      'RHAISTRAT-1': makeFeature({ key: 'RHAISTRAT-1', title: 'Has version', fixVersions: ['rhoai-3.5'] }),
+      'RHAISTRAT-2': makeFeature({ key: 'RHAISTRAT-2', title: 'Empty fixVersions', fixVersions: [] }),
+      'RHAISTRAT-3': makeFeature({ key: 'RHAISTRAT-3', title: 'Undefined fixVersions', fixVersions: undefined })
+    };
+
+    const wrapper = mount(FeatureList, { props: { features } });
+    expect(wrapper.text()).toContain('1 feature');
+    expect(wrapper.text()).toContain('Has version');
+    expect(wrapper.text()).not.toContain('Empty fixVersions');
+    expect(wrapper.text()).not.toContain('Undefined fixVersions');
+  });
+
+  it('applies together with other active filters', () => {
+    const features = {
+      'RHAISTRAT-1': makeFeature({ key: 'RHAISTRAT-1', title: 'Core with version', components: ['Core'], fixVersions: ['rhoai-3.5'] }),
+      'RHAISTRAT-2': makeFeature({ key: 'RHAISTRAT-2', title: 'Core no version', components: ['Core'], fixVersions: [] })
+    };
+    const wrapper = mount(FeatureList, { props: { features, componentFilter: 'Core' } });
+    expect(wrapper.text()).toContain('1 feature');
+    expect(wrapper.text()).toContain('Core with version');
+    expect(wrapper.text()).not.toContain('Core no version');
   });
 });

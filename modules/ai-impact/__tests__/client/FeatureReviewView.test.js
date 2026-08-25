@@ -43,6 +43,7 @@ function makeFeature(overrides = {}) {
     humanReviewStatus: 'awaiting-review',
     recommendation: 'approve',
     components: [],
+    fixVersions: ['rhoai-3.5'],
     ...overrides
   };
 }

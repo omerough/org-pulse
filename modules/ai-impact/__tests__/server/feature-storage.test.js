@@ -172,6 +172,21 @@ describe('readFeatures', () => {
     expect(result.features['RHAISTRAT-1168'].latest.components).toEqual([]);
   });
 
+  it('passes through fixVersions from the releases index entry, defaulting to an empty array', () => {
+    const withVersion = { key: 'RHAISTRAT-1168', aiReview: { recommendation: 'approve' }, fixVersions: ['rhoai-3.5'] };
+    const withoutVersion = { key: 'RHAISTRAT-2000', aiReview: { recommendation: 'approve' } };
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([withVersion, withoutVersion]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return makeFeatureFile();
+      if (key === 'releases/execution/features/RHAISTRAT-2000.json') return makeFeatureFile();
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.fixVersions).toEqual(['rhoai-3.5']);
+    expect(result.features['RHAISTRAT-2000'].latest.fixVersions).toEqual([]);
+  });
+
   it('falls back to legacy store when no releases index', () => {
     const legacyData = {
       lastSyncedAt: '2026-04-19T12:00:00Z',
@@ -280,6 +295,20 @@ describe('getLatestProjection', () => {
     expect(proj.features['A'].labels).toBeUndefined();
     expect(proj.features['A'].runId).toBeUndefined();
     expect(proj.features['A'].history).toBeUndefined();
+  });
+
+  it('carries fixVersions through, defaulting to an empty array when absent', () => {
+    const data = {
+      lastSyncedAt: '2026-04-19T12:00:00Z',
+      totalFeatures: 2,
+      features: {
+        'A': { latest: { key: 'RHAISTRAT-1', fixVersions: ['rhoai-3.5'] }, history: [] },
+        'B': { latest: { key: 'RHAISTRAT-2' }, history: [] }
+      }
+    };
+    const proj = getLatestProjection(data);
+    expect(proj.features['A'].fixVersions).toEqual(['rhoai-3.5']);
+    expect(proj.features['B'].fixVersions).toEqual([]);
   });
 });
 

@@ -89,7 +89,8 @@ function readFeatures(readFromStorage) {
         feedback: aiReview.feedback || null,
         criterionNotes: aiReview.criterionNotes || null,
         designPrUrl: aiReview.designPrUrl || null,
-        designStatus: aiReview.designStatus || (entry.aiReview && entry.aiReview.designStatus) || null
+        designStatus: aiReview.designStatus || (entry.aiReview && entry.aiReview.designStatus) || null,
+        fixVersions: entry.fixVersions || []
       },
       history: aiReview.history || []
     };
@@ -130,7 +131,8 @@ function getLatestProjection(data) {
       components: entry.latest.components || [],
       approvedBy: entry.latest.approvedBy || null,
       approvedAt: entry.latest.approvedAt || null,
-      designStatus: entry.latest.designStatus || null
+      designStatus: entry.latest.designStatus || null,
+      fixVersions: entry.latest.fixVersions || []
     };
   }
   return {

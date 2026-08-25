@@ -54,6 +54,9 @@ const availableComponents = computed(() => {
 const sortedAndFilteredFeatures = computed(() => {
   let items = [...featureList.value]
 
+  // Exclude features with no fixVersion set (e.g. ongoing ASDLC work with no target release)
+  items = items.filter(f => (f.fixVersions || []).length > 0)
+
   // Search filter
   const q = props.searchQuery.toLowerCase()
   if (q) {
