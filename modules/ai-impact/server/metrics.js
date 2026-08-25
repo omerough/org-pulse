@@ -140,7 +140,7 @@ function computeMetrics(issues, timeWindow, config) {
     createdPct, createdChange, trend,
     revisedCount, priorRevisedCount,
     windowTotal: currentTotal,
-    totalRFEs: issues.length
+    totalRFEs: issues.filter(i => i.status !== 'No PR').length
   };
 }
 

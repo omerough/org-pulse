@@ -19,6 +19,11 @@ const props = defineProps({
 
 const emit = defineEmits(['update:filter', 'update:searchQuery', 'update:sortBy', 'update:passFailFilter', 'update:priorityFilter', 'update:statusFilter', 'update:componentFilter', 'selectRFE'])
 
+function extractNumericId(key) {
+  const match = /(\d+)$/.exec(key || '')
+  return match ? Number(match[1]) : 0
+}
+
 // Compute unique priorities and statuses from data for dropdown options
 const availablePriorities = computed(() => {
   const values = new Set()
@@ -91,6 +96,14 @@ const sortedAndFilteredRFEs = computed(() => {
       if (!sa) return 1
       if (!sb) return -1
       return sb.total - sa.total
+    })
+  } else {
+    // Default: verified PRDs first, then newest Feature ID (numeric) first within each group
+    rfes.sort((a, b) => {
+      const aMissing = a.status === 'No PR'
+      const bMissing = b.status === 'No PR'
+      if (aMissing !== bMissing) return aMissing ? 1 : -1
+      return extractNumericId(b.key) - extractNumericId(a.key)
     })
   }
 

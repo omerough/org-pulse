@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import RFEList from '../../client/components/RFEList.vue';
+import RFEListItem from '../../client/components/RFEListItem.vue';
 
 function makeRFE(overrides = {}) {
   return {
@@ -58,5 +59,54 @@ describe('RFEList component filter', () => {
 
     await filtered.setProps({ componentFilter: 'all' });
     expect(filtered.text()).toContain('3 of 3 total');
+  });
+});
+
+describe('RFEList default ordering', () => {
+  function renderedKeys(wrapper) {
+    return wrapper.findAllComponents(RFEListItem).map(c => c.props('rfe').key);
+  }
+
+  it('puts verified-PRD rows before missing-PRD rows, each sorted by numeric OSAC id descending', () => {
+    const rfes = [
+      makeRFE({ key: 'OSAC-63', status: 'No PR' }),
+      makeRFE({ key: 'OSAC-4000', status: 'New' }),
+      makeRFE({ key: 'OSAC-983', status: 'No PR' }),
+      makeRFE({ key: 'OSAC-100', status: 'New' })
+    ];
+
+    const wrapper = mount(RFEList, { props: { rfes, sortBy: 'default' } });
+
+    expect(renderedKeys(wrapper)).toEqual(['OSAC-4000', 'OSAC-100', 'OSAC-983', 'OSAC-63']);
+  });
+
+  it('uses numeric comparison, not lexical string sorting, within a group', () => {
+    const rfes = [
+      makeRFE({ key: 'OSAC-63', status: 'New' }),
+      makeRFE({ key: 'OSAC-983', status: 'New' }),
+      makeRFE({ key: 'OSAC-4000', status: 'New' })
+    ];
+
+    const wrapper = mount(RFEList, { props: { rfes, sortBy: 'default' } });
+
+    // Lexical sort would produce ['OSAC-983', 'OSAC-4000', 'OSAC-63'] (string comparison)
+    expect(renderedKeys(wrapper)).toEqual(['OSAC-4000', 'OSAC-983', 'OSAC-63']);
+  });
+
+  it('does not affect explicit Score sort options', () => {
+    const rfes = [
+      makeRFE({ key: 'OSAC-63', status: 'No PR' }),
+      makeRFE({ key: 'OSAC-4000', status: 'New' })
+    ];
+    const assessments = {
+      'OSAC-63': { total: 2 },
+      'OSAC-4000': { total: 8 }
+    };
+
+    const ascending = mount(RFEList, { props: { rfes, assessments, sortBy: 'score-asc' } });
+    expect(renderedKeys(ascending)).toEqual(['OSAC-63', 'OSAC-4000']);
+
+    const descending = mount(RFEList, { props: { rfes, assessments, sortBy: 'score-desc' } });
+    expect(renderedKeys(descending)).toEqual(['OSAC-4000', 'OSAC-63']);
   });
 });

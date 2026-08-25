@@ -68,6 +68,14 @@ function getRFEPhaseSignal(phaseId) {
   const rfe = props.rfe
   switch (phaseId) {
     case 'prd-review':
+      if (rfe.status === 'No PR') {
+        return {
+          completed: false,
+          current: false,
+          aiUsed: false,
+          detail: 'No PRD'
+        }
+      }
       return {
         completed: false,
         current: true,

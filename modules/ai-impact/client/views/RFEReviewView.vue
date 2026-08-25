@@ -42,7 +42,8 @@ const timeWindowCutoff = computed(() => {
 const listRFEs = computed(() => {
   if (!rfeData.value?.issues) return []
   return rfeData.value.issues.filter(rfe => {
-    const matchesFilter = filter.value === 'all' || rfe.aiInvolvement === filter.value
+    const matchesFilter = filter.value === 'all' ||
+      (rfe.status !== 'No PR' && rfe.aiInvolvement === filter.value)
     const q = searchQuery.value.toLowerCase()
     const matchesSearch = !q ||
       rfe.summary.toLowerCase().includes(q) ||
