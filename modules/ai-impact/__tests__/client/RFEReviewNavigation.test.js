@@ -74,8 +74,8 @@ vi.mock('../../client/composables/useFeatures.js', () => ({
 const PhaseContentStub = defineComponent({
   name: 'PhaseContent',
   template: '<div class="phase-content"><slot /></div>',
-  props: ['phase', 'loading', 'error', 'rfeData', 'metrics', 'trendData', 'breakdown', 'filteredRFEs', 'timeWindow', 'filter', 'searchQuery', 'chartExpanded', 'assessments', 'filteredAssessments', 'sortBy', 'passFailFilter', 'priorityFilter', 'statusFilter', 'componentFilter', 'selectedRFE', 'rfeToFeature'],
-  emits: ['selectRFE', 'retry', 'update:timeWindow', 'update:filter', 'update:searchQuery', 'update:chartExpanded', 'update:sortBy', 'update:passFailFilter', 'update:priorityFilter', 'update:statusFilter', 'update:componentFilter']
+  props: ['phase', 'loading', 'error', 'rfeData', 'metrics', 'trendData', 'breakdown', 'filteredRFEs', 'timeWindow', 'filter', 'searchQuery', 'chartExpanded', 'assessments', 'filteredAssessments', 'sortBy', 'passFailFilter', 'priorityFilter', 'statusFilter', 'reviewStatusFilter', 'componentFilter', 'selectedRFE', 'rfeToFeature'],
+  emits: ['selectRFE', 'retry', 'update:timeWindow', 'update:filter', 'update:searchQuery', 'update:chartExpanded', 'update:sortBy', 'update:passFailFilter', 'update:priorityFilter', 'update:statusFilter', 'update:reviewStatusFilter', 'update:componentFilter']
 });
 
 describe('RFEReviewView navigation', () => {
@@ -158,5 +158,17 @@ describe('RFEReviewView navigation', () => {
     await nextTick();
 
     expect(wrapper.findComponent(PhaseContentStub).props('componentFilter')).toBe('Storage');
+  });
+
+  it('updates reviewStatusFilter prop on PhaseContent when it emits update:reviewStatusFilter', async () => {
+    const wrapper = mountView();
+    const phaseContent = wrapper.findComponent(PhaseContentStub);
+
+    expect(phaseContent.props('reviewStatusFilter')).toBe('all');
+
+    phaseContent.vm.$emit('update:reviewStatusFilter', 'approved');
+    await nextTick();
+
+    expect(wrapper.findComponent(PhaseContentStub).props('reviewStatusFilter')).toBe('approved');
   });
 });
