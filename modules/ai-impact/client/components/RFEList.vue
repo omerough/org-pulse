@@ -152,7 +152,7 @@ function handleSelectRFE(rfe) {
 
 <template>
   <div class="p-6">
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex flex-wrap items-center justify-between gap-y-2 mb-4">
       <h3 class="font-medium dark:text-gray-200 flex items-center gap-2">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -161,7 +161,7 @@ function handleSelectRFE(rfe) {
         PRD List
         <span class="text-sm font-normal text-gray-500 dark:text-gray-400">({{ sortedAndFilteredRFEs.length }} of {{ rfes.length }} total)</span>
       </h3>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
         <div class="relative">
           <svg class="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
