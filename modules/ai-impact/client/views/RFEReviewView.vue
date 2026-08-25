@@ -19,6 +19,7 @@ const sortBy = ref('default')
 const passFailFilter = ref('all')
 const priorityFilter = ref('all')
 const statusFilter = ref('all')
+const reviewStatusFilter = ref('all')
 const componentFilter = ref('all')
 
 const { rfeData, loading, error, load } = useAIImpact(timeWindow)
@@ -39,6 +40,8 @@ const timeWindowCutoff = computed(() => {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
 })
 
+const isInTimeWindow = rfe => new Date(rfe.created) >= timeWindowCutoff.value
+
 const listRFEs = computed(() => {
   if (!rfeData.value?.issues) return []
   return rfeData.value.issues.filter(rfe => {
@@ -54,7 +57,14 @@ const listRFEs = computed(() => {
 })
 
 const timeFilteredRFEs = computed(() => {
-  return listRFEs.value.filter(rfe => new Date(rfe.created) >= timeWindowCutoff.value)
+  return listRFEs.value.filter(isInTimeWindow)
+})
+
+// Time-window scoped only, independent of the AI-involvement filter and search box,
+// so it stays consistent with the other window-scoped metrics tiles.
+const windowedRFEs = computed(() => {
+  if (!rfeData.value?.issues) return []
+  return rfeData.value.issues.filter(isInTimeWindow)
 })
 
 // Reverse lookup: sourceRfe -> feature key/status for cross-linking
@@ -131,6 +141,7 @@ watch([() => moduleNav.params.value, rfeData], ([params]) => {
       passFailFilter.value = 'all'
       priorityFilter.value = 'all'
       statusFilter.value = 'all'
+      reviewStatusFilter.value = 'all'
       componentFilter.value = 'all'
       selectedRFE.value = rfe
       notFoundRFE.value = null
@@ -161,6 +172,7 @@ watch([() => moduleNav.params.value, rfeData], ([params]) => {
       :trendData="trendData"
       :breakdown="breakdown"
       :filteredRFEs="listRFEs"
+      :windowedRFEs="windowedRFEs"
       :timeWindow="timeWindow"
       :filter="filter"
       :searchQuery="searchQuery"
@@ -171,6 +183,7 @@ watch([() => moduleNav.params.value, rfeData], ([params]) => {
       :passFailFilter="passFailFilter"
       :priorityFilter="priorityFilter"
       :statusFilter="statusFilter"
+      :reviewStatusFilter="reviewStatusFilter"
       :componentFilter="componentFilter"
       :selectedRFE="selectedRFE"
       :rfeToFeature="rfeToFeature"
@@ -183,6 +196,7 @@ watch([() => moduleNav.params.value, rfeData], ([params]) => {
       @update:passFailFilter="passFailFilter = $event"
       @update:priorityFilter="priorityFilter = $event"
       @update:statusFilter="statusFilter = $event"
+      @update:reviewStatusFilter="reviewStatusFilter = $event"
       @update:componentFilter="componentFilter = $event"
       @selectRFE="handleSelectRFE"
       @retry="handleRetry"

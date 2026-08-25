@@ -97,4 +97,31 @@ describe('RFEDetailModal', () => {
     expect(document.body.querySelector('h2').textContent).toBe('Feature Details');
     wrapper.unmount();
   });
+
+  it('shows a Review Status of Approved when the PRD PR is Merged', () => {
+    const wrapper = mountModal(makeRFE({ status: 'Merged' }));
+
+    expect(document.body.textContent).toContain('Review Status');
+    expect(document.body.textContent).toContain('Approved');
+    wrapper.unmount();
+  });
+
+  it('shows a Review Status of Awaiting Sign-off when the PRD PR is Open or Closed without merge', () => {
+    const openWrapper = mountModal(makeRFE({ status: 'Open' }));
+    expect(document.body.textContent).toContain('Awaiting Sign-off');
+    openWrapper.unmount();
+
+    const closedWrapper = mountModal(makeRFE({ status: 'Closed' }));
+    expect(document.body.textContent).toContain('Awaiting Sign-off');
+    closedWrapper.unmount();
+  });
+
+  it('does not show a Review Status field when status is No PR', () => {
+    const rfe = makeRFE({ status: 'No PR', creatorDisplayName: 'Dev One', sourceRfe: null, aiInvolvement: 'none' });
+    const wrapper = mountModal(rfe);
+
+    expect(document.body.textContent).not.toContain('Review Status');
+    expect(document.body.textContent).not.toContain('Awaiting Sign-off');
+    wrapper.unmount();
+  });
 });

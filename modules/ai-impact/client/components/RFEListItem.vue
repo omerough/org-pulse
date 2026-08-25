@@ -1,4 +1,6 @@
 <script setup>
+import { getReviewStatusClass, getReviewStatusLabel, getPrdSignOffStatus } from '../utils/feature-helpers.js'
+
 defineProps({
   rfe: { type: Object, required: true },
   selected: { type: Boolean, default: false },
@@ -46,13 +48,21 @@ function getInvolvementClass(involvement) {
           >
             Missing PRD
           </span>
-          <span
-            v-else
-            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-            :class="getInvolvementClass(rfe.aiInvolvement)"
-          >
-            {{ getInvolvementLabel(rfe.aiInvolvement) }}
-          </span>
+          <template v-else>
+            <span
+              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+              :class="getInvolvementClass(rfe.aiInvolvement)"
+            >
+              {{ getInvolvementLabel(rfe.aiInvolvement) }}
+            </span>
+            <span
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+              :class="getReviewStatusClass(getPrdSignOffStatus(rfe.status))"
+            >
+              <span class="font-medium opacity-75">Review</span>
+              {{ getReviewStatusLabel(getPrdSignOffStatus(rfe.status)) }}
+            </span>
+          </template>
         </div>
         <h4 class="font-medium text-sm truncate dark:text-gray-200">{{ rfe.summary }}</h4>
         <div class="flex items-center flex-wrap gap-2 mt-2">

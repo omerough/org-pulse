@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import RFEListItem from './RFEListItem.vue'
+import { getPrdSignOffStatus } from '../utils/feature-helpers.js'
 
 const props = defineProps({
   rfes: { type: Array, default: () => [] },
@@ -13,11 +14,12 @@ const props = defineProps({
   passFailFilter: { type: String, default: 'all' },
   priorityFilter: { type: String, default: 'all' },
   statusFilter: { type: String, default: 'all' },
+  reviewStatusFilter: { type: String, default: 'all' },
   componentFilter: { type: String, default: 'all' },
   rfeToFeature: { type: Object, default: () => ({}) }
 })
 
-const emit = defineEmits(['update:filter', 'update:searchQuery', 'update:sortBy', 'update:passFailFilter', 'update:priorityFilter', 'update:statusFilter', 'update:componentFilter', 'selectRFE'])
+const emit = defineEmits(['update:filter', 'update:searchQuery', 'update:sortBy', 'update:passFailFilter', 'update:priorityFilter', 'update:statusFilter', 'update:reviewStatusFilter', 'update:componentFilter', 'selectRFE'])
 
 function extractNumericId(key) {
   const match = /(\d+)$/.exec(key || '')
@@ -73,6 +75,11 @@ const sortedAndFilteredRFEs = computed(() => {
     rfes = rfes.filter(rfe => rfe.status === props.statusFilter)
   }
 
+  // Apply review status filter (derived human sign-off, independent of raw PR status)
+  if (props.reviewStatusFilter !== 'all') {
+    rfes = rfes.filter(rfe => getPrdSignOffStatus(rfe.status) === props.reviewStatusFilter)
+  }
+
   // Apply component filter
   if (props.componentFilter !== 'all') {
     rfes = rfes.filter(rfe => (rfe.components || []).includes(props.componentFilter))
@@ -121,7 +128,7 @@ const paginatedRFEs = computed(() => {
 })
 
 watch(
-  () => [props.filter, props.searchQuery, props.sortBy, props.passFailFilter, props.priorityFilter, props.statusFilter, props.componentFilter],
+  () => [props.filter, props.searchQuery, props.sortBy, props.passFailFilter, props.priorityFilter, props.statusFilter, props.reviewStatusFilter, props.componentFilter],
   () => { currentPage.value = 1 }
 )
 
@@ -203,6 +210,15 @@ function handleSelectRFE(rfe) {
         >
           <option value="all">All Statuses</option>
           <option v-for="s in availableStatuses" :key="s" :value="s">{{ s }}</option>
+        </select>
+        <select
+          :value="reviewStatusFilter"
+          @change="emit('update:reviewStatusFilter', $event.target.value)"
+          class="h-9 border border-gray-300 dark:border-gray-600 rounded-md text-sm px-2 bg-white dark:bg-gray-800 dark:text-gray-300"
+        >
+          <option value="all">All Review Status</option>
+          <option value="approved">Approved</option>
+          <option value="awaiting-review">Awaiting Sign-off</option>
         </select>
         <select
           :value="componentFilter"

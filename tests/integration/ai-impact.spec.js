@@ -184,6 +184,20 @@ test.describe('AI Impact Views @ai-impact', () => {
     await testView(page, 'design-review', 'Design Review');
   });
 
+  test('PRD Review shows Review Status filter and Signed Off metric', async ({ page }) => {
+    await page.goto('/#/ai-impact/prd-review');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const reviewStatusFilter = page.locator('select').filter({ hasText: 'All Review Status' });
+    await expect(reviewStatusFilter).toBeVisible();
+    await expect(reviewStatusFilter.locator('option')).toHaveText(['All Review Status', 'Approved', 'Awaiting Sign-off']);
+
+    await expect(page.getByText('Signed Off')).toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
+
   test('Design Review view loads data from unified store', async ({ page }) => {
     // Monitor API requests — Design Review reads from ai-impact/features
     // which internally reads from the releases execution store

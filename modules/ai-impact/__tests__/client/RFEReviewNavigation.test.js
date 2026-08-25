@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock all dependencies before imports
 const mockApiRequest = vi.fn();
@@ -74,8 +74,8 @@ vi.mock('../../client/composables/useFeatures.js', () => ({
 const PhaseContentStub = defineComponent({
   name: 'PhaseContent',
   template: '<div class="phase-content"><slot /></div>',
-  props: ['phase', 'loading', 'error', 'rfeData', 'metrics', 'trendData', 'breakdown', 'filteredRFEs', 'timeWindow', 'filter', 'searchQuery', 'chartExpanded', 'assessments', 'filteredAssessments', 'sortBy', 'passFailFilter', 'priorityFilter', 'statusFilter', 'componentFilter', 'selectedRFE', 'rfeToFeature'],
-  emits: ['selectRFE', 'retry', 'update:timeWindow', 'update:filter', 'update:searchQuery', 'update:chartExpanded', 'update:sortBy', 'update:passFailFilter', 'update:priorityFilter', 'update:statusFilter', 'update:componentFilter']
+  props: ['phase', 'loading', 'error', 'rfeData', 'metrics', 'trendData', 'breakdown', 'filteredRFEs', 'windowedRFEs', 'timeWindow', 'filter', 'searchQuery', 'chartExpanded', 'assessments', 'filteredAssessments', 'sortBy', 'passFailFilter', 'priorityFilter', 'statusFilter', 'reviewStatusFilter', 'componentFilter', 'selectedRFE', 'rfeToFeature'],
+  emits: ['selectRFE', 'retry', 'update:timeWindow', 'update:filter', 'update:searchQuery', 'update:chartExpanded', 'update:sortBy', 'update:passFailFilter', 'update:priorityFilter', 'update:statusFilter', 'update:reviewStatusFilter', 'update:componentFilter']
 });
 
 describe('RFEReviewView navigation', () => {
@@ -86,6 +86,10 @@ describe('RFEReviewView navigation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   function mountView() {
@@ -158,5 +162,61 @@ describe('RFEReviewView navigation', () => {
     await nextTick();
 
     expect(wrapper.findComponent(PhaseContentStub).props('componentFilter')).toBe('Storage');
+  });
+
+  it('updates reviewStatusFilter prop on PhaseContent when it emits update:reviewStatusFilter', async () => {
+    const wrapper = mountView();
+    const phaseContent = wrapper.findComponent(PhaseContentStub);
+
+    expect(phaseContent.props('reviewStatusFilter')).toBe('all');
+
+    phaseContent.vm.$emit('update:reviewStatusFilter', 'approved');
+    await nextTick();
+
+    expect(wrapper.findComponent(PhaseContentStub).props('reviewStatusFilter')).toBe('approved');
+  });
+
+  it('scopes windowedRFEs to the selected time window, unlike the all-time filteredRFEs', async () => {
+    // Pin the clock: fixture dates are fixed, so the window boundaries must be too,
+    // or this assertion silently rots as real time drifts past the fixture dates.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-25T00:00:00.000Z'));
+
+    const wrapper = mountView();
+    let phaseContent = wrapper.findComponent(PhaseContentStub);
+
+    // All fixture RFEs are from early 2026, well outside the default "month" window
+    expect(phaseContent.props('windowedRFEs')).toEqual([]);
+    expect(phaseContent.props('filteredRFEs').length).toBeGreaterThan(0);
+
+    phaseContent.vm.$emit('update:timeWindow', '3months');
+    await nextTick();
+
+    phaseContent = wrapper.findComponent(PhaseContentStub);
+    const windowedKeys = phaseContent.props('windowedRFEs').map(r => r.key);
+    expect(windowedKeys).toContain('OSAC-63');
+    expect(windowedKeys).not.toContain('RHAIRFE-1');
+    expect(windowedKeys).not.toContain('RHAIRFE-2');
+  });
+
+  it('keeps windowedRFEs independent of the AI-involvement filter, unlike filteredRFEs', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-25T00:00:00.000Z'));
+
+    const wrapper = mountView();
+    let phaseContent = wrapper.findComponent(PhaseContentStub);
+
+    phaseContent.vm.$emit('update:timeWindow', '3months');
+    await nextTick();
+    phaseContent = wrapper.findComponent(PhaseContentStub);
+    const windowedKeysBefore = phaseContent.props('windowedRFEs').map(r => r.key);
+
+    // "No AI" excludes OSAC-63 (aiInvolvement: 'none' but status 'No PR') from filteredRFEs...
+    phaseContent.vm.$emit('update:filter', 'none');
+    await nextTick();
+    phaseContent = wrapper.findComponent(PhaseContentStub);
+
+    // ...but windowedRFEs must stay unaffected, since it only tracks the time window
+    expect(phaseContent.props('windowedRFEs').map(r => r.key)).toEqual(windowedKeysBefore);
   });
 });

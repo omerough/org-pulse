@@ -56,4 +56,38 @@ describe('RFEListItem', () => {
     expect(wrapper.text()).not.toContain('Score');
     expect(wrapper.text()).not.toContain('9/10');
   });
+
+  it('shows a Review Approved badge when the PRD PR is Merged', () => {
+    const wrapper = mount(RFEListItem, { props: { rfe: makeRFE({ status: 'Merged' }) } });
+
+    expect(wrapper.text()).toContain('Review Approved');
+  });
+
+  it('shows a Review Awaiting Sign-off badge when the PRD PR is Open', () => {
+    const wrapper = mount(RFEListItem, { props: { rfe: makeRFE({ status: 'Open' }) } });
+
+    expect(wrapper.text()).toContain('Review Awaiting Sign-off');
+  });
+
+  it('shows a Review Awaiting Sign-off badge when the PRD PR is Closed without merge', () => {
+    const wrapper = mount(RFEListItem, { props: { rfe: makeRFE({ status: 'Closed' }) } });
+
+    expect(wrapper.text()).toContain('Review Awaiting Sign-off');
+  });
+
+  it('keeps the AI provenance badge distinct from the review status badge', () => {
+    const wrapper = mount(RFEListItem, { props: { rfe: makeRFE({ status: 'Merged', aiInvolvement: 'revised' }) } });
+
+    expect(wrapper.text()).toContain('AI Revised');
+    expect(wrapper.text()).toContain('Review Approved');
+  });
+
+  it('does not show a review status badge for a Missing PRD row', () => {
+    const rfe = makeRFE({ status: 'No PR', creatorDisplayName: 'Dev One', aiInvolvement: 'none' });
+    const wrapper = mount(RFEListItem, { props: { rfe } });
+
+    expect(wrapper.text()).not.toContain('Approved');
+    expect(wrapper.text()).not.toContain('Awaiting Sign-off');
+    expect(wrapper.text()).not.toContain('Review');
+  });
 });
