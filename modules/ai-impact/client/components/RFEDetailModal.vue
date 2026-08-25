@@ -156,7 +156,7 @@ function getInvolvementClass(involvement) {
               No PRD has been verified for this feature.
             </div>
 
-            <div v-else class="grid grid-cols-5 gap-4 mb-6 text-sm">
+            <div v-else class="grid grid-cols-3 gap-4 mb-6 text-sm">
               <div>
                 <p class="text-gray-500 dark:text-gray-400 text-xs mb-1">Author</p>
                 <p class="font-medium dark:text-gray-200">{{ rfe.creatorDisplayName }}</p>
@@ -181,9 +181,9 @@ function getInvolvementClass(involvement) {
                 </span>
               </div>
               <div>
-                <p class="text-gray-500 dark:text-gray-400 text-xs mb-1">Sign-off</p>
+                <p class="text-gray-500 dark:text-gray-400 text-xs mb-1">Review Status</p>
                 <span
-                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
                   :class="getReviewStatusClass(getPrdSignOffStatus(rfe.status))"
                 >
                   {{ getReviewStatusLabel(getPrdSignOffStatus(rfe.status)) }}

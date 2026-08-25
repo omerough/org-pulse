@@ -56,9 +56,10 @@ function getInvolvementClass(involvement) {
               {{ getInvolvementLabel(rfe.aiInvolvement) }}
             </span>
             <span
-              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
               :class="getReviewStatusClass(getPrdSignOffStatus(rfe.status))"
             >
+              <span class="font-medium opacity-75">Review</span>
               {{ getReviewStatusLabel(getPrdSignOffStatus(rfe.status)) }}
             </span>
           </template>
