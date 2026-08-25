@@ -14,6 +14,7 @@ const props = defineProps({
   trendData: { type: Array, default: () => [] },
   breakdown: { type: Array, default: () => [] },
   filteredRFEs: { type: Array, default: () => [] },
+  windowedRFEs: { type: Array, default: () => [] },
   timeWindow: { type: String, default: 'month' },
   filter: { type: String, default: 'all' },
   searchQuery: { type: String, default: '' },
@@ -110,7 +111,7 @@ const isEmpty = computed(() => !props.rfeData?.fetchedAt)
 
       <!-- Data display -->
       <template v-else>
-        <MetricsRow :metrics="metrics" :pipelineFriction="pipelineFriction" :rfes="rfeData?.issues || []" />
+        <MetricsRow :metrics="metrics" :pipelineFriction="pipelineFriction" :rfes="windowedRFEs" />
 
         <TrendCharts
           :trendData="trendData"

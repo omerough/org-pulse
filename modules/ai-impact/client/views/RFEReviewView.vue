@@ -40,6 +40,8 @@ const timeWindowCutoff = computed(() => {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
 })
 
+const isInTimeWindow = rfe => new Date(rfe.created) >= timeWindowCutoff.value
+
 const listRFEs = computed(() => {
   if (!rfeData.value?.issues) return []
   return rfeData.value.issues.filter(rfe => {
@@ -55,7 +57,14 @@ const listRFEs = computed(() => {
 })
 
 const timeFilteredRFEs = computed(() => {
-  return listRFEs.value.filter(rfe => new Date(rfe.created) >= timeWindowCutoff.value)
+  return listRFEs.value.filter(isInTimeWindow)
+})
+
+// Time-window scoped only, independent of the AI-involvement filter and search box,
+// so it stays consistent with the other window-scoped metrics tiles.
+const windowedRFEs = computed(() => {
+  if (!rfeData.value?.issues) return []
+  return rfeData.value.issues.filter(isInTimeWindow)
 })
 
 // Reverse lookup: sourceRfe -> feature key/status for cross-linking
@@ -163,6 +172,7 @@ watch([() => moduleNav.params.value, rfeData], ([params]) => {
       :trendData="trendData"
       :breakdown="breakdown"
       :filteredRFEs="listRFEs"
+      :windowedRFEs="windowedRFEs"
       :timeWindow="timeWindow"
       :filter="filter"
       :searchQuery="searchQuery"
