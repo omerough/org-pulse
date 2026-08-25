@@ -13,6 +13,34 @@ const RELEASES_FEATURE_PREFIX = 'releases/execution/features/';
 const LEGACY_STORAGE_KEY = 'ai-impact/features.json';
 
 /**
+ * Backfill legacy records' fixVersions from the releases index by key.
+ * The legacy schema predates fixVersions, but its keys are the same Jira
+ * keys as the index, which already carries fixVersions for every entry
+ * regardless of aiReview status. Preserves any fixVersions the legacy
+ * record already has; does not mutate the input.
+ * @param {object} legacy - The legacy features data object
+ * @param {Array} indexFeatures - The releases index's features array
+ * @returns {object} Legacy data with fixVersions backfilled where available
+ */
+function backfillFixVersionsFromIndex(legacy, indexFeatures) {
+  const fixVersionsByKey = {};
+  for (const entry of indexFeatures) {
+    fixVersionsByKey[entry.key] = entry.fixVersions || [];
+  }
+  const features = {};
+  for (const [key, record] of Object.entries(legacy.features)) {
+    features[key] = {
+      ...record,
+      latest: {
+        ...record.latest,
+        fixVersions: record.latest.fixVersions || fixVersionsByKey[key] || []
+      }
+    };
+  }
+  return { ...legacy, features };
+}
+
+/**
  * Read features from the unified releases store and reshape into the
  * AI Impact format ({ features: { [key]: { latest, history } }, ... }).
  *
@@ -39,7 +67,7 @@ function readFeatures(readFromStorage) {
     // Check legacy store as fallback
     const legacy = readFromStorage(LEGACY_STORAGE_KEY);
     if (legacy && typeof legacy === 'object' && legacy.features && Object.keys(legacy.features).length > 0) {
-      return legacy;
+      return backfillFixVersionsFromIndex(legacy, index.features);
     }
     return { lastSyncedAt: null, totalFeatures: 0, features: {} };
   }

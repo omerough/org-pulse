@@ -203,20 +203,50 @@ describe('readFeatures', () => {
     expect(result).toBe(legacyData);
   });
 
-  it('falls back to legacy store when releases index has no aiReview features', () => {
+  it('falls back to legacy store when releases index has no aiReview features, backfilling fixVersions by key', () => {
     const legacyData = {
       lastSyncedAt: '2026-04-19T12:00:00Z',
-      totalFeatures: 1,
-      features: { A: { latest: { key: 'A' }, history: [] } }
+      totalFeatures: 2,
+      features: {
+        A: { latest: { key: 'A' }, history: [] },
+        B: { latest: { key: 'B', fixVersions: ['legacy-existing'] }, history: [] }
+      }
     };
     const read = vi.fn(function(key) {
-      if (key === 'releases/execution/index.json') return makeReleasesIndex([{ key: 'X', summary: 'No AI' }]);
+      if (key === 'releases/execution/index.json') {
+        return makeReleasesIndex([
+          { key: 'A', summary: 'No AI', fixVersions: ['0.2'] },
+          { key: 'B', summary: 'No AI', fixVersions: ['0.3'] },
+          { key: 'C', summary: 'No AI, unrelated key' }
+        ]);
+      }
       if (key === 'ai-impact/features.json') return legacyData;
       return null;
     });
 
     const result = readFeatures(read);
-    expect(result).toBe(legacyData);
+    expect(result.lastSyncedAt).toBe(legacyData.lastSyncedAt);
+    expect(result.totalFeatures).toBe(legacyData.totalFeatures);
+    // Backfilled from the index by key, since the legacy record had none
+    expect(result.features.A.latest.fixVersions).toEqual(['0.2']);
+    // Legacy's own fixVersions is preserved, not overwritten by the index
+    expect(result.features.B.latest.fixVersions).toEqual(['legacy-existing']);
+  });
+
+  it('defaults a legacy record to an empty fixVersions array when no index entry matches its key', () => {
+    const legacyData = {
+      lastSyncedAt: '2026-04-19T12:00:00Z',
+      totalFeatures: 1,
+      features: { Z: { latest: { key: 'Z' }, history: [] } }
+    };
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([{ key: 'Q', summary: 'unrelated' }]);
+      if (key === 'ai-impact/features.json') return legacyData;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features.Z.latest.fixVersions).toEqual([]);
   });
 
   it('returns empty state when both stores are empty', () => {
