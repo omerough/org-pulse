@@ -191,7 +191,9 @@ test.describe('AI Impact Views @ai-impact', () => {
 
     const reviewStatusFilter = page.locator('select').filter({ hasText: 'All Review Status' });
     await expect(reviewStatusFilter).toBeVisible();
-    await expect(reviewStatusFilter.locator('option')).toHaveText(['All Review Status', 'Approved', 'Awaiting Sign-off']);
+    // Shared option list with Design Review (PRD sign-off never yields Flagged, but the
+    // dropdown carries the same four options on both tabs).
+    await expect(reviewStatusFilter.locator('option')).toHaveText(['All Review Status', 'Approved', 'Awaiting Sign-off', 'Flagged']);
 
     await expect(page.getByText('Signed Off')).toBeVisible();
 
@@ -204,13 +206,40 @@ test.describe('AI Impact Views @ai-impact', () => {
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
     await expect(page.getByText('PRD List')).toBeVisible();
-    // Demo fixtures include PRDs in every AI-involvement state
-    await expect(page.getByText('AI Created', { exact: true }).first()).toBeVisible();
-    await expect(page.getByText('AI Review', { exact: true }).first()).toBeVisible();
+    // Demo fixtures include PRDs in every AI-involvement state. Scope to <span> so this
+    // doesn't match the (hidden) filter dropdown's identically-worded <option> elements.
+    await expect(page.locator('span:text-is("AI Created")').first()).toBeVisible();
+    await expect(page.locator('span:text-is("AI Review")').first()).toBeVisible();
 
-    // "PR Status" (raw Jira/PR status) is distinct from "Review Status" (human sign-off)
-    const prStatusFilter = page.locator('select').filter({ hasText: 'All PR Statuses' });
-    await expect(prStatusFilter).toBeVisible();
+    // "Artifact" (does the PRD exist at all) is distinct from "Review Status" (human sign-off)
+    const artifactFilter = page.locator('select').filter({ hasText: 'All PRD' });
+    await expect(artifactFilter).toBeVisible();
+    await expect(artifactFilter.locator('option')).toHaveText(['All PRD', 'Has PRD', 'Missing PRD']);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('PRD Review and Design Review share the same filter bar (AI Involvement, Review Status, Artifact)', async ({ page }) => {
+    // "All AI" is also a substring of the AI-Verdict select's "All AI Verdicts" default
+    // option, so match on the exact default-option text rather than a loose hasText.
+    function selectByDefaultOptionText(text) {
+      return page.locator('select').filter({ has: page.locator(`option[value="all"]:text-is("${text}")`) });
+    }
+
+    await page.goto('/#/ai-impact/prd-review');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+    const prdInvolvement = selectByDefaultOptionText('All AI');
+    await expect(prdInvolvement.locator('option')).toHaveText(['All AI', 'Created & Review', 'AI Created', 'AI Review', 'No AI']);
+
+    await page.goto('/#/ai-impact/design-review');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+    const designInvolvement = selectByDefaultOptionText('All AI');
+    await expect(designInvolvement.locator('option')).toHaveText(['All AI', 'Created & Review', 'AI Created', 'AI Review', 'No AI']);
+
+    const designArtifact = selectByDefaultOptionText('All Design');
+    await expect(designArtifact.locator('option')).toHaveText(['All Design', 'Has Design', 'Missing Design']);
 
     expect(page.errors).toHaveLength(0);
   });
@@ -224,8 +253,9 @@ test.describe('AI Impact Views @ai-impact', () => {
     await expect(page.getByText('Design List')).toBeVisible();
 
     // Design cards mirror PRD: cards with a design doc carry an AI-provenance pill
-    // in the title row (demo fixtures include a scored feature -> "AI Review").
-    await expect(page.getByText('AI Review', { exact: true }).first()).toBeVisible();
+    // in the title row (demo fixtures include a scored feature -> "AI Review"). Scope to
+    // <span> so this doesn't match the filter dropdown's identically-worded <option>.
+    await expect(page.locator('span:text-is("AI Review")').first()).toBeVisible();
 
     expect(page.errors).toHaveLength(0);
   });
@@ -234,14 +264,15 @@ test.describe('AI Impact Views @ai-impact', () => {
     await page.goto('/#/ai-impact/prd-review');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
-    // PRDs with no PR render the "Missing PRD" pill (demo fixtures include these).
-    await expect(page.getByText('Missing PRD', { exact: true }).first()).toBeVisible();
+    // PRDs with no PR render the "Missing PRD" pill (demo fixtures include these). Scope to
+    // <span> so this doesn't match the Artifact filter's identically-worded <option>.
+    await expect(page.locator('span:text-is("Missing PRD")').first()).toBeVisible();
 
     await page.goto('/#/ai-impact/design-review');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
     // Features with no design doc render the mirrored "Missing Design" pill.
-    await expect(page.getByText('Missing Design', { exact: true }).first()).toBeVisible();
+    await expect(page.locator('span:text-is("Missing Design")').first()).toBeVisible();
 
     expect(page.errors).toHaveLength(0);
   });
