@@ -90,10 +90,12 @@ describe('feature routes registration order', () => {
     const getCalls = router.get.mock.calls.map(c => c[0]);
     const statusIdx = getCalls.indexOf('/features/status');
     const listIdx = getCalls.indexOf('/features');
+    const trendIdx = getCalls.indexOf('/features/trend');
     const paramIdx = getCalls.indexOf('/features/:key');
 
     expect(statusIdx).toBeLessThan(paramIdx);
     expect(listIdx).toBeLessThan(paramIdx);
+    expect(trendIdx).toBeLessThan(paramIdx);
   });
 });
 
@@ -169,6 +171,77 @@ describe('GET /features', () => {
     const payload = res.json.mock.calls[0][0];
     expect(payload.features).toEqual({});
     expect(payload.totalFeatures).toBe(0);
+  });
+});
+
+describe('GET /features/trend', () => {
+  function daysAgo(n) {
+    return new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
+  }
+
+  it('builds a weekly trend and an AI-involvement breakdown from feature data', async () => {
+    const data = {
+      lastSyncedAt: 'x',
+      totalFeatures: 2,
+      features: {
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3) }, history: [] },
+        B: { latest: { key: 'B', aiInvolvement: 'none', created: daysAgo(3) }, history: [] }
+      }
+    };
+    const { router, routes } = createRouter();
+    registerFeatureRoutes(router, makeContext(data));
+
+    const { res } = await callHandler(routes, 'GET', '/features/trend');
+    const payload = res.json.mock.calls[0][0];
+
+    expect(Array.isArray(payload.trendData)).toBe(true);
+    expect(payload.trendData.length).toBeGreaterThan(0);
+    expect(payload.breakdown).toEqual(expect.arrayContaining([
+      { name: 'AI Created', value: 1 },
+      { name: 'No AI', value: 1 }
+    ]));
+  });
+
+  it('normalizes an unsupported timeWindow to a valid window instead of erroring', async () => {
+    const data = {
+      lastSyncedAt: 'x',
+      totalFeatures: 1,
+      features: {
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3) }, history: [] }
+      }
+    };
+    const { router, routes } = createRouter();
+    registerFeatureRoutes(router, makeContext(data));
+
+    // Handler reads req.query; pass a bogus window and confirm it still responds
+    // with the standard trend shape (matching the /rfe-data fallback behavior).
+    const key = 'GET /features/trend';
+    const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
+    const req = { body: {}, params: {}, query: { timeWindow: 'bogus' } };
+    await routes[key][routes[key].length - 1](req, res);
+
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    const payload = res.json.mock.calls[0][0];
+    expect(Array.isArray(payload.trendData)).toBe(true);
+    expect(Array.isArray(payload.breakdown)).toBe(true);
+  });
+
+  it('excludes features with no created date from the breakdown', async () => {
+    const data = {
+      lastSyncedAt: 'x',
+      totalFeatures: 1,
+      features: {
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: null }, history: [] }
+      }
+    };
+    const { router, routes } = createRouter();
+    registerFeatureRoutes(router, makeContext(data));
+
+    const { res } = await callHandler(routes, 'GET', '/features/trend');
+    const payload = res.json.mock.calls[0][0];
+
+    const createdEntry = payload.breakdown.find(b => b.name === 'AI Created');
+    expect(createdEntry.value).toBe(0);
   });
 });
 

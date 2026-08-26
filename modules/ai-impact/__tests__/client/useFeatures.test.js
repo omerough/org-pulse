@@ -99,4 +99,54 @@ describe('useFeatures', () => {
     const { loadFeatureDetail } = useFeatures();
     await expect(loadFeatureDetail('KEY')).rejects.toThrow('Server error');
   });
+
+  it('loadFeatureTrend fetches trend and breakdown data for the current time window', async () => {
+    const mockData = {
+      trendData: [{ date: '2026-04-19', createdPct: 50, revisedCount: 1, total: 2 }],
+      breakdown: [{ name: 'AI Created', value: 1 }]
+    };
+    mockApiRequest.mockResolvedValue(mockData);
+
+    const { featureTrendData, featureBreakdown, loadFeatureTrend } = useFeatures();
+    await loadFeatureTrend();
+
+    expect(mockApiRequest).toHaveBeenCalledWith('/modules/ai-impact/features/trend?timeWindow=month');
+    expect(featureTrendData.value).toEqual(mockData.trendData);
+    expect(featureBreakdown.value).toEqual(mockData.breakdown);
+  });
+
+  it('ignores a stale trend response when the time window changed mid-flight', async () => {
+    const { featureTrendData, featureTimeWindow, loadFeatureTrend } = useFeatures();
+
+    // First (slow) request for 'week'; second (fast) request for 'month'.
+    let resolveWeek;
+    const weekData = { trendData: [{ date: 'week' }], breakdown: [] };
+    const monthData = { trendData: [{ date: 'month' }], breakdown: [] };
+    mockApiRequest
+      .mockImplementationOnce(() => new Promise(r => { resolveWeek = () => r(weekData); }))
+      .mockResolvedValueOnce(monthData);
+
+    featureTimeWindow.value = 'week';
+    const weekPromise = loadFeatureTrend();
+
+    featureTimeWindow.value = 'month';
+    await loadFeatureTrend();          // month resolves first, sets the data
+    resolveWeek();                     // week (stale) resolves last
+    await weekPromise;
+
+    // The stale 'week' response must NOT overwrite the current 'month' data.
+    expect(featureTrendData.value).toEqual(monthData.trendData);
+  });
+
+  it('loadFeatureTrend leaves prior data in place on failure', async () => {
+    mockApiRequest.mockResolvedValue({ trendData: [{ date: 'x' }], breakdown: [{ name: 'y', value: 1 }] });
+    const { featureTrendData, featureBreakdown, loadFeatureTrend } = useFeatures();
+    await loadFeatureTrend();
+
+    mockApiRequest.mockRejectedValue(new Error('Network error'));
+    await loadFeatureTrend();
+
+    expect(featureTrendData.value).toEqual([{ date: 'x' }]);
+    expect(featureBreakdown.value).toEqual([{ name: 'y', value: 1 }]);
+  });
 });
