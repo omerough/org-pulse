@@ -524,6 +524,36 @@ test.describe('Releases Epics by Release @releases', () => {
 
     expect(page.errors).toHaveLength(0);
   });
+
+  test('Component and Status filters narrow the Feature/Epic tree and can be cleared', async ({ page }) => {
+    await page.goto('/#/releases/execute');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    await page.locator('button', { hasText: 'Epics by Release' }).click();
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const releaseSelect = page.locator('#epics-by-release-version');
+    await releaseSelect.selectOption('rhoai-3.4');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+    await expect(page.locator('text=TEST1-1120').first()).toBeVisible();
+
+    // TEST1-1120's index entry has no Components of its own, so it matches
+    // directly via the Unassigned bucket.
+    await page.getByRole('button', { name: 'All components' }).click();
+    await page.locator('label', { hasText: 'Unassigned' }).locator('input[type="checkbox"]').check();
+    await page.waitForTimeout(500);
+
+    await expect(page.getByText('Filter coverage reflects current Jira data.')).toBeVisible();
+
+    const clearButton = page.locator('button', { hasText: 'Clear filters' });
+    await expect(clearButton).toBeVisible();
+    await clearButton.click();
+    await page.waitForTimeout(500);
+    await expect(page.locator('text=TEST1-1120').first()).toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
 });
 
 /**
@@ -689,6 +719,46 @@ test.describe('Releases Feature Tracking @releases', () => {
     await expect(page.locator('table tbody tr')).toHaveCount(1);
     await expect(page.locator('table').getByText('TEST1-1002')).toBeVisible();
     await expect(page.locator('table').getByText('TEST1-1004')).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  /**
+   * Demo fixture (fixtures/releases/execution/tracking-data-rhoai-2.14.json): each of the
+   * 4 features has a distinct Component (Dashboard/API/Notebooks/Model Serving) and status.
+   */
+  test('a Component filter narrows the table and clearing it restores all rows', async ({ page }) => {
+    await openFeatureTrackingTab(page);
+
+    await page.getByRole('button', { name: 'All components' }).click();
+    await page.locator('label', { hasText: 'API' }).locator('input[type="checkbox"]').check();
+    await page.waitForTimeout(500);
+
+    await expect(page.locator('table tbody tr')).toHaveCount(1);
+    await expect(page.locator('table').getByText('TEST1-1002')).toBeVisible();
+    await expect(page.getByText('Filter coverage reflects current Jira data.')).toBeVisible();
+
+    await page.locator('button', { hasText: 'Clear filters' }).click();
+    await page.waitForTimeout(500);
+    await expect(page.locator('table tbody tr')).toHaveCount(4);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Component and Status filters combine (AND across fields, OR within a field)', async ({ page }) => {
+    await openFeatureTrackingTab(page);
+
+    await page.getByRole('button', { name: 'All components' }).click();
+    await page.locator('label', { hasText: 'Dashboard' }).locator('input[type="checkbox"]').check();
+    await page.locator('label', { hasText: 'Notebooks' }).locator('input[type="checkbox"]').check();
+    await page.getByRole('button', { name: 'All statuses' }).click();
+    await page.locator('label', { hasText: 'Closed' }).locator('input[type="checkbox"]').check();
+    await page.waitForTimeout(500);
+
+    // Dashboard OR Notebooks narrows to TEST1-1001/TEST1-1003; AND-ing Status=Closed
+    // keeps only TEST1-1003 (Closed), excluding TEST1-1001 (In Progress).
+    await expect(page.locator('table tbody tr')).toHaveCount(1);
+    await expect(page.locator('table').getByText('TEST1-1003')).toBeVisible();
 
     expect(page.errors).toHaveLength(0);
   });

@@ -139,8 +139,8 @@ function epicDirectlyMatchesVersion(epic, normalizedFilter) {
  *     responses:
  *       200:
  *         description: Features matching the release or included as context, each with its
- *           applicable epics array. featureCount is the total number of features returned,
- *           including context features.
+ *           applicable epics array and its own Jira Components (array, may be empty).
+ *           featureCount is the total number of features returned, including context features.
  *       400:
  *         description: Missing version query parameter
  */
@@ -457,6 +457,7 @@ module.exports = function registerExecutionRoutes(router, context) {
         status: entry.status,
         statusCategory: entry.statusCategory,
         fixVersions: entry.fixVersions || [],
+        components: entry.components || [],
         isContext: false,
         totalEpicCount: epics.length,
         epics
@@ -475,6 +476,7 @@ module.exports = function registerExecutionRoutes(router, context) {
         status: entry.status,
         statusCategory: entry.statusCategory,
         fixVersions: entry.fixVersions || [],
+        components: entry.components || [],
         isContext: true,
         totalEpicCount: allEpics.length,
         epics: directEpics

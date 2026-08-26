@@ -1,7 +1,15 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useFeatureTracking } from '../composables/useFeatureTracking.js'
+import {
+  useComponentStatusFilter,
+  collectComponentOptions,
+  collectStatusOptions,
+  matchesComponents,
+  matchesStatus
+} from '../composables/useComponentStatusFilter'
 import FeatureTrackingTable from '../components/FeatureTrackingTable.vue'
+import ComponentStatusFilterBar from '../components/ComponentStatusFilterBar.vue'
 
 const {
   releases,
@@ -11,6 +19,14 @@ const {
   loadReleases,
   loadTrackingData
 } = useFeatureTracking()
+const {
+  selectedComponents,
+  selectedStatuses,
+  toggleComponent,
+  toggleStatus,
+  clearFilters: clearComponentStatusFilters,
+  isFiltered: isComponentStatusFiltered
+} = useComponentStatusFilter()
 
 const selectedReleaseId = ref(null)
 const activeFilter = ref(null)
@@ -40,11 +56,17 @@ const baselineNotYetReached = computed(() => {
 const isGenuineZeroScope = computed(() => {
   if (!currentData.value) return false
   if (activeFilter.value) return false
+  if (isComponentStatusFiltered.value) return false
   if (wasQueryFailed.value) return false
   if (baselineSource.value === 'unknown') return false
   if (baselineNotYetReached.value) return false
   return features.value.length === 0
 })
+
+// Options reflect the full feature list for the selected release, independent of the
+// current filter selection, so narrowing one field never hides options for the other.
+const componentOptions = computed(() => collectComponentOptions(features.value, f => f.components))
+const statusOptions = computed(() => collectStatusOptions(features.value, f => f.status))
 
 const tableEmptyMessage = computed(() => {
   return isGenuineZeroScope.value
@@ -67,11 +89,19 @@ function baselineSourceLabel(source) {
 }
 
 const filteredFeatures = computed(() => {
-  if (!activeFilter.value) return features.value
-  return features.value.filter(function (f) {
-    if (activeFilter.value === 'blocker') return f.isBlockerPriority && f.scopeChange !== 'dropped' && f.scopeChange !== 'moved'
-    return f.scopeChange === activeFilter.value
-  })
+  var result = features.value
+  if (activeFilter.value) {
+    result = result.filter(function (f) {
+      if (activeFilter.value === 'blocker') return f.isBlockerPriority && f.scopeChange !== 'dropped' && f.scopeChange !== 'moved'
+      return f.scopeChange === activeFilter.value
+    })
+  }
+  if (isComponentStatusFiltered.value) {
+    result = result.filter(function (f) {
+      return matchesComponents(f.components, selectedComponents.value) && matchesStatus(f.status, selectedStatuses.value)
+    })
+  }
+  return result
 })
 
 function setFilter(type) {
@@ -90,6 +120,7 @@ function selectRelease(releaseId) {
 
 watch(selectedReleaseId, async (id) => {
   activeFilter.value = null
+  clearComponentStatusFilters()
   if (id) await loadTrackingData(id)
 })
 
@@ -135,6 +166,18 @@ onMounted(async () => {
         </button>
       </div>
     </div>
+
+    <ComponentStatusFilterBar
+      v-if="currentData && !loading"
+      class="mb-5 rounded-xl border border-gray-200 dark:border-gray-700"
+      :component-options="componentOptions"
+      :status-options="statusOptions"
+      :selected-components="selectedComponents"
+      :selected-statuses="selectedStatuses"
+      @toggle-component="toggleComponent"
+      @toggle-status="toggleStatus"
+      @clear="clearComponentStatusFilters"
+    />
 
     <!-- WAS-query-failed warning -->
     <div

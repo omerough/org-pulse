@@ -395,7 +395,7 @@ describe('execution routes', () => {
         'releases/execution/index.json': {
           fetchedAt: '2026-08-01T00:00:00Z',
           features: [
-            { key: 'OSAC-100', summary: 'Feature A', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.4'] },
+            { key: 'OSAC-100', summary: 'Feature A', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.4'], components: ['Storage'] },
             { key: 'OSAC-200', summary: 'Feature B', status: 'To Do', statusCategory: 'To Do', fixVersions: ['0.5'] }
           ]
         },
@@ -454,6 +454,25 @@ describe('execution routes', () => {
       expect(res._json.features[0].epics[1].fixVersionSource).toBe('unknown')
     })
 
+    it('surfaces the Feature-level Components from the index entry', () => {
+      setupData()
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: { version: '0.4' } }, res)
+
+      expect(res._json.features[0].components).toEqual(['Storage'])
+    })
+
+    it('defaults Components to an empty array when the index entry has none', () => {
+      setupData()
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: { version: '0.5' } }, res)
+
+      expect(res._json.features[0].key).toBe('OSAC-200')
+      expect(res._json.features[0].components).toEqual([])
+    })
+
     it('includes an epic under its parent Feature even when the epic names a different Fix Version', () => {
       // OSAC-200's own fixVersions is 0.5, but its epic OSAC-201 names 0.9 — the tree is
       // built by Feature membership, so the epic must still appear, with its real value visible.
@@ -487,7 +506,7 @@ describe('execution routes', () => {
         'releases/execution/index.json': {
           fetchedAt: '2026-08-01T00:00:00Z',
           features: [
-            { key: 'OSAC-1061', summary: 'Parent Feature', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.2'] },
+            { key: 'OSAC-1061', summary: 'Parent Feature', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.2'], components: ['Networking'] },
             { key: 'OSAC-400', summary: 'Unrelated Feature', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.3'] },
             { key: 'OSAC-9000', summary: 'No overlap Feature', status: 'To Do', statusCategory: 'To Do', fixVersions: ['0.5'] }
           ]
@@ -552,6 +571,8 @@ describe('execution routes', () => {
       // Preserves its true Fix Version — never relabeled to the queried milestone.
       expect(parent.fixVersions).toEqual(['0.2'])
       expect(parent.isContext).toBe(true)
+      // Components surfaced for context Features too, not just direct-match ones.
+      expect(parent.components).toEqual(['Networking'])
     })
 
     it('shows only the directly-matching Epic(s) under a context Feature, not its full sibling Epic list', () => {
