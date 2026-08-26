@@ -19,6 +19,14 @@ const props = defineProps({
 
 const featureList = computed(() => Object.values(props.features))
 
+// Both charts visualise design scores, so they consider only features that
+// actually have a score. Features with no design review (designStatus
+// 'no-design') or an unscored/pending design carry no scores.total and would
+// otherwise pile into a false "0" (fail) bucket now that every feature is listed.
+const scoredFeatures = computed(() =>
+  featureList.value.filter(f => f.designStatus !== 'no-design' && f.scores?.total != null)
+)
+
 const isDark = ref(false)
 onMounted(() => {
   isDark.value = document.documentElement.classList.contains('dark') ||
@@ -36,7 +44,7 @@ const gridColor = computed(() => isDark.value ? 'rgba(75, 85, 99, 0.5)' : 'rgba(
 // Score Distribution: histogram of scores.total (0-8)
 const scoreDistributionData = computed(() => {
   const buckets = Array(9).fill(0)
-  for (const f of featureList.value) {
+  for (const f of scoredFeatures.value) {
     const total = f.scores?.total ?? 0
     if (total >= 0 && total <= 8) buckets[total]++
   }
@@ -74,7 +82,7 @@ const dimensionBreakdownData = computed(() => {
 
   for (const dim of dims) {
     let pass = 0, partial = 0, fail = 0
-    for (const f of featureList.value) {
+    for (const f of scoredFeatures.value) {
       const score = f.scores?.[dim] ?? 0
       if (score === 2) pass++
       else if (score === 1) partial++

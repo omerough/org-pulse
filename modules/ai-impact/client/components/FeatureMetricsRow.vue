@@ -23,12 +23,15 @@ const avgScore = computed(() => {
   return (sum / reviewedFeatures.value.length).toFixed(1)
 })
 
+// Review-status tiles count only reviewed features. No-design features default
+// to 'awaiting-review' but have nothing to sign off, so counting them would
+// inflate "Needs Action" once every feature is listed on the tab.
 const needsActionCount = computed(() => {
-  return featureList.value.filter(f => f.humanReviewStatus === 'needs-review' || f.humanReviewStatus === 'awaiting-review').length
+  return reviewedFeatures.value.filter(f => f.humanReviewStatus === 'needs-review' || f.humanReviewStatus === 'awaiting-review').length
 })
 
 const signedOffCount = computed(() => {
-  return featureList.value.filter(f => f.humanReviewStatus === 'approved').length
+  return reviewedFeatures.value.filter(f => f.humanReviewStatus === 'approved').length
 })
 </script>
 
