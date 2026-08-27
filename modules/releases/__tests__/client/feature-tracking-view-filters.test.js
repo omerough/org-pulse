@@ -23,9 +23,9 @@ const TRACKING_DATA = {
   counts: { committed: 3, added: 0, dropped: 0, moved: 0, unknown: 0, blockerPriority: 0 },
   wasQueryFailed: false,
   features: [
-    { key: 'OSAC-1', summary: 'Feature one', status: 'In Progress', components: ['Comp A'], scopeChange: null },
-    { key: 'OSAC-2', summary: 'Feature two', status: 'Done', components: ['Comp B'], scopeChange: null },
-    { key: 'OSAC-3', summary: 'Feature three', status: 'Done', components: [], scopeChange: null }
+    { key: 'OSAC-1', summary: 'Feature one', status: 'In Progress', components: ['Comp A'], team: 'OSAC-Core', scopeChange: null },
+    { key: 'OSAC-2', summary: 'Feature two', status: 'Done', components: ['Comp B'], team: 'OSAC-VMaaS', scopeChange: null },
+    { key: 'OSAC-3', summary: 'Feature three', status: 'Done', components: [], team: null, scopeChange: null }
   ]
 }
 
@@ -140,6 +140,98 @@ describe('FeatureTrackingView Component / Status filters', () => {
 
     const componentButton = wrapper.findAll('button[aria-haspopup="listbox"]').find(b => b.text().includes('components'))
     expect(componentButton.text()).toContain('All components')
+    expect(wrapper.text()).toContain('OSAC-2')
+  })
+})
+
+describe('FeatureTrackingView Team filter', () => {
+  beforeEach(() => {
+    mockApiRequest.mockReset()
+  })
+
+  it('narrows the table by a single selected Team', async () => {
+    const wrapper = await mountWithData()
+
+    await openDropdown(wrapper, 'All teams')
+    await checkOption(wrapper, 'OSAC-Core')
+
+    expect(wrapper.text()).toContain('OSAC-1')
+    expect(wrapper.text()).not.toContain('OSAC-2')
+    expect(wrapper.text()).not.toContain('OSAC-3')
+  })
+
+  it('matches with OR semantics when multiple Teams are selected', async () => {
+    const wrapper = await mountWithData()
+
+    await openDropdown(wrapper, 'All teams')
+    await checkOption(wrapper, 'OSAC-Core')
+    await checkOption(wrapper, 'OSAC-VMaaS')
+
+    expect(wrapper.text()).toContain('OSAC-1')
+    expect(wrapper.text()).toContain('OSAC-2')
+    expect(wrapper.text()).not.toContain('OSAC-3')
+  })
+
+  it('keeps team-less features visible/selectable via the Unassigned bucket', async () => {
+    const wrapper = await mountWithData()
+
+    await openDropdown(wrapper, 'All teams')
+    await checkOption(wrapper, 'Unassigned')
+
+    expect(wrapper.text()).toContain('OSAC-3')
+    expect(wrapper.text()).not.toContain('OSAC-1')
+    expect(wrapper.text()).not.toContain('OSAC-2')
+  })
+
+  it('combines a Team filter with a Component filter (AND across dimensions)', async () => {
+    const wrapper = await mountWithData()
+
+    await openDropdown(wrapper, 'All teams')
+    await checkOption(wrapper, 'OSAC-Core')
+    await openDropdown(wrapper, 'All components')
+    await checkOption(wrapper, 'Comp B')
+
+    expect(wrapper.text()).not.toContain('OSAC-1')
+    expect(wrapper.text()).not.toContain('OSAC-2')
+    expect(wrapper.text()).not.toContain('OSAC-3')
+  })
+
+  it('reports the filtered-empty message (not genuine-zero) when a Team filter excludes every feature', async () => {
+    const wrapper = await mountWithData()
+
+    await openDropdown(wrapper, 'All teams')
+    await checkOption(wrapper, 'OSAC-Core')
+    await openDropdown(wrapper, 'All components')
+    await checkOption(wrapper, 'Comp B')
+
+    expect(wrapper.text()).toContain('No features match this filter.')
+    expect(wrapper.text()).not.toContain('No Feature-level scope was found')
+  })
+
+  it('clears active Team selections when the selected Release changes', async () => {
+    const releases = {
+      releases: [
+        { releaseId: 'osac-0.2-M1', displayName: 'OSAC 0.2-M1' },
+        { releaseId: 'osac-0.3', displayName: 'OSAC 0.3' }
+      ]
+    }
+    mockApiRequest.mockImplementation((url) => {
+      if (url.indexOf('/tracking/releases') !== -1) return Promise.resolve(releases)
+      return Promise.resolve(TRACKING_DATA)
+    })
+    const wrapper = mount(FeatureTrackingView)
+    await flushPromises()
+
+    await openDropdown(wrapper, 'All teams')
+    await checkOption(wrapper, 'OSAC-Core')
+    expect(wrapper.text()).not.toContain('OSAC-2')
+
+    const nextRelease = wrapper.findAll('button').find(b => b.text().includes('OSAC 0.3'))
+    await nextRelease.trigger('click')
+    await flushPromises()
+
+    const teamButton = wrapper.findAll('button[aria-haspopup="listbox"]').find(b => b.text().includes('teams'))
+    expect(teamButton.text()).toContain('All teams')
     expect(wrapper.text()).toContain('OSAC-2')
   })
 })

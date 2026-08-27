@@ -395,7 +395,7 @@ describe('execution routes', () => {
         'releases/execution/index.json': {
           fetchedAt: '2026-08-01T00:00:00Z',
           features: [
-            { key: 'OSAC-100', summary: 'Feature A', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.4'], components: ['Storage'] },
+            { key: 'OSAC-100', summary: 'Feature A', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.4'], components: ['Storage'], team: 'OSAC-Core' },
             { key: 'OSAC-200', summary: 'Feature B', status: 'To Do', statusCategory: 'To Do', fixVersions: ['0.5'] }
           ]
         },
@@ -471,6 +471,25 @@ describe('execution routes', () => {
 
       expect(res._json.features[0].key).toBe('OSAC-200')
       expect(res._json.features[0].components).toEqual([])
+    })
+
+    it('surfaces the Feature-level Team from the index entry', () => {
+      setupData()
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: { version: '0.4' } }, res)
+
+      expect(res._json.features[0].team).toBe('OSAC-Core')
+    })
+
+    it('defaults Team to null when the index entry has none', () => {
+      setupData()
+      const handler = router._routes.get['/epics'].at(-1)
+      const res = makeRes()
+      handler({ query: { version: '0.5' } }, res)
+
+      expect(res._json.features[0].key).toBe('OSAC-200')
+      expect(res._json.features[0].team).toBeNull()
     })
 
     it('includes an epic under its parent Feature even when the epic names a different Fix Version', () => {

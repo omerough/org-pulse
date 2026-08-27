@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest'
 import {
   UNASSIGNED_COMPONENT,
   UNKNOWN_STATUS,
+  UNASSIGNED_TEAM,
   collectComponentOptions,
   collectStatusOptions,
+  collectTeamOptions,
   matchesComponents,
   matchesStatus,
+  matchesTeam,
   useComponentStatusFilter
 } from '../../../client/execute/composables/useComponentStatusFilter'
 
@@ -66,6 +69,34 @@ describe('matchesStatus', () => {
   })
 })
 
+describe('collectTeamOptions', () => {
+  it('sorts real team names and appends the Unassigned sentinel last', () => {
+    const items = [{ team: 'OSAC-VMaaS' }, { team: null }, { team: 'OSAC-Core' }]
+    expect(collectTeamOptions(items, i => i.team)).toEqual(['OSAC-Core', 'OSAC-VMaaS', UNASSIGNED_TEAM])
+  })
+
+  it('omits the sentinel when every item has a team', () => {
+    const items = [{ team: 'OSAC-Core' }]
+    expect(collectTeamOptions(items, i => i.team)).toEqual(['OSAC-Core'])
+  })
+})
+
+describe('matchesTeam', () => {
+  it('matches when no filter is selected', () => {
+    expect(matchesTeam('OSAC-Core', [])).toBe(true)
+  })
+
+  it('matches a missing team only via the Unassigned sentinel', () => {
+    expect(matchesTeam(null, [UNASSIGNED_TEAM])).toBe(true)
+    expect(matchesTeam(null, ['OSAC-Core'])).toBe(false)
+  })
+
+  it('matches an exact team value', () => {
+    expect(matchesTeam('OSAC-Core', ['OSAC-Core', 'OSAC-VMaaS'])).toBe(true)
+    expect(matchesTeam('OSAC-Storage', ['OSAC-Core'])).toBe(false)
+  })
+})
+
 describe('useComponentStatusFilter', () => {
   it('toggles selections independently and reports isFiltered', () => {
     const f = useComponentStatusFilter()
@@ -85,6 +116,18 @@ describe('useComponentStatusFilter', () => {
     f.clearFilters()
     expect(f.selectedComponents.value).toEqual([])
     expect(f.selectedStatuses.value).toEqual([])
+    expect(f.isFiltered.value).toBe(false)
+  })
+
+  it('toggles Team selections and includes them in isFiltered/clearFilters', () => {
+    const f = useComponentStatusFilter()
+
+    f.toggleTeam('OSAC-Core')
+    expect(f.selectedTeams.value).toEqual(['OSAC-Core'])
+    expect(f.isFiltered.value).toBe(true)
+
+    f.clearFilters()
+    expect(f.selectedTeams.value).toEqual([])
     expect(f.isFiltered.value).toBe(false)
   })
 })

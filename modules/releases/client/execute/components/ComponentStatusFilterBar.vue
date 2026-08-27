@@ -5,31 +5,36 @@ import { componentDisplayLabel } from '../composables/useComponentStatusFilter'
 const props = defineProps({
   componentOptions: { type: Array, default: () => [] },
   statusOptions: { type: Array, default: () => [] },
+  teamOptions: { type: Array, default: () => [] },
   selectedComponents: { type: Array, default: () => [] },
-  selectedStatuses: { type: Array, default: () => [] }
+  selectedStatuses: { type: Array, default: () => [] },
+  selectedTeams: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['toggle-component', 'toggle-status', 'clear'])
+const emit = defineEmits(['toggle-component', 'toggle-status', 'toggle-team', 'clear'])
 
 const componentOpen = ref(false)
 const statusOpen = ref(false)
+const teamOpen = ref(false)
 const componentRef = ref(null)
 const statusRef = ref(null)
+const teamRef = ref(null)
 
 function closeAll() {
   componentOpen.value = false
   statusOpen.value = false
+  teamOpen.value = false
 }
 
 function toggleDropdown(name) {
-  const map = { component: componentOpen, status: statusOpen }
+  const map = { component: componentOpen, status: statusOpen, team: teamOpen }
   const wasOpen = map[name].value
   closeAll()
   if (!wasOpen) map[name].value = true
 }
 
 function handleClickOutside(event) {
-  const refs = [componentRef, statusRef]
+  const refs = [componentRef, statusRef, teamRef]
   for (const r of refs) {
     if (r.value && r.value.contains(event.target)) return
   }
@@ -40,7 +45,7 @@ onMounted(() => document.addEventListener('click', handleClickOutside))
 onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 
 const hasActiveFilters = computed(() =>
-  props.selectedComponents.length > 0 || props.selectedStatuses.length > 0
+  props.selectedComponents.length > 0 || props.selectedStatuses.length > 0 || props.selectedTeams.length > 0
 )
 
 function multiLabel(selected, allLabel) {
@@ -87,6 +92,23 @@ const optionClass = 'flex items-center gap-2 px-3 py-1.5 text-xs text-gray-900 d
             <label v-for="s in statusOptions" :key="s" :class="optionClass">
               <input type="checkbox" :checked="selectedStatuses.includes(s)" @change="emit('toggle-status', s)" class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500" />
               <span class="truncate">{{ s }}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Team -->
+      <div v-if="teamOptions.length > 0" class="flex flex-col gap-0.5">
+        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">Team</label>
+        <div ref="teamRef" class="relative">
+          <button type="button" @click="toggleDropdown('team')" @keydown.escape="teamOpen = false" :aria-expanded="teamOpen" aria-haspopup="listbox" :class="selectedTeams.length ? btnActiveClass : btnClass">
+            <span class="truncate max-w-[140px]">{{ multiLabel(selectedTeams, 'All teams') }}</span>
+            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          <div v-if="teamOpen" role="group" :class="dropdownClass" @keydown.escape="teamOpen = false">
+            <label v-for="t in teamOptions" :key="t" :class="optionClass">
+              <input type="checkbox" :checked="selectedTeams.includes(t)" @change="emit('toggle-team', t)" class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500" />
+              <span class="truncate">{{ t }}</span>
             </label>
           </div>
         </div>

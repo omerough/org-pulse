@@ -302,4 +302,104 @@ describe('EpicsByReleaseView', () => {
       expect(wrapper.text()).toContain('OSAC-102')
     })
   })
+
+  describe('Team filter', () => {
+    function teamFeatureResponse() {
+      return {
+        version: '0.4',
+        fetchedAt: '2026-08-11T10:33:00Z',
+        featureCount: 2,
+        features: [
+          {
+            key: 'OSAC-100', summary: 'Feature A', status: 'In Progress', statusCategory: 'In Progress',
+            fixVersions: ['0.4'], components: [], team: 'OSAC-Core',
+            epics: [
+              {
+                key: 'OSAC-101', summary: 'Epic 1', status: 'In Progress', statusCategory: 'In Progress',
+                fixVersions: ['0.4'], fixVersionSource: 'direct',
+                components: [], componentSource: 'unknown',
+                parentFeatureKey: 'OSAC-100', blockerCount: 0, issueCount: 1, pct: 0, progress: 0, issues: []
+              }
+            ]
+          },
+          {
+            key: 'OSAC-200', summary: 'Feature B', status: 'Done', statusCategory: 'Done',
+            fixVersions: ['0.4'], components: [], team: null,
+            epics: [
+              {
+                key: 'OSAC-201', summary: 'Epic 3', status: 'Review', statusCategory: 'In Progress',
+                fixVersions: ['0.4'], fixVersionSource: 'direct',
+                components: [], componentSource: 'unknown',
+                parentFeatureKey: 'OSAC-200', blockerCount: 0, issueCount: 1, pct: 0, progress: 0, issues: []
+              }
+            ]
+          }
+        ]
+      }
+    }
+
+    async function mountWithTeamFilters() {
+      mockApiRequest.mockImplementation((url) => {
+        if (url.includes('/versions')) return Promise.resolve({ versions: ['0.4'] })
+        if (url.includes('/epics')) return Promise.resolve(teamFeatureResponse())
+        return Promise.reject(new Error('unexpected url ' + url))
+      })
+      const wrapper = mount(EpicsByReleaseView)
+      await flushPromises()
+      return wrapper
+    }
+
+    async function openDropdown(wrapper, currentLabel) {
+      const button = wrapper.findAll('button[aria-haspopup="listbox"]').find(b => b.text().includes(currentLabel))
+      await button.trigger('click')
+    }
+
+    async function checkOption(wrapper, optionText) {
+      const label = wrapper.findAll('label').find(l => l.text() === optionText)
+      await label.find('input[type="checkbox"]').setValue(true)
+    }
+
+    it('narrows to the Feature (and its Epics) matching a selected Team', async () => {
+      const wrapper = await mountWithTeamFilters()
+
+      await openDropdown(wrapper, 'All teams')
+      await checkOption(wrapper, 'OSAC-Core')
+
+      expect(wrapper.text()).toContain('OSAC-100')
+      expect(wrapper.text()).toContain('OSAC-101')
+      expect(wrapper.text()).not.toContain('OSAC-200')
+      expect(wrapper.text()).not.toContain('OSAC-201')
+    })
+
+    it('treats a missing Team as Unassigned', async () => {
+      const wrapper = await mountWithTeamFilters()
+
+      await openDropdown(wrapper, 'All teams')
+      await checkOption(wrapper, 'Unassigned')
+
+      expect(wrapper.text()).toContain('OSAC-200')
+      expect(wrapper.text()).not.toContain('OSAC-100')
+    })
+
+    it('clears Team selections when the selected Version changes', async () => {
+      mockApiRequest.mockImplementation((url) => {
+        if (url.includes('/versions')) return Promise.resolve({ versions: ['0.4', '0.5'] })
+        if (url.includes('/epics')) return Promise.resolve(teamFeatureResponse())
+        return Promise.reject(new Error('unexpected url ' + url))
+      })
+      const wrapper = mount(EpicsByReleaseView)
+      await flushPromises()
+
+      await openDropdown(wrapper, 'All teams')
+      await checkOption(wrapper, 'OSAC-Core')
+      expect(wrapper.text()).not.toContain('OSAC-200')
+
+      await wrapper.find('#epics-by-release-version').setValue('0.5')
+      await flushPromises()
+
+      const button = wrapper.findAll('button[aria-haspopup="listbox"]').find(b => b.text().includes('teams'))
+      expect(button.text()).toContain('All teams')
+      expect(wrapper.text()).toContain('OSAC-200')
+    })
+  })
 })
