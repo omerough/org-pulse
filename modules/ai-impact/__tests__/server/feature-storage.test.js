@@ -233,6 +233,24 @@ describe('readFeatures', () => {
     expect(result.features.B.latest.fixVersions).toEqual(['legacy-existing']);
   });
 
+  it('backfills from the index when the legacy record has an empty fixVersions array', () => {
+    const legacyData = {
+      lastSyncedAt: '2026-04-19T12:00:00Z',
+      totalFeatures: 1,
+      features: { A: { latest: { key: 'A', fixVersions: [] }, history: [] } }
+    };
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') {
+        return makeReleasesIndex([{ key: 'A', summary: 'No AI', fixVersions: ['0.2'] }]);
+      }
+      if (key === 'ai-impact/features.json') return legacyData;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features.A.latest.fixVersions).toEqual(['0.2']);
+  });
+
   it('defaults a legacy record to an empty fixVersions array when no index entry matches its key', () => {
     const legacyData = {
       lastSyncedAt: '2026-04-19T12:00:00Z',

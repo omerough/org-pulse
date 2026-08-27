@@ -304,6 +304,52 @@ test.describe('AI Impact Views @ai-impact', () => {
     expect(page.errors).toHaveLength(0);
   });
 
+  test('Design Review fix version filter narrows the feature list', async ({ page }) => {
+    await page.route('**/api/modules/ai-impact/features', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          lastSyncedAt: '2026-04-19T12:00:00Z',
+          totalFeatures: 2,
+          features: {
+            'OSAC-FV1': {
+              key: 'OSAC-FV1', title: 'Feature with a fix version', priority: 'Major',
+              humanReviewStatus: 'awaiting-review', recommendation: 'approve',
+              components: [], fixVersions: ['0.5']
+            },
+            'OSAC-FV2': {
+              key: 'OSAC-FV2', title: 'Feature with no fix version', priority: 'Major',
+              humanReviewStatus: 'awaiting-review', recommendation: 'approve',
+              components: [], fixVersions: []
+            }
+          }
+        })
+      });
+    });
+
+    await page.goto('/#/ai-impact/design-review');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const fixVersionSelect = page.locator('select').filter({
+      has: page.locator('option', { hasText: 'All Fix Versions' })
+    });
+    await expect(fixVersionSelect).toBeVisible();
+    await expect(page.getByText('Feature with a fix version')).toBeVisible();
+    await expect(page.getByText('Feature with no fix version')).toBeVisible();
+
+    await fixVersionSelect.selectOption('0.5');
+    await expect(page.getByText('Feature with a fix version')).toBeVisible();
+    await expect(page.getByText('Feature with no fix version')).not.toBeVisible();
+
+    await fixVersionSelect.selectOption({ label: 'Unassigned' });
+    await expect(page.getByText('Feature with no fix version')).toBeVisible();
+    await expect(page.getByText('Feature with a fix version')).not.toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
+
   test('should load Jira AutoFix view', async ({ page }) => {
     await testView(page, 'autofix', 'AutoFix');
   });

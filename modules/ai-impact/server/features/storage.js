@@ -29,11 +29,12 @@ function backfillFixVersionsFromIndex(legacy, indexFeatures) {
   }
   const features = {};
   for (const [key, record] of Object.entries(legacy.features)) {
+    const existing = record.latest.fixVersions;
     features[key] = {
       ...record,
       latest: {
         ...record.latest,
-        fixVersions: record.latest.fixVersions || fixVersionsByKey[key] || []
+        fixVersions: existing && existing.length > 0 ? existing : (fixVersionsByKey[key] || [])
       }
     };
   }
