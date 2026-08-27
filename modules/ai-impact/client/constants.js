@@ -11,3 +11,10 @@ export const PHASES = [
   { id: 'build-release', name: 'Build & Release', order: 7, status: 'active' },
   { id: 'jira-autofix', name: 'Jira Autofix', order: 8, status: 'active' },
 ]
+
+/**
+ * Sentinel values for the Design Review fix version filter — distinct from
+ * any real Jira fix version name to avoid collision.
+ */
+export const FIX_VERSION_FILTER_ALL = '__all__'
+export const FIX_VERSION_FILTER_UNASSIGNED = '__unassigned__'

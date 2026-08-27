@@ -4,6 +4,7 @@ import FeatureMetricsRow from './FeatureMetricsRow.vue'
 import FeatureCharts from './FeatureCharts.vue'
 import FeatureList from './FeatureList.vue'
 import TrendCharts from './TrendCharts.vue'
+import { FIX_VERSION_FILTER_ALL } from '../constants.js'
 
 defineProps({
   loading: { type: Boolean, default: false },
@@ -21,6 +22,7 @@ defineProps({
   humanReviewFilter: { type: String, default: 'all' },
   componentFilter: { type: String, default: 'all' },
   artifactFilter: { type: String, default: 'all' },
+  fixVersionFilter: { type: String, default: FIX_VERSION_FILTER_ALL },
   sortBy: { type: String, default: 'default' },
   selectedFeature: { type: Object, default: null }
 })
@@ -35,6 +37,7 @@ const emit = defineEmits([
   'update:humanReviewFilter',
   'update:componentFilter',
   'update:artifactFilter',
+  'update:fixVersionFilter',
   'update:sortBy',
   'selectFeature',
   'retry'
@@ -115,6 +118,7 @@ const emit = defineEmits([
         :humanReviewFilter="humanReviewFilter"
         :componentFilter="componentFilter"
         :artifactFilter="artifactFilter"
+        :fixVersionFilter="fixVersionFilter"
         :sortBy="sortBy"
         @update:searchQuery="emit('update:searchQuery', $event)"
         @update:aiInvolvementFilter="emit('update:aiInvolvementFilter', $event)"
@@ -123,6 +127,7 @@ const emit = defineEmits([
         @update:humanReviewFilter="emit('update:humanReviewFilter', $event)"
         @update:componentFilter="emit('update:componentFilter', $event)"
         @update:artifactFilter="emit('update:artifactFilter', $event)"
+        @update:fixVersionFilter="emit('update:fixVersionFilter', $event)"
         @update:sortBy="emit('update:sortBy', $event)"
         @selectFeature="emit('selectFeature', $event)"
       />
