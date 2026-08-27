@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import FeatureList from '../../client/components/FeatureList.vue';
 import FeatureListItem from '../../client/components/FeatureListItem.vue';
-import { FIX_VERSION_FILTER_UNASSIGNED } from '../../client/constants.js';
+import { FIX_VERSION_FILTER_UNASSIGNED, encodeFixVersionOption } from '../../client/constants.js';
 
 function makeFeature(overrides = {}) {
   return {
@@ -207,11 +207,29 @@ describe('FeatureList fixVersion filter', () => {
       'RHAISTRAT-2': makeFeature({ key: 'RHAISTRAT-2', title: 'Both versions', fixVersions: ['rhoai-3.5', 'rhoai-3.6'] }),
       'RHAISTRAT-3': makeFeature({ key: 'RHAISTRAT-3', title: 'Only 3.6', fixVersions: ['rhoai-3.6'] })
     };
-    const wrapper = mount(FeatureList, { props: { features, fixVersionFilter: 'rhoai-3.5' } });
+    const wrapper = mount(FeatureList, { props: { features, fixVersionFilter: encodeFixVersionOption('rhoai-3.5') } });
     expect(wrapper.text()).toContain('(2 of 3 total)');
     expect(wrapper.text()).toContain('Only 3.5');
     expect(wrapper.text()).toContain('Both versions');
     expect(wrapper.text()).not.toContain('Only 3.6');
+  });
+
+  it('treats a real fixVersion named like the sentinels as an ordinary, individually selectable version', () => {
+    const features = {
+      'RHAISTRAT-1': makeFeature({ key: 'RHAISTRAT-1', title: 'Named __all__', fixVersions: ['__all__'] }),
+      'RHAISTRAT-2': makeFeature({ key: 'RHAISTRAT-2', title: 'Named __unassigned__', fixVersions: ['__unassigned__'] }),
+      'RHAISTRAT-3': makeFeature({ key: 'RHAISTRAT-3', title: 'Other version', fixVersions: ['rhoai-3.5'] })
+    };
+    const wrapper = mount(FeatureList, { props: { features } });
+    const select = findFixVersionSelect(wrapper);
+    const options = select.findAll('option').map(o => o.text());
+    expect(options).toEqual(['All Fix Versions', '__all__', '__unassigned__', 'rhoai-3.5']);
+
+    const filtered = mount(FeatureList, { props: { features, fixVersionFilter: encodeFixVersionOption('__all__') } });
+    expect(filtered.text()).toContain('(1 of 3 total)');
+    expect(filtered.text()).toContain('Named __all__');
+    expect(filtered.text()).not.toContain('Named __unassigned__');
+    expect(filtered.text()).not.toContain('Other version');
   });
 
   it('filters to only unassigned features when Unassigned is selected', () => {
@@ -231,8 +249,8 @@ describe('FeatureList fixVersion filter', () => {
     };
     const wrapper = mount(FeatureList, { props: { features } });
     const select = findFixVersionSelect(wrapper);
-    await select.setValue('rhoai-3.5');
-    expect(wrapper.emitted('update:fixVersionFilter')[0]).toEqual(['rhoai-3.5']);
+    await select.setValue(encodeFixVersionOption('rhoai-3.5'));
+    expect(wrapper.emitted('update:fixVersionFilter')[0]).toEqual([encodeFixVersionOption('rhoai-3.5')]);
   });
 
   it('applies together with the component filter', () => {
@@ -240,7 +258,7 @@ describe('FeatureList fixVersion filter', () => {
       'RHAISTRAT-1': makeFeature({ key: 'RHAISTRAT-1', title: 'Core with version', components: ['Core'], fixVersions: ['rhoai-3.5'] }),
       'RHAISTRAT-2': makeFeature({ key: 'RHAISTRAT-2', title: 'Core no version', components: ['Core'], fixVersions: [] })
     };
-    const wrapper = mount(FeatureList, { props: { features, componentFilter: 'Core', fixVersionFilter: 'rhoai-3.5' } });
+    const wrapper = mount(FeatureList, { props: { features, componentFilter: 'Core', fixVersionFilter: encodeFixVersionOption('rhoai-3.5') } });
     expect(wrapper.text()).toContain('(1 of 2 total)');
     expect(wrapper.text()).toContain('Core with version');
     expect(wrapper.text()).not.toContain('Core no version');

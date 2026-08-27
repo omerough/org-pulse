@@ -5,7 +5,10 @@ import {
   AI_INVOLVEMENT_FILTER_OPTIONS, REVIEW_STATUS_FILTER_OPTIONS,
   SORT_FILTER_OPTIONS, getArtifactFilterOptions
 } from '../utils/feature-helpers.js'
-import { FIX_VERSION_FILTER_ALL, FIX_VERSION_FILTER_UNASSIGNED } from '../constants.js'
+import {
+  FIX_VERSION_FILTER_ALL, FIX_VERSION_FILTER_UNASSIGNED,
+  encodeFixVersionOption, decodeFixVersionOption
+} from '../constants.js'
 
 const artifactFilterOptions = getArtifactFilterOptions('Design')
 
@@ -117,7 +120,8 @@ const sortedAndFilteredFeatures = computed(() => {
   if (props.fixVersionFilter === FIX_VERSION_FILTER_UNASSIGNED) {
     items = items.filter(f => (f.fixVersions || []).length === 0)
   } else if (props.fixVersionFilter !== FIX_VERSION_FILTER_ALL) {
-    items = items.filter(f => (f.fixVersions || []).includes(props.fixVersionFilter))
+    const selectedVersion = decodeFixVersionOption(props.fixVersionFilter)
+    items = items.filter(f => (f.fixVersions || []).includes(selectedVersion))
   }
 
   // Sort
@@ -217,7 +221,7 @@ const sortedAndFilteredFeatures = computed(() => {
         class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-800 dark:text-gray-300"
       >
         <option :value="FIX_VERSION_FILTER_ALL">All Fix Versions</option>
-        <option v-for="v in availableFixVersions" :key="v" :value="v">{{ v }}</option>
+        <option v-for="v in availableFixVersions" :key="v" :value="encodeFixVersionOption(v)">{{ v }}</option>
         <option v-if="hasUnassignedFixVersion" :value="FIX_VERSION_FILTER_UNASSIGNED">Unassigned</option>
       </select>
 

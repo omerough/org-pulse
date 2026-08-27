@@ -339,7 +339,7 @@ test.describe('AI Impact Views @ai-impact', () => {
     await expect(page.getByText('Feature with a fix version')).toBeVisible();
     await expect(page.getByText('Feature with no fix version')).toBeVisible();
 
-    await fixVersionSelect.selectOption('0.5');
+    await fixVersionSelect.selectOption({ label: '0.5' });
     await expect(page.getByText('Feature with a fix version')).toBeVisible();
     await expect(page.getByText('Feature with no fix version')).not.toBeVisible();
 
