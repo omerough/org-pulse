@@ -5,6 +5,10 @@ import {
   AI_INVOLVEMENT_FILTER_OPTIONS, REVIEW_STATUS_FILTER_OPTIONS,
   SORT_FILTER_OPTIONS, getArtifactFilterOptions
 } from '../utils/feature-helpers.js'
+import {
+  FIX_VERSION_FILTER_ALL, FIX_VERSION_FILTER_UNASSIGNED,
+  encodeFixVersionOption, decodeFixVersionOption
+} from '../constants.js'
 
 const artifactFilterOptions = getArtifactFilterOptions('Design')
 
@@ -18,6 +22,7 @@ const props = defineProps({
   humanReviewFilter: { type: String, default: 'all' },
   componentFilter: { type: String, default: 'all' },
   artifactFilter: { type: String, default: 'all' },
+  fixVersionFilter: { type: String, default: FIX_VERSION_FILTER_ALL },
   sortBy: { type: String, default: 'default' }
 })
 
@@ -29,6 +34,7 @@ const emit = defineEmits([
   'update:humanReviewFilter',
   'update:componentFilter',
   'update:artifactFilter',
+  'update:fixVersionFilter',
   'update:sortBy',
   'selectFeature'
 ])
@@ -50,6 +56,18 @@ const availableComponents = computed(() => {
   }
   return [...values].sort()
 })
+
+const availableFixVersions = computed(() => {
+  const values = new Set()
+  for (const f of featureList.value) {
+    for (const v of (f.fixVersions || [])) values.add(v)
+  }
+  return [...values].sort()
+})
+
+const hasUnassignedFixVersion = computed(() =>
+  featureList.value.some(f => (f.fixVersions || []).length === 0)
+)
 
 const sortedAndFilteredFeatures = computed(() => {
   let items = [...featureList.value]
@@ -96,6 +114,14 @@ const sortedAndFilteredFeatures = computed(() => {
     items = items.filter(f => f.designStatus !== 'no-design')
   } else if (props.artifactFilter === 'missing') {
     items = items.filter(f => f.designStatus === 'no-design')
+  }
+
+  // Fix version filter
+  if (props.fixVersionFilter === FIX_VERSION_FILTER_UNASSIGNED) {
+    items = items.filter(f => (f.fixVersions || []).length === 0)
+  } else if (props.fixVersionFilter !== FIX_VERSION_FILTER_ALL) {
+    const selectedVersion = decodeFixVersionOption(props.fixVersionFilter)
+    items = items.filter(f => (f.fixVersions || []).includes(selectedVersion))
   }
 
   // Sort
@@ -187,6 +213,16 @@ const sortedAndFilteredFeatures = computed(() => {
         class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-800 dark:text-gray-300"
       >
         <option v-for="o in artifactFilterOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+      </select>
+
+      <select
+        :value="fixVersionFilter"
+        @change="emit('update:fixVersionFilter', $event.target.value)"
+        class="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-800 dark:text-gray-300"
+      >
+        <option :value="FIX_VERSION_FILTER_ALL">All Fix Versions</option>
+        <option v-for="v in availableFixVersions" :key="v" :value="encodeFixVersionOption(v)">{{ v }}</option>
+        <option v-if="hasUnassignedFixVersion" :value="FIX_VERSION_FILTER_UNASSIGNED">Unassigned</option>
       </select>
 
       <select

@@ -172,6 +172,21 @@ describe('readFeatures', () => {
     expect(result.features['RHAISTRAT-1168'].latest.components).toEqual([]);
   });
 
+  it('passes through fixVersions from the releases index entry, defaulting to an empty array', () => {
+    const withVersion = { key: 'RHAISTRAT-1168', aiReview: { recommendation: 'approve' }, fixVersions: ['rhoai-3.5'] };
+    const withoutVersion = { key: 'RHAISTRAT-2000', aiReview: { recommendation: 'approve' } };
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([withVersion, withoutVersion]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return makeFeatureFile();
+      if (key === 'releases/execution/features/RHAISTRAT-2000.json') return makeFeatureFile();
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.fixVersions).toEqual(['rhoai-3.5']);
+    expect(result.features['RHAISTRAT-2000'].latest.fixVersions).toEqual([]);
+  });
+
   it('falls back to legacy store when no releases index', () => {
     const legacyData = {
       lastSyncedAt: '2026-04-19T12:00:00Z',
@@ -188,20 +203,68 @@ describe('readFeatures', () => {
     expect(result).toBe(legacyData);
   });
 
-  it('falls back to legacy store when releases index has no aiReview features', () => {
+  it('falls back to legacy store when releases index has no aiReview features, backfilling fixVersions by key', () => {
     const legacyData = {
       lastSyncedAt: '2026-04-19T12:00:00Z',
-      totalFeatures: 1,
-      features: { A: { latest: { key: 'A' }, history: [] } }
+      totalFeatures: 2,
+      features: {
+        A: { latest: { key: 'A' }, history: [] },
+        B: { latest: { key: 'B', fixVersions: ['legacy-existing'] }, history: [] }
+      }
     };
     const read = vi.fn(function(key) {
-      if (key === 'releases/execution/index.json') return makeReleasesIndex([{ key: 'X', summary: 'No AI' }]);
+      if (key === 'releases/execution/index.json') {
+        return makeReleasesIndex([
+          { key: 'A', summary: 'No AI', fixVersions: ['0.2'] },
+          { key: 'B', summary: 'No AI', fixVersions: ['0.3'] },
+          { key: 'C', summary: 'No AI, unrelated key' }
+        ]);
+      }
       if (key === 'ai-impact/features.json') return legacyData;
       return null;
     });
 
     const result = readFeatures(read);
-    expect(result).toBe(legacyData);
+    expect(result.lastSyncedAt).toBe(legacyData.lastSyncedAt);
+    expect(result.totalFeatures).toBe(legacyData.totalFeatures);
+    // Backfilled from the index by key, since the legacy record had none
+    expect(result.features.A.latest.fixVersions).toEqual(['0.2']);
+    // Legacy's own fixVersions is preserved, not overwritten by the index
+    expect(result.features.B.latest.fixVersions).toEqual(['legacy-existing']);
+  });
+
+  it('backfills from the index when the legacy record has an empty fixVersions array', () => {
+    const legacyData = {
+      lastSyncedAt: '2026-04-19T12:00:00Z',
+      totalFeatures: 1,
+      features: { A: { latest: { key: 'A', fixVersions: [] }, history: [] } }
+    };
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') {
+        return makeReleasesIndex([{ key: 'A', summary: 'No AI', fixVersions: ['0.2'] }]);
+      }
+      if (key === 'ai-impact/features.json') return legacyData;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features.A.latest.fixVersions).toEqual(['0.2']);
+  });
+
+  it('defaults a legacy record to an empty fixVersions array when no index entry matches its key', () => {
+    const legacyData = {
+      lastSyncedAt: '2026-04-19T12:00:00Z',
+      totalFeatures: 1,
+      features: { Z: { latest: { key: 'Z' }, history: [] } }
+    };
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([{ key: 'Q', summary: 'unrelated' }]);
+      if (key === 'ai-impact/features.json') return legacyData;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features.Z.latest.fixVersions).toEqual([]);
   });
 
   it('returns empty state when both stores are empty', () => {
@@ -280,6 +343,20 @@ describe('getLatestProjection', () => {
     expect(proj.features['A'].labels).toBeUndefined();
     expect(proj.features['A'].runId).toBeUndefined();
     expect(proj.features['A'].history).toBeUndefined();
+  });
+
+  it('carries fixVersions through, defaulting to an empty array when absent', () => {
+    const data = {
+      lastSyncedAt: '2026-04-19T12:00:00Z',
+      totalFeatures: 2,
+      features: {
+        'A': { latest: { key: 'RHAISTRAT-1', fixVersions: ['rhoai-3.5'] }, history: [] },
+        'B': { latest: { key: 'RHAISTRAT-2' }, history: [] }
+      }
+    };
+    const proj = getLatestProjection(data);
+    expect(proj.features['A'].fixVersions).toEqual(['rhoai-3.5']);
+    expect(proj.features['B'].fixVersions).toEqual([]);
   });
 });
 

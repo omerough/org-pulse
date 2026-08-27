@@ -3,7 +3,7 @@ import { ref, watch, inject } from 'vue'
 import { useFeatures } from '../composables/useFeatures.js'
 import { useAIImpact } from '../composables/useAIImpact.js'
 import { useModuleLink } from '@shared/client/composables/useModuleLink.js'
-import { PHASES } from '../constants.js'
+import { PHASES, FIX_VERSION_FILTER_ALL } from '../constants.js'
 import FeatureReviewContent from '../components/FeatureReviewContent.vue'
 import FeatureDetailPanel from '../components/FeatureDetailPanel.vue'
 import AIImpactGuide from '../components/AIImpactGuide.vue'
@@ -18,6 +18,7 @@ const priorityFilter = ref('all')
 const humanReviewFilter = ref('all')
 const componentFilter = ref('all')
 const artifactFilter = ref('all')
+const fixVersionFilter = ref(FIX_VERSION_FILTER_ALL)
 const sortBy = ref('default')
 const chartExpanded = ref(true)
 
@@ -78,6 +79,7 @@ watch(() => moduleNav.params.value, (params) => {
       humanReviewFilter.value = 'all'
       componentFilter.value = 'all'
       artifactFilter.value = 'all'
+      fixVersionFilter.value = FIX_VERSION_FILTER_ALL
       sortBy.value = 'default'
       selectedFeature.value = feature
     }
@@ -114,6 +116,7 @@ watch(() => Object.keys(features.value).length, () => {
       :humanReviewFilter="humanReviewFilter"
       :componentFilter="componentFilter"
       :artifactFilter="artifactFilter"
+      :fixVersionFilter="fixVersionFilter"
       :sortBy="sortBy"
       :selectedFeature="selectedFeature"
       @update:timeWindow="featureTimeWindow = $event"
@@ -125,6 +128,7 @@ watch(() => Object.keys(features.value).length, () => {
       @update:humanReviewFilter="humanReviewFilter = $event"
       @update:componentFilter="componentFilter = $event"
       @update:artifactFilter="artifactFilter = $event"
+      @update:fixVersionFilter="fixVersionFilter = $event"
       @update:sortBy="sortBy = $event"
       @selectFeature="handleSelectFeature"
       @retry="handleRetry"
