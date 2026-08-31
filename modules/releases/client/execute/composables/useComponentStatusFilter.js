@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 
 export const UNASSIGNED_COMPONENT = 'Unassigned'
 export const UNKNOWN_STATUS = 'Unknown'
+export const UNASSIGNED_TEAM = 'Unassigned'
 
 // Display-only readability fixes for raw Jira Component values. The raw value
 // (map key) stays the contract used for filtering/matching; only the rendered
@@ -48,9 +49,25 @@ export function matchesStatus(status, selected) {
   return selected.includes(status || UNKNOWN_STATUS)
 }
 
+export function collectTeamOptions(items, getTeam) {
+  const set = new Set()
+  for (const item of items) {
+    set.add(getTeam(item) || UNASSIGNED_TEAM)
+  }
+  const sorted = [...set].filter(t => t !== UNASSIGNED_TEAM).sort()
+  if (set.has(UNASSIGNED_TEAM)) sorted.push(UNASSIGNED_TEAM)
+  return sorted
+}
+
+export function matchesTeam(team, selected) {
+  if (!selected || selected.length === 0) return true
+  return selected.includes(team || UNASSIGNED_TEAM)
+}
+
 export function useComponentStatusFilter() {
   const selectedComponents = ref([])
   const selectedStatuses = ref([])
+  const selectedTeams = ref([])
 
   function toggleComponent(value) {
     const idx = selectedComponents.value.indexOf(value)
@@ -64,18 +81,29 @@ export function useComponentStatusFilter() {
     else selectedStatuses.value.push(value)
   }
 
+  function toggleTeam(value) {
+    const idx = selectedTeams.value.indexOf(value)
+    if (idx >= 0) selectedTeams.value.splice(idx, 1)
+    else selectedTeams.value.push(value)
+  }
+
   function clearFilters() {
     selectedComponents.value = []
     selectedStatuses.value = []
+    selectedTeams.value = []
   }
 
-  const isFiltered = computed(() => selectedComponents.value.length > 0 || selectedStatuses.value.length > 0)
+  const isFiltered = computed(() =>
+    selectedComponents.value.length > 0 || selectedStatuses.value.length > 0 || selectedTeams.value.length > 0
+  )
 
   return {
     selectedComponents,
     selectedStatuses,
+    selectedTeams,
     toggleComponent,
     toggleStatus,
+    toggleTeam,
     clearFilters,
     isFiltered
   }

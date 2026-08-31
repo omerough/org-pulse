@@ -1295,6 +1295,7 @@ Produced entirely by `org-pulse-data`'s `fetch-releases-feature-tracking.py`, on
       "priority": "Major",
       "assignee": "Vitaliy Emporopulo",
       "components": ["CaaS"],
+      "team": "OSAC-Core",
       "isBlockerPriority": false,
       "scopeChange": "moved",
       "fixVersionAddedAt": null,
@@ -1309,6 +1310,7 @@ Produced entirely by `org-pulse-data`'s `fetch-releases-feature-tracking.py`, on
 - `baselineDate`/`baselineSource` are never fabricated: `baselineSource` is `"override"`, `"unknown"`, or `"releaseStart+{N}d"`. `baselineDate` is `null` only when `baselineSource == "unknown"` — no resolvable baseline exists for the release (no override, no registry `releaseStart`).
 - `scopeChange` is one of `null` (committed at baseline), `"added"`, `"dropped"`, `"moved"`, `"unknown"` (baseline is unknown, so scope can't be classified — never conflated with committed).
 - `movedTo` is only present (non-null) when `scopeChange == "moved"`.
+- `team` is the Feature's Jira Team (`customfield_10001`, normalized to its name), `null` when unset.
 - `isBlockerPriority` reports Jira `priority == "Blocker"` on the Feature itself — it is **not** a "currently blocked" signal (this repo doesn't collect issue-link blocking state for Features).
 - `counts.blockerPriority` excludes features with `scopeChange` of `"dropped"` or `"moved"` — neither remains in the release's current scope.
 - `wasQueryFailed` is `true` when the dropped/moved-detection query failed for this release; when `true`, `counts.dropped`/`counts.moved` may undercount.

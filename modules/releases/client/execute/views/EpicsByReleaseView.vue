@@ -5,8 +5,10 @@ import {
   useComponentStatusFilter,
   collectComponentOptions,
   collectStatusOptions,
+  collectTeamOptions,
   matchesComponents,
-  matchesStatus
+  matchesStatus,
+  matchesTeam
 } from '../composables/useComponentStatusFilter'
 import StatusBadge from '../components/StatusBadge.vue'
 import EpicBreakdown from '../components/EpicBreakdown.vue'
@@ -17,8 +19,10 @@ const { features, fetchedAt, loading, error, loadEpicsByRelease } = useEpicsByRe
 const {
   selectedComponents,
   selectedStatuses,
+  selectedTeams,
   toggleComponent,
   toggleStatus,
+  toggleTeam,
   clearFilters,
   isFiltered
 } = useComponentStatusFilter()
@@ -50,15 +54,22 @@ const statusOptions = computed(() => {
   return collectStatusOptions(items, item => item.status)
 })
 
+// Team lives only on the Feature (the generated contract has no per-Epic Team), so
+// options are sourced from Features alone rather than the Feature+Epic union above.
+const teamOptions = computed(() => collectTeamOptions(features.value, f => f.team))
+
 // A Feature stays visible when it, or at least one of its Epics, matches the active
-// filters — only the matching Epics are shown under it (mirrors how a context Feature
-// already narrows to its directly-matching Epic(s) rather than its full sibling list).
+// Component/Status filters — only the matching Epics are shown under it (mirrors how a
+// context Feature already narrows to its directly-matching Epic(s) rather than its full
+// sibling list). Team has no per-Epic value, so it gates the whole Feature (and its
+// Epics) up front rather than joining the Component/Status OR-across-hierarchy check.
 const filteredFeatures = computed(() => {
   if (!isFiltered.value) {
     return features.value.map(feature => ({ ...feature, directEpicCount: feature.epics.length }))
   }
   const result = []
   for (const feature of features.value) {
+    if (!matchesTeam(feature.team, selectedTeams.value)) continue
     const matchingEpics = feature.epics.filter(e =>
       matchesComponents(e.components, selectedComponents.value) &&
       matchesStatus(e.status, selectedStatuses.value)
@@ -119,10 +130,13 @@ onMounted(async () => {
       v-if="!loading && features.length > 0"
       :component-options="componentOptions"
       :status-options="statusOptions"
+      :team-options="teamOptions"
       :selected-components="selectedComponents"
       :selected-statuses="selectedStatuses"
+      :selected-teams="selectedTeams"
       @toggle-component="toggleComponent"
       @toggle-status="toggleStatus"
+      @toggle-team="toggleTeam"
       @clear="clearFilters"
     />
 

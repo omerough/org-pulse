@@ -5,8 +5,10 @@ import {
   useComponentStatusFilter,
   collectComponentOptions,
   collectStatusOptions,
+  collectTeamOptions,
   matchesComponents,
-  matchesStatus
+  matchesStatus,
+  matchesTeam
 } from '../composables/useComponentStatusFilter'
 import FeatureTrackingTable from '../components/FeatureTrackingTable.vue'
 import ComponentStatusFilterBar from '../components/ComponentStatusFilterBar.vue'
@@ -22,8 +24,10 @@ const {
 const {
   selectedComponents,
   selectedStatuses,
+  selectedTeams,
   toggleComponent,
   toggleStatus,
+  toggleTeam,
   clearFilters: clearComponentStatusFilters,
   isFiltered: isComponentStatusFiltered
 } = useComponentStatusFilter()
@@ -67,6 +71,7 @@ const isGenuineZeroScope = computed(() => {
 // current filter selection, so narrowing one field never hides options for the other.
 const componentOptions = computed(() => collectComponentOptions(features.value, f => f.components))
 const statusOptions = computed(() => collectStatusOptions(features.value, f => f.status))
+const teamOptions = computed(() => collectTeamOptions(features.value, f => f.team))
 
 const tableEmptyMessage = computed(() => {
   return isGenuineZeroScope.value
@@ -98,7 +103,9 @@ const filteredFeatures = computed(() => {
   }
   if (isComponentStatusFiltered.value) {
     result = result.filter(function (f) {
-      return matchesComponents(f.components, selectedComponents.value) && matchesStatus(f.status, selectedStatuses.value)
+      return matchesComponents(f.components, selectedComponents.value) &&
+        matchesStatus(f.status, selectedStatuses.value) &&
+        matchesTeam(f.team, selectedTeams.value)
     })
   }
   return result
@@ -172,10 +179,13 @@ onMounted(async () => {
       class="mb-5 rounded-xl border border-gray-200 dark:border-gray-700"
       :component-options="componentOptions"
       :status-options="statusOptions"
+      :team-options="teamOptions"
       :selected-components="selectedComponents"
       :selected-statuses="selectedStatuses"
+      :selected-teams="selectedTeams"
       @toggle-component="toggleComponent"
       @toggle-status="toggleStatus"
+      @toggle-team="toggleTeam"
       @clear="clearComponentStatusFilters"
     />
 
