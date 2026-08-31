@@ -67,13 +67,17 @@ const mockStageFilter = ref('')
 const mockPriorityFilter = ref('')
 const mockComponentFilter = ref('')
 const mockAvailableItemComponents = ref([])
+const mockVersionFilter = ref('')
+const mockAvailableItemVersions = ref([])
 vi.mock('../../../client/composables/useForYou', () => ({
   useForYou: () => ({
     boardColumns: mockBoardColumns,
     stageFilter: mockStageFilter,
     priorityFilter: mockPriorityFilter,
     componentFilter: mockComponentFilter,
-    availableItemComponents: mockAvailableItemComponents
+    availableItemComponents: mockAvailableItemComponents,
+    versionFilter: mockVersionFilter,
+    availableItemVersions: mockAvailableItemVersions
   })
 }))
 
@@ -82,7 +86,7 @@ vi.mock('../../../client/components/ForYouSettings.vue', () => ({
   default: { template: '<div class="settings-stub">Settings</div>', props: ['mode', 'manualComponents', 'availableComponents', 'componentsLoading'] }
 }))
 vi.mock('../../../client/components/ForYouBoardTab.vue', () => ({
-  default: { template: '<div class="board-tab-stub">Board Tab</div>', props: ['boardColumns', 'stageFilter', 'priorityFilter', 'stageOptions', 'priorityOptions', 'componentFilter', 'availableItemComponents', 'jiraHost'] }
+  default: { template: '<div class="board-tab-stub">Board Tab</div>', props: ['boardColumns', 'stageFilter', 'priorityFilter', 'stageOptions', 'priorityOptions', 'componentFilter', 'availableItemComponents', 'versionFilter', 'availableItemVersions', 'jiraHost'] }
 }))
 
 beforeEach(() => {

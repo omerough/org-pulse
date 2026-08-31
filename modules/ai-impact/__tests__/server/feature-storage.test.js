@@ -187,6 +187,54 @@ describe('readFeatures', () => {
     expect(result.features['RHAISTRAT-2000'].latest.fixVersions).toEqual([]);
   });
 
+  it('surfaces prdPrStatus and prdPrUrl from the feature file aiReview', () => {
+    const indexEntry = { key: 'RHAISTRAT-1168', aiReview: { recommendation: 'approve' } };
+    const featureFile = makeFeatureFile({
+      prdPrStatus: 'Merged',
+      prdPrUrl: 'https://github.com/osac-project/enhancement-proposals/pull/1168'
+    });
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.prdPrStatus).toBe('Merged');
+    expect(result.features['RHAISTRAT-1168'].latest.prdPrUrl).toBe('https://github.com/osac-project/enhancement-proposals/pull/1168');
+  });
+
+  it('falls back to the index entry aiReview for prdPrStatus/prdPrUrl when the feature file lacks them', () => {
+    const indexEntry = {
+      key: 'RHAISTRAT-1168',
+      aiReview: { recommendation: 'approve', prdPrStatus: 'Open', prdPrUrl: 'https://github.com/osac-project/enhancement-proposals/pull/99' }
+    };
+    const featureFile = makeFeatureFile();
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.prdPrStatus).toBe('Open');
+    expect(result.features['RHAISTRAT-1168'].latest.prdPrUrl).toBe('https://github.com/osac-project/enhancement-proposals/pull/99');
+  });
+
+  it('defaults prdPrStatus and prdPrUrl to null when neither source has them', () => {
+    const indexEntry = { key: 'RHAISTRAT-1168', aiReview: { recommendation: 'approve' } };
+    const featureFile = makeFeatureFile();
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.prdPrStatus).toBeNull();
+    expect(result.features['RHAISTRAT-1168'].latest.prdPrUrl).toBeNull();
+  });
+
   it('falls back to legacy store when no releases index', () => {
     const legacyData = {
       lastSyncedAt: '2026-04-19T12:00:00Z',
@@ -343,6 +391,22 @@ describe('getLatestProjection', () => {
     expect(proj.features['A'].labels).toBeUndefined();
     expect(proj.features['A'].runId).toBeUndefined();
     expect(proj.features['A'].history).toBeUndefined();
+  });
+
+  it('carries prdPrStatus and prdPrUrl through, defaulting to null when absent', () => {
+    const data = {
+      lastSyncedAt: '2026-04-19T12:00:00Z',
+      totalFeatures: 2,
+      features: {
+        'A': { latest: { key: 'RHAISTRAT-1', prdPrStatus: 'Merged', prdPrUrl: 'https://example.com/pr/1' }, history: [] },
+        'B': { latest: { key: 'RHAISTRAT-2' }, history: [] }
+      }
+    };
+    const proj = getLatestProjection(data);
+    expect(proj.features['A'].prdPrStatus).toBe('Merged');
+    expect(proj.features['A'].prdPrUrl).toBe('https://example.com/pr/1');
+    expect(proj.features['B'].prdPrStatus).toBeNull();
+    expect(proj.features['B'].prdPrUrl).toBeNull();
   });
 
   it('carries fixVersions through, defaulting to an empty array when absent', () => {

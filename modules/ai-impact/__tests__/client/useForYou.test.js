@@ -88,45 +88,34 @@ describe('classifyRfe', () => {
 })
 
 describe('classifyFeature', () => {
-  it('returns SIGNED_OFF when humanReviewStatus is approved', () => {
-    const f = { recommendation: 'approve', humanReviewStatus: 'approved', approvedBy: 'Alice' }
-    expect(classifyFeature(f)).toBe(FEATURE_STATES.SIGNED_OFF)
+  it('returns PRD_PENDING when there is no PRD PR', () => {
+    const f = { prdPrStatus: null, humanReviewStatus: 'approved' }
+    expect(classifyFeature(f)).toBe(FEATURE_STATES.PRD_PENDING)
   })
 
-  it('returns SIGNED_OFF when approvedBy is set', () => {
-    const f = { recommendation: 'approve', humanReviewStatus: 'awaiting-review', approvedBy: 'Alice' }
-    expect(classifyFeature(f)).toBe(FEATURE_STATES.SIGNED_OFF)
+  it('returns PRD_PENDING when the PRD PR is open', () => {
+    const f = { prdPrStatus: 'Open', humanReviewStatus: 'approved' }
+    expect(classifyFeature(f)).toBe(FEATURE_STATES.PRD_PENDING)
   })
 
-  it('returns SIGNED_OFF for revise + approved (human override)', () => {
-    const f = { recommendation: 'revise', humanReviewStatus: 'approved' }
-    expect(classifyFeature(f)).toBe(FEATURE_STATES.SIGNED_OFF)
+  it('returns PRD_PENDING when the PRD PR is closed without merging', () => {
+    const f = { prdPrStatus: 'Closed', humanReviewStatus: 'approved' }
+    expect(classifyFeature(f)).toBe(FEATURE_STATES.PRD_PENDING)
   })
 
-  it('returns SIGNED_OFF for reject + approved (human override)', () => {
-    const f = { recommendation: 'reject', humanReviewStatus: 'approved' }
-    expect(classifyFeature(f)).toBe(FEATURE_STATES.SIGNED_OFF)
+  it('returns DESIGN_PENDING when the PRD is merged but design is not approved', () => {
+    const f = { prdPrStatus: 'Merged', humanReviewStatus: 'awaiting-review' }
+    expect(classifyFeature(f)).toBe(FEATURE_STATES.DESIGN_PENDING)
   })
 
-  it('returns REJECTED when recommendation is reject', () => {
-    const f = { recommendation: 'reject', humanReviewStatus: 'awaiting-review' }
-    expect(classifyFeature(f)).toBe(FEATURE_STATES.REJECTED)
+  it('returns DESIGN_PENDING when the PRD is merged and humanReviewStatus is missing', () => {
+    const f = { prdPrStatus: 'Merged' }
+    expect(classifyFeature(f)).toBe(FEATURE_STATES.DESIGN_PENDING)
   })
 
-  it('returns REVISE_REQUIRED when recommendation is revise', () => {
-    const f = { recommendation: 'revise', humanReviewStatus: 'awaiting-review' }
-    expect(classifyFeature(f)).toBe(FEATURE_STATES.REVISE_REQUIRED)
-  })
-
-  it('returns AWAITING_SIGNOFF when recommendation is approve', () => {
-    const f = { recommendation: 'approve', humanReviewStatus: 'awaiting-review' }
-    expect(classifyFeature(f)).toBe(FEATURE_STATES.AWAITING_SIGNOFF)
-  })
-
-  it('returns unclassified for unknown recommendation', () => {
-    const f = { recommendation: 'unknown', humanReviewStatus: 'awaiting-review' }
-    const result = classifyFeature(f)
-    expect(result.id).toBe('unclassified')
+  it('returns READY_FOR_IMPLEMENTATION when the PRD is merged and design is approved', () => {
+    const f = { prdPrStatus: 'Merged', humanReviewStatus: 'approved' }
+    expect(classifyFeature(f)).toBe(FEATURE_STATES.READY_FOR_IMPLEMENTATION)
   })
 })
 
@@ -334,34 +323,71 @@ describe('findPersonByUid', () => {
 describe('boardColumns', () => {
   const rosterData = ref({ orgs: [] })
   const user = ref({ email: 'test@example.com' })
-  const features = ref({})
+  const rfeData = ref({ issues: [] })
   const assessments = ref({})
   const fieldDefinitions = ref({ personFields: [] })
 
-  it('groups items into correct columns', () => {
-    const rfeData = ref({
-      issues: [
-        { key: 'RFE-1', summary: 'A', components: [], labels: ['rfe-creator-needs-attention'], linkedFeature: null, priority: 'High', created: '2025-01-01' },
-        { key: 'RFE-2', summary: 'B', components: [], labels: [], linkedFeature: null, priority: 'Medium', created: '2025-01-01' },
-        { key: 'RFE-3', summary: 'C', components: [], labels: ['rfe-creator-autofix-rubric-pass'], linkedFeature: null, priority: 'Low', created: '2025-01-01' }
-      ]
+  it('groups features into the three readiness columns', () => {
+    const features = ref({
+      A: { key: 'A', title: 'No PRD PR', prdPrStatus: null, humanReviewStatus: 'awaiting-review' },
+      B: { key: 'B', title: 'PRD merged, design pending', prdPrStatus: 'Merged', humanReviewStatus: 'awaiting-review' },
+      C: { key: 'C', title: 'Ready', prdPrStatus: 'Merged', humanReviewStatus: 'approved' }
     })
     const { boardColumns } = useForYou(rosterData, user, rfeData, features, assessments, fieldDefinitions)
     const colMap = Object.fromEntries(boardColumns.value.map(c => [c.id, c]))
-    expect(colMap['needs-revision'].items.map(i => i.key)).toEqual(['RFE-1'])
-    expect(colMap['not-assessed'].items.map(i => i.key)).toEqual(['RFE-2'])
-    expect(colMap['ready-to-advance'].items.map(i => i.key)).toEqual(['RFE-3'])
+    expect(colMap['prd-pending'].items.map(i => i.key)).toEqual(['A'])
+    expect(colMap['design-pending'].items.map(i => i.key)).toEqual(['B'])
+    expect(colMap['ready-for-implementation'].items.map(i => i.key)).toEqual(['C'])
   })
 
-  it('has all 9 columns', () => {
-    const rfeData = ref({ issues: [] })
+  it('has exactly 3 columns and no inherited RFE columns', () => {
+    const features = ref({})
     const { boardColumns } = useForYou(rosterData, user, rfeData, features, assessments, fieldDefinitions)
-    expect(boardColumns.value).toHaveLength(9)
+    expect(boardColumns.value).toHaveLength(3)
     const ids = boardColumns.value.map(c => c.id)
-    expect(ids).toContain('not-assessed')
-    expect(ids).toContain('needs-revision')
-    expect(ids).not.toContain('strategy-created')
-    expect(ids).toContain('signed-off')
+    expect(ids).toEqual(['prd-pending', 'design-pending', 'ready-for-implementation'])
+    expect(ids).not.toContain('not-assessed')
+    expect(ids).not.toContain('signed-off')
+  })
+
+  it('excludes RFE items even when rfeData has entries', () => {
+    const rfeDataWithIssues = ref({
+      issues: [{ key: 'RFE-1', summary: 'A', components: [], labels: [], linkedFeature: null, priority: 'High', created: '2025-01-01' }]
+    })
+    const features = ref({ A: { key: 'A', title: 'Ready', prdPrStatus: 'Merged', humanReviewStatus: 'approved' } })
+    const { boardColumns } = useForYou(rosterData, user, rfeDataWithIssues, features, assessments, fieldDefinitions)
+    const allKeys = boardColumns.value.flatMap(c => c.items.map(i => i.key))
+    expect(allKeys).toEqual(['A'])
+  })
+
+  it('filters by fix version when versionFilter is set', () => {
+    const features = ref({
+      A: { key: 'A', title: 'v1', prdPrStatus: 'Merged', humanReviewStatus: 'approved', fixVersions: ['1.0'] },
+      B: { key: 'B', title: 'v2', prdPrStatus: 'Merged', humanReviewStatus: 'approved', fixVersions: ['2.0'] }
+    })
+    const { boardColumns, versionFilter } = useForYou(rosterData, user, rfeData, features, assessments, fieldDefinitions)
+    versionFilter.value = ['1.0']
+    const colMap = Object.fromEntries(boardColumns.value.map(c => [c.id, c]))
+    expect(colMap['ready-for-implementation'].items.map(i => i.key)).toEqual(['A'])
+    versionFilter.value = [] // reset shared singleton for subsequent tests
+  })
+})
+
+describe('availableItemVersions', () => {
+  const rosterData = ref({ orgs: [] })
+  const user = ref({ email: 'test@example.com' })
+  const rfeData = ref({ issues: [] })
+  const assessments = ref({})
+  const fieldDefinitions = ref({ personFields: [] })
+
+  it('derives sorted unique fix versions from feature data only', () => {
+    const features = ref({
+      A: { key: 'A', prdPrStatus: 'Merged', humanReviewStatus: 'approved', fixVersions: ['2.0', '1.0'] },
+      B: { key: 'B', prdPrStatus: null, fixVersions: ['1.0'] },
+      C: { key: 'C', prdPrStatus: null, fixVersions: [] }
+    })
+    const { availableItemVersions } = useForYou(rosterData, user, rfeData, features, assessments, fieldDefinitions)
+    expect(availableItemVersions.value).toEqual(['1.0', '2.0'])
   })
 })
 

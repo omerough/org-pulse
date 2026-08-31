@@ -18,10 +18,9 @@ const RFE_STATES = {
 }
 
 const FEATURE_STATES = {
-  REJECTED: { id: 'rejected', label: 'Feature Rejected', color: 'red', order: 0 },
-  REVISE_REQUIRED: { id: 'revise-required', label: 'Revise Required', color: 'red', order: 1 },
-  AWAITING_SIGNOFF: { id: 'awaiting-signoff', label: 'Awaiting Sign-off', color: 'amber', order: 2 },
-  SIGNED_OFF: { id: 'signed-off', label: 'Signed Off', color: 'green', order: 3 }
+  PRD_PENDING: { id: 'prd-pending', label: 'PRD Pending', color: 'red', order: 0 },
+  DESIGN_PENDING: { id: 'design-pending', label: 'Design Pending', color: 'amber', order: 1 },
+  READY_FOR_IMPLEMENTATION: { id: 'ready-for-implementation', label: 'Ready for Implementation', color: 'green', order: 2 }
 }
 
 function classifyRfe(rfe) {
@@ -41,17 +40,9 @@ function classifyRfe(rfe) {
 }
 
 function classifyFeature(feature) {
-  const rec = feature.recommendation
-  const status = feature.humanReviewStatus
-  const hasApproval = status === 'approved' || !!feature.approvedBy
-
-  if (rec === 'revise' && hasApproval) return FEATURE_STATES.SIGNED_OFF
-  if (rec === 'reject' && hasApproval) return FEATURE_STATES.SIGNED_OFF
-  if (hasApproval) return FEATURE_STATES.SIGNED_OFF
-  if (rec === 'reject') return FEATURE_STATES.REJECTED
-  if (rec === 'revise') return FEATURE_STATES.REVISE_REQUIRED
-  if (rec === 'approve') return FEATURE_STATES.AWAITING_SIGNOFF
-  return { id: 'unclassified', label: 'Unclassified', color: 'gray', order: 6 }
+  if (feature.prdPrStatus !== 'Merged') return FEATURE_STATES.PRD_PENDING
+  if (feature.humanReviewStatus !== 'approved') return FEATURE_STATES.DESIGN_PENDING
+  return FEATURE_STATES.READY_FOR_IMPLEMENTATION
 }
 
 function computeWaitDays(item, state, type) {
@@ -131,6 +122,10 @@ function filterByComponents(items, userComponents) {
 const stageFilter = ref([])
 const priorityFilter = ref([])
 const componentFilter = ref([])
+// Feature Board-only: scopes boardColumns without affecting the shared RFE
+// action-item pipeline (actionNeeded/everythingElse/stats), which has no
+// concept of fix versions.
+const versionFilter = ref([])
 let initialized = false
 
 export function useForYou(rosterDataArg, userArg, rfeDataArg, featuresArg, assessmentsArg, fieldDefinitionsArg, optionsArg) {
@@ -221,7 +216,8 @@ export function useForYou(rosterDataArg, userArg, rfeDataArg, featuresArg, asses
         humanReviewStatus: feature.humanReviewStatus,
         sourceRfe: feature.sourceRfe,
         reviewedAt: feature.reviewedAt,
-        approvedBy: feature.approvedBy || null
+        approvedBy: feature.approvedBy || null,
+        fixVersions: feature.fixVersions || []
       })
     }
 
@@ -233,6 +229,17 @@ export function useForYou(rosterDataArg, userArg, rfeDataArg, featuresArg, asses
     for (const item of classifiedItems.value) {
       for (const c of item.components || []) {
         set.add(c)
+      }
+    }
+    return [...set].sort()
+  })
+
+  const availableItemVersions = computed(() => {
+    const set = new Set()
+    for (const item of classifiedItems.value) {
+      if (item.type !== 'feature') continue
+      for (const v of item.fixVersions || []) {
+        set.add(v)
       }
     }
     return [...set].sort()
@@ -260,7 +267,7 @@ export function useForYou(rosterDataArg, userArg, rfeDataArg, featuresArg, asses
       if (i.type === 'rfe') {
         return ['needs-revision', 'passed-with-caveats', 'ready-to-advance'].includes(i.state.id)
       }
-      return ['rejected', 'revise-required', 'awaiting-signoff'].includes(i.state.id)
+      return ['prd-pending', 'design-pending'].includes(i.state.id)
     })
     return sortItems(items)
   })
@@ -270,28 +277,27 @@ export function useForYou(rosterDataArg, userArg, rfeDataArg, featuresArg, asses
       if (i.type === 'rfe') {
         return ['queued-for-pipeline', 'not-assessed'].includes(i.state.id)
       }
-      return i.state.id === 'signed-off'
+      return i.state.id === 'ready-for-implementation'
     })
     return sortItems(items)
   })
 
+  // Feature Board: Features only (see FEATURE_STATES). RFE pipeline items live
+  // in actionNeeded/everythingElse/actionGroups instead, via RfeActionsWidget.
   const boardColumns = computed(() => {
     const columns = [
-      { ...RFE_STATES.NOT_ASSESSED, items: [] },
-      { ...RFE_STATES.NEEDS_REVISION, items: [] },
-      { ...RFE_STATES.PASSED_WITH_CAVEATS, items: [] },
-      { ...RFE_STATES.READY_TO_ADVANCE, items: [] },
-      { ...RFE_STATES.QUEUED_FOR_PIPELINE, items: [] },
-      { ...FEATURE_STATES.REJECTED, items: [] },
-      { ...FEATURE_STATES.REVISE_REQUIRED, items: [] },
-      { ...FEATURE_STATES.AWAITING_SIGNOFF, items: [] },
-      { ...FEATURE_STATES.SIGNED_OFF, items: [] }
+      { ...FEATURE_STATES.PRD_PENDING, items: [] },
+      { ...FEATURE_STATES.DESIGN_PENDING, items: [] },
+      { ...FEATURE_STATES.READY_FOR_IMPLEMENTATION, items: [] }
     ]
     const columnMap = {}
     for (const col of columns) {
       columnMap[col.id] = col
     }
+    const versionSet = versionFilter.value.length > 0 ? new Set(versionFilter.value) : null
     for (const item of filteredItems.value) {
+      if (item.type !== 'feature') continue
+      if (versionSet && !(item.fixVersions || []).some(v => versionSet.has(v))) continue
       const col = columnMap[item.state.id]
       if (col) {
         col.items.push(item)
@@ -327,13 +333,13 @@ export function useForYou(rosterDataArg, userArg, rfeDataArg, featuresArg, asses
       i.type === 'rfe' && ['needs-revision', 'passed-with-caveats'].includes(i.state.id)
     ).length
     const reviewFeatures = all.filter(i =>
-      i.type === 'feature' && ['awaiting-signoff', 'revise-required'].includes(i.state.id)
+      i.type === 'feature' && ['prd-pending', 'design-pending'].includes(i.state.id)
     ).length
     const queuedForStrat = all.filter(i =>
       i.type === 'rfe' && i.state.id === 'ready-to-advance'
     ).length
     const signedOffFeatures = all.filter(i =>
-      i.type === 'feature' && i.state.id === 'signed-off'
+      i.type === 'feature' && i.state.id === 'ready-for-implementation'
     ).length
     return { reviseRfes, reviewFeatures, queuedForStrat, signedOffFeatures }
   })
@@ -351,7 +357,9 @@ export function useForYou(rosterDataArg, userArg, rfeDataArg, featuresArg, asses
     stageFilter,
     priorityFilter,
     componentFilter,
-    availableItemComponents
+    availableItemComponents,
+    versionFilter,
+    availableItemVersions
   }
 }
 

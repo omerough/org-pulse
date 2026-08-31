@@ -33,7 +33,9 @@ const {
   stageFilter,
   priorityFilter,
   componentFilter,
-  availableItemComponents
+  availableItemComponents,
+  versionFilter,
+  availableItemVersions
 } = useForYou()
 
 const loading = computed(() => rfeLoading.value || featureLoading.value || assessmentLoading.value)
@@ -41,15 +43,9 @@ const loading = computed(() => rfeLoading.value || featureLoading.value || asses
 const showSettings = ref(false)
 
 const stageOptions = [
-  { value: 'not-assessed', label: 'Not Yet Assessed' },
-  { value: 'needs-revision', label: 'Needs Revision' },
-  { value: 'passed-with-caveats', label: 'Passed with Caveats' },
-  { value: 'ready-to-advance', label: 'Ready for Feature Creation' },
-  { value: 'queued-for-pipeline', label: 'Queued for Feature Creation' },
-  { value: 'rejected', label: 'Feature Rejected' },
-  { value: 'revise-required', label: 'Revise Required' },
-  { value: 'awaiting-signoff', label: 'Awaiting Sign-off' },
-  { value: 'signed-off', label: 'Signed Off' }
+  { value: 'prd-pending', label: 'PRD Pending' },
+  { value: 'design-pending', label: 'Design Pending' },
+  { value: 'ready-for-implementation', label: 'Ready for Implementation' }
 ]
 
 const priorityOptions = [
@@ -132,11 +128,14 @@ function handleSettingsUpdate(newMode, components) {
       :priorityOptions="priorityOptions"
       :componentFilter="componentFilter"
       :availableItemComponents="availableItemComponents"
+      :versionFilter="versionFilter"
+      :availableItemVersions="availableItemVersions"
       :jiraHost="rfeData?.jiraHost"
       @navigate="handleNavigate"
       @update:stageFilter="stageFilter = $event"
       @update:priorityFilter="priorityFilter = $event"
       @update:componentFilter="componentFilter = $event"
+      @update:versionFilter="versionFilter = $event"
     />
   </div>
 </template>

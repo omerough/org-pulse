@@ -9,10 +9,12 @@ defineProps({
   priorityOptions: { type: Array, default: () => [] },
   componentFilter: { type: Array, default: () => [] },
   availableItemComponents: { type: Array, default: () => [] },
+  versionFilter: { type: Array, default: () => [] },
+  availableItemVersions: { type: Array, default: () => [] },
   jiraHost: { type: String, default: null }
 })
 
-const emit = defineEmits(['navigate', 'update:stageFilter', 'update:priorityFilter', 'update:componentFilter'])
+const emit = defineEmits(['navigate', 'update:stageFilter', 'update:priorityFilter', 'update:componentFilter', 'update:versionFilter'])
 
 const columnColorClass = {
   gray: 'border-t-gray-400',
@@ -48,40 +50,16 @@ const priorityColors = {
 const guideBase = '#/ai-impact/ai-factory-guide?from=sotu&section='
 
 const columnGuidance = {
-  'not-assessed': {
-    text: 'PRDs that haven\'t been through the quality rubric yet. The pipeline will pick them up on its next run.',
+  'prd-pending': {
+    text: 'The PRD Enhancement Proposal PR hasn\'t merged yet — missing, open, or closed without merging. Check GitHub for review status.',
     guide: 'prd-review'
   },
-  'needs-revision': {
-    text: 'PRDs that failed scoring and couldn\'t be auto-fixed. Open in Jira, check the AI comments, and revise the WHAT and WHY.',
-    guide: 'prd-review'
-  },
-  'passed-with-caveats': {
-    text: 'PRDs that passed scoring but have minor issues the automation couldn\'t resolve. Check Jira comments for specifics.',
-    guide: 'prd-review'
-  },
-  'ready-to-advance': {
-    text: 'PRDs that passed quality checks. Add the scope label in Jira to queue them for strategy creation.',
-    guide: 'prd-review'
-  },
-  'queued-for-pipeline': {
-    text: 'PRDs waiting for the automated pipeline to create a strategy feature. No action needed.',
+  'design-pending': {
+    text: 'The PRD merged, but the design hasn\'t been approved yet. Check the Design Review queue for sign-off status.',
     guide: 'design-review'
   },
-  'rejected': {
-    text: 'Features the AI review recommended rejecting. Check review comments and decide whether to revise the PRD or close it.',
-    guide: 'design-review'
-  },
-  'revise-required': {
-    text: 'Features with issues in feasibility, testability, scope, or architecture. Check scoring and revise the strategy in Jira.',
-    guide: 'design-review'
-  },
-  'awaiting-signoff': {
-    text: 'Features that passed AI scoring and need human sign-off from a staff engineer, architect, or SME.',
-    guide: 'design-review'
-  },
-  'signed-off': {
-    text: 'Features that have been reviewed and approved. Ready to move into implementation.',
+  'ready-for-implementation': {
+    text: 'PRD merged and design approved. Ready to move into implementation.',
     guide: 'implementation'
   }
 }
@@ -109,6 +87,13 @@ const columnGuidance = {
         :options="availableItemComponents"
         placeholder="All Components"
         @update:modelValue="emit('update:componentFilter', $event)"
+      />
+      <ForYouMultiSelect
+        v-if="availableItemVersions.length > 0"
+        :modelValue="versionFilter"
+        :options="availableItemVersions"
+        placeholder="All Versions"
+        @update:modelValue="emit('update:versionFilter', $event)"
       />
     </div>
 

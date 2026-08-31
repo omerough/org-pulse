@@ -7171,7 +7171,7 @@
       "statusCategory": "To Do",
       "priority": "Major",
       "assignee": "Arik Hadas",
-      "fixVersions": [],
+      "fixVersions": ["2.20"],
       "labels": [
         "3.4-candidate",
         "GPU-as-a-Service",
@@ -7194,7 +7194,9 @@
         "scores": { "feasibility": 2, "testability": 1, "scope": 2, "architecture": 2, "total": 7 },
         "humanReviewStatus": "approved",
         "needsAttention": false,
-        "reviewedAt": "2026-04-19T01:30:35Z"
+        "reviewedAt": "2026-04-19T01:30:35Z",
+        "prdPrStatus": "Merged",
+        "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1168"
       }
     },
     {
@@ -7228,7 +7230,7 @@
       "statusCategory": "To Do",
       "priority": "Critical",
       "assignee": "Jen Albertson",
-      "fixVersions": [],
+      "fixVersions": ["2.21"],
       "labels": [
         "3.5-candidate",
         "llm-d",
@@ -7251,7 +7253,9 @@
         "scores": { "feasibility": 2, "testability": 2, "scope": 1, "architecture": 2, "total": 7 },
         "humanReviewStatus": "awaiting-review",
         "needsAttention": false,
-        "reviewedAt": "2026-04-19T01:30:35Z"
+        "reviewedAt": "2026-04-19T01:30:35Z",
+        "prdPrStatus": "Merged",
+        "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1172"
       }
     },
     {
@@ -7307,7 +7311,9 @@
         "scores": { "feasibility": 0, "testability": 1, "scope": 0, "architecture": 1, "total": 2 },
         "humanReviewStatus": "needs-review",
         "needsAttention": true,
-        "reviewedAt": "2026-04-19T01:30:35Z"
+        "reviewedAt": "2026-04-19T01:30:35Z",
+        "prdPrStatus": "Open",
+        "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1175"
       }
     },
     {
