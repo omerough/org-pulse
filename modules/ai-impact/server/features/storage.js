@@ -119,6 +119,12 @@ function readFeatures(readFromStorage) {
         criterionNotes: aiReview.criterionNotes || null,
         designPrUrl: aiReview.designPrUrl || null,
         designStatus: aiReview.designStatus || (entry.aiReview && entry.aiReview.designStatus) || null,
+        designPrStatus: aiReview.designPrStatus || (entry.aiReview && entry.aiReview.designPrStatus) || null,
+        prdPrStatus: aiReview.prdPrStatus || (entry.aiReview && entry.aiReview.prdPrStatus) || null,
+        prdPrUrl: aiReview.prdPrUrl || (entry.aiReview && entry.aiReview.prdPrUrl) || null,
+        prdRecommendation: aiReview.prdRecommendation || (entry.aiReview && entry.aiReview.prdRecommendation) || null,
+        prdReviewState: aiReview.prdReviewState || (entry.aiReview && entry.aiReview.prdReviewState) || null,
+        designReviewState: aiReview.designReviewState || (entry.aiReview && entry.aiReview.designReviewState) || null,
         fixVersions: entry.fixVersions || []
       },
       history: aiReview.history || []
@@ -161,6 +167,13 @@ function getLatestProjection(data) {
       approvedBy: entry.latest.approvedBy || null,
       approvedAt: entry.latest.approvedAt || null,
       designStatus: entry.latest.designStatus || null,
+      designPrUrl: entry.latest.designPrUrl || null,
+      designPrStatus: entry.latest.designPrStatus || null,
+      prdPrStatus: entry.latest.prdPrStatus || null,
+      prdPrUrl: entry.latest.prdPrUrl || null,
+      prdRecommendation: entry.latest.prdRecommendation || null,
+      prdReviewState: entry.latest.prdReviewState || null,
+      designReviewState: entry.latest.designReviewState || null,
       fixVersions: entry.latest.fixVersions || []
     };
   }

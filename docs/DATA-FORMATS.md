@@ -1150,6 +1150,14 @@ AI review scores and metadata pushed by the strat-creator pipeline via the AI Im
 | `feedback` | string\|null | Structured markdown feedback with strengths/suggestions (optional) |
 | `criterionNotes` | object\|null | Per-dimension justification text, keyed by dimension name (optional) |
 | `history` | array | Previous review snapshots (max 20, newest first) |
+| `prdRecommendation` | `approve\|revise\|null` | PRD bot review verdict (independent of the Design `recommendation` above); `null` if no PRD review was found |
+| `prdReviewState` | `CHANGES_REQUESTED\|APPROVED\|null` | Effective human GitHub review state for the PRD PR, reduced from `pulls/{n}/reviews`; only fetched while the PRD PR is open, so it goes stale (but is not re-fetched) once merged or closed |
+| `designReviewState` | `CHANGES_REQUESTED\|APPROVED\|null` | Same reduction as `prdReviewState`, for the Design PR |
+| `prdPrStatus` | `Open\|Closed\|Merged\|null` | PRD document lifecycle state: `null` = no PRD PR exists (or discoverable) yet. Drives Feature Board PRD-stage classification; never gated on `prdPrUrl` — a historical `Merged` doc can have a `null` URL |
+| `prdPrUrl` | string\|null | Optional link enrichment for the PRD PR; absence does not imply the PRD doesn't exist |
+| `designPrStatus` | `Open\|Closed\|Merged\|null` | Design document lifecycle state, mirroring `prdPrStatus` for the Design doc: `null` = no design PR exists yet. Drives Feature Board Design-stage classification; never gated on `designPrUrl`. Independent of `designStatus` below — do not substitute one for the other |
+| `designPrUrl` | string\|null | Optional link enrichment for the Design PR; absence does not imply the design doesn't exist |
+| `designStatus` | `no-design\|pending\|reviewed\|null` | AI Design Review **processing** state (whether/how far the review pipeline has gotten), not Design document lifecycle — use `designPrStatus` for lifecycle |
 
 **Optional — Traffic Signals (`trafficSignals`):**
 

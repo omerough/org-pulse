@@ -77,6 +77,11 @@
       "architecture": "Basic component diagram exists but missing critical details on failure handling and state management."
     },
     "designPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/123",
+    "prdPrStatus": "Open",
+    "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1175",
+    "prdRecommendation": null,
+    "prdReviewState": null,
+    "designReviewState": null,
     "labels": ["strat-creator-auto-created", "strat-creator-needs-attention"],
     "reviewedAt": "2026-04-19T01:30:35Z",
     "aiInvolvement": "revised",

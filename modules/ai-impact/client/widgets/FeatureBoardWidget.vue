@@ -33,7 +33,9 @@ const {
   stageFilter,
   priorityFilter,
   componentFilter,
-  availableItemComponents
+  availableItemComponents,
+  versionFilter,
+  availableItemVersions
 } = useForYou()
 
 const loading = computed(() => rfeLoading.value || featureLoading.value || assessmentLoading.value)
@@ -41,13 +43,11 @@ const loading = computed(() => rfeLoading.value || featureLoading.value || asses
 const showSettings = ref(false)
 
 const stageOptions = [
-  { value: 'not-assessed', label: 'Not Yet Assessed' },
-  { value: 'needs-revision', label: 'Needs Revision' },
-  { value: 'passed-with-caveats', label: 'Passed with Caveats' },
-  { value: 'ready-to-advance', label: 'Ready for Feature Creation' },
-  { value: 'queued-for-pipeline', label: 'Queued for Feature Creation' },
-  { value: 'rejected', label: 'Feature Rejected' },
-  { value: 'revise-required', label: 'Revise Required' },
+  { value: 'missing-prd', label: 'PRD Not Started' },
+  { value: 'prd-created', label: 'PRD Created' },
+  { value: 'prd-needs-revision', label: 'PRD Needs Revision' },
+  { value: 'ready-for-design', label: 'Ready for Design' },
+  { value: 'design-needs-revision', label: 'Design Needs Revision' },
   { value: 'awaiting-signoff', label: 'Awaiting Sign-off' },
   { value: 'signed-off', label: 'Signed Off' }
 ]
@@ -132,11 +132,14 @@ function handleSettingsUpdate(newMode, components) {
       :priorityOptions="priorityOptions"
       :componentFilter="componentFilter"
       :availableItemComponents="availableItemComponents"
+      :versionFilter="versionFilter"
+      :availableItemVersions="availableItemVersions"
       :jiraHost="rfeData?.jiraHost"
       @navigate="handleNavigate"
       @update:stageFilter="stageFilter = $event"
       @update:priorityFilter="priorityFilter = $event"
       @update:componentFilter="componentFilter = $event"
+      @update:versionFilter="versionFilter = $event"
     />
   </div>
 </template>

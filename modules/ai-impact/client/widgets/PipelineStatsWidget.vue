@@ -40,7 +40,7 @@ const statCards = computed(() => [
   { label: 'PRDs to Revise', value: stats.value.reviseRfes, color: 'red' },
   { label: 'Features to Review', value: stats.value.reviewFeatures, color: 'amber' },
   { label: 'Ready for Strategy', value: stats.value.queuedForStrat, color: 'blue' },
-  { label: 'Signed Off', value: stats.value.signedOffFeatures, color: 'green' }
+  { label: 'Features Signed Off', value: stats.value.signedOffFeatures, color: 'green' }
 ])
 
 const colorClasses = {

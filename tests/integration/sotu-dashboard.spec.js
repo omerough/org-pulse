@@ -110,4 +110,38 @@ test.describe('SOTU Widget Dashboard @sotu-dashboard', () => {
 
     expect(page.errors).toHaveLength(0);
   });
+
+  test('should add and render Feature Board widget with Feature-only readiness columns', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'networkidle' });
+    await pageLoadComplete(page);
+
+    // Open widget picker
+    await page.locator('text=Add Widgets').first().click();
+    await expect(page.locator('h2:has-text("Add Widgets")')).toBeVisible({ timeout: DEFAULT_PAGE_WAIT_TIME });
+
+    // Find and toggle the Feature Board widget
+    const featureBoardWidget = page.locator('button', { hasText: 'Feature Board' });
+    await expect(featureBoardWidget).toBeVisible();
+    await featureBoardWidget.click();
+
+    // Close the picker by clicking the backdrop
+    await page.locator('.fixed.inset-0.bg-black').click();
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    // Widget should render with its heading
+    await expect(page.locator('h3:has-text("Feature Board")')).toBeVisible({ timeout: DEFAULT_PAGE_WAIT_TIME });
+
+    // The board is Feature-only: exactly the seven lifecycle columns, no inherited RFE columns
+    await expect(page.getByText('PRD Not Started')).toBeVisible();
+    await expect(page.getByText('PRD Created')).toBeVisible();
+    await expect(page.getByText('PRD Needs Revision')).toBeVisible();
+    await expect(page.getByText('Ready for Design')).toBeVisible();
+    await expect(page.getByText('Design Needs Revision')).toBeVisible();
+    await expect(page.getByText('Awaiting Sign-off')).toBeVisible();
+    await expect(page.getByText('Signed Off', { exact: true })).toBeVisible();
+    await expect(page.getByText('Not Yet Assessed')).not.toBeVisible();
+    await expect(page.getByText('Queued for Feature Creation')).not.toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
 });

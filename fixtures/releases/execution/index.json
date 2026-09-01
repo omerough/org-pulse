@@ -7171,7 +7171,7 @@
       "statusCategory": "To Do",
       "priority": "Major",
       "assignee": "Arik Hadas",
-      "fixVersions": [],
+      "fixVersions": ["2.20"],
       "labels": [
         "3.4-candidate",
         "GPU-as-a-Service",
@@ -7194,7 +7194,13 @@
         "scores": { "feasibility": 2, "testability": 1, "scope": 2, "architecture": 2, "total": 7 },
         "humanReviewStatus": "approved",
         "needsAttention": false,
-        "reviewedAt": "2026-04-19T01:30:35Z"
+        "reviewedAt": "2026-04-19T01:30:35Z",
+        "prdPrStatus": "Merged",
+        "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1168",
+        "prdRecommendation": "approve",
+        "prdReviewState": null,
+        "designReviewState": null,
+        "designPrStatus": "Merged"
       }
     },
     {
@@ -7222,13 +7228,81 @@
       "ownerStatusColor": "Red"
     },
     {
+      "key": "TEST1-1170",
+      "summary": "Add usage export endpoint",
+      "status": "New",
+      "statusCategory": "To Do",
+      "priority": "Major",
+      "assignee": "Priya Nair",
+      "fixVersions": ["2.21"],
+      "labels": ["3.5-candidate"],
+      "completionPct": 0,
+      "epicCount": 0,
+      "issueCount": 0,
+      "blockerCount": 0,
+      "health": "YELLOW",
+      "lastUpdated": "2026-02-10T10:00:00.000+0000",
+      "targetVersions": null,
+      "pm": null,
+      "architect": null,
+      "parentKey": null,
+      "colorStatus": "Yellow",
+      "ownerStatusColor": "Yellow",
+      "aiReview": {
+        "recommendation": null,
+        "scores": null,
+        "humanReviewStatus": "awaiting-review",
+        "needsAttention": false,
+        "reviewedAt": "2026-04-19T01:30:35Z",
+        "prdPrStatus": null,
+        "prdPrUrl": null,
+        "prdRecommendation": null,
+        "prdReviewState": null,
+        "designReviewState": null
+      }
+    },
+    {
+      "key": "TEST1-1171",
+      "summary": "Add rate limit configuration",
+      "status": "New",
+      "statusCategory": "To Do",
+      "priority": "Major",
+      "assignee": "Priya Nair",
+      "fixVersions": ["2.21"],
+      "labels": ["3.5-candidate"],
+      "completionPct": 0,
+      "epicCount": 0,
+      "issueCount": 0,
+      "blockerCount": 0,
+      "health": "YELLOW",
+      "lastUpdated": "2026-02-11T10:00:00.000+0000",
+      "targetVersions": null,
+      "pm": null,
+      "architect": null,
+      "parentKey": null,
+      "colorStatus": "Yellow",
+      "ownerStatusColor": "Yellow",
+      "aiReview": {
+        "recommendation": null,
+        "scores": null,
+        "humanReviewStatus": "awaiting-review",
+        "needsAttention": false,
+        "reviewedAt": "2026-04-19T01:30:35Z",
+        "prdPrStatus": "Open",
+        "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1171",
+        "prdRecommendation": "revise",
+        "prdReviewState": null,
+        "designReviewState": null
+      }
+    },
+    {
       "key": "TEST1-1172",
       "summary": "Improve error handling",
       "status": "New",
       "statusCategory": "To Do",
       "priority": "Critical",
       "assignee": "Jen Albertson",
-      "fixVersions": [],
+      "fixVersions": ["2.21"],
       "labels": [
         "3.5-candidate",
         "llm-d",
@@ -7251,7 +7325,12 @@
         "scores": { "feasibility": 2, "testability": 2, "scope": 1, "architecture": 2, "total": 7 },
         "humanReviewStatus": "awaiting-review",
         "needsAttention": false,
-        "reviewedAt": "2026-04-19T01:30:35Z"
+        "reviewedAt": "2026-04-19T01:30:35Z",
+        "prdPrStatus": "Merged",
+        "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1172",
+        "prdRecommendation": "approve",
+        "prdReviewState": null,
+        "designReviewState": null
       }
     },
     {
@@ -7282,6 +7361,41 @@
       "ownerStatusColor": "Green"
     },
     {
+      "key": "TEST1-1174",
+      "summary": "Add audit log viewer",
+      "status": "Refinement",
+      "statusCategory": "To Do",
+      "priority": "Major",
+      "assignee": "Merit Kelley",
+      "fixVersions": ["2.21"],
+      "labels": ["3.5-candidate"],
+      "completionPct": 0,
+      "epicCount": 0,
+      "issueCount": 0,
+      "blockerCount": 0,
+      "health": "YELLOW",
+      "lastUpdated": "2026-03-01T10:00:00.000+0000",
+      "targetVersions": null,
+      "pm": null,
+      "architect": null,
+      "parentKey": null,
+      "colorStatus": "Yellow",
+      "ownerStatusColor": "Yellow",
+      "aiReview": {
+        "recommendation": "revise",
+        "scores": { "feasibility": 1, "testability": 1, "scope": 1, "architecture": 1, "total": 4 },
+        "humanReviewStatus": "needs-review",
+        "needsAttention": true,
+        "reviewedAt": "2026-04-19T01:30:35Z",
+        "prdPrStatus": "Merged",
+        "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1174",
+        "prdRecommendation": "approve",
+        "prdReviewState": null,
+        "designReviewState": null,
+        "designPrStatus": "Open"
+      }
+    },
+    {
       "key": "TEST1-1175",
       "summary": "Update configuration settings",
       "status": "New",
@@ -7307,7 +7421,12 @@
         "scores": { "feasibility": 0, "testability": 1, "scope": 0, "architecture": 1, "total": 2 },
         "humanReviewStatus": "needs-review",
         "needsAttention": true,
-        "reviewedAt": "2026-04-19T01:30:35Z"
+        "reviewedAt": "2026-04-19T01:30:35Z",
+        "prdPrStatus": "Open",
+        "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1175",
+        "prdRecommendation": null,
+        "prdReviewState": null,
+        "designReviewState": null
       }
     },
     {
@@ -7337,6 +7456,41 @@
       "parentKey": null,
       "colorStatus": "Red",
       "ownerStatusColor": "Red"
+    },
+    {
+      "key": "TEST1-1177",
+      "summary": "Add data retention policy controls",
+      "status": "Refinement",
+      "statusCategory": "To Do",
+      "priority": "Major",
+      "assignee": "Kerry Reed",
+      "fixVersions": ["2.21"],
+      "labels": ["3.5-candidate"],
+      "completionPct": 0,
+      "epicCount": 0,
+      "issueCount": 0,
+      "blockerCount": 0,
+      "health": "YELLOW",
+      "lastUpdated": "2026-03-05T10:00:00.000+0000",
+      "targetVersions": null,
+      "pm": null,
+      "architect": null,
+      "parentKey": null,
+      "colorStatus": "Yellow",
+      "ownerStatusColor": "Yellow",
+      "aiReview": {
+        "recommendation": "approve",
+        "scores": { "feasibility": 2, "testability": 2, "scope": 2, "architecture": 2, "total": 8 },
+        "humanReviewStatus": "awaiting-review",
+        "needsAttention": false,
+        "reviewedAt": "2026-04-19T01:30:35Z",
+        "prdPrStatus": "Merged",
+        "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1177",
+        "prdRecommendation": "approve",
+        "prdReviewState": null,
+        "designReviewState": null,
+        "designPrStatus": "Open"
+      }
     },
     {
       "key": "TEST1-1178",

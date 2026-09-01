@@ -8,7 +8,7 @@
     "displayName": "Kerry Reed",
     "accountId": "70121:a7baa8da-bffe-460e-8f2b-33e45da6b87a"
   },
-  "fixVersions": [],
+  "fixVersions": ["2.21"],
   "labels": [
     "3.5-candidate",
     "llm-d",
@@ -131,6 +131,11 @@
       "architecture": "Strong component architecture with clean separation between data fetching, state management, and presentation."
     },
     "designPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/128",
+    "prdPrStatus": "Merged",
+    "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1172",
+    "prdRecommendation": "approve",
+    "prdReviewState": null,
+    "designReviewState": null,
     "labels": ["strat-creator-auto-created", "strat-creator-rubric-pass"],
     "reviewedAt": "2026-04-19T01:30:35Z",
     "designStatus": "no-design",
