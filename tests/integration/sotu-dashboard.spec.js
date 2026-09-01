@@ -138,7 +138,7 @@ test.describe('SOTU Widget Dashboard @sotu-dashboard', () => {
     await expect(page.getByText('Ready for Design')).toBeVisible();
     await expect(page.getByText('Design Needs Revision')).toBeVisible();
     await expect(page.getByText('Awaiting Sign-off')).toBeVisible();
-    await expect(page.getByText('Signed Off')).toBeVisible();
+    await expect(page.getByText('Signed Off', { exact: true })).toBeVisible();
     await expect(page.getByText('Not Yet Assessed')).not.toBeVisible();
     await expect(page.getByText('Queued for Feature Creation')).not.toBeVisible();
 
