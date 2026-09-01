@@ -103,7 +103,7 @@ describe('PipelineStatsWidget', () => {
     expect(wrapper.text()).toContain('5')
     expect(wrapper.text()).toContain('Ready for Strategy')
     expect(wrapper.text()).toContain('2')
-    expect(wrapper.text()).toContain('Ready for Implementation')
+    expect(wrapper.text()).toContain('Features Signed Off')
     expect(wrapper.text()).toContain('8')
   })
 

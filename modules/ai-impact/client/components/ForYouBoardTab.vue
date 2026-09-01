@@ -50,16 +50,32 @@ const priorityColors = {
 const guideBase = '#/ai-impact/ai-factory-guide?from=sotu&section='
 
 const columnGuidance = {
-  'prd-pending': {
-    text: 'The PRD Enhancement Proposal PR hasn\'t merged yet — missing, open, or closed without merging. Check GitHub for review status.',
+  'missing-prd': {
+    text: 'No PRD Enhancement Proposal PR exists yet for this feature.',
     guide: 'prd-review'
   },
-  'design-pending': {
-    text: 'The PRD merged, but the design hasn\'t been approved yet. Check the Design Review queue for sign-off status.',
+  'prd-created': {
+    text: 'A PRD PR is open but hasn\'t merged yet, and no revision is currently requested.',
+    guide: 'prd-review'
+  },
+  'prd-needs-revision': {
+    text: 'The PRD needs changes — the AI review recommends revision, or a human reviewer requested changes on GitHub.',
+    guide: 'prd-review'
+  },
+  'ready-for-design': {
+    text: 'The PRD merged, but no design PR exists yet. Check the Design Review queue.',
     guide: 'design-review'
   },
-  'ready-for-implementation': {
-    text: 'PRD merged and design approved. Ready to move into implementation.',
+  'design-needs-revision': {
+    text: 'The design needs changes — the AI review recommends revision, or a human reviewer requested changes on GitHub.',
+    guide: 'design-review'
+  },
+  'awaiting-signoff': {
+    text: 'The design PR is open and doesn\'t currently need revision — awaiting human sign-off.',
+    guide: 'design-review'
+  },
+  'signed-off': {
+    text: 'The design has been reviewed and signed off. Ready to move into implementation.',
     guide: 'implementation'
   }
 }

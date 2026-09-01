@@ -235,6 +235,105 @@ describe('readFeatures', () => {
     expect(result.features['RHAISTRAT-1168'].latest.prdPrUrl).toBeNull();
   });
 
+  it('surfaces designPrStatus from the feature file aiReview', () => {
+    const indexEntry = { key: 'RHAISTRAT-1168', aiReview: { recommendation: 'approve' } };
+    const featureFile = makeFeatureFile({ designPrStatus: 'Merged' });
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.designPrStatus).toBe('Merged');
+  });
+
+  it('falls back to the index entry aiReview for designPrStatus when the feature file lacks it', () => {
+    const indexEntry = {
+      key: 'RHAISTRAT-1168',
+      aiReview: { recommendation: 'approve', designPrStatus: 'Open' }
+    };
+    const featureFile = makeFeatureFile();
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.designPrStatus).toBe('Open');
+  });
+
+  it('defaults designPrStatus to null when neither source has it (historical fallback: still surfaces as null, not blocking on URL)', () => {
+    const indexEntry = { key: 'RHAISTRAT-1168', aiReview: { recommendation: 'approve' } };
+    const featureFile = makeFeatureFile({ designPrUrl: null });
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.designPrStatus).toBeNull();
+  });
+
+  it('surfaces prdRecommendation, prdReviewState, and designReviewState from the feature file aiReview', () => {
+    const indexEntry = { key: 'RHAISTRAT-1168', aiReview: { recommendation: 'approve' } };
+    const featureFile = makeFeatureFile({
+      prdRecommendation: 'revise',
+      prdReviewState: 'CHANGES_REQUESTED',
+      designReviewState: 'APPROVED'
+    });
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.prdRecommendation).toBe('revise');
+    expect(result.features['RHAISTRAT-1168'].latest.prdReviewState).toBe('CHANGES_REQUESTED');
+    expect(result.features['RHAISTRAT-1168'].latest.designReviewState).toBe('APPROVED');
+  });
+
+  it('falls back to the index entry aiReview for prdRecommendation/prdReviewState/designReviewState when the feature file lacks them', () => {
+    const indexEntry = {
+      key: 'RHAISTRAT-1168',
+      aiReview: {
+        recommendation: 'approve',
+        prdRecommendation: 'revise',
+        prdReviewState: 'CHANGES_REQUESTED',
+        designReviewState: 'APPROVED'
+      }
+    };
+    const featureFile = makeFeatureFile();
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.prdRecommendation).toBe('revise');
+    expect(result.features['RHAISTRAT-1168'].latest.prdReviewState).toBe('CHANGES_REQUESTED');
+    expect(result.features['RHAISTRAT-1168'].latest.designReviewState).toBe('APPROVED');
+  });
+
+  it('defaults prdRecommendation, prdReviewState, and designReviewState to null when neither source has them', () => {
+    const indexEntry = { key: 'RHAISTRAT-1168', aiReview: { recommendation: 'approve' } };
+    const featureFile = makeFeatureFile();
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return makeReleasesIndex([indexEntry]);
+      if (key === 'releases/execution/features/RHAISTRAT-1168.json') return featureFile;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features['RHAISTRAT-1168'].latest.prdRecommendation).toBeNull();
+    expect(result.features['RHAISTRAT-1168'].latest.prdReviewState).toBeNull();
+    expect(result.features['RHAISTRAT-1168'].latest.designReviewState).toBeNull();
+  });
+
   it('falls back to legacy store when no releases index', () => {
     const legacyData = {
       lastSyncedAt: '2026-04-19T12:00:00Z',
@@ -407,6 +506,55 @@ describe('getLatestProjection', () => {
     expect(proj.features['A'].prdPrUrl).toBe('https://example.com/pr/1');
     expect(proj.features['B'].prdPrStatus).toBeNull();
     expect(proj.features['B'].prdPrUrl).toBeNull();
+  });
+
+  it('carries designPrUrl through, defaulting to null when absent', () => {
+    const data = {
+      lastSyncedAt: '2026-04-19T12:00:00Z',
+      totalFeatures: 2,
+      features: {
+        'A': { latest: { key: 'RHAISTRAT-1', designPrUrl: 'https://github.com/osac-project/enhancement-proposals/pull/231' }, history: [] },
+        'B': { latest: { key: 'RHAISTRAT-2' }, history: [] }
+      }
+    };
+    const proj = getLatestProjection(data);
+    expect(proj.features['A'].designPrUrl).toBe('https://github.com/osac-project/enhancement-proposals/pull/231');
+    expect(proj.features['B'].designPrUrl).toBeNull();
+  });
+
+  it('carries designPrStatus through, defaulting to null when absent, independent of designPrUrl', () => {
+    const data = {
+      lastSyncedAt: '2026-04-19T12:00:00Z',
+      totalFeatures: 2,
+      features: {
+        // Historical fallback: a merged design doc resolved without a discoverable
+        // PR still carries a lifecycle-bearing designPrStatus and a null URL.
+        'A': { latest: { key: 'RHAISTRAT-1', designPrStatus: 'Merged', designPrUrl: null }, history: [] },
+        'B': { latest: { key: 'RHAISTRAT-2' }, history: [] }
+      }
+    };
+    const proj = getLatestProjection(data);
+    expect(proj.features['A'].designPrStatus).toBe('Merged');
+    expect(proj.features['A'].designPrUrl).toBeNull();
+    expect(proj.features['B'].designPrStatus).toBeNull();
+  });
+
+  it('carries prdRecommendation, prdReviewState, and designReviewState through, defaulting to null when absent', () => {
+    const data = {
+      lastSyncedAt: '2026-04-19T12:00:00Z',
+      totalFeatures: 2,
+      features: {
+        'A': { latest: { key: 'RHAISTRAT-1', prdRecommendation: 'revise', prdReviewState: 'CHANGES_REQUESTED', designReviewState: 'APPROVED' }, history: [] },
+        'B': { latest: { key: 'RHAISTRAT-2' }, history: [] }
+      }
+    };
+    const proj = getLatestProjection(data);
+    expect(proj.features['A'].prdRecommendation).toBe('revise');
+    expect(proj.features['A'].prdReviewState).toBe('CHANGES_REQUESTED');
+    expect(proj.features['A'].designReviewState).toBe('APPROVED');
+    expect(proj.features['B'].prdRecommendation).toBeNull();
+    expect(proj.features['B'].prdReviewState).toBeNull();
+    expect(proj.features['B'].designReviewState).toBeNull();
   });
 
   it('carries fixVersions through, defaulting to an empty array when absent', () => {

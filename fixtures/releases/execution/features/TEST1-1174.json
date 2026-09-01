@@ -1,0 +1,67 @@
+{
+  "key": "TEST1-1174",
+  "summary": "Add audit log viewer",
+  "status": "Refinement",
+  "statusCategory": "To Do",
+  "priority": "Major",
+  "assignee": {
+    "displayName": "Merit Kelley",
+    "accountId": "557058:3b8d398d-bfd0-4efd-8de3-1798ac277ec0"
+  },
+  "fixVersions": ["2.21"],
+  "labels": ["3.5-candidate"],
+  "components": ["Model and Agent Observability"],
+  "created": "2026-02-15T10:00:00.000+0000",
+  "updated": "2026-03-01T10:00:00.000+0000",
+  "statusNotes": null,
+  "issueLinks": [],
+  "epics": [],
+  "metrics": {
+    "totalEpics": 0,
+    "totalIssues": 0,
+    "issuesByStatus": {},
+    "issuesByCategory": {
+      "Done": 0,
+      "In Progress": 0,
+      "To Do": 0
+    },
+    "totalStoryPoints": 0,
+    "storyPointsDone": 0,
+    "completionPct": 0,
+    "staleCount": 0,
+    "unassignedCount": 0,
+    "blockerCount": 0,
+    "health": "YELLOW",
+    "epicMetrics": []
+  },
+  "topology": {
+    "repos": []
+  },
+  "_sources": {
+    "pipeline": "2026-04-10T06:09:29.084Z",
+    "jira": "2026-04-10T07:00:00.000Z",
+    "aiReview": "2026-04-19T01:30:35.000Z"
+  },
+  "aiReview": {
+    "title": "Audit Log Viewer",
+    "sourceRfe": "RHAIRFE-1012",
+    "size": "M",
+    "recommendation": "revise",
+    "needsAttention": true,
+    "humanReviewStatus": "needs-review",
+    "scores": { "feasibility": 1, "testability": 1, "scope": 1, "architecture": 1, "total": 4 },
+    "reviewedAt": "2026-04-19T01:30:35Z",
+    "designPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/174",
+    "designPrStatus": "Open",
+    "prdPrStatus": "Merged",
+    "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1174",
+    "prdRecommendation": "approve",
+    "prdReviewState": null,
+    "designReviewState": null,
+    "labels": ["strat-creator-auto-created"],
+    "runId": "20260419-013035",
+    "history": []
+  },
+  "colorStatus": "Yellow",
+  "ownerStatusColor": "Yellow"
+}

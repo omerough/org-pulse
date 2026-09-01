@@ -43,9 +43,13 @@ const loading = computed(() => rfeLoading.value || featureLoading.value || asses
 const showSettings = ref(false)
 
 const stageOptions = [
-  { value: 'prd-pending', label: 'PRD Pending' },
-  { value: 'design-pending', label: 'Design Pending' },
-  { value: 'ready-for-implementation', label: 'Ready for Implementation' }
+  { value: 'missing-prd', label: 'PRD Not Started' },
+  { value: 'prd-created', label: 'PRD Created' },
+  { value: 'prd-needs-revision', label: 'PRD Needs Revision' },
+  { value: 'ready-for-design', label: 'Ready for Design' },
+  { value: 'design-needs-revision', label: 'Design Needs Revision' },
+  { value: 'awaiting-signoff', label: 'Awaiting Sign-off' },
+  { value: 'signed-off', label: 'Signed Off' }
 ]
 
 const priorityOptions = [

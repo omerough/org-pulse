@@ -22,7 +22,7 @@ defineProps({
       <span class="text-2xl font-bold text-amber-600 dark:text-amber-400">{{ stats.reviewFeatures }}</span>
     </div>
     <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-      <p class="text-sm text-gray-500 dark:text-gray-400">Features Ready for Implementation</p>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Features Signed Off</p>
       <span class="text-2xl font-bold text-green-600 dark:text-green-400">{{ stats.signedOffFeatures }}</span>
     </div>
   </div>

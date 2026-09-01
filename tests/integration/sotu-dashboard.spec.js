@@ -131,10 +131,14 @@ test.describe('SOTU Widget Dashboard @sotu-dashboard', () => {
     // Widget should render with its heading
     await expect(page.locator('h3:has-text("Feature Board")')).toBeVisible({ timeout: DEFAULT_PAGE_WAIT_TIME });
 
-    // The board is Feature-only: exactly the three readiness columns, no inherited RFE columns
-    await expect(page.getByText('PRD Pending')).toBeVisible();
-    await expect(page.getByText('Design Pending')).toBeVisible();
-    await expect(page.getByText('Ready for Implementation')).toBeVisible();
+    // The board is Feature-only: exactly the seven lifecycle columns, no inherited RFE columns
+    await expect(page.getByText('PRD Not Started')).toBeVisible();
+    await expect(page.getByText('PRD Created')).toBeVisible();
+    await expect(page.getByText('PRD Needs Revision')).toBeVisible();
+    await expect(page.getByText('Ready for Design')).toBeVisible();
+    await expect(page.getByText('Design Needs Revision')).toBeVisible();
+    await expect(page.getByText('Awaiting Sign-off')).toBeVisible();
+    await expect(page.getByText('Signed Off')).toBeVisible();
     await expect(page.getByText('Not Yet Assessed')).not.toBeVisible();
     await expect(page.getByText('Queued for Feature Creation')).not.toBeVisible();
 

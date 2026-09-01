@@ -112,8 +112,12 @@
       "architecture": "Strong separation of concerns between data collection, aggregation, and presentation layers."
     },
     "designPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/131",
+    "designPrStatus": "Merged",
     "prdPrStatus": "Merged",
     "prdPrUrl": "https://github.com/osac-project/enhancement-proposals/pull/1168",
+    "prdRecommendation": "approve",
+    "prdReviewState": null,
+    "designReviewState": null,
     "labels": ["strat-creator-auto-created", "strat-creator-rubric-pass", "tech-reviewed", "strat-creator-human-sign-off"],
     "reviewedAt": "2026-04-19T01:30:35Z",
     "aiInvolvement": "both",
