@@ -25,17 +25,17 @@ test.describe('SOTU Widget Dashboard @sotu-dashboard', () => {
     logCapturedErrors(page, testInfo);
   });
 
-  test('should show empty dashboard with build CTA on first visit', async ({ page }) => {
+  test('should show Feature Planning Board widget by default on first visit', async ({ page }) => {
     await page.goto('/', { waitUntil: 'networkidle' });
     await pageLoadComplete(page);
 
     // Should show the dashboard header
     await expect(page.locator('text=Your personalized overview')).toBeVisible({ timeout: DEFAULT_PAGE_WAIT_TIME });
 
-    // Empty state should show Build Your Dashboard heading
-    await expect(page.locator('text=Build Your Dashboard')).toBeVisible();
+    // Feature Planning Board is a default widget, so it should already be present
+    await expect(page.locator('h3:has-text("Feature Planning Board")')).toBeVisible({ timeout: DEFAULT_PAGE_WAIT_TIME });
 
-    // Should show Add Widgets CTA button in empty state
+    // Should show Add Widgets button
     await expect(page.getByRole('button', { name: 'Add Widgets' }).first()).toBeVisible();
 
     // Should show Browse Modules button
@@ -111,25 +111,12 @@ test.describe('SOTU Widget Dashboard @sotu-dashboard', () => {
     expect(page.errors).toHaveLength(0);
   });
 
-  test('should add and render Feature Board widget with Feature-only readiness columns', async ({ page }) => {
+  test('should render Feature Planning Board widget by default with Feature-only readiness columns', async ({ page }) => {
     await page.goto('/', { waitUntil: 'networkidle' });
     await pageLoadComplete(page);
 
-    // Open widget picker
-    await page.locator('text=Add Widgets').first().click();
-    await expect(page.locator('h2:has-text("Add Widgets")')).toBeVisible({ timeout: DEFAULT_PAGE_WAIT_TIME });
-
-    // Find and toggle the Feature Board widget
-    const featureBoardWidget = page.locator('button', { hasText: 'Feature Board' });
-    await expect(featureBoardWidget).toBeVisible();
-    await featureBoardWidget.click();
-
-    // Close the picker by clicking the backdrop
-    await page.locator('.fixed.inset-0.bg-black').click();
-    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
-
-    // Widget should render with its heading
-    await expect(page.locator('h3:has-text("Feature Board")')).toBeVisible({ timeout: DEFAULT_PAGE_WAIT_TIME });
+    // Feature Planning Board is a default widget, so it renders without adding it via the picker
+    await expect(page.locator('h3:has-text("Feature Planning Board")')).toBeVisible({ timeout: DEFAULT_PAGE_WAIT_TIME });
 
     // The board is Feature-only: exactly the seven lifecycle columns, no inherited RFE columns
     await expect(page.getByText('PRD Not Started')).toBeVisible();

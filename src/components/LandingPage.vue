@@ -232,6 +232,8 @@ let sortableInstance = null
 
 const {
   layout,
+  isFirstVisit,
+  initWithDefaults,
   pruneStaleWidgets,
   addWidget,
   removeWidget,
@@ -262,16 +264,20 @@ const allWidgets = computed(() => {
         component: w.component,
         defaultSize: w.defaultSize || 'half',
         icon: w.icon,
-        category: w.category
+        category: w.category,
+        default: w.default === true
       })
     }
   }
   return widgets
 })
 
-// Prune stale widgets when manifests change
+// Seed first-time layout with default widgets, then prune stale widgets when manifests change
 watch(allWidgets, (widgets) => {
   if (widgets.length === 0) return
+  if (isFirstVisit.value) {
+    initWithDefaults(widgets.filter(w => w.default))
+  }
   pruneStaleWidgets(widgets.map(w => w.qualifiedId))
 }, { immediate: true })
 

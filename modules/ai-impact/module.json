@@ -18,12 +18,13 @@
       },
       {
         "id": "feature-board",
-        "name": "Feature Board",
+        "name": "Feature Planning Board",
         "description": "Kanban view of features in your pipeline",
         "component": "./client/widgets/FeatureBoardWidget.vue",
         "defaultSize": "full",
         "icon": "Columns",
-        "category": "boards"
+        "category": "boards",
+        "default": true
       },
       {
         "id": "pipeline-stats",

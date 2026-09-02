@@ -48,14 +48,12 @@ vi.mock('@shared/client/composables/useFieldDefinitions', () => ({
   })
 }))
 
-const mockWizardSeen = ref(true)
 const mockMode = ref('auto')
 const mockManualComponents = ref([])
 vi.mock('../../../client/composables/useForYouPreferences', () => ({
   useForYouPreferences: () => ({
     mode: mockMode,
     manualComponents: mockManualComponents,
-    wizardSeen: mockWizardSeen,
     setMode: vi.fn(),
     setManualComponents: vi.fn(),
     markWizardSeen: vi.fn()
@@ -93,7 +91,6 @@ beforeEach(() => {
   mockRfeLoading.value = false
   mockFeatureLoading.value = false
   mockAssessmentLoading.value = false
-  mockWizardSeen.value = true
   mockMode.value = 'auto'
   mockNavigateTo.mockClear()
 })
@@ -102,13 +99,13 @@ describe('FeatureBoardWidget', () => {
   it('mounts with size prop and renders header', async () => {
     const wrapper = mount(FeatureBoardWidget, { props: { size: 'full' } })
     await flushPromises()
-    expect(wrapper.text()).toContain('Feature Board')
+    expect(wrapper.text()).toContain('Feature Planning Board')
   })
 
   it('accepts half size prop', async () => {
     const wrapper = mount(FeatureBoardWidget, { props: { size: 'half' } })
     await flushPromises()
-    expect(wrapper.text()).toContain('Feature Board')
+    expect(wrapper.text()).toContain('Feature Planning Board')
   })
 
   it('shows loading skeleton when data is loading', async () => {
@@ -118,19 +115,11 @@ describe('FeatureBoardWidget', () => {
     expect(wrapper.findAll('.animate-pulse').length).toBeGreaterThan(0)
   })
 
-  it('shows setup notice when wizard not seen', async () => {
-    mockWizardSeen.value = false
-    const wrapper = mount(FeatureBoardWidget, { props: { size: 'full' } })
-    await flushPromises()
-    expect(wrapper.text()).toContain('Complete setup in')
-    expect(wrapper.text()).toContain('PRD Action Items')
-  })
-
-  it('hides setup notice when wizard is seen', async () => {
-    mockWizardSeen.value = true
+  it('does not show the PRD Action Items setup notice', async () => {
     const wrapper = mount(FeatureBoardWidget, { props: { size: 'full' } })
     await flushPromises()
     expect(wrapper.text()).not.toContain('Complete setup in')
+    expect(wrapper.text()).not.toContain('PRD Action Items')
   })
 
   it('renders ForYouBoardTab when loaded', async () => {
