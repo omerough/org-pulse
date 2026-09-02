@@ -24,8 +24,7 @@ fetchDefinitions()
 
 const {
   mode,
-  manualComponents,
-  wizardSeen
+  manualComponents
 } = useForYouPreferences()
 
 const {
@@ -87,7 +86,7 @@ function handleSettingsUpdate(newMode, components) {
 <template>
   <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Feature Board</h3>
+      <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Feature Planning Board</h3>
       <div class="relative">
         <button
           @click="showSettings = !showSettings"
@@ -109,14 +108,6 @@ function handleSettingsUpdate(newMode, components) {
           @close="showSettings = false"
         />
       </div>
-    </div>
-
-    <!-- Wizard not seen notice -->
-    <div
-      v-if="!wizardSeen && !loading"
-      class="text-sm text-gray-500 dark:text-gray-400 mb-4"
-    >
-      Complete setup in <strong>PRD Action Items</strong> widget to personalize this board.
     </div>
 
     <div v-if="loading" class="space-y-4">
