@@ -72,7 +72,7 @@ const rfeToFeature = computed(() => {
   const map = {}
   for (const f of Object.values(features.value)) {
     if (f.sourceRfe) {
-      map[f.sourceRfe] = { key: f.key, summary: f.title, status: f.status || 'Unknown', fixVersions: [] }
+      map[f.sourceRfe] = { key: f.key, summary: f.title, status: f.status || 'Unknown', fixVersions: f.fixVersions || [] }
     }
   }
   return map

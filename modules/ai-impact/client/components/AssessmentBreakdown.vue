@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { rubricForAssessment } from '../rubric.js'
+import FeedbackText from './FeedbackText.vue'
 
 const props = defineProps({
   assessment: { type: Object, required: true },
@@ -46,46 +47,51 @@ function getPassFailClass(passFail) {
       </div>
     </div>
 
-    <!-- Criterion Rows -->
-    <div class="space-y-1">
+    <!-- Criterion Cards -->
+    <div class="grid grid-cols-2 gap-2">
       <div
         v-for="{ key, label } in criteria"
         :key="key"
-        class="rounded-md"
+        class="rounded-lg border border-gray-200 dark:border-gray-600 p-3 transition-colors"
+        :class="[
+          expandedCriteria[key] ? 'col-span-2' : '',
+          detail?.latest?.criterionNotes?.[key] ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : ''
+        ]"
+        :role="detail?.latest?.criterionNotes?.[key] ? 'button' : undefined"
+        :tabindex="detail?.latest?.criterionNotes?.[key] ? 0 : undefined"
+        @click="detail?.latest?.criterionNotes?.[key] ? toggleCriterion(key) : null"
+        @keydown.enter="detail?.latest?.criterionNotes?.[key] ? toggleCriterion(key) : null"
+        @keydown.space.prevent="detail?.latest?.criterionNotes?.[key] ? toggleCriterion(key) : null"
       >
-        <button
-          class="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors"
-          :class="{ 'cursor-default': !detail?.latest?.criterionNotes?.[key] }"
-          @click="detail?.latest?.criterionNotes?.[key] ? toggleCriterion(key) : null"
-        >
-          <span class="flex items-center gap-3">
-            <span class="font-medium dark:text-gray-200 w-32 text-left">{{ label }}</span>
-            <!-- Score dots -->
-            <span class="flex gap-1">
-              <span
-                v-for="i in 2"
-                :key="i"
-                class="w-3 h-3 rounded-full"
-                :class="i <= assessment.scores[key] ? getScoreClass(assessment.scores[key]) : 'bg-gray-200 dark:bg-gray-600'"
-              />
-            </span>
-            <span class="text-xs text-gray-500 dark:text-gray-400">{{ assessment.scores[key] }}/2</span>
-          </span>
+        <div class="flex items-center justify-between">
+          <span class="font-medium text-sm dark:text-gray-200">{{ label }}</span>
           <svg
             v-if="detail?.latest?.criterionNotes?.[key]"
-            class="h-3.5 w-3.5 text-gray-400 transition-transform"
+            class="h-4 w-4 text-gray-400 transition-transform shrink-0"
             :class="{ 'rotate-180': expandedCriteria[key] }"
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
-        </button>
+        </div>
+        <div class="flex items-center gap-2 mt-1.5">
+          <!-- Score dots -->
+          <span class="flex gap-1">
+            <span
+              v-for="i in 2"
+              :key="i"
+              class="w-3 h-3 rounded-full"
+              :class="i <= assessment.scores[key] ? getScoreClass(assessment.scores[key]) : 'bg-gray-200 dark:bg-gray-600'"
+            />
+          </span>
+          <span class="text-xs text-gray-500 dark:text-gray-400">{{ assessment.scores[key] }}/2</span>
+        </div>
         <!-- Expandable justification -->
         <div
           v-if="expandedCriteria[key] && detail?.latest?.criterionNotes?.[key]"
-          class="px-3 pb-2 pl-8 text-xs text-gray-600 dark:text-gray-400"
+          class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700"
         >
-          {{ detail.latest.criterionNotes[key] }}
+          <FeedbackText :text="detail.latest.criterionNotes[key]" />
         </div>
       </div>
     </div>

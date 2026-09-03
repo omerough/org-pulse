@@ -2,9 +2,10 @@
 import { ref, computed, watch, onBeforeUnmount, nextTick } from 'vue'
 import PipelineTimeline from './PipelineTimeline.vue'
 import FeedbackText from './FeedbackText.vue'
-import { getRecommendationClass, getRecommendationLabel, getRecommendationTooltip, getScoreClass, getReviewStatusClass, getReviewStatusLabel, getReviewStatusTooltip } from '../utils/feature-helpers.js'
+import { getRecommendationClass, getRecommendationLabel, getRecommendationTooltip, getScoreClass, getTotalScoreClass, getReviewStatusClass, getReviewStatusLabel, getReviewStatusTooltip } from '../utils/feature-helpers.js'
 import { useTestPlans } from '../composables/useTestPlans.js'
 import InfoBubble from './InfoBubble.vue'
+import MetaChipGroup from './MetaChipGroup.vue'
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -109,7 +110,7 @@ const history = computed(() => featureDetail.value?.history || [])
           <!-- Header -->
           <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center gap-3 min-w-0">
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Feature Details</h2>
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Design Details</h2>
               <a
                 v-if="jiraHost"
                 :href="`${jiraHost}/browse/${feature.key}`"
@@ -174,16 +175,18 @@ const history = computed(() => featureDetail.value?.history || [])
                 <p class="font-medium dark:text-gray-200">{{ feature.status }}</p>
               </div>
               <div>
-                <p class="text-gray-500 dark:text-gray-400 text-xs mb-1">Size</p>
-                <p class="font-medium dark:text-gray-200">{{ feature.size || 'N/A' }}</p>
-              </div>
-              <div>
                 <p class="text-gray-500 dark:text-gray-400 text-xs mb-1">Score</p>
                 <p v-if="feature.designStatus === 'no-design'" class="font-bold text-gray-400 dark:text-gray-500">—</p>
-                <p v-else class="font-bold" :class="getScoreClass(Math.round((feature.scores?.total || 0) / 2))">
+                <p v-else class="font-bold" :class="getTotalScoreClass(feature.scores?.total || 0)">
                   {{ feature.scores?.total || 0 }}/8
                 </p>
               </div>
+            </div>
+
+            <!-- Component / Fix Version -->
+            <div v-if="feature.components?.length || feature.fixVersions?.length" class="flex flex-col gap-3 mb-6">
+              <MetaChipGroup label="Component" :values="feature.components" />
+              <MetaChipGroup label="Fix Version" :values="feature.fixVersions" />
             </div>
 
             <!-- Approval info -->
@@ -238,6 +241,7 @@ const history = computed(() => featureDetail.value?.history || [])
                   v-for="dim in DIMENSIONS"
                   :key="dim"
                   class="p-3 rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                  :class="{ 'col-span-2': expandedCriteria[dim] }"
                   @click="toggleCriterion(dim)"
                 >
                   <p class="text-xs text-gray-500 dark:text-gray-400 capitalize mb-1">{{ dim }}</p>
@@ -303,7 +307,7 @@ const history = computed(() => featureDetail.value?.history || [])
                     {{ new Date(entry.reviewedAt).toLocaleDateString() }}
                   </span>
                   <div class="flex items-center gap-2">
-                    <span class="text-sm font-medium" :class="getScoreClass(Math.round((entry.scores?.total || 0) / 2))">
+                    <span class="text-sm font-medium" :class="getTotalScoreClass(entry.scores?.total || 0)">
                       {{ entry.scores?.total || 0 }}/8
                     </span>
                     <span
