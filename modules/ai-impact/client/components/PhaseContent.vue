@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import LoadingOverlay from '@shared/client/components/LoadingOverlay.vue'
 import MetricsRow from './MetricsRow.vue'
 import TrendCharts from './TrendCharts.vue'
+import RFECharts from './RFECharts.vue'
 import RFEList from './RFEList.vue'
 
 const props = defineProps({
@@ -117,10 +118,11 @@ const isEmpty = computed(() => !props.rfeData?.fetchedAt)
           :trendData="trendData"
           :breakdown="breakdown"
           :expanded="chartExpanded"
-          :filteredAssessments="filteredAssessments"
           :timeWindow="timeWindow"
           @toggle="emit('update:chartExpanded', !chartExpanded)"
         />
+
+        <RFECharts :assessments="filteredAssessments" />
 
         <RFEList
           :rfes="filteredRFEs"

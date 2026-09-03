@@ -30,6 +30,7 @@ Core team owns `shared/` via CODEOWNERS. Changes require core team review.
 | `useModuleLink()` | Cross-module hash navigation (`linkTo`, `navigateTo`) |
 | `useMessages()` | App-wide message system: `messages` (reactive filtered list), `fetchMessages()`, `dismiss(id)` |
 | `useJiraAuth()` | Jira OAuth 2.0 client state: `isConnected`, `siteName`, `connectJira()`, `disconnectJira()`, `checkStatus()`. Used by modules with per-user Jira authentication. |
+| `useDarkMode()` | Reactive dark-mode flag (`isDark`) tracked via a `MutationObserver` on `<html>`'s `class` attribute, plus Chart.js-ready `textColor`/`gridColor`/`cardBackground` computed values. For components rendering Chart.js charts, whose canvas content Tailwind's `dark:` classes can't reach. |
 
 ### Utilities
 

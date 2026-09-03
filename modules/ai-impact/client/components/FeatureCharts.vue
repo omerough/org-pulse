@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref } from 'vue'
 import { Bar } from 'vue-chartjs'
 import {
   Chart as ChartJS,
@@ -10,6 +10,9 @@ import {
   Tooltip,
   Legend
 } from 'chart.js'
+import { useDarkMode } from '@shared/client'
+import InfoBubble from './InfoBubble.vue'
+import { SCORE_HEX, scoreRgba } from '../utils/score-colors.js'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -29,19 +32,7 @@ const scoredFeatures = computed(() =>
 
 const expanded = ref(true)
 
-const isDark = ref(false)
-onMounted(() => {
-  isDark.value = document.documentElement.classList.contains('dark') ||
-    (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  const observer = new MutationObserver(() => {
-    isDark.value = document.documentElement.classList.contains('dark')
-  })
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-  onBeforeUnmount(() => observer.disconnect())
-})
-
-const textColor = computed(() => isDark.value ? 'rgba(209, 213, 219, 1)' : 'rgba(107, 114, 128, 1)')
-const gridColor = computed(() => isDark.value ? 'rgba(75, 85, 99, 0.5)' : 'rgba(229, 231, 235, 1)')
+const { textColor, gridColor } = useDarkMode()
 
 // Score Distribution: histogram of scores.total (0-8)
 const scoreDistributionData = computed(() => {
@@ -56,10 +47,11 @@ const scoreDistributionData = computed(() => {
       label: 'Features',
       data: buckets,
       backgroundColor: buckets.map((_, i) => {
-        if (i <= 2) return 'rgba(239, 68, 68, 0.7)'    // red for low
-        if (i <= 5) return 'rgba(245, 158, 11, 0.7)'    // amber for mid
-        return 'rgba(16, 185, 129, 0.7)'                 // green for high
-      })
+        if (i <= 2) return scoreRgba('red', 0.7)
+        if (i <= 5) return scoreRgba('amber', 0.7)
+        return scoreRgba('green', 0.7)
+      }),
+      borderRadius: 3
     }]
   }
 })
@@ -68,12 +60,11 @@ const scoreDistributionOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    title: { display: true, text: 'Score Distribution', color: textColor.value },
     legend: { display: false }
   },
   scales: {
-    x: { title: { display: true, text: 'Total Score', color: textColor.value }, ticks: { color: textColor.value }, grid: { color: gridColor.value } },
-    y: { title: { display: true, text: 'Count', color: textColor.value }, beginAtZero: true, ticks: { stepSize: 1, color: textColor.value }, grid: { color: gridColor.value } }
+    x: { title: { display: true, text: 'Total Score', color: textColor.value, font: { size: 11 } }, ticks: { color: textColor.value, font: { size: 11 } }, grid: { color: gridColor.value } },
+    y: { title: { display: true, text: 'Count', color: textColor.value, font: { size: 11 } }, beginAtZero: true, ticks: { stepSize: 1, color: textColor.value, font: { size: 11 } }, grid: { color: gridColor.value } }
   }
 }))
 
@@ -98,9 +89,9 @@ const dimensionBreakdownData = computed(() => {
   return {
     labels: dims.map(d => d.charAt(0).toUpperCase() + d.slice(1)),
     datasets: [
-      { label: 'Pass (2)', data: counts.pass, backgroundColor: 'rgba(16, 185, 129, 0.7)' },
-      { label: 'Partial (1)', data: counts.partial, backgroundColor: 'rgba(245, 158, 11, 0.7)' },
-      { label: 'Fail (0)', data: counts.fail, backgroundColor: 'rgba(239, 68, 68, 0.7)' }
+      { label: 'Pass (2)', data: counts.pass, backgroundColor: SCORE_HEX.green },
+      { label: 'Partial (1)', data: counts.partial, backgroundColor: SCORE_HEX.amber },
+      { label: 'Fail (0)', data: counts.fail, backgroundColor: SCORE_HEX.red }
     ]
   }
 })
@@ -108,13 +99,14 @@ const dimensionBreakdownData = computed(() => {
 const dimensionBreakdownOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
+  barPercentage: 0.6,
+  categoryPercentage: 0.6,
   plugins: {
-    title: { display: true, text: 'Dimension Breakdown', color: textColor.value },
-    legend: { display: true, position: 'bottom', labels: { color: textColor.value } }
+    legend: { display: true, position: 'bottom', labels: { color: textColor.value, font: { size: 11 }, boxWidth: 12 } }
   },
   scales: {
-    x: { stacked: true, ticks: { color: textColor.value }, grid: { color: gridColor.value } },
-    y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1, color: textColor.value }, grid: { color: gridColor.value } }
+    x: { stacked: true, ticks: { color: textColor.value, font: { size: 11 } }, grid: { color: gridColor.value } },
+    y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1, color: textColor.value, font: { size: 11 } }, grid: { color: gridColor.value } }
   }
 }))
 </script>
@@ -143,11 +135,23 @@ const dimensionBreakdownOptions = computed(() => ({
 
     <div v-if="expanded" class="px-6 pb-6">
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="h-64">
-          <Bar :data="scoreDistributionData" :options="scoreDistributionOptions" />
+        <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <h3 class="text-sm font-medium dark:text-gray-300 flex items-center mb-3">
+            Score Distribution
+            <InfoBubble trigger="hover" text="Distribution of total design review scores (0-8) across reviewed features. Red bars indicate weak scores (0-2), amber indicates moderate (3-5), green indicates strong (6-8)." />
+          </h3>
+          <div class="h-64">
+            <Bar :data="scoreDistributionData" :options="scoreDistributionOptions" />
+          </div>
         </div>
-        <div class="h-64">
-          <Bar :data="dimensionBreakdownData" :options="dimensionBreakdownOptions" />
+        <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <h3 class="text-sm font-medium dark:text-gray-300 flex items-center mb-3">
+            Dimension Breakdown
+            <InfoBubble trigger="hover" text="Per-dimension counts of reviewed features scoring 2 (Pass), 1 (Partial), or 0 (Fail) on feasibility, testability, scope, and architecture." />
+          </h3>
+          <div class="h-64">
+            <Bar :data="dimensionBreakdownData" :options="dimensionBreakdownOptions" />
+          </div>
         </div>
       </div>
     </div>
