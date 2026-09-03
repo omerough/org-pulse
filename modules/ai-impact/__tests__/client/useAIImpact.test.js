@@ -103,6 +103,36 @@ describe('useAIImpact', () => {
     expect(other.vm.rfeData).not.toBeNull();
   });
 
+  it('ignores a stale load() response when the time window changed mid-flight (regression: OSAC-4814 P2)', async () => {
+    const { rfeData, timeWindow } = useAIImpact();
+
+    // First (slow) request for 'week', triggered by the timeWindow watcher.
+    let resolveWeek;
+    const weekData = { issues: [{ key: 'RFE-WEEK' }] };
+    const threeMonthData = { issues: [{ key: 'RFE-3MONTHS' }] };
+    mockApiRequest.mockImplementationOnce(() => new Promise(r => { resolveWeek = () => r(weekData); }));
+
+    timeWindow.value = 'week';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Switch to '3months' (second, faster request) before 'week' resolves.
+    mockApiRequest.mockResolvedValueOnce(threeMonthData);
+    timeWindow.value = '3months';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Stale 'week' response resolves last.
+    resolveWeek();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // The stale 'week' response must NOT overwrite the current '3months' data
+    // or its loading/error state.
+    expect(timeWindow.value).toBe('3months');
+    expect(rfeData.value).toEqual(threeMonthData);
+  });
+
   it('the visible selector and the request parameter are driven by the same timeWindow source', async () => {
     const prd = mount(PRDReviewStub);
     await Promise.resolve();

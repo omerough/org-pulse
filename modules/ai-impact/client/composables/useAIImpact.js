@@ -11,15 +11,23 @@ let hasFetched = false
 const timeWindow = ref('month')
 
 async function load() {
+  const tw = timeWindow.value || 'month'
   loading.value = true
   error.value = null
   try {
-    const tw = timeWindow.value || 'month'
-    rfeData.value = await apiRequest(`/modules/ai-impact/rfe-data?timeWindow=${tw}`)
+    const data = await apiRequest(`/modules/ai-impact/rfe-data?timeWindow=${tw}`)
+    // Ignore a stale response if the window changed while this request was in
+    // flight, so an earlier request can't clobber a newer selection's data
+    // (or its loading/error state).
+    if ((timeWindow.value || 'month') !== tw) return
+    rfeData.value = data
   } catch (e) {
+    if ((timeWindow.value || 'month') !== tw) return
     error.value = e.message
   } finally {
-    loading.value = false
+    if ((timeWindow.value || 'month') === tw) {
+      loading.value = false
+    }
   }
 }
 
