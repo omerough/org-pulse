@@ -8,10 +8,10 @@ const props = defineProps({
   detail: { type: Object, default: null }
 })
 
-const expandedCriteria = ref({})
+const selectedCriterion = ref(null)
 
-function toggleCriterion(name) {
-  expandedCriteria.value[name] = !expandedCriteria.value[name]
+function selectCriterion(key) {
+  selectedCriterion.value = selectedCriterion.value === key ? null : key
 }
 
 // Render each assessment under its own rubric version (v1 legacy / v2 current).
@@ -19,6 +19,9 @@ const criteria = computed(() => {
   const rubric = rubricForAssessment(props.assessment)
   return rubric.keys.map(key => ({ key, label: rubric.labels[key] }))
 })
+
+const selectedLabel = computed(() => criteria.value.find(c => c.key === selectedCriterion.value)?.label ?? '')
+const selectedNote = computed(() => props.detail?.latest?.criterionNotes?.[selectedCriterion.value] ?? null)
 
 function getScoreClass(score) {
   if (score === 2) return 'bg-green-500'
@@ -35,15 +38,22 @@ function getPassFailClass(passFail) {
 
 <template>
   <div class="space-y-4">
-    <!-- Total Score Badge -->
-    <div class="flex items-center gap-3">
-      <div
-        class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-semibold"
-        :class="getPassFailClass(assessment.passFail)"
-      >
-        <span class="text-lg">{{ assessment.total }}</span>
-        <span class="text-xs font-normal">/10</span>
-        <span class="ml-1 text-xs font-medium uppercase">{{ assessment.passFail }}</span>
+    <!-- Total Score / Result -->
+    <div class="flex items-start gap-6">
+      <div>
+        <p class="text-gray-500 dark:text-gray-400 text-xs mb-1">Score</p>
+        <p class="font-bold" :class="assessment.passFail === 'PASS' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+          {{ assessment.total }}/10
+        </p>
+      </div>
+      <div>
+        <p class="text-gray-500 dark:text-gray-400 text-xs mb-1">Result</p>
+        <span
+          class="inline-flex items-center px-2 py-0.5 rounded border text-xs font-medium uppercase"
+          :class="getPassFailClass(assessment.passFail)"
+        >
+          {{ assessment.passFail }}
+        </span>
       </div>
     </div>
 
@@ -54,21 +64,21 @@ function getPassFailClass(passFail) {
         :key="key"
         class="rounded-lg border border-gray-200 dark:border-gray-600 p-3 transition-colors"
         :class="[
-          expandedCriteria[key] ? 'col-span-2' : '',
-          detail?.latest?.criterionNotes?.[key] ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : ''
+          detail?.latest?.criterionNotes?.[key] ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : '',
+          selectedCriterion === key ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-300 dark:border-gray-500' : ''
         ]"
         :role="detail?.latest?.criterionNotes?.[key] ? 'button' : undefined"
         :tabindex="detail?.latest?.criterionNotes?.[key] ? 0 : undefined"
-        @click="detail?.latest?.criterionNotes?.[key] ? toggleCriterion(key) : null"
-        @keydown.enter="detail?.latest?.criterionNotes?.[key] ? toggleCriterion(key) : null"
-        @keydown.space.prevent="detail?.latest?.criterionNotes?.[key] ? toggleCriterion(key) : null"
+        @click="detail?.latest?.criterionNotes?.[key] ? selectCriterion(key) : null"
+        @keydown.enter="detail?.latest?.criterionNotes?.[key] ? selectCriterion(key) : null"
+        @keydown.space.prevent="detail?.latest?.criterionNotes?.[key] ? selectCriterion(key) : null"
       >
         <div class="flex items-center justify-between">
           <span class="font-medium text-sm dark:text-gray-200">{{ label }}</span>
           <svg
             v-if="detail?.latest?.criterionNotes?.[key]"
             class="h-4 w-4 text-gray-400 transition-transform shrink-0"
-            :class="{ 'rotate-180': expandedCriteria[key] }"
+            :class="{ 'rotate-180': selectedCriterion === key }"
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -86,14 +96,16 @@ function getPassFailClass(passFail) {
           </span>
           <span class="text-xs text-gray-500 dark:text-gray-400">{{ assessment.scores[key] }}/2</span>
         </div>
-        <!-- Expandable justification -->
-        <div
-          v-if="expandedCriteria[key] && detail?.latest?.criterionNotes?.[key]"
-          class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700"
-        >
-          <FeedbackText :text="detail.latest.criterionNotes[key]" />
-        </div>
       </div>
+    </div>
+
+    <!-- Selected criterion detail panel -->
+    <div
+      v-if="selectedNote"
+      class="rounded-lg border border-gray-200 dark:border-gray-600 p-3"
+    >
+      <p class="font-medium text-sm dark:text-gray-200 mb-1.5">{{ selectedLabel }}</p>
+      <FeedbackText :text="selectedNote" />
     </div>
 
     <!-- Anti-patterns -->

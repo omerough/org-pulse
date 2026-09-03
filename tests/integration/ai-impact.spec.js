@@ -386,7 +386,7 @@ test.describe('AI Impact Views @ai-impact', () => {
     expect(page.errors).toHaveLength(0);
   });
 
-  test('PRD Details: shows the canonical PRD PR action and Component chip for an EP-sourced PRD', async ({ page }) => {
+  test('PRD Details: shows the canonical PRD PR action and Component chip when a canonical PRD PR URL is present', async ({ page }) => {
     await page.route('**/api/modules/ai-impact/features', async route => {
       await route.fulfill({
         status: 200,
@@ -414,7 +414,8 @@ test.describe('AI Impact Views @ai-impact', () => {
               created: '2026-04-01T00:00:00.000Z',
               creatorDisplayName: 'Alice',
               aiInvolvement: 'created',
-              components: ['Model Serving']
+              components: ['Model Serving'],
+              linkedFeature: { key: 'RHAISTRAT-1', fixVersions: [], prdPrUrl: 'https://github.com/osac-project/enhancement-proposals/pull/42' }
             }
           ]
         })
@@ -431,7 +432,57 @@ test.describe('AI Impact Views @ai-impact', () => {
     await expect(dialog.getByRole('heading', { name: 'PRD Details' })).toBeVisible();
     await expect(dialog.getByText('Model Serving')).toBeVisible();
     await expect(dialog.getByText('Fix Version', { exact: true })).toHaveCount(0);
-    await expect(dialog.getByRole('link', { name: /PRD PR/ })).toBeVisible();
+    const prdPrLink = dialog.getByRole('link', { name: /PRD PR/ });
+    await expect(prdPrLink).toBeVisible();
+    await expect(prdPrLink).toHaveAttribute('href', 'https://github.com/osac-project/enhancement-proposals/pull/42');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('PRD Details: hides the PRD PR action when an EP-prefixed key has no canonical PRD PR URL', async ({ page }) => {
+    await page.route('**/api/modules/ai-impact/features', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ lastSyncedAt: null, totalFeatures: 0, features: {} })
+      });
+    });
+    await page.route('**/api/modules/ai-impact/rfe-data**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          fetchedAt: '2026-04-19T12:00:00Z',
+          jiraHost: 'https://redhat.atlassian.net',
+          metrics: { createdPct: 0, createdChange: 0, trend: 'stable', revisedCount: 0, priorRevisedCount: 0, windowTotal: 1, totalRFEs: 1 },
+          trendData: [],
+          breakdown: [],
+          pipelineFriction: { needsAttentionPct: 0, needsAttentionChange: 0, needsAttentionTrend: 'stable', feasibilityBlockedPct: 0, feasibilityBlockedChange: 0, feasibilityBlockedTrend: 'stable' },
+          issues: [
+            {
+              key: 'EP-99',
+              summary: 'PRD with an EP key but no PR URL yet',
+              status: 'Open',
+              priority: 'Major',
+              created: '2026-04-01T00:00:00.000Z',
+              creatorDisplayName: 'Alice',
+              aiInvolvement: 'created',
+              components: []
+            }
+          ]
+        })
+      });
+    });
+
+    await page.goto('/#/ai-impact/prd-review');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    await page.getByText('PRD with an EP key but no PR URL yet').click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: 'PRD Details' })).toBeVisible();
+    await expect(dialog.getByRole('link', { name: /PRD PR/ })).toHaveCount(0);
 
     expect(page.errors).toHaveLength(0);
   });

@@ -124,4 +124,84 @@ describe('RFEDetailModal', () => {
     expect(document.body.textContent).not.toContain('Awaiting Sign-off');
     wrapper.unmount();
   });
+
+  it('shows Component and Fix Version together when both are present', () => {
+    const wrapper = mountModal(makeRFE({ components: ['Core'], linkedFeature: { fixVersions: ['0.3'] } }));
+
+    expect(document.body.textContent).toContain('Component');
+    expect(document.body.textContent).toContain('Core');
+    expect(document.body.textContent).toContain('Fix Version');
+    expect(document.body.textContent).toContain('0.3');
+    wrapper.unmount();
+  });
+
+  it('hides Fix Version when the linked feature has no fix versions', () => {
+    const wrapper = mountModal(makeRFE({ components: ['Core'], linkedFeature: null }));
+
+    expect(document.body.textContent).toContain('Component');
+    expect(document.body.textContent).not.toContain('Fix Version');
+    wrapper.unmount();
+  });
+
+  it('hides both Component and Fix Version when neither is present', () => {
+    const wrapper = mountModal(makeRFE({ components: [], linkedFeature: null }));
+
+    expect(document.body.textContent).not.toContain('Component');
+    expect(document.body.textContent).not.toContain('Fix Version');
+    wrapper.unmount();
+  });
+
+  it('uses the same 3-column grid geometry as the metadata grid above it, with Component fixed in column 1', () => {
+    const wrapper = mountModal(makeRFE({ components: ['Core'], linkedFeature: { fixVersions: ['0.3'] } }));
+    const metadataGrid = document.body.querySelector('.grid.grid-cols-3');
+    const chipRow = [...document.body.querySelectorAll('.grid.grid-cols-3')][1];
+
+    expect(chipRow.className).toBe(metadataGrid.className);
+    expect(chipRow.children[0].textContent).toContain('Component');
+    expect(chipRow.children[1].textContent).toContain('Fix Version');
+    wrapper.unmount();
+  });
+
+  it('keeps Component in column 1 even when Fix Version is the only group present', () => {
+    const wrapper = mountModal(makeRFE({ components: [], linkedFeature: { fixVersions: ['0.3'] } }));
+    const chipRow = [...document.body.querySelectorAll('.grid.grid-cols-3')][1];
+
+    expect(chipRow.children[0].textContent).not.toContain('Fix Version');
+    expect(chipRow.children[1].textContent).toContain('Fix Version');
+    wrapper.unmount();
+  });
+});
+
+describe('RFEDetailModal PRD PR action', () => {
+  it('renders the PRD PR action with the canonical URL when linkedFeature.prdPrUrl is present', () => {
+    const wrapper = mountModal(makeRFE({
+      linkedFeature: { key: 'RHAISTRAT-1', prdPrUrl: 'https://github.com/osac-project/enhancement-proposals/pull/1168' }
+    }));
+
+    const link = document.body.querySelector('a[title="View PRD pull request on GitHub"]');
+    expect(link).not.toBeNull();
+    expect(link.getAttribute('href')).toBe('https://github.com/osac-project/enhancement-proposals/pull/1168');
+    wrapper.unmount();
+  });
+
+  it('does not render the PRD PR action when linkedFeature.prdPrUrl is absent', () => {
+    const wrapper = mountModal(makeRFE({ linkedFeature: { key: 'RHAISTRAT-1', prdPrUrl: null } }));
+
+    expect(document.body.querySelector('a[title="View PRD pull request on GitHub"]')).toBeNull();
+    wrapper.unmount();
+  });
+
+  it('does not render the PRD PR action when there is no linkedFeature at all', () => {
+    const wrapper = mountModal(makeRFE({ linkedFeature: null }));
+
+    expect(document.body.querySelector('a[title="View PRD pull request on GitHub"]')).toBeNull();
+    wrapper.unmount();
+  });
+
+  it('does not render the PRD PR action for an EP-prefixed key alone, without a canonical URL', () => {
+    const wrapper = mountModal(makeRFE({ key: 'EP-42', linkedFeature: null }));
+
+    expect(document.body.querySelector('a[title="View PRD pull request on GitHub"]')).toBeNull();
+    wrapper.unmount();
+  });
 });

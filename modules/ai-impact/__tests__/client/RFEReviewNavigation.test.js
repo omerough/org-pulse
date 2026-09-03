@@ -132,7 +132,7 @@ describe('RFEReviewView navigation', () => {
     const phaseContent = wrapper.findComponent(PhaseContentStub);
 
     expect(phaseContent.props('rfeToFeature')).toEqual({
-      'RHAIRFE-1': { key: 'RHAISTRAT-10', summary: 'Linked Feature', status: 'In Progress', fixVersions: [] }
+      'RHAIRFE-1': { key: 'RHAISTRAT-10', summary: 'Linked Feature', status: 'In Progress', fixVersions: [], prdPrUrl: null }
     });
   });
 

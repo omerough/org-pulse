@@ -179,16 +179,16 @@ function handleKeydown(e) {
             </div>
 
             <!-- Component / Fix Version -->
-            <div v-if="rfe.components?.length || rfe.linkedFeature?.fixVersions?.length" class="flex flex-col gap-3 mb-6">
-              <MetaChipGroup label="Component" :values="rfe.components" />
-              <MetaChipGroup label="Fix Version" :values="rfe.linkedFeature?.fixVersions" />
+            <div v-if="rfe.components?.length || rfe.linkedFeature?.fixVersions?.length" class="grid grid-cols-3 gap-4 mb-6 text-sm">
+              <div><MetaChipGroup label="Component" :values="rfe.components" /></div>
+              <div><MetaChipGroup label="Fix Version" :values="rfe.linkedFeature?.fixVersions" /></div>
             </div>
 
             <!-- Links -->
-            <div v-if="rfe.key.startsWith('EP-')" class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+            <div v-if="rfe.linkedFeature?.prdPrUrl" class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
               <div class="flex flex-wrap items-center gap-2">
                 <a
-                  :href="issueUrl(rfe.key)"
+                  :href="rfe.linkedFeature.prdPrUrl"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
@@ -217,7 +217,7 @@ function handleKeydown(e) {
               </div>
 
               <!-- Verdict -->
-              <div v-if="assessmentDetail?.latest?.verdict" class="mb-4">
+              <div v-if="assessmentDetail?.latest?.verdict" class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
                 <h4 class="text-xs text-gray-500 dark:text-gray-400 mb-1">Verdict</h4>
                 <p class="text-sm font-medium text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-700/50 rounded-md px-3 py-2">
                   {{ assessmentDetail.latest.verdict }}
@@ -225,7 +225,7 @@ function handleKeydown(e) {
               </div>
 
               <!-- Feedback -->
-              <div v-if="assessmentDetail?.latest?.feedback" class="mb-4">
+              <div v-if="assessmentDetail?.latest?.feedback" class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
                 <h4 class="text-xs text-gray-500 dark:text-gray-400 mb-1">Feedback</h4>
                 <div class="bg-gray-50 dark:bg-gray-700/50 rounded-md px-3 py-2">
                   <FeedbackText :text="assessmentDetail.latest.feedback" />
