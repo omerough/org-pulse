@@ -32,8 +32,7 @@ loadFeatures()
 // watcher when the time window changes; no explicit call needed here.
 
 // Load RFE data only for jiraHost (used by detail panel links)
-const timeWindow = ref('month')
-const { rfeData } = useAIImpact(timeWindow)
+const { rfeData } = useAIImpact()
 
 function handleRetry() {
   loadFeatures()

@@ -19,8 +19,7 @@ const { testPlans, testPlanMeta, testPlanLoading, testPlanError, loadTestPlans, 
 loadTestPlans()
 
 // Load RFE data only for jiraHost (used by detail panel links)
-const timeWindow = ref('month')
-const { rfeData } = useAIImpact(timeWindow)
+const { rfeData } = useAIImpact()
 
 function handleRetry() {
   loadTestPlans()

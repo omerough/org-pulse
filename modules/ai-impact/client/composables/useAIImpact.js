@@ -11,15 +11,23 @@ let hasFetched = false
 const timeWindow = ref('month')
 
 async function load() {
+  const tw = timeWindow.value || 'month'
   loading.value = true
   error.value = null
   try {
-    const tw = timeWindow.value || 'month'
-    rfeData.value = await apiRequest(`/modules/ai-impact/rfe-data?timeWindow=${tw}`)
+    const data = await apiRequest(`/modules/ai-impact/rfe-data?timeWindow=${tw}`)
+    // Ignore a stale response if the window changed while this request was in
+    // flight, so an earlier request can't clobber a newer selection's data
+    // (or its loading/error state).
+    if ((timeWindow.value || 'month') !== tw) return
+    rfeData.value = data
   } catch (e) {
+    if ((timeWindow.value || 'month') !== tw) return
     error.value = e.message
   } finally {
-    loading.value = false
+    if ((timeWindow.value || 'month') === tw) {
+      loading.value = false
+    }
   }
 }
 
@@ -34,10 +42,11 @@ async function checkRefreshStatus() {
 // Re-fetch when time window changes
 watch(timeWindow, () => load())
 
-export function useAIImpact(tw) {
-  if (tw) {
-    timeWindow.value = tw.value || tw
-  }
+// No caller-supplied time window: consumers that care about the period read
+// and write the returned `timeWindow` ref directly (same pattern as
+// useFeatures().featureTimeWindow), so there is exactly one source of truth
+// instead of a per-caller copy that can drift or get silently overwritten.
+export function useAIImpact() {
   if (!hasFetched) {
     hasFetched = true
     load()
@@ -50,5 +59,6 @@ export function _resetForTesting() {
   loading.value = true
   error.value = null
   refreshStatus.value = null
+  timeWindow.value = 'month'
   hasFetched = true // prevent auto-fetch so tests control when loading happens
 }
