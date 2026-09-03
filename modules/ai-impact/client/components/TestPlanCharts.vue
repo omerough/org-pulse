@@ -10,7 +10,7 @@ import {
   Tooltip,
   Legend
 } from 'chart.js'
-import { useDarkMode } from '@shared/client/composables/useDarkMode.js'
+import { useDarkMode } from '@shared/client'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 

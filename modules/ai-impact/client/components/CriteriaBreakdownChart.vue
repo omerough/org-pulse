@@ -13,7 +13,7 @@ import {
   Tooltip,
   Legend
 } from 'chart.js'
-import { useDarkMode } from '@shared/client/composables/useDarkMode.js'
+import { useDarkMode } from '@shared/client'
 import InfoBubble from './InfoBubble.vue'
 import { RUBRICS, rubricForAssessment } from '../rubric.js'
 import { SCORE_HEX, scoreRgba, bandForCriterionAvg } from '../utils/score-colors.js'

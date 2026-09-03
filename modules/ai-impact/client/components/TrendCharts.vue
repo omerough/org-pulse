@@ -19,7 +19,7 @@ ChartJS.register(
   Filler, Title, Tooltip, Legend
 )
 
-import { useDarkMode } from '@shared/client/composables/useDarkMode.js'
+import { useDarkMode } from '@shared/client'
 import InfoBubble from './InfoBubble.vue'
 
 const props = defineProps({
