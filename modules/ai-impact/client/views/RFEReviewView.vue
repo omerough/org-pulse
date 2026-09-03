@@ -78,14 +78,22 @@ const rfeToFeature = computed(() => {
   return map
 })
 
-// Enrich selected RFE with linkedFeature from features data when Jira link is missing
+// Enrich the Jira-linked feature with data from the feature store. Jira provides
+// current summary/status/fix versions, while the feature store provides the
+// canonical PRD PR URL used by the PRD action.
 const enrichedSelectedRFE = computed(() => {
   const rfe = selectedRFE.value
   if (!rfe) return null
-  if (rfe.linkedFeature) return rfe
   const featureLink = rfeToFeature.value[rfe.key]
   if (!featureLink) return rfe
-  return { ...rfe, linkedFeature: featureLink }
+  return {
+    ...rfe,
+    linkedFeature: {
+      ...featureLink,
+      ...rfe.linkedFeature,
+      prdPrUrl: featureLink.prdPrUrl || rfe.linkedFeature?.prdPrUrl || null
+    }
+  }
 })
 
 const filteredAssessments = computed(() => {
