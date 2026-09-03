@@ -20,6 +20,15 @@ const tooltipStyle = ref({})
 const vPos = ref('above')
 const arrowLeft = ref('50%')
 
+// Real hover-capable pointer (mouse/trackpad), not touch. Touch browsers can
+// synthesize a mouseenter immediately before click when tapping, which would
+// otherwise open-then-instantly-close the tooltip via toggle(). Gating only
+// the pointer-hover path (not keyboard focus) keeps touch's click fallback
+// working while desktop hover and keyboard access are unaffected.
+const supportsHoverPointer = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+  ? window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  : true
+
 function show() {
   if (!el.value) return
   const rect = el.value.getBoundingClientRect()
@@ -61,9 +70,15 @@ function toggle(e) {
 }
 
 function onHoverEnter() {
-  if (props.trigger === 'hover') show()
+  if (props.trigger === 'hover' && supportsHoverPointer) show()
 }
 function onHoverLeave() {
+  if (props.trigger === 'hover' && supportsHoverPointer) hide()
+}
+function onFocusIn() {
+  if (props.trigger === 'hover') show()
+}
+function onFocusOut() {
   if (props.trigger === 'hover') hide()
 }
 
@@ -83,8 +98,8 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
       @click="toggle"
       @mouseenter="onHoverEnter"
       @mouseleave="onHoverLeave"
-      @focus="onHoverEnter"
-      @blur="onHoverLeave"
+      @focus="onFocusIn"
+      @blur="onFocusOut"
       class="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
       aria-label="More info"
     >

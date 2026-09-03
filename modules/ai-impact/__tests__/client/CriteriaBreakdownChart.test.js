@@ -94,3 +94,37 @@ describe('CriteriaBreakdownChart color mapping', () => {
     expect(label).toBe('Zero-score: 0%');
   });
 });
+
+describe('CriteriaBreakdownChart no-v2-data state', () => {
+  it('renders neutral, not red, when only legacy v1 assessments exist', () => {
+    const assessments = {
+      'RHAIRFE-1': { rubricVersion: 'v1', scores: { what: 0, why: 0, how: 0, task: 0, size: 0 } },
+      'RHAIRFE-2': { rubricVersion: 'v1', scores: { what: 2, why: 2, how: 2, task: 2, size: 2 } }
+    };
+    const wrapper = shallowMount(CriteriaBreakdownChart, { props: { assessments } });
+    const [avgDataset] = wrapper.findComponent(Bar).props('data').datasets;
+
+    // A board with no v2 reviews has no real average to report — it must not
+    // be painted as if every criterion is failing.
+    expect(avgDataset.backgroundColor).not.toContain(scoreRgba('red', 0.85));
+    expect(avgDataset.borderColor).not.toContain(SCORE_HEX.red);
+    expect(new Set(avgDataset.backgroundColor).size).toBe(1);
+    expect(new Set(avgDataset.borderColor).size).toBe(1);
+  });
+
+  it('still colors a genuine v2 average of exactly 0 red (real zero, not absent data)', () => {
+    const assessments = {};
+    for (let i = 0; i < 5; i++) {
+      assessments[`RHAIRFE-${i}`] = {
+        rubricVersion: 'v2',
+        scores: { what: 0, why: 0, userFacing: 0, rightSized: 0, testability: 0 }
+      };
+    }
+    const wrapper = shallowMount(CriteriaBreakdownChart, { props: { assessments } });
+    const [avgDataset] = wrapper.findComponent(Bar).props('data').datasets;
+
+    expect(avgDataset.data).toEqual([0, 0, 0, 0, 0]);
+    expect(avgDataset.backgroundColor).toEqual(new Array(5).fill(scoreRgba('red', 0.85)));
+    expect(avgDataset.borderColor).toEqual(new Array(5).fill(SCORE_HEX.red));
+  });
+});

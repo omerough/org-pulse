@@ -34,12 +34,19 @@ const CRITERIA_LABELS = RUBRICS.v2.labels
 
 const { textColor, gridColor, cardBackground } = useDarkMode()
 
+// Neutral color for the "no v2-rubric assessments yet" state (e.g. a board
+// with only legacy v1 reviews) — matches this chart's pre-semantic-coloring
+// baseline. avg/zeroPct still report 0 for bar height, but hasData:false
+// keeps that 0 from being colored as a genuine failing average.
+const NO_DATA_BG = 'rgba(99, 102, 241, 0.85)'
+const NO_DATA_BORDER = '#6366f1'
+
 const stats = computed(() => {
   const entries = Object.values(props.assessments)
     .filter(a => rubricForAssessment(a).version === 'v2')
   const count = entries.length
   if (count === 0) {
-    return CRITERIA.map(c => ({ criterion: c, avg: 0, zeroPct: 0 }))
+    return CRITERIA.map(c => ({ criterion: c, avg: 0, zeroPct: 0, hasData: false }))
   }
   return CRITERIA.map(c => {
     let sum = 0
@@ -52,7 +59,8 @@ const stats = computed(() => {
     return {
       criterion: c,
       avg: Math.round((sum / count) * 100) / 100,
-      zeroPct: Math.round((zeros / count) * 100)
+      zeroPct: Math.round((zeros / count) * 100),
+      hasData: true
     }
   })
 })
@@ -73,8 +81,8 @@ const chartData = computed(() => ({
     {
       label: 'Avg Score (0-2)',
       data: stats.value.map(s => s.avg),
-      backgroundColor: stats.value.map(s => scoreRgba(bandForCriterionAvg(s.avg), 0.85)),
-      borderColor: stats.value.map(s => SCORE_HEX[bandForCriterionAvg(s.avg)]),
+      backgroundColor: stats.value.map(s => s.hasData ? scoreRgba(bandForCriterionAvg(s.avg), 0.85) : NO_DATA_BG),
+      borderColor: stats.value.map(s => s.hasData ? SCORE_HEX[bandForCriterionAvg(s.avg)] : NO_DATA_BORDER),
       borderWidth: 1,
       borderRadius: 3,
       yAxisID: 'y'
