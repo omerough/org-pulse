@@ -172,6 +172,13 @@ test.describe('AI Impact Views @ai-impact', () => {
     expect(page.errors).toHaveLength(0);
   }
 
+  // AssessmentGuideModal auto-opens on first visit to PRD/Design Review (empty
+  // localStorage) and its backdrop intercepts clicks on the list underneath;
+  // seed the dismissal flag so tests can interact with the view itself.
+  async function skipFirstVisitGuide(page) {
+    await page.addInitScript(() => localStorage.setItem('ai-impact-guide-dismissed', 'true'));
+  }
+
   test('should load AI Factory Guide view', async ({ page }) => {
     await testView(page, 'ai-factory-guide', 'AI Factory Guide');
   });
@@ -369,7 +376,32 @@ test.describe('AI Impact Views @ai-impact', () => {
         })
       });
     });
+    // FeatureDetailPanel always fetches per-feature detail and test-plan detail
+    // on open; without these mocks the real backend 404s (neither exists on
+    // disk), logging console errors the assertion below would otherwise flag.
+    await page.route('**/api/modules/ai-impact/features/OSAC-PERFECT', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          latest: {
+            key: 'OSAC-PERFECT', title: 'Perfect score feature', priority: 'Major',
+            humanReviewStatus: 'awaiting-review', recommendation: 'approve',
+            components: ['Model Serving'], fixVersions: ['3.5'],
+            scores: { feasibility: 2, testability: 2, scope: 2, architecture: 2, total: 8 }
+          },
+          history: []
+        })
+      });
+    });
+    // A real 404 here is normal app behavior (handled silently), but the browser
+    // still logs it to the console; return 200 so the test isn't asserting
+    // about an unrelated fetch outcome it doesn't care about.
+    await page.route('**/api/modules/ai-impact/test-plans/OSAC-PERFECT', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ latest: null, history: [] }) });
+    });
 
+    await skipFirstVisitGuide(page);
     await page.goto('/#/ai-impact/design-review');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
@@ -381,7 +413,9 @@ test.describe('AI Impact Views @ai-impact', () => {
     await expect(dialog.getByText('Size', { exact: true })).toHaveCount(0);
     await expect(dialog.getByText('Model Serving')).toBeVisible();
     await expect(dialog.getByText('3.5')).toBeVisible();
-    await expect(dialog.getByText('8/8')).toHaveClass(/text-green-600/);
+    // Non-exact match also hits Pipeline Progress's "approve — 8/8" detail text,
+    // so scope to the score display itself.
+    await expect(dialog.getByText('8/8', { exact: true })).toHaveClass(/text-green-600/);
 
     expect(page.errors).toHaveLength(0);
   });
@@ -422,6 +456,7 @@ test.describe('AI Impact Views @ai-impact', () => {
       });
     });
 
+    await skipFirstVisitGuide(page);
     await page.goto('/#/ai-impact/prd-review');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
@@ -474,6 +509,7 @@ test.describe('AI Impact Views @ai-impact', () => {
       });
     });
 
+    await skipFirstVisitGuide(page);
     await page.goto('/#/ai-impact/prd-review');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
