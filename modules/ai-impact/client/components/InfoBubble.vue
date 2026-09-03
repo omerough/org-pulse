@@ -1,8 +1,14 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 
-defineProps({
-  text: { type: String, required: true }
+const props = defineProps({
+  text: { type: String, required: true },
+  // 'click' (default) keeps the original tap-to-open behavior used by list-row
+  // and detail-panel badge tooltips. 'hover' additionally reveals on pointer
+  // hover and keyboard focus for desktop, while click/tap still works as the
+  // touch/non-hover fallback — used by chart info icons, where hover-to-preview
+  // is the expected dashboard interaction.
+  trigger: { type: String, default: 'click' }
 })
 
 const TOOLTIP_W = 256 // w-64
@@ -14,37 +20,51 @@ const tooltipStyle = ref({})
 const vPos = ref('above')
 const arrowLeft = ref('50%')
 
+function show() {
+  if (!el.value) return
+  const rect = el.value.getBoundingClientRect()
+  const centerX = rect.left + rect.width / 2
+
+  // Vertical: prefer above, fall back to below
+  const above = rect.top > 100
+  vPos.value = above ? 'above' : 'below'
+
+  // Horizontal: center on icon, but clamp to viewport
+  let left = centerX - TOOLTIP_W / 2
+  left = Math.max(GAP, Math.min(left, window.innerWidth - TOOLTIP_W - GAP))
+
+  // Arrow tracks the icon center relative to the tooltip left edge
+  arrowLeft.value = Math.max(12, Math.min(centerX - left, TOOLTIP_W - 12)) + 'px'
+
+  tooltipStyle.value = {
+    position: 'fixed',
+    left: left + 'px',
+    top: above ? (rect.top - GAP) + 'px' : (rect.bottom + GAP) + 'px',
+    transform: above ? 'translateY(-100%)' : 'none',
+    width: TOOLTIP_W + 'px',
+    zIndex: 9999
+  }
+  open.value = true
+}
+
+function hide() {
+  open.value = false
+}
+
 function toggle(e) {
   e.stopPropagation()
   if (open.value) {
-    open.value = false
+    hide()
     return
   }
-  if (el.value) {
-    const rect = el.value.getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
+  show()
+}
 
-    // Vertical: prefer above, fall back to below
-    const above = rect.top > 100
-    vPos.value = above ? 'above' : 'below'
-
-    // Horizontal: center on icon, but clamp to viewport
-    let left = centerX - TOOLTIP_W / 2
-    left = Math.max(GAP, Math.min(left, window.innerWidth - TOOLTIP_W - GAP))
-
-    // Arrow tracks the icon center relative to the tooltip left edge
-    arrowLeft.value = Math.max(12, Math.min(centerX - left, TOOLTIP_W - 12)) + 'px'
-
-    tooltipStyle.value = {
-      position: 'fixed',
-      left: left + 'px',
-      top: above ? (rect.top - GAP) + 'px' : (rect.bottom + GAP) + 'px',
-      transform: above ? 'translateY(-100%)' : 'none',
-      width: TOOLTIP_W + 'px',
-      zIndex: 9999
-    }
-  }
-  open.value = true
+function onHoverEnter() {
+  if (props.trigger === 'hover') show()
+}
+function onHoverLeave() {
+  if (props.trigger === 'hover') hide()
 }
 
 function onClickOutside(e) {
@@ -61,6 +81,10 @@ onBeforeUnmount(() => document.removeEventListener('click', onClickOutside))
   <span class="inline-flex" ref="el">
     <button
       @click="toggle"
+      @mouseenter="onHoverEnter"
+      @mouseleave="onHoverLeave"
+      @focus="onHoverEnter"
+      @blur="onHoverLeave"
       class="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
       aria-label="More info"
     >

@@ -10,6 +10,8 @@ import {
   Tooltip,
   Legend
 } from 'chart.js'
+import { useDarkMode } from '@shared/client/composables/useDarkMode.js'
+import InfoBubble from './InfoBubble.vue'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -17,6 +19,10 @@ const props = defineProps({
   assessments: { type: Object, default: () => ({}) }
 })
 
+const { textColor, gridColor } = useDarkMode()
+
+// Bucketing/pass-fail threshold intentionally unchanged — this is a
+// presentation-only pass, not a metric-correctness change.
 const buckets = computed(() => {
   const counts = Array(11).fill(0)
   for (const a of Object.values(props.assessments)) {
@@ -33,11 +39,12 @@ const chartData = computed(() => ({
     data: buckets.value,
     backgroundColor: buckets.value.map((_, i) => i < 5 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(34, 197, 94, 0.7)'),
     borderColor: buckets.value.map((_, i) => i < 5 ? '#ef4444' : '#22c55e'),
-    borderWidth: 1
+    borderWidth: 1,
+    borderRadius: 3
   }]
 }))
 
-const chartOptions = {
+const chartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
@@ -51,33 +58,29 @@ const chartOptions = {
   },
   scales: {
     x: {
-      title: { display: true, text: 'Quality Score', font: { size: 11 } },
-      ticks: { font: { size: 10 } }
+      title: { display: true, text: 'Quality Score', color: textColor.value, font: { size: 11 } },
+      ticks: { font: { size: 11 }, color: textColor.value },
+      grid: { color: gridColor.value }
     },
     y: {
-      title: { display: true, text: 'Count', font: { size: 11 } },
-      ticks: { font: { size: 10 }, precision: 0 },
+      title: { display: true, text: 'Count', color: textColor.value, font: { size: 11 } },
+      ticks: { font: { size: 11 }, precision: 0, color: textColor.value },
+      grid: { color: gridColor.value },
       beginAtZero: true
     }
   }
-}
+}))
 </script>
 
 <template>
   <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
     <div class="flex items-center justify-between mb-3">
-      <h3 class="text-sm font-medium dark:text-gray-300">Score Distribution</h3>
-      <div class="relative group">
-        <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <div class="absolute right-0 top-6 z-10 hidden group-hover:block w-56 p-2 text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50">
-          Distribution of quality scores across filtered PRDs. Red bars indicate failing scores (0-4), green bars indicate passing scores (5-10).
-        </div>
-      </div>
+      <h3 class="text-sm font-medium dark:text-gray-300 flex items-center">
+        Score Distribution
+        <InfoBubble trigger="hover" text="Distribution of quality scores across filtered PRDs. Red bars indicate failing scores (0-4), green bars indicate passing scores (5-10)." />
+      </h3>
     </div>
-    <div class="h-[180px]">
+    <div class="h-64">
       <Bar :data="chartData" :options="chartOptions" />
     </div>
   </div>

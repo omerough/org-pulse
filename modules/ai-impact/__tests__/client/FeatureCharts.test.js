@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
 import { Bar } from 'vue-chartjs';
 import FeatureCharts from '../../client/components/FeatureCharts.vue';
+import { SCORE_HEX } from '../../client/utils/score-colors.js';
 
 // shallowMount auto-stubs the vue-chartjs Bar (no canvas needed) while still
 // letting us read the `data` prop each chart was rendered with.
@@ -48,5 +49,16 @@ describe('FeatureCharts excludes unscored features', () => {
       const colTotal = dimData.datasets.reduce((acc, ds) => acc + ds.data[col], 0);
       expect(colTotal).toBe(2);
     }
+  });
+});
+
+describe('FeatureCharts semantic colors', () => {
+  it('Dimension Breakdown Pass/Partial/Fail align to the shared green-500/amber-500/red-500 tokens', () => {
+    const wrapper = mountCharts({ 'OSAC-1': makeScored('OSAC-1', 6) });
+    const dimData = wrapper.findAllComponents(Bar)[1].props('data');
+    const [pass, partial, fail] = dimData.datasets;
+    expect(pass.backgroundColor).toBe(SCORE_HEX.green);
+    expect(partial.backgroundColor).toBe(SCORE_HEX.amber);
+    expect(fail.backgroundColor).toBe(SCORE_HEX.red);
   });
 });

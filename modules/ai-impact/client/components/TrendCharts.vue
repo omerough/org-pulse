@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { computed } from 'vue'
 import { Line, Bar } from 'vue-chartjs'
 import {
   Chart as ChartJS,
@@ -19,34 +19,20 @@ ChartJS.register(
   Filler, Title, Tooltip, Legend
 )
 
-import ScoreDistributionChart from './ScoreDistributionChart.vue'
-import CriteriaBreakdownChart from './CriteriaBreakdownChart.vue'
+import { useDarkMode } from '@shared/client/composables/useDarkMode.js'
+import InfoBubble from './InfoBubble.vue'
 
 const props = defineProps({
   trendData: { type: Array, default: () => [] },
   breakdown: { type: Array, default: () => [] },
   expanded: { type: Boolean, default: true },
-  filteredAssessments: { type: Object, default: () => ({}) },
   timeWindow: { type: String, default: 'month' },
   itemLabel: { type: String, default: 'PRDs' }
 })
 
-const hasAssessments = computed(() => Object.keys(props.filteredAssessments).length > 0)
-
 const emit = defineEmits(['toggle'])
 
-const isDark = ref(false)
-onMounted(() => {
-  isDark.value = document.documentElement.classList.contains('dark')
-  const observer = new MutationObserver(() => {
-    isDark.value = document.documentElement.classList.contains('dark')
-  })
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-  onBeforeUnmount(() => observer.disconnect())
-})
-
-const textColor = computed(() => isDark.value ? 'rgba(209, 213, 219, 1)' : 'rgba(107, 114, 128, 1)')
-const gridColor = computed(() => isDark.value ? 'rgba(75, 85, 99, 0.5)' : 'rgba(229, 231, 235, 1)')
+const { textColor, gridColor } = useDarkMode()
 
 const trailingWeeks = computed(() => {
   if (props.timeWindow === 'week') return 4
@@ -146,16 +132,10 @@ const breakdownChartOptions = computed(() => ({
       <div class="flex flex-wrap gap-6">
       <div class="min-w-[280px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-medium dark:text-gray-300">Created with AI (%)</h3>
-          <div class="relative group">
-            <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div class="absolute right-0 top-6 z-10 hidden group-hover:block w-64 p-2 text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50">
-              Percentage of {{ itemLabel }} created with AI per week over the selected time window.
-            </div>
-          </div>
+          <h3 class="text-sm font-medium dark:text-gray-300 flex items-center">
+            Created with AI (%)
+            <InfoBubble trigger="hover" :text="`Percentage of ${itemLabel} created with AI per week over the selected time window.`" />
+          </h3>
         </div>
         <div class="h-[180px]">
           <Line :data="createdPctChartData" :options="createdPctChartOptions" />
@@ -164,16 +144,10 @@ const breakdownChartOptions = computed(() => ({
 
       <div class="min-w-[280px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-medium dark:text-gray-300">Review with AI</h3>
-          <div class="relative group">
-            <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div class="absolute right-0 top-6 z-10 hidden group-hover:block w-64 p-2 text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50">
-              Count of {{ itemLabel }} reviewed with AI per week over the selected time window.
-            </div>
-          </div>
+          <h3 class="text-sm font-medium dark:text-gray-300 flex items-center">
+            Review with AI
+            <InfoBubble trigger="hover" :text="`Count of ${itemLabel} reviewed with AI per week over the selected time window.`" />
+          </h3>
         </div>
         <div class="h-[180px]">
           <Bar :data="revisedCountChartData" :options="revisedCountChartOptions" />
@@ -182,27 +156,15 @@ const breakdownChartOptions = computed(() => ({
 
       <div class="min-w-[280px] flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-medium dark:text-gray-300">AI Involvement Breakdown</h3>
-          <div class="relative group">
-            <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div class="absolute right-0 top-6 z-10 hidden group-hover:block w-64 p-2 text-xs text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg dark:shadow-gray-900/50">
-              Counts of {{ itemLabel }} by AI involvement: created with AI, reviewed with AI, both, or no AI involvement.
-            </div>
-          </div>
+          <h3 class="text-sm font-medium dark:text-gray-300 flex items-center">
+            AI Involvement Breakdown
+            <InfoBubble trigger="hover" :text="`Counts of ${itemLabel} by AI involvement: created with AI, reviewed with AI, both, or no AI involvement.`" />
+          </h3>
         </div>
         <div class="h-[180px]">
           <Bar :data="breakdownChartData" :options="breakdownChartOptions" />
         </div>
       </div>
-      </div>
-
-      <!-- Assessment Quality Charts -->
-      <div v-if="hasAssessments" class="flex flex-wrap gap-6">
-        <ScoreDistributionChart class="min-w-[280px] flex-1" :assessments="filteredAssessments" />
-        <CriteriaBreakdownChart class="min-w-[280px] flex-1" :assessments="filteredAssessments" />
       </div>
     </div>
   </div>
