@@ -467,9 +467,22 @@ test.describe('AI Impact Views @ai-impact', () => {
     await expect(dialog.getByRole('heading', { name: 'PRD Details' })).toBeVisible();
     await expect(dialog.getByText('Model Serving')).toBeVisible();
     await expect(dialog.getByText('Fix Version', { exact: true })).toHaveCount(0);
-    const prdPrLink = dialog.getByRole('link', { name: /PRD PR/ });
-    await expect(prdPrLink).toBeVisible();
-    await expect(prdPrLink).toHaveAttribute('href', 'https://github.com/osac-project/enhancement-proposals/pull/42');
+
+    const expectedPrUrl = 'https://github.com/osac-project/enhancement-proposals/pull/42';
+
+    // The top action is the purple "PRD PR" button (distinct styling from the
+    // plain inline link Pipeline Progress renders for the same resolved URL).
+    const topPrdPrAction = dialog.locator('a.bg-purple-50', { hasText: 'PRD PR' });
+    await expect(topPrdPrAction).toBeVisible();
+    await expect(topPrdPrAction).toHaveAttribute('href', expectedPrUrl);
+
+    // Pipeline Progress resolves the same PRD PR URL inline, via the same
+    // getPrdReviewPrUrl() semantics as the top action — verified independently
+    // so the two can't silently disagree.
+    const pipelineProgressSection = dialog.getByRole('heading', { name: 'Pipeline Progress' }).locator('xpath=..');
+    const pipelineProgressPrdPrLink = pipelineProgressSection.getByRole('link', { name: /PRD PR/ });
+    await expect(pipelineProgressPrdPrLink).toBeVisible();
+    await expect(pipelineProgressPrdPrLink).toHaveAttribute('href', expectedPrUrl);
 
     expect(page.errors).toHaveLength(0);
   });
