@@ -1,8 +1,8 @@
 <script setup>
 import { useDisabledPipelines } from '../composables/useDisabledPipelines.js'
+import { getPrdReviewPrUrl } from '../utils/feature-helpers.js'
 
 const { isDisabled } = useDisabledPipelines()
-const EP_GITHUB_REPO = 'https://github.com/osac-project/enhancement-proposals/pull'
 
 const props = defineProps({
   rfe: { type: Object, default: null },
@@ -83,7 +83,8 @@ function getRFEPhaseSignal(phaseId) {
         detail: rfe.aiInvolvement !== 'none'
           ? `AI ${rfe.aiInvolvement === 'both' ? 'created & revised' : rfe.aiInvolvement}`
           : 'No AI involvement',
-        sourceRfe: rfe.sourceRfe
+        sourceRfe: rfe.sourceRfe,
+        prUrl: getPrdReviewPrUrl(rfe)
       }
     case 'design-review':
       if (rfe.linkedFeature) {
@@ -275,7 +276,7 @@ function getFeaturePhaseSignal(phaseId) {
               <template v-else-if="phase.id === 'prd-review' && getPhaseSignal(phase.id).sourceRfe?.startsWith('EP-')">
                 {{ getPhaseSignal(phase.id).detail }}
                 <a
-                  :href="`${EP_GITHUB_REPO}/${getPhaseSignal(phase.id).sourceRfe.slice(3)}`"
+                  :href="getPhaseSignal(phase.id).prUrl"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="ml-1 text-blue-600 dark:text-blue-400 hover:underline"

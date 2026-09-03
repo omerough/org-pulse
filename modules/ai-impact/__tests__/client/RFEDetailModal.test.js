@@ -204,4 +204,59 @@ describe('RFEDetailModal PRD PR action', () => {
     expect(document.body.querySelector('a[title="View PRD pull request on GitHub"]')).toBeNull();
     wrapper.unmount();
   });
+
+  it('renders the top action with the same visual/action pattern as Design PR, including the GitHub icon', () => {
+    const wrapper = mountModal(makeRFE({
+      linkedFeature: { key: 'RHAISTRAT-1', prdPrUrl: 'https://github.com/osac-project/enhancement-proposals/pull/1168' }
+    }));
+
+    const link = document.body.querySelector('a[title="View PRD pull request on GitHub"]');
+    expect(link.className).toContain('bg-purple-50');
+    expect(link.className).toContain('border-purple-200');
+    expect(link.textContent.trim()).toBe('PRD PR');
+    expect(link.querySelector('svg')).not.toBeNull();
+    wrapper.unmount();
+  });
+
+  it('shows the top action when Pipeline Progress resolves a PR from an EP-sourced RFE, even with no linkedFeature.prdPrUrl', () => {
+    const wrapper = mountModal(makeRFE({
+      status: 'Open',
+      aiInvolvement: 'revised',
+      sourceRfe: 'EP-177',
+      linkedFeature: null
+    }));
+
+    const link = document.body.querySelector('a[title="View PRD pull request on GitHub"]');
+    expect(link).not.toBeNull();
+    expect(link.getAttribute('href')).toBe('https://github.com/osac-project/enhancement-proposals/pull/177');
+    wrapper.unmount();
+  });
+
+  it('resolves the top action and Pipeline Progress to the same PR URL, so they cannot disagree', () => {
+    const wrapper = mountModal(makeRFE({
+      status: 'Open',
+      aiInvolvement: 'revised',
+      sourceRfe: 'EP-177',
+      linkedFeature: null
+    }));
+
+    const links = [...document.body.querySelectorAll('a[title="View PRD pull request on GitHub"]')];
+    // One in the top actions area, one inline in Pipeline Progress's PRD Review row.
+    expect(links.length).toBe(2);
+    const hrefs = new Set(links.map(l => l.getAttribute('href')));
+    expect(hrefs.size).toBe(1);
+    expect([...hrefs][0]).toBe('https://github.com/osac-project/enhancement-proposals/pull/177');
+    wrapper.unmount();
+  });
+
+  it('hides the top action when sourceRfe is a Jira key (not EP-sourced) and no linkedFeature.prdPrUrl exists', () => {
+    const wrapper = mountModal(makeRFE({
+      status: 'Open',
+      sourceRfe: 'RHAIRFE-500',
+      linkedFeature: null
+    }));
+
+    expect(document.body.querySelector('a[title="View PRD pull request on GitHub"]')).toBeNull();
+    wrapper.unmount();
+  });
 });

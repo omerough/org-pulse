@@ -8,7 +8,7 @@ import MetaChipGroup from './MetaChipGroup.vue'
 import { useTestPlans } from '../composables/useTestPlans.js'
 import {
   getReviewStatusClass, getReviewStatusLabel, getPrdSignOffStatus,
-  getInvolvementLabel, getInvolvementClass
+  getInvolvementLabel, getInvolvementClass, getPrdReviewPrUrl, EP_GITHUB_REPO
 } from '../utils/feature-helpers.js'
 
 const props = defineProps({
@@ -21,8 +21,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'navigateToFeature', 'navigateToTestPlan'])
-
-const EP_GITHUB_REPO = 'https://github.com/osac-project/enhancement-proposals/pull'
 
 function issueUrl(key) {
   if (key && key.startsWith('EP-')) return `${EP_GITHUB_REPO}/${key.slice(3)}`
@@ -185,10 +183,10 @@ function handleKeydown(e) {
             </div>
 
             <!-- Links -->
-            <div v-if="rfe.linkedFeature?.prdPrUrl" class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+            <div v-if="getPrdReviewPrUrl(rfe)" class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
               <div class="flex flex-wrap items-center gap-2">
                 <a
-                  :href="rfe.linkedFeature.prdPrUrl"
+                  :href="getPrdReviewPrUrl(rfe)"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
