@@ -47,4 +47,40 @@ describe('PipelineTimeline prd-review phase', () => {
     expect(wrapper.text()).not.toContain('No AI involvement');
     expect(wrapper.find('a').exists()).toBe(false);
   });
+
+  it('renders a "PR #N" link for an EP-backed RFE', () => {
+    const rfe = makeRFE({ sourceRfe: 'EP-42' });
+    const wrapper = mount(PipelineTimeline, {
+      props: { rfe, phases: PHASES }
+    });
+
+    const link = wrapper.find('a');
+    expect(link.exists()).toBe(true);
+    expect(link.text()).toContain('PR #42');
+    expect(link.attributes('href')).toBe('https://github.com/osac-project/enhancement-proposals/pull/42');
+  });
+
+  it('renders the same resolved PR link for a non-EP RFE with linkedFeature.prdPrUrl', () => {
+    const rfe = makeRFE({
+      sourceRfe: 'OSAC-99',
+      linkedFeature: { key: 'OSAC-100', prdPrUrl: 'https://github.com/org/repo/pull/7' }
+    });
+    const wrapper = mount(PipelineTimeline, {
+      props: { rfe, phases: PHASES }
+    });
+
+    const link = wrapper.find('a');
+    expect(link.exists()).toBe(true);
+    expect(link.attributes('href')).toBe('https://github.com/org/repo/pull/7');
+    expect(link.text()).toContain('PRD PR');
+  });
+
+  it('renders no PR link when there is no resolvable PRD PR URL', () => {
+    const rfe = makeRFE({ sourceRfe: 'OSAC-99', linkedFeature: { key: 'OSAC-100' } });
+    const wrapper = mount(PipelineTimeline, {
+      props: { rfe, phases: PHASES }
+    });
+
+    expect(wrapper.find('a').exists()).toBe(false);
+  });
 });

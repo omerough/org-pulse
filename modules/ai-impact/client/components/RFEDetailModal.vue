@@ -39,19 +39,30 @@ watch(
   () => props.rfe?.key,
   async (key) => {
     assessmentDetail.value = null
-    testPlanData.value = null
     if (!props.show || !key || !props.assessment || !props.loadAssessmentDetail) return
     detailLoading.value = true
     try {
       assessmentDetail.value = await props.loadAssessmentDetail(key)
-      // Load test plan for the linked feature (if exists)
-      if (props.rfe?.linkedFeature?.key) {
-        testPlanData.value = await loadTestPlanDetail(props.rfe.linkedFeature.key)
-      }
     } catch {
       // Silently fail - slim data still shows
     } finally {
       detailLoading.value = false
+    }
+  },
+  { immediate: true }
+)
+
+// Linked-feature enrichment can resolve after the RFE key is already loaded
+// (async enrichment), so the test plan load reacts to its own key.
+watch(
+  () => props.rfe?.linkedFeature?.key,
+  async (linkedFeatureKey) => {
+    testPlanData.value = null
+    if (!props.show || !linkedFeatureKey) return
+    try {
+      testPlanData.value = await loadTestPlanDetail(linkedFeatureKey)
+    } catch {
+      // Silently fail - slim data still shows
     }
   },
   { immediate: true }

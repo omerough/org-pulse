@@ -5,7 +5,16 @@ vi.mock('@shared/client/services/api.js', () => ({
 }));
 
 import { mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
 import RFEDetailModal from '../../client/components/RFEDetailModal.vue';
+import PipelineTimeline from '../../client/components/PipelineTimeline.vue';
+import { apiRequest } from '@shared/client/services/api.js';
+
+async function flushAsyncWatchers() {
+  await nextTick();
+  await Promise.resolve();
+  await nextTick();
+}
 
 const PHASES = [
   { id: 'prd-review', name: 'PRD Review' },
@@ -257,6 +266,49 @@ describe('RFEDetailModal PRD PR action', () => {
     }));
 
     expect(document.body.querySelector('a[title="View PRD pull request on GitHub"]')).toBeNull();
+    wrapper.unmount();
+  });
+});
+
+describe('RFEDetailModal late linked-feature enrichment', () => {
+  it('loads the test plan once linkedFeature enrichment resolves after the modal is already open', async () => {
+    apiRequest.mockClear();
+    apiRequest.mockResolvedValueOnce({
+      latest: { verdict: 'PASS', score: 8, humanReviewStatus: 'approved', labels: [] }
+    });
+
+    const rfe = makeRFE({ linkedFeature: null });
+    const wrapper = mountModal(rfe);
+    await flushAsyncWatchers();
+
+    expect(apiRequest).not.toHaveBeenCalledWith(expect.stringContaining('/test-plans/'));
+
+    await wrapper.setProps({ rfe: { ...rfe, linkedFeature: { key: 'RHAISTRAT-1' } } });
+    await flushAsyncWatchers();
+
+    expect(apiRequest).toHaveBeenCalledWith('/modules/ai-impact/test-plans/RHAISTRAT-1');
+    expect(wrapper.findComponent(PipelineTimeline).props('testPlan')).toEqual(
+      { verdict: 'PASS', score: 8, humanReviewStatus: 'approved', labels: [] }
+    );
+    wrapper.unmount();
+  });
+
+  it('does not reload assessment details when only the linked-feature key changes', async () => {
+    const loadAssessmentDetail = vi.fn().mockResolvedValue({ latest: { verdict: 'PASS' } });
+    const rfe = makeRFE({ linkedFeature: null });
+    const assessment = { passFail: 'PASS', total: 9, scores: { what: 2, why: 2, how: 2, task: 2, size: 1 } };
+    const wrapper = mount(RFEDetailModal, {
+      props: { show: true, rfe, phases: PHASES, assessment, loadAssessmentDetail },
+      attachTo: document.body
+    });
+    await flushAsyncWatchers();
+
+    expect(loadAssessmentDetail).toHaveBeenCalledTimes(1);
+
+    await wrapper.setProps({ rfe: { ...rfe, linkedFeature: { key: 'RHAISTRAT-1' } } });
+    await flushAsyncWatchers();
+
+    expect(loadAssessmentDetail).toHaveBeenCalledTimes(1);
     wrapper.unmount();
   });
 });
