@@ -455,6 +455,12 @@ test.describe('AI Impact Views @ai-impact', () => {
         })
       });
     });
+    // A real 404 here is normal app behavior (handled silently), but the browser
+    // still logs it to the console; return 200 so the test isn't asserting
+    // about an unrelated fetch outcome it doesn't care about.
+    await page.route('**/api/modules/ai-impact/test-plans/RHAISTRAT-1', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ latest: null, history: [] }) });
+    });
 
     await skipFirstVisitGuide(page);
     await page.goto('/#/ai-impact/prd-review');
