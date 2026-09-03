@@ -50,7 +50,8 @@ vi.mock('../../client/composables/useAIImpact.js', () => ({
     ], jiraHost: 'https://jira.example.com', fetchedAt: '2026-01-01' }),
     loading: ref(false),
     error: ref(null),
-    load: vi.fn()
+    load: vi.fn(),
+    timeWindow: ref('month')
   })
 }));
 

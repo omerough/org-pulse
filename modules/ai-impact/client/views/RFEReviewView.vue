@@ -11,7 +11,6 @@ import AIImpactGuide from '../components/AIImpactGuide.vue'
 const moduleNav = inject('moduleNav')
 const selectedRFE = ref(null)
 const notFoundRFE = ref(null)
-const timeWindow = ref('month')
 const filter = ref('all')
 const searchQuery = ref('')
 const chartExpanded = ref(true)
@@ -22,7 +21,7 @@ const artifactFilter = ref('all')
 const reviewStatusFilter = ref('all')
 const componentFilter = ref('all')
 
-const { rfeData, loading, error, load } = useAIImpact(timeWindow)
+const { rfeData, loading, error, load, timeWindow } = useAIImpact()
 const { assessments, loadAssessments, loadAssessmentDetail } = useAssessments()
 const { features, loadFeatures } = useFeatures()
 

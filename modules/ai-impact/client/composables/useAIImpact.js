@@ -34,10 +34,11 @@ async function checkRefreshStatus() {
 // Re-fetch when time window changes
 watch(timeWindow, () => load())
 
-export function useAIImpact(tw) {
-  if (tw) {
-    timeWindow.value = tw.value || tw
-  }
+// No caller-supplied time window: consumers that care about the period read
+// and write the returned `timeWindow` ref directly (same pattern as
+// useFeatures().featureTimeWindow), so there is exactly one source of truth
+// instead of a per-caller copy that can drift or get silently overwritten.
+export function useAIImpact() {
   if (!hasFetched) {
     hasFetched = true
     load()
@@ -50,5 +51,6 @@ export function _resetForTesting() {
   loading.value = true
   error.value = null
   refreshStatus.value = null
+  timeWindow.value = 'month'
   hasFetched = true // prevent auto-fetch so tests control when loading happens
 }
