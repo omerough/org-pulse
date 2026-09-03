@@ -66,7 +66,10 @@ vi.mock('../../client/composables/useAssessments.js', () => ({
 vi.mock('../../client/composables/useFeatures.js', () => ({
   useFeatures: () => ({
     features: ref({
-      'RHAISTRAT-10': { key: 'RHAISTRAT-10', title: 'Linked Feature', sourceRfe: 'RHAIRFE-1', status: 'In Progress' }
+      'RHAISTRAT-10': {
+        key: 'RHAISTRAT-10', title: 'Linked Feature', sourceRfe: 'RHAIRFE-1', status: 'In Progress',
+        prdPrUrl: 'https://github.com/osac-project/enhancement-proposals/pull/10'
+      }
     }),
     loadFeatures: vi.fn()
   })
@@ -99,7 +102,7 @@ describe('RFEReviewView navigation', () => {
         provide: { moduleNav },
         stubs: {
           PhaseContent: PhaseContentStub,
-          RFEDetailModal: { template: '<div class="rfe-modal" />', props: ['show', 'rfe', 'phases', 'jiraHost', 'assessment', 'loadAssessmentDetail'] },
+          RFEDetailModal: { template: '<div class="rfe-modal" :data-prd-pr-url="rfe?.linkedFeature?.prdPrUrl" />', props: ['show', 'rfe', 'phases', 'jiraHost', 'assessment', 'loadAssessmentDetail'] },
           AIImpactGuide: { template: '<div />' }
         }
       }
@@ -133,8 +136,23 @@ describe('RFEReviewView navigation', () => {
     const phaseContent = wrapper.findComponent(PhaseContentStub);
 
     expect(phaseContent.props('rfeToFeature')).toEqual({
-      'RHAIRFE-1': { key: 'RHAISTRAT-10', summary: 'Linked Feature', status: 'In Progress', fixVersions: [] }
+      'RHAIRFE-1': { key: 'RHAISTRAT-10', summary: 'Linked Feature', status: 'In Progress', fixVersions: [], prdPrUrl: 'https://github.com/osac-project/enhancement-proposals/pull/10' }
     });
+  });
+
+  it('enriches an existing Jira linkedFeature with the canonical PRD PR URL', async () => {
+    const wrapper = mountView();
+    const phaseContent = wrapper.findComponent(PhaseContentStub);
+
+    phaseContent.vm.$emit('selectRFE', {
+      key: 'RHAIRFE-1',
+      summary: 'RFE with feature',
+      linkedFeature: { key: 'RHAISTRAT-10', status: 'In Progress', fixVersions: [] }
+    });
+    await nextTick();
+
+    expect(wrapper.find('.rfe-modal').attributes('data-prd-pr-url'))
+      .toBe('https://github.com/osac-project/enhancement-proposals/pull/10');
   });
 
   it('includes No PR rows only under the "All AI" filter, not under "No AI"', async () => {

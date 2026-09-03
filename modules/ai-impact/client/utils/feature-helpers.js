@@ -89,6 +89,15 @@ export function getScoreClass(score) {
   return 'text-red-600 dark:text-red-400'
 }
 
+// Design's overall score is a sum of four 0-2 dimensions (0-8 total), not a
+// discrete 0-2 value, so it can't go through getScoreClass. Bands mirror the
+// same pass/partial/fail semantics: only a perfect 8/8 is green.
+export function getTotalScoreClass(total) {
+  if (total >= 8) return 'text-green-600 dark:text-green-400'
+  if (total >= 4) return 'text-amber-600 dark:text-amber-400'
+  return 'text-red-600 dark:text-red-400'
+}
+
 // The "no design doc" state — the Design-tab mirror of PRD's "Missing PRD".
 // (The legacy 'pending' state was dropped: it duplicated the review pill's
 // "Awaiting Sign-off" and had no PRD equivalent.)
@@ -111,6 +120,21 @@ export function getPrdSignOffStatus(prdPrStatus) {
   if (prdPrStatus === 'No PR') return null
   if (prdPrStatus === 'Merged') return 'approved'
   return 'awaiting-review'
+}
+
+export const EP_GITHUB_REPO = 'https://github.com/osac-project/enhancement-proposals/pull'
+
+// Single source of truth for the RFE's PRD pull-request link, shared by
+// Pipeline Progress (PipelineTimeline) and the top-level PRD PR action
+// (RFEDetailModal) so the two can't resolve to different URLs. Mirrors the
+// EP-sourced PR that Pipeline Progress renders for the "PRD Review" phase,
+// falling back to the linked feature's own prdPrUrl when no EP source exists.
+export function getPrdReviewPrUrl(rfe) {
+  if (!rfe || rfe.status === 'No PR') return null
+  if (rfe.sourceRfe && rfe.sourceRfe.startsWith('EP-')) {
+    return `${EP_GITHUB_REPO}/${rfe.sourceRfe.slice(3)}`
+  }
+  return rfe.linkedFeature?.prdPrUrl || null
 }
 
 // --- Shared filter-bar option sets (PRD Review + Design Review) ---

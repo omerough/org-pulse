@@ -4,10 +4,11 @@ import PipelineTimeline from './PipelineTimeline.vue'
 import AssessmentBreakdown from './AssessmentBreakdown.vue'
 import AssessmentHistory from './AssessmentHistory.vue'
 import FeedbackText from './FeedbackText.vue'
+import MetaChipGroup from './MetaChipGroup.vue'
 import { useTestPlans } from '../composables/useTestPlans.js'
 import {
   getReviewStatusClass, getReviewStatusLabel, getPrdSignOffStatus,
-  getInvolvementLabel, getInvolvementClass
+  getInvolvementLabel, getInvolvementClass, getPrdReviewPrUrl, EP_GITHUB_REPO
 } from '../utils/feature-helpers.js'
 
 const props = defineProps({
@@ -20,8 +21,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'navigateToFeature', 'navigateToTestPlan'])
-
-const EP_GITHUB_REPO = 'https://github.com/osac-project/enhancement-proposals/pull'
 
 function issueUrl(key) {
   if (key && key.startsWith('EP-')) return `${EP_GITHUB_REPO}/${key.slice(3)}`
@@ -40,19 +39,30 @@ watch(
   () => props.rfe?.key,
   async (key) => {
     assessmentDetail.value = null
-    testPlanData.value = null
     if (!props.show || !key || !props.assessment || !props.loadAssessmentDetail) return
     detailLoading.value = true
     try {
       assessmentDetail.value = await props.loadAssessmentDetail(key)
-      // Load test plan for the linked feature (if exists)
-      if (props.rfe?.linkedFeature?.key) {
-        testPlanData.value = await loadTestPlanDetail(props.rfe.linkedFeature.key)
-      }
     } catch {
       // Silently fail - slim data still shows
     } finally {
       detailLoading.value = false
+    }
+  },
+  { immediate: true }
+)
+
+// Linked-feature enrichment can resolve after the RFE key is already loaded
+// (async enrichment), so the test plan load reacts to its own key.
+watch(
+  () => props.rfe?.linkedFeature?.key,
+  async (linkedFeatureKey) => {
+    testPlanData.value = null
+    if (!props.show || !linkedFeatureKey) return
+    try {
+      testPlanData.value = await loadTestPlanDetail(linkedFeatureKey)
+    } catch {
+      // Silently fail - slim data still shows
     }
   },
   { immediate: true }
@@ -177,6 +187,28 @@ function handleKeydown(e) {
               </div>
             </div>
 
+            <!-- Component / Fix Version -->
+            <div v-if="rfe.components?.length || rfe.linkedFeature?.fixVersions?.length" class="grid grid-cols-3 gap-4 mb-6 text-sm">
+              <div><MetaChipGroup label="Component" :values="rfe.components" /></div>
+              <div><MetaChipGroup label="Fix Version" :values="rfe.linkedFeature?.fixVersions" /></div>
+            </div>
+
+            <!-- Links -->
+            <div v-if="getPrdReviewPrUrl(rfe)" class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+              <div class="flex flex-wrap items-center gap-2">
+                <a
+                  :href="getPrdReviewPrUrl(rfe)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
+                  title="View PRD pull request on GitHub"
+                >
+                  <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                  PRD PR
+                </a>
+              </div>
+            </div>
+
             <!-- Assessment Section -->
             <template v-if="rfe.status === 'No PR'">
               <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
@@ -194,7 +226,7 @@ function handleKeydown(e) {
               </div>
 
               <!-- Verdict -->
-              <div v-if="assessmentDetail?.latest?.verdict" class="mb-4">
+              <div v-if="assessmentDetail?.latest?.verdict" class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
                 <h4 class="text-xs text-gray-500 dark:text-gray-400 mb-1">Verdict</h4>
                 <p class="text-sm font-medium text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-700/50 rounded-md px-3 py-2">
                   {{ assessmentDetail.latest.verdict }}
@@ -202,7 +234,7 @@ function handleKeydown(e) {
               </div>
 
               <!-- Feedback -->
-              <div v-if="assessmentDetail?.latest?.feedback" class="mb-4">
+              <div v-if="assessmentDetail?.latest?.feedback" class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
                 <h4 class="text-xs text-gray-500 dark:text-gray-400 mb-1">Feedback</h4>
                 <div class="bg-gray-50 dark:bg-gray-700/50 rounded-md px-3 py-2">
                   <FeedbackText :text="assessmentDetail.latest.feedback" />

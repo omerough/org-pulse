@@ -1,16 +1,17 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { rubricForAssessment } from '../rubric.js'
+import FeedbackText from './FeedbackText.vue'
 
 const props = defineProps({
   assessment: { type: Object, required: true },
   detail: { type: Object, default: null }
 })
 
-const expandedCriteria = ref({})
+const selectedCriterion = ref(null)
 
-function toggleCriterion(name) {
-  expandedCriteria.value[name] = !expandedCriteria.value[name]
+function selectCriterion(key) {
+  selectedCriterion.value = selectedCriterion.value === key ? null : key
 }
 
 // Render each assessment under its own rubric version (v1 legacy / v2 current).
@@ -18,6 +19,9 @@ const criteria = computed(() => {
   const rubric = rubricForAssessment(props.assessment)
   return rubric.keys.map(key => ({ key, label: rubric.labels[key] }))
 })
+
+const selectedLabel = computed(() => criteria.value.find(c => c.key === selectedCriterion.value)?.label ?? '')
+const selectedNote = computed(() => props.detail?.latest?.criterionNotes?.[selectedCriterion.value] ?? null)
 
 function getScoreClass(score) {
   if (score === 2) return 'bg-green-500'
@@ -34,60 +38,74 @@ function getPassFailClass(passFail) {
 
 <template>
   <div class="space-y-4">
-    <!-- Total Score Badge -->
-    <div class="flex items-center gap-3">
-      <div
-        class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-semibold"
-        :class="getPassFailClass(assessment.passFail)"
-      >
-        <span class="text-lg">{{ assessment.total }}</span>
-        <span class="text-xs font-normal">/10</span>
-        <span class="ml-1 text-xs font-medium uppercase">{{ assessment.passFail }}</span>
+    <!-- Total Score / Result -->
+    <div class="flex items-start gap-6">
+      <div>
+        <p class="text-gray-500 dark:text-gray-400 text-xs mb-1">Score</p>
+        <p class="font-bold" :class="assessment.passFail === 'PASS' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+          {{ assessment.total }}/10
+        </p>
+      </div>
+      <div>
+        <p class="text-gray-500 dark:text-gray-400 text-xs mb-1">Result</p>
+        <span
+          class="inline-flex items-center px-2 py-0.5 rounded border text-xs font-medium uppercase"
+          :class="getPassFailClass(assessment.passFail)"
+        >
+          {{ assessment.passFail }}
+        </span>
       </div>
     </div>
 
-    <!-- Criterion Rows -->
-    <div class="space-y-1">
+    <!-- Criterion Cards -->
+    <div class="grid grid-cols-2 gap-2">
       <div
         v-for="{ key, label } in criteria"
         :key="key"
-        class="rounded-md"
+        class="rounded-lg border border-gray-200 dark:border-gray-600 p-3 transition-colors"
+        :class="[
+          detail?.latest?.criterionNotes?.[key] ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : '',
+          selectedCriterion === key ? 'bg-gray-50 dark:bg-gray-700/50 border-gray-300 dark:border-gray-500' : ''
+        ]"
+        :role="detail?.latest?.criterionNotes?.[key] ? 'button' : undefined"
+        :tabindex="detail?.latest?.criterionNotes?.[key] ? 0 : undefined"
+        @click="detail?.latest?.criterionNotes?.[key] ? selectCriterion(key) : null"
+        @keydown.enter="detail?.latest?.criterionNotes?.[key] ? selectCriterion(key) : null"
+        @keydown.space.prevent="detail?.latest?.criterionNotes?.[key] ? selectCriterion(key) : null"
       >
-        <button
-          class="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors"
-          :class="{ 'cursor-default': !detail?.latest?.criterionNotes?.[key] }"
-          @click="detail?.latest?.criterionNotes?.[key] ? toggleCriterion(key) : null"
-        >
-          <span class="flex items-center gap-3">
-            <span class="font-medium dark:text-gray-200 w-32 text-left">{{ label }}</span>
-            <!-- Score dots -->
-            <span class="flex gap-1">
-              <span
-                v-for="i in 2"
-                :key="i"
-                class="w-3 h-3 rounded-full"
-                :class="i <= assessment.scores[key] ? getScoreClass(assessment.scores[key]) : 'bg-gray-200 dark:bg-gray-600'"
-              />
-            </span>
-            <span class="text-xs text-gray-500 dark:text-gray-400">{{ assessment.scores[key] }}/2</span>
-          </span>
+        <div class="flex items-center justify-between">
+          <span class="font-medium text-sm dark:text-gray-200">{{ label }}</span>
           <svg
             v-if="detail?.latest?.criterionNotes?.[key]"
-            class="h-3.5 w-3.5 text-gray-400 transition-transform"
-            :class="{ 'rotate-180': expandedCriteria[key] }"
+            class="h-4 w-4 text-gray-400 transition-transform shrink-0"
+            :class="{ 'rotate-180': selectedCriterion === key }"
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
-        </button>
-        <!-- Expandable justification -->
-        <div
-          v-if="expandedCriteria[key] && detail?.latest?.criterionNotes?.[key]"
-          class="px-3 pb-2 pl-8 text-xs text-gray-600 dark:text-gray-400"
-        >
-          {{ detail.latest.criterionNotes[key] }}
+        </div>
+        <div class="flex items-center gap-2 mt-1.5">
+          <!-- Score dots -->
+          <span class="flex gap-1">
+            <span
+              v-for="i in 2"
+              :key="i"
+              class="w-3 h-3 rounded-full"
+              :class="i <= assessment.scores[key] ? getScoreClass(assessment.scores[key]) : 'bg-gray-200 dark:bg-gray-600'"
+            />
+          </span>
+          <span class="text-xs text-gray-500 dark:text-gray-400">{{ assessment.scores[key] }}/2</span>
         </div>
       </div>
+    </div>
+
+    <!-- Selected criterion detail panel -->
+    <div
+      v-if="selectedNote"
+      class="rounded-lg border border-gray-200 dark:border-gray-600 p-3"
+    >
+      <p class="font-medium text-sm dark:text-gray-200 mb-1.5">{{ selectedLabel }}</p>
+      <FeedbackText :text="selectedNote" />
     </div>
 
     <!-- Anti-patterns -->

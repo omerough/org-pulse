@@ -172,6 +172,13 @@ test.describe('AI Impact Views @ai-impact', () => {
     expect(page.errors).toHaveLength(0);
   }
 
+  // AssessmentGuideModal auto-opens on first visit to PRD/Design Review (empty
+  // localStorage) and its backdrop intercepts clicks on the list underneath;
+  // seed the dismissal flag so tests can interact with the view itself.
+  async function skipFirstVisitGuide(page) {
+    await page.addInitScript(() => localStorage.setItem('ai-impact-guide-dismissed', 'true'));
+  }
+
   test('should load AI Factory Guide view', async ({ page }) => {
     await testView(page, 'ai-factory-guide', 'AI Factory Guide');
   });
@@ -346,6 +353,191 @@ test.describe('AI Impact Views @ai-impact', () => {
     await fixVersionSelect.selectOption({ label: 'Unassigned' });
     await expect(page.getByText('Feature with no fix version')).toBeVisible();
     await expect(page.getByText('Feature with a fix version')).not.toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Design Details: perfect 8/8 score renders green, Size is gone, Component/Fix Version chips show', async ({ page }) => {
+    await page.route('**/api/modules/ai-impact/features', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          lastSyncedAt: '2026-04-19T12:00:00Z',
+          totalFeatures: 1,
+          features: {
+            'OSAC-PERFECT': {
+              key: 'OSAC-PERFECT', title: 'Perfect score feature', priority: 'Major',
+              humanReviewStatus: 'awaiting-review', recommendation: 'approve',
+              components: ['Model Serving'], fixVersions: ['3.5'],
+              scores: { feasibility: 2, testability: 2, scope: 2, architecture: 2, total: 8 }
+            }
+          }
+        })
+      });
+    });
+    // FeatureDetailPanel always fetches per-feature detail and test-plan detail
+    // on open; without these mocks the real backend 404s (neither exists on
+    // disk), logging console errors the assertion below would otherwise flag.
+    await page.route('**/api/modules/ai-impact/features/OSAC-PERFECT', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          latest: {
+            key: 'OSAC-PERFECT', title: 'Perfect score feature', priority: 'Major',
+            humanReviewStatus: 'awaiting-review', recommendation: 'approve',
+            components: ['Model Serving'], fixVersions: ['3.5'],
+            scores: { feasibility: 2, testability: 2, scope: 2, architecture: 2, total: 8 }
+          },
+          history: []
+        })
+      });
+    });
+    // A real 404 here is normal app behavior (handled silently), but the browser
+    // still logs it to the console; return 200 so the test isn't asserting
+    // about an unrelated fetch outcome it doesn't care about.
+    await page.route('**/api/modules/ai-impact/test-plans/OSAC-PERFECT', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ latest: null, history: [] }) });
+    });
+
+    await skipFirstVisitGuide(page);
+    await page.goto('/#/ai-impact/design-review');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    await page.getByText('Perfect score feature').click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: 'Design Details' })).toBeVisible();
+    await expect(dialog.getByText('Size', { exact: true })).toHaveCount(0);
+    await expect(dialog.getByText('Model Serving')).toBeVisible();
+    await expect(dialog.getByText('3.5')).toBeVisible();
+    // Non-exact match also hits Pipeline Progress's "approve — 8/8" detail text,
+    // so scope to the score display itself.
+    await expect(dialog.getByText('8/8', { exact: true })).toHaveClass(/text-green-600/);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('PRD Details: shows the canonical PRD PR action and Component chip when a canonical PRD PR URL is present', async ({ page }) => {
+    await page.route('**/api/modules/ai-impact/features', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ lastSyncedAt: null, totalFeatures: 0, features: {} })
+      });
+    });
+    await page.route('**/api/modules/ai-impact/rfe-data**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          fetchedAt: '2026-04-19T12:00:00Z',
+          jiraHost: 'https://redhat.atlassian.net',
+          metrics: { createdPct: 0, createdChange: 0, trend: 'stable', revisedCount: 0, priorRevisedCount: 0, windowTotal: 1, totalRFEs: 1 },
+          trendData: [],
+          breakdown: [],
+          pipelineFriction: { needsAttentionPct: 0, needsAttentionChange: 0, needsAttentionTrend: 'stable', feasibilityBlockedPct: 0, feasibilityBlockedChange: 0, feasibilityBlockedTrend: 'stable' },
+          issues: [
+            {
+              key: 'EP-42',
+              summary: 'PRD with a component and PR',
+              status: 'Open',
+              priority: 'Major',
+              created: '2026-04-01T00:00:00.000Z',
+              creatorDisplayName: 'Alice',
+              aiInvolvement: 'created',
+              components: ['Model Serving'],
+              linkedFeature: { key: 'RHAISTRAT-1', fixVersions: [], prdPrUrl: 'https://github.com/osac-project/enhancement-proposals/pull/42' }
+            }
+          ]
+        })
+      });
+    });
+    // A real 404 here is normal app behavior (handled silently), but the browser
+    // still logs it to the console; return 200 so the test isn't asserting
+    // about an unrelated fetch outcome it doesn't care about.
+    await page.route('**/api/modules/ai-impact/test-plans/RHAISTRAT-1', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ latest: null, history: [] }) });
+    });
+
+    await skipFirstVisitGuide(page);
+    await page.goto('/#/ai-impact/prd-review');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    await page.getByText('PRD with a component and PR').click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: 'PRD Details' })).toBeVisible();
+    await expect(dialog.getByText('Model Serving')).toBeVisible();
+    await expect(dialog.getByText('Fix Version', { exact: true })).toHaveCount(0);
+
+    const expectedPrUrl = 'https://github.com/osac-project/enhancement-proposals/pull/42';
+
+    // The top action is the purple "PRD PR" button (distinct styling from the
+    // plain inline link Pipeline Progress renders for the same resolved URL).
+    const topPrdPrAction = dialog.locator('a.bg-purple-50', { hasText: 'PRD PR' });
+    await expect(topPrdPrAction).toBeVisible();
+    await expect(topPrdPrAction).toHaveAttribute('href', expectedPrUrl);
+
+    // Pipeline Progress resolves the same PRD PR URL inline, via the same
+    // getPrdReviewPrUrl() semantics as the top action — verified independently
+    // so the two can't silently disagree.
+    const pipelineProgressSection = dialog.getByRole('heading', { name: 'Pipeline Progress' }).locator('xpath=..');
+    const pipelineProgressPrdPrLink = pipelineProgressSection.getByRole('link', { name: /PRD PR/ });
+    await expect(pipelineProgressPrdPrLink).toBeVisible();
+    await expect(pipelineProgressPrdPrLink).toHaveAttribute('href', expectedPrUrl);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('PRD Details: hides the PRD PR action when an EP-prefixed key has no canonical PRD PR URL', async ({ page }) => {
+    await page.route('**/api/modules/ai-impact/features', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ lastSyncedAt: null, totalFeatures: 0, features: {} })
+      });
+    });
+    await page.route('**/api/modules/ai-impact/rfe-data**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          fetchedAt: '2026-04-19T12:00:00Z',
+          jiraHost: 'https://redhat.atlassian.net',
+          metrics: { createdPct: 0, createdChange: 0, trend: 'stable', revisedCount: 0, priorRevisedCount: 0, windowTotal: 1, totalRFEs: 1 },
+          trendData: [],
+          breakdown: [],
+          pipelineFriction: { needsAttentionPct: 0, needsAttentionChange: 0, needsAttentionTrend: 'stable', feasibilityBlockedPct: 0, feasibilityBlockedChange: 0, feasibilityBlockedTrend: 'stable' },
+          issues: [
+            {
+              key: 'EP-99',
+              summary: 'PRD with an EP key but no PR URL yet',
+              status: 'Open',
+              priority: 'Major',
+              created: '2026-04-01T00:00:00.000Z',
+              creatorDisplayName: 'Alice',
+              aiInvolvement: 'created',
+              components: []
+            }
+          ]
+        })
+      });
+    });
+
+    await skipFirstVisitGuide(page);
+    await page.goto('/#/ai-impact/prd-review');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    await page.getByText('PRD with an EP key but no PR URL yet').click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: 'PRD Details' })).toBeVisible();
+    await expect(dialog.getByRole('link', { name: /PRD PR/ })).toHaveCount(0);
 
     expect(page.errors).toHaveLength(0);
   });

@@ -1,8 +1,8 @@
 <script setup>
 import { useDisabledPipelines } from '../composables/useDisabledPipelines.js'
+import { getPrdReviewPrUrl } from '../utils/feature-helpers.js'
 
 const { isDisabled } = useDisabledPipelines()
-const EP_GITHUB_REPO = 'https://github.com/osac-project/enhancement-proposals/pull'
 
 const props = defineProps({
   rfe: { type: Object, default: null },
@@ -83,7 +83,8 @@ function getRFEPhaseSignal(phaseId) {
         detail: rfe.aiInvolvement !== 'none'
           ? `AI ${rfe.aiInvolvement === 'both' ? 'created & revised' : rfe.aiInvolvement}`
           : 'No AI involvement',
-        sourceRfe: rfe.sourceRfe
+        sourceRfe: rfe.sourceRfe,
+        prUrl: getPrdReviewPrUrl(rfe)
       }
     case 'design-review':
       if (rfe.linkedFeature) {
@@ -272,16 +273,18 @@ function getFeaturePhaseSignal(phaseId) {
                 </a>
               </template>
               <!-- PRD Review with PR link -->
-              <template v-else-if="phase.id === 'prd-review' && getPhaseSignal(phase.id).sourceRfe?.startsWith('EP-')">
+              <template v-else-if="phase.id === 'prd-review' && getPhaseSignal(phase.id).prUrl">
                 {{ getPhaseSignal(phase.id).detail }}
                 <a
-                  :href="`${EP_GITHUB_REPO}/${getPhaseSignal(phase.id).sourceRfe.slice(3)}`"
+                  :href="getPhaseSignal(phase.id).prUrl"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="ml-1 text-blue-600 dark:text-blue-400 hover:underline"
                   title="View PRD pull request on GitHub"
                 >
-                  PR #{{ getPhaseSignal(phase.id).sourceRfe.slice(3) }}
+                  {{ getPhaseSignal(phase.id).sourceRfe?.startsWith('EP-')
+                    ? `PR #${getPhaseSignal(phase.id).sourceRfe.slice(3)}`
+                    : 'PRD PR' }}
                   <svg class="inline h-3 w-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
