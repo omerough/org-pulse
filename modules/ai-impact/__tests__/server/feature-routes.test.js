@@ -184,8 +184,8 @@ describe('GET /features/trend', () => {
       lastSyncedAt: 'x',
       totalFeatures: 2,
       features: {
-        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3), sourceRfe: 'EP-1' }, history: [] },
-        B: { latest: { key: 'B', aiInvolvement: 'none', created: daysAgo(3), sourceRfe: 'EP-2' }, history: [] }
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3), designStatus: 'reviewed' }, history: [] },
+        B: { latest: { key: 'B', aiInvolvement: 'revised', created: daysAgo(3), designStatus: 'reviewed' }, history: [] }
       }
     };
     const { router, routes } = createRouter();
@@ -198,17 +198,18 @@ describe('GET /features/trend', () => {
     expect(payload.trendData.length).toBeGreaterThan(0);
     expect(payload.breakdown).toEqual(expect.arrayContaining([
       { name: 'AI Created', value: 1 },
-      { name: 'No AI', value: 1 }
+      { name: 'AI Review', value: 1 }
     ]));
   });
 
-  it('excludes features with no design PR (sourceRfe) from the breakdown', async () => {
+  it('excludes features with no Design artifact (designStatus "no-design") from both the trend denominator and the breakdown', async () => {
     const data = {
       lastSyncedAt: 'x',
       totalFeatures: 2,
       features: {
-        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3), sourceRfe: 'EP-1' }, history: [] },
-        B: { latest: { key: 'B', aiInvolvement: 'none', created: daysAgo(3), sourceRfe: null }, history: [] }
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3), designStatus: 'reviewed' }, history: [] },
+        // sourceRfe present but designStatus is 'no-design' — must still be excluded.
+        B: { latest: { key: 'B', aiInvolvement: 'none', created: daysAgo(3), designStatus: 'no-design', sourceRfe: 'RHAIRFE-1' }, history: [] }
       }
     };
     const { router, routes } = createRouter();
@@ -221,6 +222,71 @@ describe('GET /features/trend', () => {
       { name: 'AI Created', value: 1 },
       { name: 'No AI', value: 0 }
     ]));
+    const point = payload.trendData[payload.trendData.length - 1];
+    expect(point.total).toBe(1);
+    expect(point.createdPct).toBe(100);
+  });
+
+  it('excludes features with a null/undefined designStatus (unenriched records) from the denominator', async () => {
+    const data = {
+      lastSyncedAt: 'x',
+      totalFeatures: 2,
+      features: {
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3), designStatus: 'reviewed' }, history: [] },
+        B: { latest: { key: 'B', aiInvolvement: 'created', created: daysAgo(3), designStatus: null }, history: [] }
+      }
+    };
+    const { router, routes } = createRouter();
+    registerFeatureRoutes(router, makeContext(data));
+
+    const { res } = await callHandler(routes, 'GET', '/features/trend');
+    const payload = res.json.mock.calls[0][0];
+
+    const point = payload.trendData[payload.trendData.length - 1];
+    expect(point.total).toBe(1);
+  });
+
+  it('computes per-week numerator/denominator across multiple cohorts, including an empty week', async () => {
+    // 'week' timeWindow buckets the last 4 weeks; D's week is a no-design decoy.
+    const data = {
+      lastSyncedAt: 'x',
+      totalFeatures: 4,
+      features: {
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(1), designStatus: 'reviewed' }, history: [] },
+        B: { latest: { key: 'B', aiInvolvement: 'both', created: daysAgo(2), designStatus: 'reviewed' }, history: [] },
+        C: { latest: { key: 'C', aiInvolvement: 'revised', created: daysAgo(3), designStatus: 'reviewed' }, history: [] },
+        D: { latest: { key: 'D', aiInvolvement: 'none', created: daysAgo(25), designStatus: 'no-design' }, history: [] }
+      }
+    };
+    const { router, routes } = createRouter();
+    registerFeatureRoutes(router, makeContext(data));
+
+    const key = 'GET /features/trend';
+    const reqRes = { json: vi.fn(), status: vi.fn().mockReturnThis() };
+    await routes[key][routes[key].length - 1]({ body: {}, params: {}, query: { timeWindow: 'week' } }, reqRes);
+    const payload = reqRes.json.mock.calls[0][0];
+
+    expect(payload.trendData).toHaveLength(4);
+    const mostRecent = payload.trendData[payload.trendData.length - 1];
+    // A + B are AI-created/both = numerator 2; A, B, C have a design = denominator 3; D never counts.
+    expect(mostRecent.total).toBe(3);
+    expect(mostRecent.createdPct).toBe(Math.round((2 / 3) * 100));
+
+    // Empty cohort: no adoption denominator, so createdPct is a chart gap (null), not 0%.
+    const emptyWeek = payload.trendData[payload.trendData.length - 2];
+    expect(emptyWeek.total).toBe(0);
+    expect(emptyWeek.createdPct).toBeNull();
+  });
+
+  it('reports createdPct as null (not 0) for a week with zero Design-having Features', async () => {
+    const data = { lastSyncedAt: 'x', totalFeatures: 0, features: {} };
+    const { router, routes } = createRouter();
+    registerFeatureRoutes(router, makeContext(data));
+
+    const { res } = await callHandler(routes, 'GET', '/features/trend');
+    const payload = res.json.mock.calls[0][0];
+
+    expect(payload.trendData.every(p => p.total === 0 && p.createdPct === null)).toBe(true);
   });
 
   it('normalizes an unsupported timeWindow to a valid window instead of erroring', async () => {
@@ -252,7 +318,7 @@ describe('GET /features/trend', () => {
       lastSyncedAt: 'x',
       totalFeatures: 1,
       features: {
-        A: { latest: { key: 'A', aiInvolvement: 'created', created: null }, history: [] }
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: null, designStatus: 'reviewed' }, history: [] }
       }
     };
     const { router, routes } = createRouter();
