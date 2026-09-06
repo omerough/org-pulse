@@ -266,12 +266,12 @@ module.exports = function registerFeatureRoutes(router, context) {
     // revision-label date, so the AI review timestamp stands in for "when the
     // review happened".
     //
-    // Exclude designStatus 'no-design' Features up front: with no Design
-    // artifact they can't have AI involvement, so they must not dilute the
-    // denominator. (sourceRfe is a PRD-stage link, not a design signal —
-    // don't use it here.)
+    // Design artifact existence is designPrStatus != null, not designStatus
+    // (which is AI Design Review processing state, not artifact existence).
+    // Features with no artifact can't have AI involvement, so they must not
+    // dilute the denominator.
     const trendInput = Object.values(projection.features)
-      .filter(function(f) { return f.designStatus && f.designStatus !== 'no-design'; })
+      .filter(function(f) { return f.designPrStatus != null; })
       .map(function(f) {
         return { created: f.created, aiInvolvement: f.aiInvolvement || 'none', revisedLabelDate: f.reviewedAt };
       });

@@ -184,8 +184,8 @@ describe('GET /features/trend', () => {
       lastSyncedAt: 'x',
       totalFeatures: 2,
       features: {
-        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3), designStatus: 'reviewed' }, history: [] },
-        B: { latest: { key: 'B', aiInvolvement: 'revised', created: daysAgo(3), designStatus: 'reviewed' }, history: [] }
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3), designPrStatus: 'Merged' }, history: [] },
+        B: { latest: { key: 'B', aiInvolvement: 'revised', created: daysAgo(3), designPrStatus: 'Open' }, history: [] }
       }
     };
     const { router, routes } = createRouter();
@@ -202,14 +202,14 @@ describe('GET /features/trend', () => {
     ]));
   });
 
-  it('excludes features with no Design artifact (designStatus "no-design") from both the trend denominator and the breakdown', async () => {
+  it('excludes Features with no Design artifact (designPrStatus null) from both the trend denominator and the breakdown', async () => {
     const data = {
       lastSyncedAt: 'x',
       totalFeatures: 2,
       features: {
-        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3), designStatus: 'reviewed' }, history: [] },
-        // sourceRfe present but designStatus is 'no-design' — must still be excluded.
-        B: { latest: { key: 'B', aiInvolvement: 'none', created: daysAgo(3), designStatus: 'no-design', sourceRfe: 'RHAIRFE-1' }, history: [] }
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3), designPrStatus: 'Merged' }, history: [] },
+        // sourceRfe present but designPrStatus is null — must still be excluded.
+        B: { latest: { key: 'B', aiInvolvement: 'none', created: daysAgo(3), designPrStatus: null, sourceRfe: 'RHAIRFE-1' }, history: [] }
       }
     };
     const { router, routes } = createRouter();
@@ -227,13 +227,15 @@ describe('GET /features/trend', () => {
     expect(point.createdPct).toBe(100);
   });
 
-  it('excludes features with a null/undefined designStatus (unenriched records) from the denominator', async () => {
+  it('gates eligibility on designPrStatus, not designStatus (AI Design Review processing state)', async () => {
     const data = {
       lastSyncedAt: 'x',
       totalFeatures: 2,
       features: {
-        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3), designStatus: 'reviewed' }, history: [] },
-        B: { latest: { key: 'B', aiInvolvement: 'created', created: daysAgo(3), designStatus: null }, history: [] }
+        // Existing but unscored Design (designStatus not yet set) still counts.
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(3), designPrStatus: 'Merged', designStatus: null }, history: [] },
+        // designStatus looks reviewed, but there's no artifact — still excluded.
+        B: { latest: { key: 'B', aiInvolvement: 'created', created: daysAgo(3), designPrStatus: null, designStatus: 'reviewed' }, history: [] }
       }
     };
     const { router, routes } = createRouter();
@@ -244,18 +246,19 @@ describe('GET /features/trend', () => {
 
     const point = payload.trendData[payload.trendData.length - 1];
     expect(point.total).toBe(1);
+    expect(point.createdPct).toBe(100);
   });
 
   it('computes per-week numerator/denominator across multiple cohorts, including an empty week', async () => {
-    // 'week' timeWindow buckets the last 4 weeks; D's week is a no-design decoy.
+    // 'week' timeWindow buckets the last 4 weeks; D's week is a no-artifact decoy.
     const data = {
       lastSyncedAt: 'x',
       totalFeatures: 4,
       features: {
-        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(1), designStatus: 'reviewed' }, history: [] },
-        B: { latest: { key: 'B', aiInvolvement: 'both', created: daysAgo(2), designStatus: 'reviewed' }, history: [] },
-        C: { latest: { key: 'C', aiInvolvement: 'revised', created: daysAgo(3), designStatus: 'reviewed' }, history: [] },
-        D: { latest: { key: 'D', aiInvolvement: 'none', created: daysAgo(25), designStatus: 'no-design' }, history: [] }
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: daysAgo(1), designPrStatus: 'Merged' }, history: [] },
+        B: { latest: { key: 'B', aiInvolvement: 'both', created: daysAgo(2), designPrStatus: 'Open' }, history: [] },
+        C: { latest: { key: 'C', aiInvolvement: 'revised', created: daysAgo(3), designPrStatus: 'Merged' }, history: [] },
+        D: { latest: { key: 'D', aiInvolvement: 'none', created: daysAgo(25), designPrStatus: null }, history: [] }
       }
     };
     const { router, routes } = createRouter();
@@ -268,7 +271,7 @@ describe('GET /features/trend', () => {
 
     expect(payload.trendData).toHaveLength(4);
     const mostRecent = payload.trendData[payload.trendData.length - 1];
-    // A + B are AI-created/both = numerator 2; A, B, C have a design = denominator 3; D never counts.
+    // A + B are AI-created/both = numerator 2; A, B, C have an artifact = denominator 3; D never counts.
     expect(mostRecent.total).toBe(3);
     expect(mostRecent.createdPct).toBe(Math.round((2 / 3) * 100));
 
@@ -278,8 +281,26 @@ describe('GET /features/trend', () => {
     expect(emptyWeek.createdPct).toBeNull();
   });
 
-  it('reports createdPct as null (not 0) for a week with zero Design-having Features', async () => {
+  it('reports createdPct as null (not 0) for a week with zero eligible Designs', async () => {
     const data = { lastSyncedAt: 'x', totalFeatures: 0, features: {} };
+    const { router, routes } = createRouter();
+    registerFeatureRoutes(router, makeContext(data));
+
+    const { res } = await callHandler(routes, 'GET', '/features/trend');
+    const payload = res.json.mock.calls[0][0];
+
+    expect(payload.trendData.every(p => p.total === 0 && p.createdPct === null)).toBe(true);
+  });
+
+  it('reports createdPct as null (not 0) when Features exist but none have a Design artifact', async () => {
+    const data = {
+      lastSyncedAt: 'x',
+      totalFeatures: 2,
+      features: {
+        A: { latest: { key: 'A', aiInvolvement: 'none', created: daysAgo(3), designPrStatus: null }, history: [] },
+        B: { latest: { key: 'B', aiInvolvement: 'none', created: daysAgo(3), designPrStatus: null }, history: [] }
+      }
+    };
     const { router, routes } = createRouter();
     registerFeatureRoutes(router, makeContext(data));
 
@@ -318,7 +339,7 @@ describe('GET /features/trend', () => {
       lastSyncedAt: 'x',
       totalFeatures: 1,
       features: {
-        A: { latest: { key: 'A', aiInvolvement: 'created', created: null, designStatus: 'reviewed' }, history: [] }
+        A: { latest: { key: 'A', aiInvolvement: 'created', created: null, designPrStatus: 'Merged' }, history: [] }
       }
     };
     const { router, routes } = createRouter();
