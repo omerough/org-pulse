@@ -102,6 +102,15 @@ describe('PipelineTimeline design-review phase', () => {
     expect(wrapper.text()).toContain('approve — 6/8');
   });
 
+  it('shows only the score when a scored Design has no recommendation', () => {
+    const wrapper = mount(PipelineTimeline, {
+      props: { feature: makeFeature({ recommendation: null }), phases: PHASES }
+    });
+    expect(wrapper.text()).toContain('6/8');
+    expect(wrapper.text()).not.toContain('null');
+    expect(wrapper.text()).not.toContain('undefined');
+  });
+
   it('does not fabricate 0/8 for an existing but unscored Design', () => {
     const wrapper = mount(PipelineTimeline, {
       props: { feature: makeFeature({ scores: null, recommendation: null }), phases: PHASES }
