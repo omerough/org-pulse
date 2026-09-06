@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { getMeaningfulDesignReviewStatus } from '../utils/feature-helpers.js'
 
 const props = defineProps({
   features: { type: Object, default: () => ({}) },
@@ -29,18 +30,18 @@ const avgScore = computed(() => {
   return (sum / scoredFeatures.value.length).toFixed(1)
 })
 
-// Needs Action / Signed Off track human sign-off, which only applies once a
-// Design artifact exists (designPrStatus != null) -- with no artifact there's
-// nothing to sign off, and humanReviewStatus's 'awaiting-review' default would
-// otherwise inflate "Needs Action" for every unstarted feature.
-const featuresWithDesign = computed(() => featureList.value.filter(f => f.designPrStatus != null))
-
+// Needs Action / Signed Off use the same meaningful-review rule as the list
+// badge/filter (see getMeaningfulDesignReviewStatus), so an unscored default
+// 'awaiting-review' doesn't inflate "Needs Action" the way a real one does.
 const needsActionCount = computed(() => {
-  return featuresWithDesign.value.filter(f => f.humanReviewStatus === 'needs-review' || f.humanReviewStatus === 'awaiting-review').length
+  return featureList.value.filter(f => {
+    const status = getMeaningfulDesignReviewStatus(f)
+    return status === 'needs-review' || status === 'awaiting-review'
+  }).length
 })
 
 const signedOffCount = computed(() => {
-  return featuresWithDesign.value.filter(f => f.humanReviewStatus === 'approved').length
+  return featureList.value.filter(f => getMeaningfulDesignReviewStatus(f) === 'approved').length
 })
 </script>
 

@@ -56,30 +56,57 @@ describe('FeatureMetricsRow: features with no Design artifact', () => {
   });
 });
 
-describe('FeatureMetricsRow: unscored Design artifact (OSAC-55/979-like)', () => {
-  const features = {
-    'OSAC-1': makeFeature({ key: 'OSAC-1', humanReviewStatus: 'approved', recommendation: 'approve', scores: { total: 8 } }),
-    // Design artifact merged but never AI-scored.
-    'OSAC-55': makeFeature({ key: 'OSAC-55', humanReviewStatus: 'awaiting-review', recommendation: null, scores: null }),
-    // A human can sign off via Jira label independently of AI scoring.
-    'OSAC-979': makeFeature({ key: 'OSAC-979', humanReviewStatus: 'approved', recommendation: null, scores: null })
-  };
-
-  it('excludes unscored artifacts from Avg Score and Approval Rate', () => {
+describe('FeatureMetricsRow: unscored Design artifact', () => {
+  it('excludes an existing-but-unscored artifact from Avg Score and Approval Rate', () => {
+    const features = {
+      A: makeFeature({ key: 'A', humanReviewStatus: 'approved', recommendation: 'approve', scores: { total: 8 } }),
+      B: makeFeature({ key: 'B', humanReviewStatus: 'approved', recommendation: null, scores: null })
+    };
     const wrapper = mount(FeatureMetricsRow, { props: { features } });
     expect(tileValue(wrapper, 'Avg Score')).toBe('8.0');
     expect(tileValue(wrapper, 'Approval Rate')).toBe('100%');
   });
 
-  it('still counts unscored artifacts toward Needs Action / Signed Off, from humanReviewStatus alone', () => {
+  it('still counts every feature in Total Features', () => {
+    const features = {
+      A: makeFeature({ key: 'A', scores: { total: 8 } }),
+      B: makeFeature({ key: 'B', scores: null })
+    };
     const wrapper = mount(FeatureMetricsRow, { props: { features } });
-    expect(tileValue(wrapper, 'Needs Action')).toBe('1'); // OSAC-55
-    expect(tileValue(wrapper, 'Signed Off')).toBe('2'); // OSAC-1, OSAC-979
+    expect(tileValue(wrapper, 'Total Features')).toBe('2');
+  });
+});
+
+describe('FeatureMetricsRow: Needs Action / Signed Off use meaningful review status', () => {
+  it('existing + unscored + default awaiting-review: not Needs Action', () => {
+    const features = { A: makeFeature({ key: 'A', designPrStatus: 'Merged', scores: null, humanReviewStatus: 'awaiting-review' }) };
+    const wrapper = mount(FeatureMetricsRow, { props: { features } });
+    expect(tileValue(wrapper, 'Needs Action')).toBe('0');
   });
 
-  it('still counts every feature in Total Features', () => {
+  it('existing + unscored + approved: Signed Off', () => {
+    const features = { A: makeFeature({ key: 'A', designPrStatus: 'Merged', scores: null, humanReviewStatus: 'approved' }) };
     const wrapper = mount(FeatureMetricsRow, { props: { features } });
-    expect(tileValue(wrapper, 'Total Features')).toBe('3');
+    expect(tileValue(wrapper, 'Signed Off')).toBe('1');
+  });
+
+  it('existing + unscored + needs-review: Needs Action', () => {
+    const features = { A: makeFeature({ key: 'A', designPrStatus: 'Merged', scores: null, humanReviewStatus: 'needs-review' }) };
+    const wrapper = mount(FeatureMetricsRow, { props: { features } });
+    expect(tileValue(wrapper, 'Needs Action')).toBe('1');
+  });
+
+  it('existing + scored + awaiting-review: Needs Action', () => {
+    const features = { A: makeFeature({ key: 'A', designPrStatus: 'Merged', scores: { total: 6 }, humanReviewStatus: 'awaiting-review' }) };
+    const wrapper = mount(FeatureMetricsRow, { props: { features } });
+    expect(tileValue(wrapper, 'Needs Action')).toBe('1');
+  });
+
+  it('missing Design: neither Needs Action nor Signed Off', () => {
+    const features = { A: makeFeature({ key: 'A', designPrStatus: null, humanReviewStatus: 'approved' }) };
+    const wrapper = mount(FeatureMetricsRow, { props: { features } });
+    expect(tileValue(wrapper, 'Needs Action')).toBe('0');
+    expect(tileValue(wrapper, 'Signed Off')).toBe('0');
   });
 });
 

@@ -137,8 +137,8 @@ describe('FeatureList artifact filter (aligned with PRD Review)', () => {
     A: makeFeature({ key: 'A', designPrStatus: 'Open' }),
     B: makeFeature({ key: 'B', designPrStatus: 'Merged' }),
     C: makeFeature({ key: 'C', designPrStatus: null }),
-    // OSAC-55/979-like: artifact exists (Merged) but never got an AI Design
-    // Review score. Must count as "has", not "missing".
+    // Artifact exists (Merged) but never got an AI Design Review score.
+    // Must count as "has", not "missing".
     D: makeFeature({ key: 'D', designPrStatus: 'Merged', designPrUrl: null, recommendation: null, scores: null })
   };
 

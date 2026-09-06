@@ -22,7 +22,7 @@ describe('FeatureListItem Missing Design badge', () => {
     expect(wrapper.text()).toContain('Missing Design');
   });
 
-  it('does not show Missing Design for an OSAC-55/979-like unscored artifact (designPrStatus Merged, no score)', () => {
+  it('does not show Missing Design for an existing-but-unscored Design artifact', () => {
     const feature = makeFeature({ designPrStatus: 'Merged', designPrUrl: null, scores: null });
     const wrapper = mount(FeatureListItem, { props: { feature } });
     expect(wrapper.text()).not.toContain('Missing Design');

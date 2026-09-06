@@ -84,3 +84,37 @@ describe('PipelineTimeline prd-review phase', () => {
     expect(wrapper.find('a').exists()).toBe(false);
   });
 });
+
+function makeFeature(overrides = {}) {
+  return {
+    key: 'OSAC-1',
+    recommendation: 'approve',
+    scores: { total: 6 },
+    designPrStatus: 'Merged',
+    labels: [],
+    ...overrides
+  };
+}
+
+describe('PipelineTimeline design-review phase', () => {
+  it('shows recommendation and score for a scored Design', () => {
+    const wrapper = mount(PipelineTimeline, { props: { feature: makeFeature(), phases: PHASES } });
+    expect(wrapper.text()).toContain('approve — 6/8');
+  });
+
+  it('does not fabricate 0/8 for an existing but unscored Design', () => {
+    const wrapper = mount(PipelineTimeline, {
+      props: { feature: makeFeature({ scores: null, recommendation: null }), phases: PHASES }
+    });
+    expect(wrapper.text()).not.toContain('0/8');
+    expect(wrapper.text()).toContain('—');
+  });
+
+  it('does not fabricate a score for a genuinely missing Design', () => {
+    const wrapper = mount(PipelineTimeline, {
+      props: { feature: makeFeature({ scores: null, recommendation: null, designPrStatus: null }), phases: PHASES }
+    });
+    expect(wrapper.text()).not.toContain('0/8');
+    expect(wrapper.text()).toContain('No design yet');
+  });
+});

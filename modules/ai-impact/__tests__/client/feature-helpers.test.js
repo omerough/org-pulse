@@ -29,7 +29,7 @@ describe('getDesignStatusLabel / getDesignStatusClass', () => {
     expect(getDesignStatusClass(null)).toContain('bg-blue-100')
   })
 
-  it('does not label a Design artifact as missing just because it is unscored (OSAC-55/979-like)', () => {
+  it('does not label a Design artifact as missing just because it is unscored', () => {
     expect(getDesignStatusLabel('Merged')).toBeNull()
     expect(getDesignStatusClass('Merged')).toBe('')
   })
