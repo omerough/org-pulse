@@ -10,31 +10,37 @@ const featureList = computed(() => Object.values(props.features))
 
 const totalFeatures = computed(() => featureList.value.length)
 
-const reviewedFeatures = computed(() => featureList.value.filter(f => f.designStatus !== 'no-design'))
+// Avg Score / Approval Rate aggregate AI scores, so their population is
+// features with an actual score. humanReviewStatus (below) is set from Jira
+// sign-off labels independently of scoring, so it needs its own population.
+const scoredFeatures = computed(() => featureList.value.filter(f => f.scores?.total != null))
 
-// null (not 0) when there is no reviewed population, so the template can
+// null (not 0) when there is no scored population, so the template can
 // render "—" instead of a misleading 0%/0 that looks like a real result.
 const approvalRate = computed(() => {
-  if (reviewedFeatures.value.length === 0) return null
-  const approved = reviewedFeatures.value.filter(f => f.recommendation === 'approve').length
-  return Math.round((approved / reviewedFeatures.value.length) * 100)
+  if (scoredFeatures.value.length === 0) return null
+  const approved = scoredFeatures.value.filter(f => f.recommendation === 'approve').length
+  return Math.round((approved / scoredFeatures.value.length) * 100)
 })
 
 const avgScore = computed(() => {
-  if (reviewedFeatures.value.length === 0) return null
-  const sum = reviewedFeatures.value.reduce((acc, f) => acc + (f.scores?.total || 0), 0)
-  return (sum / reviewedFeatures.value.length).toFixed(1)
+  if (scoredFeatures.value.length === 0) return null
+  const sum = scoredFeatures.value.reduce((acc, f) => acc + (f.scores?.total || 0), 0)
+  return (sum / scoredFeatures.value.length).toFixed(1)
 })
 
-// Review-status tiles count only reviewed features. No-design features default
-// to 'awaiting-review' but have nothing to sign off, so counting them would
-// inflate "Needs Action" once every feature is listed on the tab.
+// Needs Action / Signed Off track human sign-off, which only applies once a
+// Design artifact exists (designPrStatus != null) -- with no artifact there's
+// nothing to sign off, and humanReviewStatus's 'awaiting-review' default would
+// otherwise inflate "Needs Action" for every unstarted feature.
+const featuresWithDesign = computed(() => featureList.value.filter(f => f.designPrStatus != null))
+
 const needsActionCount = computed(() => {
-  return reviewedFeatures.value.filter(f => f.humanReviewStatus === 'needs-review' || f.humanReviewStatus === 'awaiting-review').length
+  return featuresWithDesign.value.filter(f => f.humanReviewStatus === 'needs-review' || f.humanReviewStatus === 'awaiting-review').length
 })
 
 const signedOffCount = computed(() => {
-  return reviewedFeatures.value.filter(f => f.humanReviewStatus === 'approved').length
+  return featuresWithDesign.value.filter(f => f.humanReviewStatus === 'approved').length
 })
 </script>
 
