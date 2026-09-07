@@ -50,14 +50,17 @@ const priorityColors = {
 
 const guideBase = '#/ai-impact/ai-factory-guide?from=sotu&section='
 
-// Column card lists get a max-height (never a forced min-height) derived from the
-// cards area's own position, so they use the space available below them without
-// assuming they own the rest of the viewport or displacing widgets below them.
-// Measured from the cards area itself (not the outer board wrapper) so the column
-// header's height is already excluded from the budget — otherwise the header adds
-// on top of the cap and pushes the row's horizontal scrollbar below the viewport.
+// Column card lists get a max-height (never a forced min-height), computed from the
+// cards area's live position so columns use whatever space is available below them
+// without displacing widgets further down the page. Measuring the cards area itself
+// (not the outer board wrapper) keeps the column header out of the budget — otherwise
+// it'd double count and push the horizontal scrollbar below the viewport.
 const MIN_COLUMN_HEIGHT = 320
-const BOTTOM_MARGIN = 24
+// Below the cards area sits the board's own bottom padding plus its native horizontal
+// scrollbar — classic (non-overlay) scrollbars add to the board's rendered height, so
+// this margin needs enough slack that the scrollbar doesn't end up flush against the
+// viewport edge.
+const BOTTOM_MARGIN = 40
 const boardRef = ref(null)
 const firstCardsAreaEl = ref(null)
 const columnMaxHeight = ref(MIN_COLUMN_HEIGHT)
@@ -118,7 +121,7 @@ const columnGuidance = {
 <template>
   <div class="space-y-4">
     <!-- Filters -->
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center gap-3">
       <ForYouMultiSelect
         :modelValue="stageFilter"
         :options="stageOptions"
