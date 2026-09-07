@@ -50,10 +50,8 @@ const priorityColors = {
 
 const guideBase = '#/ai-impact/ai-factory-guide?from=sotu&section='
 
-// Cards get a max-height (never a forced min-height) sized to whatever space is available
-// below the first column's cards area, so columns fill the page without displacing widgets
-// further down. Measured from the cards area itself, not the board wrapper, so the column
-// header isn't double-counted.
+// Max-height (not min), measured from the cards area itself so the header isn't double-counted
+// and widgets below the board aren't displaced.
 const MIN_COLUMN_HEIGHT = 320
 // Leaves room for the board's native horizontal scrollbar below the cards area.
 const BOTTOM_MARGIN = 40
@@ -79,14 +77,12 @@ function updateColumnMaxHeight() {
 onMounted(() => {
   updateColumnMaxHeight()
   window.addEventListener('resize', updateColumnMaxHeight)
-  // The filter row wrapping onto another line (e.g. from a sidebar toggle) shifts the cards
-  // area without firing a window resize, so watch its height directly instead of polling.
+  // Filter row wrap (e.g. sidebar toggle) shifts the cards area without a window resize event.
   if (typeof ResizeObserver !== 'undefined' && filtersRef.value) {
     resizeObserver = new ResizeObserver(updateColumnMaxHeight)
     resizeObserver.observe(filtersRef.value)
   }
-  // Dashboard widget reorder/add/remove/resize (see LandingPage.vue) can move the board up
-  // or down the page without changing its own size, so neither listener above catches it.
+  // Widget reorder/resize (LandingPage.vue) can move the board without resizing it or its filters.
   window.addEventListener('sotu-layout-changed', updateColumnMaxHeight)
 })
 
