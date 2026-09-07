@@ -30,7 +30,7 @@
       <!-- Widget grid -->
       <div
         ref="gridRef"
-        class="sotu-grid max-w-[90rem] mx-auto"
+        class="sotu-grid"
       >
         <SotuWidget
           v-for="item in resolvedLayout"

@@ -1,4 +1,5 @@
 <script setup>
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import ForYouMultiSelect from './ForYouMultiSelect.vue'
 
 defineProps({
@@ -48,6 +49,30 @@ const priorityColors = {
 }
 
 const guideBase = '#/ai-impact/ai-factory-guide?from=sotu&section='
+
+// Column card lists get a max-height (never a forced min-height) derived from the
+// board's own position, so they use the space available below them without
+// assuming they own the rest of the viewport or displacing widgets below them.
+const MIN_COLUMN_HEIGHT = 320
+const BOTTOM_MARGIN = 24
+const boardRef = ref(null)
+const columnMaxHeight = ref(MIN_COLUMN_HEIGHT)
+
+function updateColumnMaxHeight() {
+  if (!boardRef.value) return
+  const top = boardRef.value.getBoundingClientRect().top
+  const available = window.innerHeight - top - BOTTOM_MARGIN
+  columnMaxHeight.value = Math.max(MIN_COLUMN_HEIGHT, Math.round(available))
+}
+
+onMounted(() => {
+  updateColumnMaxHeight()
+  window.addEventListener('resize', updateColumnMaxHeight)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateColumnMaxHeight)
+})
 
 const columnGuidance = {
   'missing-prd': {
@@ -114,7 +139,7 @@ const columnGuidance = {
     </div>
 
     <!-- Board -->
-    <div class="overflow-x-auto -mx-6 px-6 pb-4">
+    <div ref="boardRef" class="overflow-x-auto -mx-6 px-6 pb-4">
       <div class="flex gap-3" style="min-width: max-content;">
         <div
           v-for="(col, colIdx) in boardColumns"
@@ -155,7 +180,7 @@ const columnGuidance = {
           </div>
 
           <!-- Cards -->
-          <div class="p-2 space-y-2 flex-1 overflow-y-auto max-h-[60vh]">
+          <div class="p-2 space-y-2 flex-1 overflow-y-auto" :style="{ maxHeight: columnMaxHeight + 'px' }">
             <div
               v-for="item in col.items"
               :key="item.key"
