@@ -332,6 +332,8 @@ function handleToggleWidget(widgetId, defaultSize) {
 }
 
 // SortableJS integration
+const SORT_ANIMATION_MS = 150
+
 function initSortable() {
   if (!gridRef.value) return
   if (sortableInstance) {
@@ -339,7 +341,7 @@ function initSortable() {
     sortableInstance = null
   }
   sortableInstance = Sortable.create(gridRef.value, {
-    animation: 150,
+    animation: SORT_ANIMATION_MS,
     handle: '.drag-handle',
     ghostClass: 'opacity-30',
     onEnd(evt) {
@@ -351,7 +353,14 @@ function initSortable() {
 }
 
 watch(resolvedLayout, () => {
-  nextTick(() => initSortable())
+  nextTick(() => {
+    initSortable()
+    // Widgets that size themselves relative to their position on the page (rather than
+    // their own dimensions) can't detect a reorder/add/remove/resize via ResizeObserver,
+    // since their own size didn't change — only where they land on the page did. Delayed
+    // past Sortable's own reorder animation so listeners measure the settled position.
+    setTimeout(() => window.dispatchEvent(new Event('sotu-layout-changed')), SORT_ANIMATION_MS)
+  })
 })
 
 onMounted(() => {

@@ -50,29 +50,28 @@ const priorityColors = {
 
 const guideBase = '#/ai-impact/ai-factory-guide?from=sotu&section='
 
-// Column card lists get a max-height (never a forced min-height), computed from the
-// cards area's live position so columns use whatever space is available below them
-// without displacing widgets further down the page. Measuring the cards area itself
-// (not the outer board wrapper) keeps the column header out of the budget — otherwise
-// it'd double count and push the horizontal scrollbar below the viewport.
+// Cards get a max-height (never a forced min-height) sized to whatever space is available
+// below the first column's cards area, so columns fill the page without displacing widgets
+// further down. Measured from the cards area itself, not the board wrapper, so the column
+// header isn't double-counted.
 const MIN_COLUMN_HEIGHT = 320
-// Below the cards area sits the board's own bottom padding plus its native horizontal
-// scrollbar — classic (non-overlay) scrollbars add to the board's rendered height, so
-// this margin needs enough slack that the scrollbar doesn't end up flush against the
-// viewport edge.
+// Leaves room for the board's native horizontal scrollbar below the cards area.
 const BOTTOM_MARGIN = 40
-const boardRef = ref(null)
+
+const filtersRef = ref(null)
 const firstCardsAreaEl = ref(null)
 const columnMaxHeight = ref(MIN_COLUMN_HEIGHT)
+let resizeObserver = null
 
 function setFirstCardsAreaEl(el) {
   firstCardsAreaEl.value = el
+  if (el) updateColumnMaxHeight()
 }
 
 function updateColumnMaxHeight() {
-  const measureEl = firstCardsAreaEl.value || boardRef.value
-  if (!measureEl) return
-  const top = measureEl.getBoundingClientRect().top
+  const el = firstCardsAreaEl.value
+  if (!el) return
+  const top = el.getBoundingClientRect().top
   const available = window.innerHeight - top - BOTTOM_MARGIN
   columnMaxHeight.value = Math.max(MIN_COLUMN_HEIGHT, Math.round(available))
 }
@@ -80,10 +79,21 @@ function updateColumnMaxHeight() {
 onMounted(() => {
   updateColumnMaxHeight()
   window.addEventListener('resize', updateColumnMaxHeight)
+  // The filter row wrapping onto another line (e.g. from a sidebar toggle) shifts the cards
+  // area without firing a window resize, so watch its height directly instead of polling.
+  if (typeof ResizeObserver !== 'undefined' && filtersRef.value) {
+    resizeObserver = new ResizeObserver(updateColumnMaxHeight)
+    resizeObserver.observe(filtersRef.value)
+  }
+  // Dashboard widget reorder/add/remove/resize (see LandingPage.vue) can move the board up
+  // or down the page without changing its own size, so neither listener above catches it.
+  window.addEventListener('sotu-layout-changed', updateColumnMaxHeight)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateColumnMaxHeight)
+  window.removeEventListener('sotu-layout-changed', updateColumnMaxHeight)
+  resizeObserver?.disconnect()
 })
 
 const columnGuidance = {
@@ -121,7 +131,7 @@ const columnGuidance = {
 <template>
   <div class="space-y-4">
     <!-- Filters -->
-    <div class="flex flex-wrap items-center gap-3">
+    <div ref="filtersRef" class="flex flex-wrap items-center gap-3">
       <ForYouMultiSelect
         :modelValue="stageFilter"
         :options="stageOptions"
@@ -151,7 +161,7 @@ const columnGuidance = {
     </div>
 
     <!-- Board -->
-    <div ref="boardRef" class="overflow-x-auto -mx-6 px-6 pb-4">
+    <div class="overflow-x-auto -mx-6 px-6 pb-4">
       <div class="flex gap-3" style="min-width: max-content;">
         <div
           v-for="(col, colIdx) in boardColumns"
