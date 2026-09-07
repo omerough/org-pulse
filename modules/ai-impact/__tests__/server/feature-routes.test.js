@@ -279,6 +279,10 @@ describe('GET /features/trend', () => {
     const emptyWeek = payload.trendData[payload.trendData.length - 2];
     expect(emptyWeek.total).toBe(0);
     expect(emptyWeek.createdPct).toBeNull();
+
+    // Breakdown must agree with the trend denominator for the same cohort: A, B, C (not D).
+    const breakdownTotal = payload.breakdown.reduce((sum, b) => sum + b.value, 0);
+    expect(breakdownTotal).toBe(mostRecent.total);
   });
 
   it('reports createdPct as null (not 0) for a week with zero eligible Designs', async () => {
