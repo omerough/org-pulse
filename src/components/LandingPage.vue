@@ -355,10 +355,8 @@ function initSortable() {
 watch(resolvedLayout, () => {
   nextTick(() => {
     initSortable()
-    // Widgets that size themselves relative to their position on the page (rather than
-    // their own dimensions) can't detect a reorder/add/remove/resize via ResizeObserver,
-    // since their own size didn't change — only where they land on the page did. Delayed
-    // past Sortable's own reorder animation so listeners measure the settled position.
+    // Notify position-dependent widgets (ResizeObserver won't catch a pure position change)
+    // once Sortable's reorder animation settles.
     setTimeout(() => window.dispatchEvent(new Event('sotu-layout-changed')), SORT_ANIMATION_MS)
   })
 })

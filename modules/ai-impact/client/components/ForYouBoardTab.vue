@@ -50,10 +50,9 @@ const priorityColors = {
 
 const guideBase = '#/ai-impact/ai-factory-guide?from=sotu&section='
 
-// Max-height (not min), measured from the cards area itself so the header isn't double-counted
-// and widgets below the board aren't displaced.
+// Max-height only (not min), measured from the cards area so the header isn't double-counted.
 const MIN_COLUMN_HEIGHT = 320
-// Leaves room for the board's native horizontal scrollbar below the cards area.
+// Reserves room for the horizontal scrollbar below the cards area.
 const BOTTOM_MARGIN = 40
 
 const filtersRef = ref(null)
