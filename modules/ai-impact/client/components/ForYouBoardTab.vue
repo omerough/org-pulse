@@ -51,16 +51,25 @@ const priorityColors = {
 const guideBase = '#/ai-impact/ai-factory-guide?from=sotu&section='
 
 // Column card lists get a max-height (never a forced min-height) derived from the
-// board's own position, so they use the space available below them without
+// cards area's own position, so they use the space available below them without
 // assuming they own the rest of the viewport or displacing widgets below them.
+// Measured from the cards area itself (not the outer board wrapper) so the column
+// header's height is already excluded from the budget — otherwise the header adds
+// on top of the cap and pushes the row's horizontal scrollbar below the viewport.
 const MIN_COLUMN_HEIGHT = 320
 const BOTTOM_MARGIN = 24
 const boardRef = ref(null)
+const firstCardsAreaEl = ref(null)
 const columnMaxHeight = ref(MIN_COLUMN_HEIGHT)
 
+function setFirstCardsAreaEl(el) {
+  firstCardsAreaEl.value = el
+}
+
 function updateColumnMaxHeight() {
-  if (!boardRef.value) return
-  const top = boardRef.value.getBoundingClientRect().top
+  const measureEl = firstCardsAreaEl.value || boardRef.value
+  if (!measureEl) return
+  const top = measureEl.getBoundingClientRect().top
   const available = window.innerHeight - top - BOTTOM_MARGIN
   columnMaxHeight.value = Math.max(MIN_COLUMN_HEIGHT, Math.round(available))
 }
@@ -180,7 +189,11 @@ const columnGuidance = {
           </div>
 
           <!-- Cards -->
-          <div class="p-2 space-y-2 flex-1 overflow-y-auto" :style="{ maxHeight: columnMaxHeight + 'px' }">
+          <div
+            class="p-2 space-y-2 flex-1 overflow-y-auto"
+            :ref="colIdx === 0 ? setFirstCardsAreaEl : undefined"
+            :style="{ maxHeight: columnMaxHeight + 'px' }"
+          >
             <div
               v-for="item in col.items"
               :key="item.key"
