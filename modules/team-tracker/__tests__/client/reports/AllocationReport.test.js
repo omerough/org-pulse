@@ -80,7 +80,7 @@ describe('AllocationReport', () => {
         },
         stubs: {
           AllocationBar: { template: '<div data-testid="allocation-bar">Bar</div>', props: ['buckets', 'totalPoints', 'totalCount', 'metricMode'] },
-          AllocationTeamCard: { template: '<div data-testid="allocation-team-card" @click="$emit(\'click\')">{{ teamName }}</div>', props: ['teamName', 'totalPoints', 'totalCount', 'boardCount', 'percentages', 'buckets', 'metricMode'], emits: ['click'] },
+          AllocationTeamCard: { template: '<div data-testid="allocation-team-card" @click="$emit(\'click\')">{{ teamName }}</div>', props: ['teamName', 'totalPoints', 'totalCount', 'boardCount', 'percentages', 'buckets', 'metricMode', 'clickable'], emits: ['click'] },
           MetricToggle: { template: '<div data-testid="metric-toggle">Toggle</div>', props: ['modelValue'], emits: ['update:modelValue'] },
           OrgSelector: { template: '<div data-testid="org-selector">Orgs</div>', props: ['orgs', 'modelValue'], emits: ['select'] },
         }

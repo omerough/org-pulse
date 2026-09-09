@@ -157,6 +157,7 @@ onMounted(() => {
           :percentages="team.percentages || {}"
           :buckets="teamBuckets(team)"
           :metricMode="metricMode"
+          :clickable="false"
         />
       </div>
     </template>
