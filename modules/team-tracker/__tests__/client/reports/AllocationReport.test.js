@@ -61,6 +61,8 @@ vi.mock('../../../client/services/allocation-api', () => ({
 }))
 
 describe('AllocationReport', () => {
+  const mockNavigateTo = vi.fn()
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -70,7 +72,7 @@ describe('AllocationReport', () => {
       global: {
         provide: {
           moduleNav: {
-            navigateTo: vi.fn(),
+            navigateTo: mockNavigateTo,
             goBack: vi.fn(),
             params: readonly(ref({})),
             moduleSlug: readonly(ref('team-tracker')),
@@ -125,5 +127,13 @@ describe('AllocationReport', () => {
     const wrapper = createWrapper()
     await flushPromises()
     expect(wrapper.find('[data-testid="org-selector"]').exists()).toBe(true)
+  })
+
+  it('does not navigate to Team View when a team card is clicked', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+    const card = wrapper.find('[data-testid="allocation-team-card"]')
+    await card.trigger('click')
+    expect(mockNavigateTo).not.toHaveBeenCalled()
   })
 })
