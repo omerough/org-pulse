@@ -132,7 +132,30 @@ const LANE_META = {
     dotClass: 'bg-gray-300'
   }
 }
-const BOARD_LANE_ORDER = ['no-tracked-work', 'not-started', 'in-progress', 'complete', 'unavailable']
+// Board columns are only the three real execution states; `no-tracked-work`
+// and `unavailable` both fold into the separate coverage total instead of
+// being columns of their own.
+const BOARD_COLUMNS = ['not-started', 'in-progress', 'complete']
+const PAGE_SIZE = 6
+
+const COVERAGE_REASON_CAPTIONS = {
+  'no-epics': 'No linked Epics',
+  'preparation-only': 'Preparation work only · No tracked execution work',
+  'data-unavailable': 'Execution data unavailable'
+}
+const GENERIC_UNAVAILABLE_CAPTION = 'Execution data unavailable'
+
+// Caption comes verbatim from the producer's executionCoverageReason — never
+// inferred from epicCount/issueCount. A missing/unrecognized reason (older
+// payload) renders the same generic caption as data-unavailable.
+function coverageCaption(f) {
+  const reason = f.executionCoverageReason
+  if (reason === 'epics-without-issue-detail') {
+    const epics = Number.isInteger(f.epicCount) && f.epicCount >= 0 ? f.epicCount : 0
+    return epics + ' epic' + (epics === 1 ? '' : 's') + ' · No issue-level progress available'
+  }
+  return COVERAGE_REASON_CAPTIONS[reason] || GENERIC_UNAVAILABLE_CAPTION
+}
 
 const READINESS_META = {
   ready: { label: 'Ready', class: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' },
@@ -295,14 +318,54 @@ const decoratedFeatures = computed(() => filteredFeatures.value.map(f => ({
   readiness: readinessMeta(f.preparationReadiness)
 })))
 
-const boardLanes = computed(() => {
-  const buckets = {}
-  for (const id of BOARD_LANE_ORDER) buckets[id] = []
-  for (const d of decoratedFeatures.value) buckets[d.lane].push(d)
-  return BOARD_LANE_ORDER
-    .map(id => ({ id, ...LANE_META[id], items: buckets[id] }))
-    .filter(lane => lane.items.length > 0)
+// Three side-by-side execution columns, replacing the previous vertically
+// stacked five-lane board. `LANE_META`/`laneKey` remain in use by filtering
+// and the List view's per-row lane badge.
+const boardColumns = computed(() => {
+  const buckets = { 'not-started': [], 'in-progress': [], complete: [] }
+  for (const d of decoratedFeatures.value) {
+    if (buckets[d.lane]) buckets[d.lane].push(d)
+  }
+  return BOARD_COLUMNS.map(id => ({ id, ...LANE_META[id], items: buckets[id] }))
 })
+
+// Not additional columns: every feature without measurable execution
+// progress (today's no-tracked-work lane plus the unavailable fallback)
+// combines into one coverage total instead.
+const coverageFeatures = computed(() =>
+  decoratedFeatures.value.filter(d => !BOARD_COLUMNS.includes(d.lane))
+)
+const measurableCount = computed(() => decoratedFeatures.value.length - coverageFeatures.value.length)
+
+const columnPage = ref({ 'not-started': 1, 'in-progress': 1, complete: 1 })
+const coveragePage = ref(1)
+const coveragePanelOpen = ref(false)
+const activeColumnMobile = ref('not-started')
+
+// Independent per-column pagination — a presentation slice only, it never
+// changes the filtered population or the counts shown in headers/tabs.
+function pageSlice(items, page) {
+  return items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+}
+function pageCount(items) {
+  return Math.max(1, Math.ceil(items.length / PAGE_SIZE))
+}
+function setColumnPage(id, page) {
+  columnPage.value = { ...columnPage.value, [id]: page }
+}
+
+watch(filteredFeatures, () => {
+  columnPage.value = { 'not-started': 1, 'in-progress': 1, complete: 1 }
+  coveragePage.value = 1
+})
+
+const expandedLabelCards = ref(new Set())
+function toggleLabelsExpand(key) {
+  const next = new Set(expandedLabelCards.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  expandedLabelCards.value = next
+}
 
 function handleSelect(key) {
   nav.navigateTo('feature-detail', { key })
@@ -477,27 +540,110 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
     <template v-else>
       <!-- ===================== BOARD VIEW ===================== -->
       <template v-if="viewMode === 'board'">
-        <div class="space-y-4">
-          <div
-            v-for="lane in boardLanes"
-            :key="lane.id"
-            class="rounded-lg border overflow-hidden"
-            :class="[lane.borderClass, lane.bgClass]"
+        <!-- Data coverage: not additional columns, a separate accounting of the
+             filtered population's measurable-vs-not execution progress. -->
+        <div class="flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-sm mb-4">
+          <span class="text-gray-600 dark:text-gray-300">
+            Filtered Features: <strong class="text-gray-900 dark:text-gray-100">{{ filteredFeatures.length }}</strong>
+          </span>
+          <span class="text-gray-600 dark:text-gray-300">
+            Measurable execution: <strong class="text-gray-900 dark:text-gray-100">{{ measurableCount }}</strong>
+          </span>
+          <button
+            type="button"
+            class="text-gray-600 dark:text-gray-300 underline decoration-dotted underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+            :aria-expanded="coveragePanelOpen"
+            aria-controls="coverage-panel"
+            @click="coveragePanelOpen = !coveragePanelOpen"
           >
-            <!-- Lane header -->
-            <div class="px-4 py-3 flex items-center justify-between" :class="lane.headerBg">
-              <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full" :class="lane.dotClass" />
-                <h3 class="text-sm font-semibold" :class="lane.textClass">{{ lane.title }}</h3>
-                <span class="text-xs font-medium px-1.5 py-0.5 rounded-full bg-white/60 dark:bg-gray-900/30" :class="lane.textClass">{{ lane.items.length }}</span>
+            Without measurable progress: <strong class="text-gray-900 dark:text-gray-100">{{ coverageFeatures.length }}</strong>
+          </button>
+        </div>
+
+        <div
+          v-if="coveragePanelOpen"
+          id="coverage-panel"
+          class="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/60 dark:bg-gray-800/20 p-3 mb-4"
+        >
+          <div v-if="coverageFeatures.length === 0" class="text-center py-6 text-gray-500 text-sm">
+            No features without measurable execution progress.
+          </div>
+          <template v-else>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              <div
+                v-for="d in pageSlice(coverageFeatures, coveragePage)"
+                :key="d.feature.key"
+                class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200/80 dark:border-gray-700/80 cursor-pointer hover:shadow-md dark:hover:border-gray-600 transition-all p-3"
+                @click="handleSelect(d.feature.key)"
+              >
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <div class="flex items-center gap-2">
+                    <span class="text-primary-600 dark:text-blue-400 font-mono text-xs font-semibold">{{ d.feature.key }}</span>
+                    <StatusBadge :status="d.feature.status" />
+                  </div>
+                  <span
+                    class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold"
+                    :class="d.readiness.class"
+                    title="Preparation readiness — independent of execution progress"
+                  >{{ d.readiness.label }}</span>
+                </div>
+                <p class="text-sm text-gray-900 dark:text-gray-100 font-medium leading-snug mb-1">{{ d.feature.summary }}</p>
+                <p class="text-xs italic text-gray-500 dark:text-gray-400">{{ coverageCaption(d.feature) }}</p>
               </div>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ lane.subtitle }}</span>
+            </div>
+            <div v-if="pageCount(coverageFeatures) > 1" class="flex items-center justify-center gap-3 mt-3 text-xs text-gray-500 dark:text-gray-400">
+              <button
+                type="button" class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40"
+                :disabled="coveragePage <= 1" @click="coveragePage--"
+              >Prev</button>
+              <span>Page {{ coveragePage }} of {{ pageCount(coverageFeatures) }}</span>
+              <button
+                type="button" class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40"
+                :disabled="coveragePage >= pageCount(coverageFeatures)" @click="coveragePage++"
+              >Next</button>
+            </div>
+          </template>
+        </div>
+
+        <!-- Column selector, narrow widths only: tabs replace squeezed side-by-side columns -->
+        <div class="flex md:hidden gap-2 mb-3 overflow-x-auto">
+          <button
+            v-for="col in boardColumns"
+            :key="col.id"
+            type="button"
+            class="px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap"
+            :class="activeColumnMobile === col.id
+              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm border border-gray-300 dark:border-gray-600'
+              : 'text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800'"
+            @click="activeColumnMobile = col.id"
+          >{{ col.title }} ({{ col.items.length }})</button>
+        </div>
+
+        <!-- Three side-by-side execution columns -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div
+            v-for="col in boardColumns"
+            :key="col.id"
+            class="rounded-lg border overflow-hidden md:block"
+            :class="[col.borderClass, col.bgClass, activeColumnMobile === col.id ? 'block' : 'hidden']"
+          >
+            <!-- Column header -->
+            <div class="px-4 py-3 flex items-center justify-between" :class="col.headerBg">
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full" :class="col.dotClass" />
+                <h3 class="text-sm font-semibold" :class="col.textClass">{{ col.title }}</h3>
+                <span class="text-xs font-medium px-1.5 py-0.5 rounded-full bg-white/60 dark:bg-gray-900/30" :class="col.textClass">{{ col.items.length }}</span>
+              </div>
+            </div>
+
+            <div v-if="col.items.length === 0" class="p-4 text-center text-xs text-gray-400 dark:text-gray-500">
+              No features
             </div>
 
             <!-- Feature cards -->
-            <div class="p-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div v-else class="p-3 grid grid-cols-1 gap-2">
               <div
-                v-for="d in lane.items"
+                v-for="d in pageSlice(col.items, columnPage[col.id])"
                 :key="d.feature.key"
                 class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200/80 dark:border-gray-700/80 cursor-pointer hover:shadow-md dark:hover:border-gray-600 transition-all overflow-hidden"
                 @click="handleSelect(d.feature.key)"
@@ -575,13 +721,56 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                     :key="v"
                     class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400"
                   >{{ v }}</span>
+
+                  <span
+                    v-for="l in (d.feature.labels || []).slice(0, 3)"
+                    :key="l"
+                    class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-100 dark:bg-teal-500/15 text-teal-700 dark:text-teal-400"
+                  >{{ l }}</span>
+                  <button
+                    v-if="(d.feature.labels || []).length > 3 && !expandedLabelCards.has(d.feature.key)"
+                    type="button"
+                    class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                    :aria-expanded="false"
+                    :aria-label="'Show ' + (d.feature.labels.length - 3) + ' more labels'"
+                    @click.stop="toggleLabelsExpand(d.feature.key)"
+                  >+{{ d.feature.labels.length - 3 }}</button>
+                  <template v-if="expandedLabelCards.has(d.feature.key)">
+                    <span
+                      v-for="l in d.feature.labels.slice(3)"
+                      :key="l"
+                      class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-100 dark:bg-teal-500/15 text-teal-700 dark:text-teal-400"
+                    >{{ l }}</span>
+                    <button
+                      type="button"
+                      class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                      :aria-expanded="true"
+                      aria-label="Show fewer labels"
+                      @click.stop="toggleLabelsExpand(d.feature.key)"
+                    >Less</button>
+                  </template>
                 </div>
               </div>
+            </div>
+
+            <div
+              v-if="pageCount(col.items) > 1"
+              class="flex items-center justify-center gap-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200/60 dark:border-gray-700/60"
+            >
+              <button
+                type="button" class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40"
+                :disabled="columnPage[col.id] <= 1" @click="setColumnPage(col.id, columnPage[col.id] - 1)"
+              >Prev</button>
+              <span>Page {{ columnPage[col.id] }} of {{ pageCount(col.items) }}</span>
+              <button
+                type="button" class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40"
+                :disabled="columnPage[col.id] >= pageCount(col.items)" @click="setColumnPage(col.id, columnPage[col.id] + 1)"
+              >Next</button>
             </div>
           </div>
         </div>
 
-        <div v-if="boardLanes.length === 0 && !loading" class="text-center py-12 text-gray-500">
+        <div v-if="filteredFeatures.length === 0 && !loading" class="text-center py-12 text-gray-500">
           No features found matching the current filters.
         </div>
       </template>

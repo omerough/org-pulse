@@ -12,50 +12,51 @@ vi.mock('@shared/client/services/api', () => ({
 
 // Index-entry shapes below mirror the producer contract (executionIssueCount /
 // doneExecutionIssueCount / executionState / executionCoverage /
-// preparationReadiness), covering each of the four known execution states plus
-// both unavailable causes (epics-with-no-issues vs. fully missing metrics).
+// executionCoverageReason / preparationReadiness), covering each of the four
+// known execution states plus both unavailable causes (epics-with-no-issues
+// vs. fully missing metrics).
 const FEATURES = [
   {
     key: 'COMPLETE-1', summary: 'Complete feature', status: 'Done', statusCategory: 'Done',
-    fixVersions: ['1.0'], components: ['Comp A'], epicCount: 1, issueCount: 2, blockerCount: 0,
+    fixVersions: ['1.0'], components: ['Comp A'], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
     executionIssueCount: 2, doneExecutionIssueCount: 2, executionState: 'complete', executionCoverage: 'available',
-    preparationReadiness: 'ready'
+    executionCoverageReason: null, preparationReadiness: 'ready'
   },
   {
     key: 'NS-1', summary: 'Not started feature', status: 'To Do', statusCategory: 'To Do',
-    fixVersions: ['1.0'], components: [], epicCount: 1, issueCount: 3, blockerCount: 0,
+    fixVersions: ['1.0'], components: [], labels: [], epicCount: 1, issueCount: 3, blockerCount: 0,
     executionIssueCount: 2, doneExecutionIssueCount: 0, executionState: 'not-started', executionCoverage: 'available',
-    preparationReadiness: 'pending'
+    executionCoverageReason: null, preparationReadiness: 'pending'
   },
   {
     key: 'IP-1', summary: 'In progress feature', status: 'In Progress', statusCategory: 'In Progress',
-    fixVersions: ['2.0'], components: ['Comp B'], epicCount: 1, issueCount: 2, blockerCount: 2,
+    fixVersions: ['2.0'], components: ['Comp B'], labels: ['label-alpha', 'label-beta', 'label-gamma', 'label-delta'], epicCount: 1, issueCount: 2, blockerCount: 2,
     executionIssueCount: 2, doneExecutionIssueCount: 1, executionState: 'in-progress', executionCoverage: 'available',
-    preparationReadiness: 'unknown'
+    executionCoverageReason: null, preparationReadiness: 'unknown'
   },
   {
     key: 'EMPTY-1', summary: 'Genuinely empty feature', status: 'To Do', statusCategory: 'To Do',
-    fixVersions: ['1.0'], components: [], epicCount: 0, issueCount: 0, blockerCount: 0,
+    fixVersions: ['1.0'], components: [], labels: [], epicCount: 0, issueCount: 0, blockerCount: 0,
     executionIssueCount: 0, doneExecutionIssueCount: 0, executionState: 'no-tracked-work', executionCoverage: 'empty',
-    preparationReadiness: 'not-applicable'
+    executionCoverageReason: 'no-epics', preparationReadiness: 'not-applicable'
   },
   {
     key: 'EMPTY-2', summary: 'Preparation-only feature', status: 'To Do', statusCategory: 'To Do',
-    fixVersions: ['1.0'], components: [], epicCount: 1, issueCount: 1, blockerCount: 0,
+    fixVersions: ['1.0'], components: [], labels: [], epicCount: 1, issueCount: 1, blockerCount: 0,
     executionIssueCount: 0, doneExecutionIssueCount: 0, executionState: 'no-tracked-work', executionCoverage: 'empty',
-    preparationReadiness: 'not-applicable'
+    executionCoverageReason: 'preparation-only', preparationReadiness: 'not-applicable'
   },
   {
     key: 'NODATA-1', summary: 'Epics with no observed issues', status: 'In Progress', statusCategory: 'In Progress',
-    fixVersions: ['2.0'], components: [], epicCount: 9, issueCount: 0, blockerCount: 0,
+    fixVersions: ['2.0'], components: [], labels: [], epicCount: 9, issueCount: 0, blockerCount: 0,
     executionIssueCount: null, doneExecutionIssueCount: null, executionState: null, executionCoverage: 'insufficient-data',
-    preparationReadiness: 'not-applicable'
+    executionCoverageReason: 'epics-without-issue-detail', preparationReadiness: 'not-applicable'
   },
   {
     key: 'NODATA-2', summary: 'Missing metrics feature', status: 'New', statusCategory: null,
-    fixVersions: [], components: [], epicCount: 0, issueCount: 0, blockerCount: 0,
+    fixVersions: [], components: [], labels: [], epicCount: 0, issueCount: 0, blockerCount: 0,
     executionIssueCount: null, doneExecutionIssueCount: null, executionState: null, executionCoverage: 'insufficient-data',
-    preparationReadiness: 'unknown'
+    executionCoverageReason: null, preparationReadiness: 'unknown'
   }
 ]
 
@@ -80,38 +81,99 @@ describe('OverviewView (Feature List)', () => {
     sessionStorage.clear()
   })
 
-  it('defaults to Board view with the four known lanes plus a distinct unavailable group, losing no features', async () => {
+  it('defaults to Board view with three execution columns plus a separate coverage total, losing no features', async () => {
     const { wrapper } = await mountWithData()
 
-    const laneTitles = wrapper.findAll('h3').map(h => h.text())
-    expect(laneTitles).toEqual([
-      'No Tracked Work', 'Not Started', 'In Progress', 'Complete', 'Execution Data Unavailable'
-    ])
+    const columnTitles = wrapper.findAll('h3').map(h => h.text())
+    expect(columnTitles).toEqual(['Not Started', 'In Progress', 'Complete'])
 
-    for (const f of FEATURES) {
-      expect(wrapper.text()).toContain(f.key)
+    // 3 measurable (COMPLETE-1, NS-1, IP-1) + 4 without measurable progress
+    // (EMPTY-1, EMPTY-2, NODATA-1, NODATA-2) = all 7 filtered features.
+    expect(wrapper.text()).toContain('Filtered Features:')
+    expect(wrapper.text()).toContain('7')
+    expect(wrapper.text()).toContain('Measurable execution:')
+    expect(wrapper.text()).toContain('3')
+    expect(wrapper.text()).toContain('Without measurable progress:')
+    expect(wrapper.text()).toContain('4')
+
+    for (const key of ['COMPLETE-1', 'NS-1', 'IP-1']) {
+      expect(wrapper.text()).toContain(key)
+    }
+    // Coverage-group features aren't rendered until the coverage panel opens
+    for (const key of ['EMPTY-1', 'EMPTY-2', 'NODATA-1', 'NODATA-2']) {
+      expect(wrapper.text()).not.toContain(key)
+    }
+
+    const coverageButton = wrapper.findAll('button').find(b => b.text().includes('Without measurable progress'))
+    await coverageButton.trigger('click')
+    for (const key of ['EMPTY-1', 'EMPTY-2', 'NODATA-1', 'NODATA-2']) {
+      expect(wrapper.text()).toContain(key)
     }
   })
 
-  it('never buckets unavailable-state features into No Tracked Work', async () => {
+  it('distinguishes real 0%, empty scope (with and without preparation-only issues), and insufficient data, all inside the coverage panel', async () => {
     const { wrapper } = await mountWithData()
-    const noTrackedSection = wrapper.findAll('.rounded-lg.border.overflow-hidden')
-      .find(el => el.text().includes('No Tracked Work'))
-    expect(noTrackedSection.text()).not.toContain('NODATA-1')
-    expect(noTrackedSection.text()).not.toContain('NODATA-2')
-  })
 
-  it('distinguishes real 0%, empty scope (with and without preparation-only issues), and insufficient data', async () => {
-    const { wrapper } = await mountWithData()
+    // Real nonzero all-To-Do scope shows 0%, not blank/unavailable, directly on the board
+    expect(wrapper.text()).toContain('0/2')
+
+    const coverageButton = wrapper.findAll('button').find(b => b.text().includes('Without measurable progress'))
+    await coverageButton.trigger('click')
     const text = wrapper.text()
 
-    expect(text).toContain('No tracked execution work')
+    expect(text).toContain('No linked Epics')
     expect(text).toContain('Preparation work only')
     expect(text).toContain('9 epics')
     expect(text).toContain('No issue-level progress available')
     expect(text).toContain('Execution data unavailable')
-    // Real nonzero all-To-Do scope shows 0%, not blank/unavailable
-    expect(text).toContain('0/2')
+  })
+
+  it('paginates each column independently while keeping the full column count visible', async () => {
+    const manyFeatures = Array.from({ length: 8 }, (_, i) => ({
+      key: `PAGED-${i}`, summary: `Paged feature ${i}`, status: 'In Progress', statusCategory: 'In Progress',
+      fixVersions: [], components: [], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
+      executionIssueCount: 2, doneExecutionIssueCount: 0, executionState: 'not-started', executionCoverage: 'available',
+      executionCoverageReason: null, preparationReadiness: 'unknown'
+    }))
+    mockApiRequest.mockImplementation((url) => {
+      if (url.indexOf('/versions') !== -1) return Promise.resolve({ versions: [] })
+      return Promise.resolve({ features: manyFeatures, fetchedAt: '2026-09-10T00:00:00Z', featureCount: manyFeatures.length })
+    })
+    const wrapper = mount(OverviewView, { global: { provide: { moduleNav: mockNav() } } })
+    await flushPromises()
+
+    // Column count badge always reflects the full 8, independent of the 6-per-page slice
+    expect(wrapper.text()).toContain('Not Started')
+    expect(wrapper.text()).toContain('8')
+    expect(wrapper.text()).not.toContain('PAGED-7')
+    expect(wrapper.text()).toContain('Page 1 of 2')
+
+    const nextButton = wrapper.findAll('button').find(b => b.text() === 'Next')
+    await nextButton.trigger('click')
+    expect(wrapper.text()).toContain('PAGED-7')
+    expect(wrapper.text()).toContain('Page 2 of 2')
+    // Pagination is presentation-only; the filtered population is unchanged
+    expect(wrapper.text()).toContain('Filtered Features:')
+    expect(wrapper.text()).toContain('8')
+  })
+
+  it('expands and collapses Jira labels beyond the accessible +N pill', async () => {
+    const { wrapper } = await mountWithData()
+
+    const card = wrapper.findAll('.cursor-pointer').find(el => el.text().includes('IP-1'))
+    expect(card.text()).toContain('label-alpha')
+    expect(card.text()).toContain('+1')
+    expect(card.text()).not.toContain('label-delta')
+
+    const expandButton = card.findAll('button').find(b => b.attributes('aria-expanded') === 'false')
+    expect(expandButton.attributes('aria-label')).toMatch(/1 more label/)
+    await expandButton.trigger('click')
+    expect(card.text()).toContain('label-delta')
+    expect(card.text()).toContain('Less')
+
+    const collapseButton = card.findAll('button').find(b => b.attributes('aria-expanded') === 'true')
+    await collapseButton.trigger('click')
+    expect(card.text()).not.toContain('label-delta')
   })
 
   it('renders "available" coverage with invalid counts as unavailable, never a fabricated/NaN/clamped percentage', async () => {
@@ -147,13 +209,15 @@ describe('OverviewView (Feature List)', () => {
     expect(unavailableCount).toBe(badFeatures.length)
   })
 
-  it('shows preparation readiness independent of execution progress', async () => {
+  it('shows preparation readiness independent of execution progress, including for coverage-group features', async () => {
     const { wrapper } = await mountWithData()
-    const text = wrapper.text()
-    expect(text).toContain('Ready')
-    expect(text).toContain('Pending')
-    expect(text).toContain('Unknown')
-    expect(text).toContain('N/A')
+    expect(wrapper.text()).toContain('Ready')
+    expect(wrapper.text()).toContain('Pending')
+    expect(wrapper.text()).toContain('Unknown')
+
+    const coverageButton = wrapper.findAll('button').find(b => b.text().includes('Without measurable progress'))
+    await coverageButton.trigger('click')
+    expect(wrapper.text()).toContain('N/A')
   })
 
   it('renders neutral progress without health/status-color badges', async () => {

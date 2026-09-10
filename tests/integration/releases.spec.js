@@ -213,22 +213,31 @@ test.describe('Releases Feature List @releases', () => {
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
   }
 
-  test('loads from the demo fixture path and defaults to Board view with all lanes', async ({ page }) => {
+  test('loads from the demo fixture path and defaults to Board view with three columns plus a coverage total', async ({ page }) => {
     await openFeatureList(page);
 
     await expect(page.locator('h1', { hasText: 'Feature Execution Overview' })).toBeVisible();
-    for (const title of ['No Tracked Work', 'Not Started', 'In Progress', 'Complete', 'Execution Data Unavailable']) {
+    for (const title of ['Not Started', 'In Progress', 'Complete']) {
       await expect(page.locator('h3', { hasText: title })).toBeVisible();
     }
+    await expect(page.locator('h3', { hasText: 'No Tracked Work' })).toHaveCount(0);
+    await expect(page.locator('h3', { hasText: 'Execution Data Unavailable' })).toHaveCount(0);
+
+    await expect(page.getByText('Filtered Features:')).toBeVisible();
+    await expect(page.getByText('Measurable execution:')).toBeVisible();
+    const coverageButton = page.getByRole('button', { name: /Without measurable progress/ });
+    await expect(coverageButton).toBeVisible();
 
     // Old-payload feature (predates the contract, no metrics.execution* fields at all)
-    // still renders, grouped under Execution Data Unavailable rather than dropped.
+    // is part of the coverage total rather than dropped; hidden until expanded.
+    await expect(page.getByText('TEST1-1085')).toHaveCount(0);
+    await coverageButton.click();
     await expect(page.getByText('TEST1-1085')).toBeVisible();
 
     expect(page.errors).toHaveLength(0);
   });
 
-  test('shows distinct available/empty/unavailable progress presentation on Board cards', async ({ page }) => {
+  test('shows distinct available/empty/unavailable progress presentation on Board and coverage cards', async ({ page }) => {
     await openFeatureList(page);
 
     const availableCard = page.locator('.cursor-pointer', { hasText: 'TEST1-1131' });
@@ -239,8 +248,13 @@ test.describe('Releases Feature List @releases', () => {
     await expect(completeCard).toContainText('4/4');
     await expect(completeCard).toContainText('100%');
 
-    const emptyCard = page.locator('.cursor-pointer', { hasText: /TEST1-15\b/ });
-    await expect(emptyCard).toContainText('No tracked execution work');
+    // The remaining cases have no measurable execution progress; their truthful
+    // reason (from the producer's executionCoverageReason) only shows once the
+    // coverage total is expanded.
+    await page.getByRole('button', { name: /Without measurable progress/ }).click();
+
+    const noEpicsCard = page.locator('.cursor-pointer', { hasText: /TEST1-15\b/ });
+    await expect(noEpicsCard).toContainText('No linked Epics');
 
     const prepOnlyCard = page.locator('.cursor-pointer', { hasText: 'TEST1-157' });
     await expect(prepOnlyCard).toContainText('Preparation work only');
@@ -284,7 +298,8 @@ test.describe('Releases Feature List @releases', () => {
     await page.locator('label', { hasText: 'Complete' }).locator('input[type="checkbox"]').check();
     await page.waitForTimeout(500);
 
-    await expect(page.locator('h3')).toHaveCount(1);
+    // All three columns remain visible (a stable board layout); only Complete has items.
+    await expect(page.locator('h3')).toHaveCount(3);
     await expect(page.locator('h3', { hasText: 'Complete' })).toBeVisible();
     await expect(page.getByText('TEST1-1045')).toBeVisible();
     await expect(page.getByText('TEST1-1131')).toHaveCount(0);

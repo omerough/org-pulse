@@ -212,6 +212,10 @@ async function rebuildIndex(storage) {
         ? feature.metrics.executionCoverage : 'insufficient-data',
       preparationReadiness: feature.metrics && feature.metrics.preparationReadiness !== undefined
         ? feature.metrics.preparationReadiness : 'unknown',
+      // Explains a non-'available' executionCoverage; missing on an older
+      // payload renders as unavailable in the UI, never a guessed reason.
+      executionCoverageReason: feature.metrics && feature.metrics.executionCoverageReason !== undefined
+        ? feature.metrics.executionCoverageReason : null,
       // Timestamps
       lastUpdated: feature.updated || null,
       // Pipeline-index-only fields

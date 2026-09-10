@@ -31,7 +31,8 @@
       "doneExecutionIssueCount": 0,
       "executionState": "no-tracked-work",
       "executionCoverage": "empty",
-      "preparationReadiness": "not-applicable"
+      "preparationReadiness": "not-applicable",
+      "executionCoverageReason": "no-epics"
     },
     {
       "key": "TEST1-39",
@@ -1053,7 +1054,8 @@
       "doneExecutionIssueCount": 0,
       "executionState": "no-tracked-work",
       "executionCoverage": "empty",
-      "preparationReadiness": "not-applicable"
+      "preparationReadiness": "not-applicable",
+      "executionCoverageReason": "preparation-only"
     },
     {
       "key": "TEST1-158",
@@ -1944,7 +1946,8 @@
       "doneExecutionIssueCount": 0,
       "executionState": "not-started",
       "executionCoverage": "available",
-      "preparationReadiness": "unknown"
+      "preparationReadiness": "unknown",
+      "executionCoverageReason": null
     },
     {
       "key": "TEST1-289",
@@ -3680,7 +3683,8 @@
       "doneExecutionIssueCount": null,
       "executionState": null,
       "executionCoverage": "insufficient-data",
-      "preparationReadiness": "not-applicable"
+      "preparationReadiness": "not-applicable",
+      "executionCoverageReason": "epics-without-issue-detail"
     },
     {
       "key": "TEST1-577",
@@ -6020,7 +6024,8 @@
       "doneExecutionIssueCount": 4,
       "executionState": "complete",
       "executionCoverage": "available",
-      "preparationReadiness": "ready"
+      "preparationReadiness": "ready",
+      "executionCoverageReason": null
     },
     {
       "key": "TEST1-1047",
@@ -6748,7 +6753,8 @@
       "doneExecutionIssueCount": 2,
       "executionState": "in-progress",
       "executionCoverage": "available",
-      "preparationReadiness": "pending"
+      "preparationReadiness": "pending",
+      "executionCoverageReason": null
     },
     {
       "key": "TEST1-1132",
