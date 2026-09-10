@@ -56,7 +56,7 @@ test.describe('System Health Module @system-health', () => {
     expect(page.errors).toHaveLength(0);
   });
 
-  test('legacy quality-analysis and component-maturity items should be disabled', async ({ page }) => {
+  test('quality-analysis is hidden from nav; legacy component-maturity item remains disabled', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
@@ -65,11 +65,12 @@ test.describe('System Health Module @system-health', () => {
     await moduleHeader.click();
     await page.waitForTimeout(500);
 
-    for (const label of ['Quality analysis', 'Component maturity']) {
-      const item = page.locator('aside nav button').filter({ hasText: label }).first();
-      const isDisabled = await item.getAttribute('disabled');
-      expect(isDisabled).not.toBeNull();
-    }
+    const qualityAnalysisItem = page.locator('aside nav button').filter({ hasText: 'Quality analysis' });
+    expect(await qualityAnalysisItem.count()).toBe(0);
+
+    const componentMaturityItem = page.locator('aside nav button').filter({ hasText: 'Component maturity' }).first();
+    const isDisabled = await componentMaturityItem.getAttribute('disabled');
+    expect(isDisabled).not.toBeNull();
 
     expect(page.errors).toHaveLength(0);
   });
