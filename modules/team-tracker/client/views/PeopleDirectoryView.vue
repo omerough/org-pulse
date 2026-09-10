@@ -15,6 +15,16 @@ const loading = ref(true)
 const search = ref('')
 const selectedOrgs = ref([])
 const selectedGeos = ref([])
+const ORG_TYPE_OPTIONS = [
+  { value: 'all', label: 'All' },
+  { value: 'engineering', label: 'Engineering' },
+  { value: 'auxiliary', label: 'Non-Engineering' }
+]
+
+// Temporarily hidden from the type filter; auxiliary profiles/data stay intact for restoration.
+const HIDDEN_ORG_TYPES = ['auxiliary']
+const visibleOrgTypeOptions = computed(() => ORG_TYPE_OPTIONS.filter(o => !HIDDEN_ORG_TYPES.includes(o.value)))
+
 const selectedOrgType = ref('all')
 const sortField = ref('name')
 const sortAsc = ref(true)
@@ -254,7 +264,7 @@ onMounted(loadData)
           <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Type</label>
           <div class="flex gap-1">
             <button
-              v-for="opt in [{ value: 'all', label: 'All' }, { value: 'engineering', label: 'Engineering' }, { value: 'auxiliary', label: 'Non-Engineering' }]"
+              v-for="opt in visibleOrgTypeOptions"
               :key="opt.value"
               @click="selectedOrgType = opt.value"
               class="px-2.5 py-1 text-xs rounded-md border transition-colors"

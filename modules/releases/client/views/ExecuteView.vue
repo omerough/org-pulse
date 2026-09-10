@@ -33,13 +33,17 @@ import EpicsByReleaseView from '../execute/views/EpicsByReleaseView.vue'
 
 const nav = inject('moduleNav')
 
-const tabs = [
+const ALL_TABS = [
   { id: 'feature-list', label: 'Feature List' },
   { id: 'feature-status', label: 'Feature Status' },
   { id: 'feature-tracking', label: 'Feature Tracking' },
   { id: 'epics-by-release', label: 'Epics by Release' },
 ]
 
+// Temporarily hidden from the tab bar; HygieneView and its panel stay in place for restoration.
+const HIDDEN_TAB_IDS = ['feature-status']
+
+const tabs = ALL_TABS.filter(tab => !HIDDEN_TAB_IDS.includes(tab.id))
 const VALID_TABS = tabs.map(t => t.id)
 const DEFAULT_TAB = 'feature-list'
 

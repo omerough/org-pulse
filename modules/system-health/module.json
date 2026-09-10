@@ -10,8 +10,7 @@
     "entry": "./client/index.js",
     "navItems": [
       { "id": "operational-metrics", "label": "Operational Metrics", "icon": "activity", "default": true },
-      { "id": "quality-analysis", "label": "Quality analysis", "icon": "clipboard-list", "separatorBefore": true, "disabled": true },
-      { "id": "component-maturity", "label": "Component maturity", "icon": "layers", "disabled": true }
+      { "id": "component-maturity", "label": "Component maturity", "icon": "layers", "separatorBefore": true, "disabled": true }
     ],
     "hiddenRoutes": {
       "disconnected-repo-detail": "component-maturity"
