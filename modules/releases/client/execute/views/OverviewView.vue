@@ -2,20 +2,36 @@
 import { ref, watch, onMounted, onBeforeUnmount, inject, computed } from 'vue'
 import { useFeatureTraffic, useVersions } from '../composables/useFeatureTraffic'
 import StatusBadge from '../components/StatusBadge.vue'
-import SignoffBadge from '../components/SignoffBadge.vue'
+import ComponentStatusFilterBar from '../components/ComponentStatusFilterBar.vue'
+import {
+  useComponentStatusFilter,
+  collectComponentOptions,
+  collectStatusOptions,
+  matchesComponents,
+  matchesStatus,
+  componentDisplayLabel
+} from '../composables/useComponentStatusFilter'
 
 const nav = inject('moduleNav')
 const { features, fetchedAt, loading, error, loadFeatures } = useFeatureTraffic()
 const { versions, loadVersions } = useVersions()
+const {
+  selectedComponents,
+  selectedStatuses,
+  toggleComponent,
+  toggleStatus,
+  clearFilters: clearComponentStatusFilters,
+  isFiltered: isComponentStatusFiltered
+} = useComponentStatusFilter()
 
 const selectedVersions = ref([])
-const selectedSignals = ref([])
+const selectedExecutionStates = ref([])
+const attentionBlockersOnly = ref(false)
 const searchQuery = ref('')
-const viewMode = ref('signals') // 'signals' or 'list'
+const viewMode = ref('board') // 'board' or 'list'
 
-// Dropdown open state
 const versionDropdownOpen = ref(false)
-const signalDropdownOpen = ref(false)
+const executionStateDropdownOpen = ref(false)
 
 function toggleVersion(v) {
   const idx = selectedVersions.value.indexOf(v)
@@ -23,10 +39,10 @@ function toggleVersion(v) {
   else selectedVersions.value.push(v)
 }
 
-function toggleSignal(s) {
-  const idx = selectedSignals.value.indexOf(s)
-  if (idx >= 0) selectedSignals.value.splice(idx, 1)
-  else selectedSignals.value.push(s)
+function toggleExecutionState(v) {
+  const idx = selectedExecutionStates.value.indexOf(v)
+  if (idx >= 0) selectedExecutionStates.value.splice(idx, 1)
+  else selectedExecutionStates.value.push(v)
 }
 
 const versionFilterLabel = computed(() => {
@@ -35,202 +51,126 @@ const versionFilterLabel = computed(() => {
   return selectedVersions.value.length + ' versions'
 })
 
-const signalFilterLabel = computed(() => {
-  if (selectedSignals.value.length === 0) return 'All States'
-  if (selectedSignals.value.length === 1) {
-    const opt = signalFilterOptions.find(o => o.value === selectedSignals.value[0])
-    return opt ? opt.label : selectedSignals.value[0]
+const EXECUTION_STATE_FILTER_OPTIONS = [
+  { value: 'no-tracked-work', label: 'No Tracked Work' },
+  { value: 'not-started', label: 'Not Started' },
+  { value: 'in-progress', label: 'In Progress' },
+  { value: 'complete', label: 'Complete' },
+  { value: 'unavailable', label: 'Execution Data Unavailable' }
+]
+const allowedExecutionStateFilterIds = new Set(EXECUTION_STATE_FILTER_OPTIONS.map(o => o.value))
+
+const executionStateFilterLabel = computed(() => {
+  if (selectedExecutionStates.value.length === 0) return 'All Execution States'
+  if (selectedExecutionStates.value.length === 1) {
+    const opt = EXECUTION_STATE_FILTER_OPTIONS.find(o => o.value === selectedExecutionStates.value[0])
+    return opt ? opt.label : selectedExecutionStates.value[0]
   }
-  return selectedSignals.value.length + ' states'
+  return selectedExecutionStates.value.length + ' states'
 })
 
 // Close dropdowns on outside click
 function handleOutsideClick(e) {
   if (!e.target.closest('.multi-select-dropdown')) {
     versionDropdownOpen.value = false
-    signalDropdownOpen.value = false
+    executionStateDropdownOpen.value = false
   }
 }
 
-const filteredFeatures = computed(() => {
-  let list = features.value
-  if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase()
-    list = list.filter(f =>
-      f.key.toLowerCase().includes(q) ||
-      f.summary.toLowerCase().includes(q)
-    )
-  }
-  if (selectedVersions.value.length > 0) {
-    list = list.filter(f => f.fixVersions && f.fixVersions.some(v => selectedVersions.value.includes(v)))
-  }
-  return list
-})
-
-const summaryStats = computed(() => {
-  const all = filteredFeatures.value
-  const total = all.length
-  const done = all.filter(f => f.statusCategory === 'Done').length
-  const inProgress = all.filter(f => f.statusCategory === 'In Progress').length
-  const todo = all.filter(f => f.statusCategory === 'To Do').length
-  const blockers = all.reduce((s, f) => s + (f.blockerCount || 0), 0)
-  const totalEpics = all.reduce((s, f) => s + (f.epicCount || 0), 0)
-  const totalIssues = all.reduce((s, f) => s + (f.issueCount || 0), 0)
-  const avgCompletion = total > 0
-    ? Math.round(all.reduce((s, f) => s + (f.completionPct || 0), 0) / total)
-    : 0
-
-  return {
-    total,
-    done,
-    inProgress,
-    todo,
-    blockers,
-    totalEpics,
-    totalIssues,
-    avgCompletion
-  }
-})
-
-function donutArc(cx, cy, r, startAngle, endAngle) {
-  if (endAngle - startAngle >= 2 * Math.PI) {
-    return [
-      `M ${cx + r} ${cy}`,
-      `A ${r} ${r} 0 1 1 ${cx - r} ${cy}`,
-      `A ${r} ${r} 0 1 1 ${cx + r} ${cy}`
-    ].join(' ')
-  }
-  const x1 = cx + r * Math.cos(startAngle)
-  const y1 = cy + r * Math.sin(startAngle)
-  const x2 = cx + r * Math.cos(endAngle)
-  const y2 = cy + r * Math.sin(endAngle)
-  const large = endAngle - startAngle > Math.PI ? 1 : 0
-  return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`
+// Known executionState values from the producer contract. Anything else — null,
+// missing, or an unrecognized value from an older payload — is a coverage
+// fallback, never a fabricated lane.
+const KNOWN_EXECUTION_STATES = new Set(['no-tracked-work', 'not-started', 'in-progress', 'complete'])
+function laneKey(f) {
+  return KNOWN_EXECUTION_STATES.has(f.executionState) ? f.executionState : 'unavailable'
 }
 
-function ageDays(isoDate) {
-  if (!isoDate) return null
-  const d = new Date(isoDate)
-  const now = new Date()
-  return Math.floor((now - d) / (1000 * 60 * 60 * 24))
+const LANE_META = {
+  'no-tracked-work': {
+    title: 'No Tracked Work',
+    subtitle: 'No observed execution scope',
+    borderClass: 'border-gray-200 dark:border-gray-700',
+    bgClass: 'bg-gray-50 dark:bg-gray-800/40',
+    headerBg: 'bg-gray-100 dark:bg-gray-800',
+    textClass: 'text-gray-600 dark:text-gray-400',
+    dotClass: 'bg-gray-400'
+  },
+  'not-started': {
+    title: 'Not Started',
+    subtitle: 'Execution scope observed, no work begun yet',
+    borderClass: 'border-slate-300 dark:border-slate-600',
+    bgClass: 'bg-slate-50 dark:bg-slate-500/5',
+    headerBg: 'bg-slate-100 dark:bg-slate-500/10',
+    textClass: 'text-slate-700 dark:text-slate-300',
+    dotClass: 'bg-slate-400'
+  },
+  'in-progress': {
+    title: 'In Progress',
+    subtitle: 'Execution work under way',
+    borderClass: 'border-blue-300 dark:border-blue-500/40',
+    bgClass: 'bg-blue-50 dark:bg-blue-500/5',
+    headerBg: 'bg-blue-100 dark:bg-blue-500/10',
+    textClass: 'text-blue-700 dark:text-blue-400',
+    dotClass: 'bg-blue-500'
+  },
+  complete: {
+    title: 'Complete',
+    subtitle: 'All observed execution work is Done',
+    borderClass: 'border-emerald-300 dark:border-emerald-500/40',
+    bgClass: 'bg-emerald-50 dark:bg-emerald-500/5',
+    headerBg: 'bg-emerald-100 dark:bg-emerald-500/10',
+    textClass: 'text-emerald-700 dark:text-emerald-400',
+    dotClass: 'bg-emerald-500'
+  },
+  unavailable: {
+    title: 'Execution Data Unavailable',
+    subtitle: 'Execution state could not be determined for these features',
+    borderClass: 'border-dashed border-gray-300 dark:border-gray-600',
+    bgClass: 'bg-gray-50/60 dark:bg-gray-800/20',
+    headerBg: 'bg-gray-100/80 dark:bg-gray-800/60',
+    textClass: 'text-gray-500 dark:text-gray-400',
+    dotClass: 'bg-gray-300'
+  }
+}
+const BOARD_LANE_ORDER = ['no-tracked-work', 'not-started', 'in-progress', 'complete', 'unavailable']
+
+const READINESS_META = {
+  ready: { label: 'Ready', class: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' },
+  pending: { label: 'Pending', class: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-500/30' },
+  unknown: { label: 'Unknown', class: 'bg-gray-100 dark:bg-gray-500/15 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-500/30' },
+  'not-applicable': { label: 'N/A', class: 'bg-gray-50 dark:bg-gray-800/40 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700' }
+}
+function readinessMeta(r) {
+  return READINESS_META[r] || READINESS_META.unknown
 }
 
-function isStale(f) {
-  if (f.statusCategory !== 'In Progress') return false
-  const age = ageDays(f.lastUpdated)
-  return age !== null && age > 7
-}
-
-function formatAge(days) {
-  if (days === null) return ''
-  if (days === 0) return 'today'
-  if (days === 1) return '1d ago'
-  if (days < 30) return days + 'd ago'
-  if (days < 365) return Math.floor(days / 30) + 'mo ago'
-  return Math.floor(days / 365) + 'y ago'
-}
-
-// Traffic signal groupings
-const signalGroups = computed(() => {
-  const all = filteredFeatures.value
-
-  // Completion takes priority: 100% done features are complete regardless of
-  // stale health data (the pipeline counts resolved Blocker-priority issues
-  // in blockerCount, inflating RED health on finished features).
-  const complete = all.filter(f => f.completionPct >= 100)
-  const active = all.filter(f => f.completionPct < 100)
-
-  const blocked = active.filter(f => f.health === 'RED' && f.blockerCount > 0)
-  const redOther = active.filter(f => f.health === 'RED' && f.blockerCount === 0)
-  const atRisk = active.filter(f => f.health === 'YELLOW' && f.completionPct > 0)
-  const notStarted = active.filter(f => f.health === 'YELLOW' && f.completionPct === 0)
-  const onTrack = active.filter(f => f.health === 'GREEN')
-
-  return [
-    {
-      id: 'blocked',
-      title: 'Blocked',
-      subtitle: 'Active blockers preventing progress',
-      features: blocked,
-      borderClass: 'border-red-300 dark:border-red-500/40',
-      bgClass: 'bg-red-50 dark:bg-red-500/5',
-      headerBg: 'bg-red-100 dark:bg-red-500/10',
-      textClass: 'text-red-700 dark:text-red-400',
-      dotClass: 'bg-red-500'
-    },
-    {
-      id: 'red-other',
-      title: 'Needs Attention',
-      subtitle: 'Red health — stale or at risk of stalling',
-      features: redOther,
-      borderClass: 'border-red-200 dark:border-red-500/30',
-      bgClass: 'bg-red-50/50 dark:bg-red-500/5',
-      headerBg: 'bg-red-50 dark:bg-red-500/10',
-      textClass: 'text-red-600 dark:text-red-400',
-      dotClass: 'bg-red-400'
-    },
-    {
-      id: 'at-risk',
-      title: 'At Risk',
-      subtitle: 'In progress but behind schedule',
-      features: atRisk,
-      borderClass: 'border-yellow-300 dark:border-yellow-500/40',
-      bgClass: 'bg-yellow-50 dark:bg-yellow-500/5',
-      headerBg: 'bg-yellow-100 dark:bg-yellow-500/10',
-      textClass: 'text-yellow-700 dark:text-yellow-400',
-      dotClass: 'bg-yellow-500'
-    },
-    {
-      id: 'not-started',
-      title: 'Not Started',
-      subtitle: 'No progress yet',
-      features: notStarted,
-      borderClass: 'border-yellow-200 dark:border-yellow-500/30',
-      bgClass: 'bg-yellow-50/50 dark:bg-yellow-500/5',
-      headerBg: 'bg-yellow-50 dark:bg-yellow-500/10',
-      textClass: 'text-yellow-600 dark:text-yellow-400',
-      dotClass: 'bg-yellow-400'
-    },
-    {
-      id: 'on-track',
-      title: 'On Track',
-      subtitle: 'Healthy and making progress',
-      features: onTrack,
-      borderClass: 'border-green-300 dark:border-green-500/40',
-      bgClass: 'bg-green-50 dark:bg-green-500/5',
-      headerBg: 'bg-green-100 dark:bg-green-500/10',
-      textClass: 'text-green-700 dark:text-green-400',
-      dotClass: 'bg-green-500'
-    },
-    {
-      id: 'complete',
-      title: 'Complete',
-      subtitle: 'Fully delivered',
-      features: complete,
-      borderClass: 'border-green-200 dark:border-green-500/30',
-      bgClass: 'bg-green-50/50 dark:bg-green-500/5',
-      headerBg: 'bg-green-50 dark:bg-green-500/10',
-      textClass: 'text-green-600 dark:text-green-400',
-      dotClass: 'bg-green-400'
+// Presentation only — executionState/executionCoverage/preparationReadiness are
+// producer-owned and consumed read-only here, never recomputed. The two distinct
+// "unavailable" captions mirror the two known unavailable causes: epics observed
+// with no child issues at all, versus hierarchy/metrics genuinely missing.
+function executionSummary(f) {
+  if (f.executionCoverage === 'available') {
+    const total = f.executionIssueCount
+    const done = f.doneExecutionIssueCount
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0
+    return { kind: 'available', pct, done, total }
+  }
+  if (f.executionCoverage === 'empty') {
+    const hasIssues = (f.issueCount || 0) > 0
+    return {
+      kind: 'empty',
+      text: hasIssues ? 'Preparation work only · No tracked execution work' : 'No tracked execution work'
     }
-  ].filter(g => g.features.length > 0)
-})
+  }
+  const epics = f.epicCount || 0
+  const issues = f.issueCount || 0
+  const text = epics > 0 && issues === 0
+    ? epics + ' epic' + (epics === 1 ? '' : 's') + ' · No issue-level progress available'
+    : 'Execution data unavailable'
+  return { kind: 'unavailable', text }
+}
 
-const signalFilterOptions = [
-  { value: '', label: 'All States' },
-  { value: 'blocked', label: 'Blocked' },
-  { value: 'red-other', label: 'Needs Attention' },
-  { value: 'at-risk', label: 'At Risk' },
-  { value: 'not-started', label: 'Not Started' },
-  { value: 'on-track', label: 'On Track' },
-  { value: 'complete', label: 'Complete' }
-]
-
-const OVERVIEW_FILTER_STORAGE_KEY = 'releases:execute-overview-filters'
-
-const allowedSignalFilterIds = new Set(
-  signalFilterOptions.map(o => o.value).filter(Boolean)
-)
+const OVERVIEW_FILTER_STORAGE_KEY = 'releases:feature-list-filters'
 
 function saveOverviewFilters() {
   try {
@@ -238,7 +178,10 @@ function saveOverviewFilters() {
       OVERVIEW_FILTER_STORAGE_KEY,
       JSON.stringify({
         selectedVersions: selectedVersions.value,
-        selectedSignals: selectedSignals.value,
+        selectedExecutionStates: selectedExecutionStates.value,
+        selectedComponents: selectedComponents.value,
+        selectedStatuses: selectedStatuses.value,
+        attentionBlockersOnly: attentionBlockersOnly.value,
         searchQuery: searchQuery.value,
         viewMode: viewMode.value
       })
@@ -258,15 +201,24 @@ function restoreOverviewFilters() {
     if (Array.isArray(o.selectedVersions)) {
       selectedVersions.value = o.selectedVersions.filter(v => typeof v === 'string')
     }
-    if (Array.isArray(o.selectedSignals)) {
-      selectedSignals.value = o.selectedSignals.filter(
-        id => typeof id === 'string' && allowedSignalFilterIds.has(id)
+    if (Array.isArray(o.selectedExecutionStates)) {
+      selectedExecutionStates.value = o.selectedExecutionStates.filter(
+        id => typeof id === 'string' && allowedExecutionStateFilterIds.has(id)
       )
+    }
+    if (Array.isArray(o.selectedComponents)) {
+      selectedComponents.value = o.selectedComponents.filter(v => typeof v === 'string')
+    }
+    if (Array.isArray(o.selectedStatuses)) {
+      selectedStatuses.value = o.selectedStatuses.filter(v => typeof v === 'string')
+    }
+    if (typeof o.attentionBlockersOnly === 'boolean') {
+      attentionBlockersOnly.value = o.attentionBlockersOnly
     }
     if (typeof o.searchQuery === 'string') {
       searchQuery.value = o.searchQuery.slice(0, 2000)
     }
-    if (o.viewMode === 'list' || o.viewMode === 'signals') {
+    if (o.viewMode === 'list' || o.viewMode === 'board') {
       viewMode.value = o.viewMode
     }
   } catch {
@@ -275,20 +227,76 @@ function restoreOverviewFilters() {
 }
 
 watch(
-  [selectedVersions, selectedSignals, searchQuery, viewMode],
+  [selectedVersions, selectedExecutionStates, selectedComponents, selectedStatuses, attentionBlockersOnly, searchQuery, viewMode],
   saveOverviewFilters,
   { deep: true }
 )
 
-const visibleSignalGroups = computed(() => {
-  if (selectedSignals.value.length === 0) return signalGroups.value
-  return signalGroups.value.filter(g => selectedSignals.value.includes(g.id))
+// Options reflect the full feature list, independent of the current filter
+// selection, so narrowing one dimension never hides options for another.
+const componentOptions = computed(() => collectComponentOptions(features.value, f => f.components))
+const jiraStatusOptions = computed(() => collectStatusOptions(features.value, f => f.statusCategory))
+
+const isAnyFiltered = computed(() =>
+  selectedVersions.value.length > 0 ||
+  selectedExecutionStates.value.length > 0 ||
+  attentionBlockersOnly.value ||
+  !!searchQuery.value ||
+  isComponentStatusFiltered.value
+)
+
+function clearAllFilters() {
+  selectedVersions.value = []
+  selectedExecutionStates.value = []
+  attentionBlockersOnly.value = false
+  searchQuery.value = ''
+  clearComponentStatusFilters()
+}
+
+const filteredFeatures = computed(() => {
+  let list = features.value
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    list = list.filter(f =>
+      f.key.toLowerCase().includes(q) ||
+      f.summary.toLowerCase().includes(q)
+    )
+  }
+  if (selectedVersions.value.length > 0) {
+    list = list.filter(f => f.fixVersions && f.fixVersions.some(v => selectedVersions.value.includes(v)))
+  }
+  if (selectedExecutionStates.value.length > 0) {
+    list = list.filter(f => selectedExecutionStates.value.includes(laneKey(f)))
+  }
+  if (isComponentStatusFiltered.value) {
+    list = list.filter(f =>
+      matchesComponents(f.components, selectedComponents.value) &&
+      matchesStatus(f.statusCategory, selectedStatuses.value)
+    )
+  }
+  if (attentionBlockersOnly.value) {
+    list = list.filter(f => (f.blockerCount || 0) > 0)
+  }
+  return list
 })
 
-function normalizeOwnerStatusColor(c) {
-  const s = String(c || '').trim().toUpperCase()
-  return s === 'GREEN' || s === 'YELLOW' || s === 'RED' ? s : null
-}
+// Precomputed once per feature so Board and List share identical presentation
+// logic without recomputing per-cell in the template.
+const decoratedFeatures = computed(() => filteredFeatures.value.map(f => ({
+  feature: f,
+  lane: laneKey(f),
+  progress: executionSummary(f),
+  readiness: readinessMeta(f.preparationReadiness)
+})))
+
+const boardLanes = computed(() => {
+  const buckets = {}
+  for (const id of BOARD_LANE_ORDER) buckets[id] = []
+  for (const d of decoratedFeatures.value) buckets[d.lane].push(d)
+  return BOARD_LANE_ORDER
+    .map(id => ({ id, ...LANE_META[id], items: buckets[id] }))
+    .filter(lane => lane.items.length > 0)
+})
 
 function handleSelect(key) {
   nav.navigateTo('feature-detail', { key })
@@ -297,12 +305,6 @@ function handleSelect(key) {
 function formatDate(iso) {
   if (!iso) return 'Never'
   return new Date(iso).toLocaleString()
-}
-
-function progressBarColor(pct) {
-  if (pct >= 70) return 'bg-green-500'
-  if (pct >= 40) return 'bg-yellow-500'
-  return 'bg-red-500'
 }
 
 onMounted(() => {
@@ -321,9 +323,9 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">Feature Traffic Overview</h1>
+        <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">Feature Execution Overview</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          RHAISTRAT feature delivery pipeline health
+          Execution status and progress for features in the selected release, based on observed Jira data.
           <span v-if="fetchedAt" class="ml-2">
             &middot; Data from {{ formatDate(fetchedAt) }}
           </span>
@@ -335,12 +337,12 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
       <!-- View toggle -->
       <div class="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
         <button
-          @click="viewMode = 'signals'"
+          @click="viewMode = 'board'"
           class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors"
-          :class="viewMode === 'signals'
+          :class="viewMode === 'board'
             ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
             : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
-        >Signals</button>
+        >Board</button>
         <button
           @click="viewMode = 'list'"
           class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors"
@@ -348,68 +350,6 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
             ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
             : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
         >List</button>
-      </div>
-    </div>
-
-    <!-- Progress summary (reflects current filters) -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
-      <div class="flex flex-col md:flex-row items-start md:items-center gap-6">
-        <div class="flex-shrink-0">
-          <svg width="120" height="120" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="45" fill="none" stroke-width="14" class="stroke-gray-200 dark:stroke-gray-700" />
-            <path
-              v-if="summaryStats.done > 0"
-              :d="donutArc(60, 60, 45, -Math.PI / 2, -Math.PI / 2 + (summaryStats.done / Math.max(summaryStats.total, 1)) * 2 * Math.PI)"
-              fill="none"
-              stroke-width="14"
-              stroke-linecap="round"
-              class="stroke-green-500"
-            />
-            <path
-              v-if="summaryStats.inProgress > 0"
-              :d="donutArc(60, 60, 45,
-                -Math.PI / 2 + (summaryStats.done / Math.max(summaryStats.total, 1)) * 2 * Math.PI,
-                -Math.PI / 2 + ((summaryStats.done + summaryStats.inProgress) / Math.max(summaryStats.total, 1)) * 2 * Math.PI)"
-              fill="none"
-              stroke-width="14"
-              stroke-linecap="round"
-              class="stroke-blue-500"
-            />
-            <text x="60" y="55" text-anchor="middle" class="fill-gray-900 dark:fill-gray-100 text-xl font-bold" font-size="22" font-weight="bold">{{ summaryStats.avgCompletion }}%</text>
-            <text x="60" y="72" text-anchor="middle" class="fill-gray-500 dark:fill-gray-400" font-size="10">complete</text>
-          </svg>
-        </div>
-
-        <div class="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 w-full">
-          <div class="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50">
-            <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ summaryStats.total }}</div>
-            <div class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 uppercase tracking-wide">Features</div>
-          </div>
-          <div class="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50">
-            <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ summaryStats.totalEpics }}</div>
-            <div class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 uppercase tracking-wide">Epics</div>
-          </div>
-          <div class="text-center p-3 rounded-lg bg-green-50 dark:bg-green-500/10">
-            <div class="text-2xl font-bold text-green-600 dark:text-green-400">{{ summaryStats.done }}</div>
-            <div class="text-[10px] text-green-600 dark:text-green-400 mt-0.5 uppercase tracking-wide">Done</div>
-          </div>
-          <div class="text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-500/10">
-            <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ summaryStats.inProgress }}</div>
-            <div class="text-[10px] text-blue-600 dark:text-blue-400 mt-0.5 uppercase tracking-wide">Active</div>
-          </div>
-          <div class="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50">
-            <div class="text-2xl font-bold text-gray-500 dark:text-gray-400">{{ summaryStats.todo }}</div>
-            <div class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 uppercase tracking-wide">Backlog</div>
-          </div>
-          <div class="text-center p-3 rounded-lg" :class="summaryStats.blockers > 0 ? 'bg-red-50 dark:bg-red-500/10' : 'bg-gray-50 dark:bg-gray-900/50'">
-            <div class="text-2xl font-bold" :class="summaryStats.blockers > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'">{{ summaryStats.blockers }}</div>
-            <div class="text-[10px] mt-0.5 uppercase tracking-wide" :class="summaryStats.blockers > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'">Blockers</div>
-          </div>
-          <div class="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50">
-            <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ summaryStats.totalIssues }}</div>
-            <div class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 uppercase tracking-wide">Issues</div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -425,7 +365,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
       <!-- Multi-select: Versions -->
       <div class="relative multi-select-dropdown">
         <button
-          @click.stop="versionDropdownOpen = !versionDropdownOpen; signalDropdownOpen = false"
+          @click.stop="versionDropdownOpen = !versionDropdownOpen; executionStateDropdownOpen = false"
           class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[140px]"
           :class="selectedVersions.length > 0
             ? 'border-primary-500 ring-1 ring-primary-500'
@@ -455,31 +395,32 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
         </div>
       </div>
 
-      <!-- Multi-select: States -->
+      <!-- Multi-select: Execution State -->
       <div class="relative multi-select-dropdown">
         <button
-          @click.stop="signalDropdownOpen = !signalDropdownOpen; versionDropdownOpen = false"
-          class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[130px]"
-          :class="selectedSignals.length > 0
+          @click.stop="executionStateDropdownOpen = !executionStateDropdownOpen; versionDropdownOpen = false"
+          class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[160px]"
+          title="Execution state reflects observed, normalized Jira issues only; recognized preparation work is excluded."
+          :class="selectedExecutionStates.length > 0
             ? 'border-primary-500 ring-1 ring-primary-500'
             : 'border-gray-300 dark:border-gray-600'"
         >
-          <span class="flex-1 text-left truncate">{{ signalFilterLabel }}</span>
-          <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform" :class="{ 'rotate-180': signalDropdownOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          <span class="flex-1 text-left truncate">{{ executionStateFilterLabel }}</span>
+          <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform" :class="{ 'rotate-180': executionStateDropdownOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </button>
         <div
-          v-if="signalDropdownOpen"
-          class="absolute z-20 mt-1 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1"
+          v-if="executionStateDropdownOpen"
+          class="absolute z-20 mt-1 w-60 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1"
         >
           <label
-            v-for="opt in signalFilterOptions.filter(o => o.value)"
+            v-for="opt in EXECUTION_STATE_FILTER_OPTIONS"
             :key="opt.value"
             class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
           >
             <input
               type="checkbox"
-              :checked="selectedSignals.includes(opt.value)"
-              @change="toggleSignal(opt.value)"
+              :checked="selectedExecutionStates.includes(opt.value)"
+              @change="toggleExecutionState(opt.value)"
               class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
             />
             <span>{{ opt.label }}</span>
@@ -487,14 +428,35 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
         </div>
       </div>
 
+      <!-- Attention toggle -->
+      <label class="flex items-center gap-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+        <input
+          v-model="attentionBlockersOnly"
+          type="checkbox"
+          class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+        />
+        Blockers only
+      </label>
+
       <button
-        v-if="selectedVersions.length > 0 || searchQuery || selectedSignals.length > 0"
+        v-if="isAnyFiltered"
         class="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-        @click="selectedVersions = []; searchQuery = ''; selectedSignals = []"
+        @click="clearAllFilters"
       >
         Clear Filters
       </button>
     </div>
+
+    <ComponentStatusFilterBar
+      class="rounded-xl border border-gray-200 dark:border-gray-700"
+      :component-options="componentOptions"
+      :status-options="jiraStatusOptions"
+      :selected-components="selectedComponents"
+      :selected-statuses="selectedStatuses"
+      @toggle-component="toggleComponent"
+      @toggle-status="toggleStatus"
+      @clear="clearComponentStatusFilters"
+    />
 
     <!-- Error -->
     <div v-if="error" class="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-4 text-red-700 dark:text-red-400 text-sm">
@@ -507,147 +469,113 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
     </div>
 
     <template v-else>
-      <!-- ===================== SIGNALS VIEW ===================== -->
-      <template v-if="viewMode === 'signals'">
+      <!-- ===================== BOARD VIEW ===================== -->
+      <template v-if="viewMode === 'board'">
         <div class="space-y-4">
           <div
-            v-for="group in visibleSignalGroups"
-            :key="group.id"
+            v-for="lane in boardLanes"
+            :key="lane.id"
             class="rounded-lg border overflow-hidden"
-            :class="[group.borderClass, group.bgClass]"
+            :class="[lane.borderClass, lane.bgClass]"
           >
-            <!-- Signal card header -->
-            <div class="px-4 py-3 flex items-center justify-between" :class="group.headerBg">
+            <!-- Lane header -->
+            <div class="px-4 py-3 flex items-center justify-between" :class="lane.headerBg">
               <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full" :class="group.dotClass" />
-                <h3 class="text-sm font-semibold" :class="group.textClass">{{ group.title }}</h3>
-                <span class="text-xs font-medium px-1.5 py-0.5 rounded-full bg-white/60 dark:bg-gray-900/30" :class="group.textClass">{{ group.features.length }}</span>
+                <span class="w-3 h-3 rounded-full" :class="lane.dotClass" />
+                <h3 class="text-sm font-semibold" :class="lane.textClass">{{ lane.title }}</h3>
+                <span class="text-xs font-medium px-1.5 py-0.5 rounded-full bg-white/60 dark:bg-gray-900/30" :class="lane.textClass">{{ lane.items.length }}</span>
               </div>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ group.subtitle }}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ lane.subtitle }}</span>
             </div>
 
-            <!-- Feature tiles -->
+            <!-- Feature cards -->
             <div class="p-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
               <div
-                v-for="f in group.features"
-                :key="f.key"
+                v-for="d in lane.items"
+                :key="d.feature.key"
                 class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200/80 dark:border-gray-700/80 cursor-pointer hover:shadow-md dark:hover:border-gray-600 transition-all overflow-hidden"
-                @click="handleSelect(f.key)"
+                @click="handleSelect(d.feature.key)"
               >
-                <!-- Tile header -->
+                <!-- Card header -->
                 <div class="px-4 pt-3 pb-2">
                   <div class="flex items-center justify-between gap-2 mb-1">
                     <div class="flex items-center gap-2">
-                      <span class="text-primary-600 dark:text-blue-400 font-mono text-xs font-semibold">{{ f.key }}</span>
-                      <StatusBadge :status="f.status" />
+                      <span class="text-primary-600 dark:text-blue-400 font-mono text-xs font-semibold">{{ d.feature.key }}</span>
+                      <StatusBadge :status="d.feature.status" />
                     </div>
-                    <StatusBadge
-                      v-if="normalizeOwnerStatusColor(f.colorStatus || f.ownerStatusColor)"
-                      :health="normalizeOwnerStatusColor(f.colorStatus || f.ownerStatusColor)"
-                    />
-                    <StatusBadge v-else status="Status color missing" />
+                    <span
+                      class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold"
+                      :class="d.readiness.class"
+                      title="Preparation readiness — independent of execution progress"
+                    >{{ d.readiness.label }}</span>
                   </div>
-                  <p class="text-sm text-gray-900 dark:text-gray-100 font-medium leading-snug">{{ f.summary }}</p>
+                  <p class="text-sm text-gray-900 dark:text-gray-100 font-medium leading-snug">{{ d.feature.summary }}</p>
                 </div>
 
-                <!-- Progress bar -->
+                <!-- Progress -->
                 <div class="px-4 pb-2">
-                  <div class="flex items-center gap-2">
-                    <div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <div
-                        class="h-full rounded-full transition-all"
-                        :class="progressBarColor(f.completionPct)"
-                        :style="{ width: f.completionPct + '%' }"
-                      />
+                  <template v-if="d.progress.kind === 'available'">
+                    <div class="flex items-center gap-2">
+                      <div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full bg-primary-500" :style="{ width: d.progress.pct + '%' }" />
+                      </div>
+                      <span class="text-xs font-semibold text-gray-600 dark:text-gray-300 w-24 text-right">{{ d.progress.done }}/{{ d.progress.total }} &middot; {{ d.progress.pct }}%</span>
                     </div>
-                    <span class="text-xs font-bold w-10 text-right" :class="{
-                      'text-green-600 dark:text-green-400': f.completionPct >= 70,
-                      'text-yellow-600 dark:text-yellow-400': f.completionPct >= 40 && f.completionPct < 70,
-                      'text-red-600 dark:text-red-400': f.completionPct < 40
-                    }">{{ f.completionPct }}%</span>
-                  </div>
+                  </template>
+                  <p v-else class="text-xs italic text-gray-400 dark:text-gray-500">{{ d.progress.text }}</p>
                 </div>
 
                 <!-- Counts breakdown -->
                 <div class="px-4 pb-2 flex items-center gap-3 text-xs">
                   <span class="text-gray-500 dark:text-gray-400">
-                    <span class="font-semibold text-gray-700 dark:text-gray-300">{{ f.epicCount }}</span> Epics
+                    <span class="font-semibold text-gray-700 dark:text-gray-300">{{ d.feature.epicCount }}</span> Epics
                   </span>
                   <span class="text-gray-300 dark:text-gray-600">|</span>
-                  <span class="text-gray-500 dark:text-gray-400">
-                    <span class="font-semibold text-gray-700 dark:text-gray-300">{{ f.issueCount }}</span> Issues
+                  <span class="text-gray-500 dark:text-gray-400" title="Total tracked child issues, including recognized preparation">
+                    <span class="font-semibold text-gray-700 dark:text-gray-300">{{ d.feature.issueCount }}</span> Issues
                   </span>
-                  <span v-if="f.blockerCount > 0" class="text-gray-300 dark:text-gray-600">|</span>
-                  <span v-if="f.blockerCount > 0" class="text-red-600 dark:text-red-400 font-semibold">
-                    {{ f.blockerCount }} Blockers
+                  <span v-if="d.feature.blockerCount > 0" class="text-gray-300 dark:text-gray-600">|</span>
+                  <span v-if="d.feature.blockerCount > 0" class="text-amber-600 dark:text-amber-400 font-semibold">
+                    {{ d.feature.blockerCount }} Blockers
                   </span>
                 </div>
 
                 <!-- Footer pills -->
                 <div class="px-4 pb-3 flex flex-wrap items-center gap-1.5">
-                  <!-- Assignee -->
                   <span
-                    v-if="f.assignee"
+                    v-if="d.feature.assignee"
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
                   >
                     <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="6" r="4"/><path d="M2 17c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                    {{ f.assignee }}
+                    {{ d.feature.assignee }}
                   </span>
                   <span
                     v-else
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400"
                   >Unassigned</span>
 
-                  <!-- Fix versions -->
                   <span
-                    v-for="v in (f.fixVersions || [])"
+                    v-for="c in (d.feature.components || []).slice(0, 2)"
+                    :key="c"
+                    class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-400"
+                  >{{ componentDisplayLabel(c) }}</span>
+                  <span
+                    v-if="(d.feature.components || []).length > 2"
+                    class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                  >+{{ d.feature.components.length - 2 }}</span>
+
+                  <span
+                    v-for="v in (d.feature.fixVersions || [])"
                     :key="v"
                     class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400"
                   >{{ v }}</span>
-
-                  <!-- Labels (show first 2) -->
-                  <span
-                    v-for="label in (f.labels || []).slice(0, 2)"
-                    :key="label"
-                    class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-400"
-                  >{{ label }}</span>
-                  <span
-                    v-if="(f.labels || []).length > 2"
-                    class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
-                  >+{{ f.labels.length - 2 }}</span>
-
-                  <!-- Age -->
-                  <span
-                    v-if="f.lastUpdated"
-                    class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
-                  >{{ formatAge(ageDays(f.lastUpdated)) }}</span>
-
-                  <!-- Stale warning -->
-                  <span
-                    v-if="isStale(f)"
-                    class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400"
-                  >
-                    <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 15.75h.007v.008H12v-.008z"/></svg>
-                    Stale
-                  </span>
-
-                  <SignoffBadge
-                    :status="f.signoffStatus"
-                    :template-out-of-date="f.signoffTemplateOutOfDate === true"
-                    :checklist-total="f.signoffChecklistItemCount"
-                    :checklist-done="f.signoffChecklistDoneCount"
-                    :missing-count="f.signoffMissingCount"
-                    :rollup-in-progress="f.signoffRollupInProgress"
-                    :rollup-to-do="f.signoffRollupToDo"
-                    :rollup-other="f.signoffRollupOther"
-                  />
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div v-if="visibleSignalGroups.length === 0 && !loading" class="text-center py-12 text-gray-500">
+        <div v-if="boardLanes.length === 0 && !loading" class="text-center py-12 text-gray-500">
           No features found matching the current filters.
         </div>
       </template>
@@ -661,74 +589,83 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                 <tr class="border-b border-gray-200 dark:border-gray-700">
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Key</th>
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Summary</th>
-                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Status</th>
-                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Health</th>
-                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Progress</th>
-                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Epics</th>
-                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Issues</th>
-                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Blockers</th>
+                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Jira Status</th>
+                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Execution State</th>
                   <th
                     class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium"
-                    title="Signoff checklist: % complete = done / matched items. Open work = active (in progress + other) + to do. Hover for counts. See feature detail for full checklist."
-                  >
-                    Signoff
-                  </th>
+                    title="Done / observed execution issues. Recognized preparation work is excluded from both counts."
+                  >Progress</th>
+                  <th
+                    class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium"
+                    title="Preparation readiness is independent of execution progress; classification can be partial."
+                  >Preparation</th>
+                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Epics</th>
+                  <th
+                    class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium"
+                    title="Total tracked child issues, including recognized preparation — a different denominator than Progress"
+                  >Issues</th>
+                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Attention</th>
+                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Components</th>
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Version</th>
                 </tr>
               </thead>
               <tbody>
                 <tr
-                  v-for="f in filteredFeatures"
-                  :key="f.key"
+                  v-for="d in decoratedFeatures"
+                  :key="d.feature.key"
                   class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
-                  @click="handleSelect(f.key)"
+                  @click="handleSelect(d.feature.key)"
                 >
                   <td class="px-3 py-2">
-                    <span class="text-primary-600 dark:text-blue-400 font-mono text-xs">{{ f.key }}</span>
+                    <span class="text-primary-600 dark:text-blue-400 font-mono text-xs">{{ d.feature.key }}</span>
                   </td>
-                  <td class="px-3 py-2 text-gray-900 dark:text-gray-100 max-w-xs truncate">{{ f.summary }}</td>
-                  <td class="px-3 py-2"><StatusBadge :status="f.status" /></td>
-                  <td class="px-3 py-2"><StatusBadge :health="f.health">{{ f.health }}</StatusBadge></td>
+                  <td class="px-3 py-2 text-gray-900 dark:text-gray-100 max-w-xs truncate">{{ d.feature.summary }}</td>
+                  <td class="px-3 py-2"><StatusBadge :status="d.feature.status" /></td>
                   <td class="px-3 py-2">
-                    <div class="flex items-center gap-2">
-                      <div class="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                        <div
-                          class="h-full rounded-full transition-all"
-                          :class="progressBarColor(f.completionPct)"
-                          :style="{ width: f.completionPct + '%' }"
-                        />
+                    <span class="inline-flex items-center gap-1.5">
+                      <span class="w-2 h-2 rounded-full" :class="LANE_META[d.lane].dotClass" />
+                      <span class="text-xs" :class="LANE_META[d.lane].textClass">{{ LANE_META[d.lane].title }}</span>
+                    </span>
+                  </td>
+                  <td class="px-3 py-2 min-w-[150px]">
+                    <template v-if="d.progress.kind === 'available'">
+                      <div class="flex items-center gap-2">
+                        <div class="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div class="h-full rounded-full bg-primary-500" :style="{ width: d.progress.pct + '%' }" />
+                        </div>
+                        <span class="text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">{{ d.progress.done }}/{{ d.progress.total }} &middot; {{ d.progress.pct }}%</span>
                       </div>
-                      <span class="text-gray-500 dark:text-gray-400 text-xs">{{ f.completionPct }}%</span>
-                    </div>
+                    </template>
+                    <span v-else class="text-xs italic text-gray-400 dark:text-gray-500">{{ d.progress.text }}</span>
                   </td>
-                  <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ f.epicCount }}</td>
-                  <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ f.issueCount }}</td>
                   <td class="px-3 py-2">
-                    <span v-if="f.blockerCount > 0" class="text-red-600 dark:text-red-400 font-medium">{{ f.blockerCount }}</span>
-                    <span v-else class="text-gray-400 dark:text-gray-600">0</span>
+                    <span class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold" :class="d.readiness.class">{{ d.readiness.label }}</span>
                   </td>
-                  <td class="px-3 py-2 whitespace-nowrap">
-                    <SignoffBadge
-                      :status="f.signoffStatus"
-                      :template-out-of-date="f.signoffTemplateOutOfDate === true"
-                      :checklist-total="f.signoffChecklistItemCount"
-                      :checklist-done="f.signoffChecklistDoneCount"
-                      :missing-count="f.signoffMissingCount"
-                      :rollup-in-progress="f.signoffRollupInProgress"
-                      :rollup-to-do="f.signoffRollupToDo"
-                      :rollup-other="f.signoffRollupOther"
-                    />
+                  <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ d.feature.epicCount }}</td>
+                  <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ d.feature.issueCount }}</td>
+                  <td class="px-3 py-2">
+                    <span v-if="d.feature.blockerCount > 0" class="text-amber-600 dark:text-amber-400 font-medium">{{ d.feature.blockerCount }} Blockers</span>
+                    <span v-else class="text-gray-400 dark:text-gray-600">&mdash;</span>
+                  </td>
+                  <td class="px-3 py-2 max-w-[160px]">
+                    <span
+                      v-for="c in (d.feature.components || []).slice(0, 2)"
+                      :key="c"
+                      class="inline-block px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-400 text-xs mr-1 mb-1"
+                    >{{ componentDisplayLabel(c) }}</span>
+                    <span v-if="(d.feature.components || []).length > 2" class="text-xs text-gray-400 dark:text-gray-500">+{{ d.feature.components.length - 2 }}</span>
+                    <span v-if="(d.feature.components || []).length === 0" class="text-xs text-gray-400 dark:text-gray-500">Unassigned</span>
                   </td>
                   <td class="px-3 py-2">
                     <span
-                      v-for="v in (f.fixVersions || []).slice(0, 2)"
+                      v-for="v in (d.feature.fixVersions || []).slice(0, 2)"
                       :key="v"
                       class="inline-block px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs mr-1"
                     >{{ v }}</span>
                   </td>
                 </tr>
-                <tr v-if="filteredFeatures.length === 0">
-                  <td colspan="10" class="px-3 py-8 text-center text-gray-500">
+                <tr v-if="decoratedFeatures.length === 0">
+                  <td colspan="11" class="px-3 py-8 text-center text-gray-500">
                     No features found matching the current filters.
                   </td>
                 </tr>
