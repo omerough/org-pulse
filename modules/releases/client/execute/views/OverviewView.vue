@@ -144,18 +144,24 @@ function readinessMeta(r) {
   return READINESS_META[r] || READINESS_META.unknown
 }
 
+function isValidProgressCount(n) {
+  return Number.isInteger(n) && n >= 0
+}
+
 // Presentation only — executionState/executionCoverage/preparationReadiness are
 // producer-owned and consumed read-only here, never recomputed. The two distinct
 // "unavailable" captions mirror the two known unavailable causes: epics observed
 // with no child issues at all, versus hierarchy/metrics genuinely missing.
+// "available" coverage with counts that fail validation also falls through to
+// the unavailable caption, rather than a fabricated 0%/NaN/clamped value.
 function executionSummary(f) {
   if (f.executionCoverage === 'available') {
     const total = f.executionIssueCount
     const done = f.doneExecutionIssueCount
-    const pct = total > 0 ? Math.round((done / total) * 100) : 0
-    return { kind: 'available', pct, done, total }
-  }
-  if (f.executionCoverage === 'empty') {
+    if (isValidProgressCount(total) && isValidProgressCount(done) && total > 0 && done <= total) {
+      return { kind: 'available', pct: Math.round((done / total) * 100), done, total }
+    }
+  } else if (f.executionCoverage === 'empty') {
     const hasIssues = (f.issueCount || 0) > 0
     return {
       kind: 'empty',

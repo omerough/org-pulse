@@ -188,6 +188,125 @@ test.describe('Releases Views @releases', () => {
 });
 
 /**
+ * Feature List (Execution Overview)
+ *
+ * Board (default) and List presentation over the unified feature store's
+ * execution/preparation contract. Demo fixture keys used below:
+ *   TEST1-1131 (available, in-progress), TEST1-1045 (available, complete),
+ *   TEST1-284 (available, not-started), TEST1-15 (empty, no issues at all),
+ *   TEST1-157 (empty, preparation-only), TEST1-576 (epics with no issues —
+ *   unavailable), TEST1-1085 (predates the contract — missing metrics
+ *   entirely, also unavailable). See docs/DATA-FORMATS.md Fixture Rules.
+ */
+test.describe('Releases Feature List @releases', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  async function openFeatureList(page) {
+    await page.goto('/#/releases/execute');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+  }
+
+  test('loads from the demo fixture path and defaults to Board view with all lanes', async ({ page }) => {
+    await openFeatureList(page);
+
+    await expect(page.locator('h1', { hasText: 'Feature Execution Overview' })).toBeVisible();
+    for (const title of ['No Tracked Work', 'Not Started', 'In Progress', 'Complete', 'Execution Data Unavailable']) {
+      await expect(page.locator('h3', { hasText: title })).toBeVisible();
+    }
+
+    // Old-payload feature (predates the contract, no metrics.execution* fields at all)
+    // still renders, grouped under Execution Data Unavailable rather than dropped.
+    await expect(page.getByText('TEST1-1085')).toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('shows distinct available/empty/unavailable progress presentation on Board cards', async ({ page }) => {
+    await openFeatureList(page);
+
+    const availableCard = page.locator('.cursor-pointer', { hasText: 'TEST1-1131' });
+    await expect(availableCard).toContainText('2/5');
+    await expect(availableCard).toContainText('40%');
+
+    const completeCard = page.locator('.cursor-pointer', { hasText: 'TEST1-1045' });
+    await expect(completeCard).toContainText('4/4');
+    await expect(completeCard).toContainText('100%');
+
+    const emptyCard = page.locator('.cursor-pointer', { hasText: /TEST1-15\b/ });
+    await expect(emptyCard).toContainText('No tracked execution work');
+
+    const prepOnlyCard = page.locator('.cursor-pointer', { hasText: 'TEST1-157' });
+    await expect(prepOnlyCard).toContainText('Preparation work only');
+
+    const epicsNoIssuesCard = page.locator('.cursor-pointer', { hasText: 'TEST1-576' });
+    await expect(epicsNoIssuesCard).toContainText('No issue-level progress available');
+
+    const oldPayloadCard = page.locator('.cursor-pointer', { hasText: 'TEST1-1085' });
+    await expect(oldPayloadCard).toContainText('Execution data unavailable');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('switches to List view exposing the same population with Execution State and Progress columns', async ({ page }) => {
+    await openFeatureList(page);
+
+    await page.locator('button', { hasText: 'List' }).click();
+    await page.waitForTimeout(500);
+
+    const headers = await page.locator('table thead th').allTextContents();
+    expect(headers).toEqual([
+      'Key', 'Summary', 'Jira Status', 'Execution State', 'Progress',
+      'Preparation', 'Epics', 'Issues', 'Attention', 'Components', 'Version'
+    ]);
+
+    const availableRow = page.locator('table tbody tr', { hasText: 'TEST1-284' });
+    await expect(availableRow).toContainText('Not Started');
+    await expect(availableRow).toContainText('0/3');
+    await expect(availableRow).toContainText('0%');
+
+    const oldPayloadRow = page.locator('table tbody tr', { hasText: 'TEST1-1085' });
+    await expect(oldPayloadRow).toContainText('Execution Data Unavailable');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Execution State filter narrows Board/List to a single lane', async ({ page }) => {
+    await openFeatureList(page);
+
+    await page.getByRole('button', { name: 'All Execution States' }).click();
+    await page.locator('label', { hasText: 'Complete' }).locator('input[type="checkbox"]').check();
+    await page.waitForTimeout(500);
+
+    await expect(page.locator('h3')).toHaveCount(1);
+    await expect(page.locator('h3', { hasText: 'Complete' })).toBeVisible();
+    await expect(page.getByText('TEST1-1045')).toBeVisible();
+    await expect(page.getByText('TEST1-1131')).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Blockers-only attention filter narrows Board results', async ({ page }) => {
+    await openFeatureList(page);
+
+    // TEST1-1131 (in-progress) carries a blocker in the fixture; unrelated features don't.
+    await page.locator('label', { hasText: 'Blockers only' }).locator('input[type="checkbox"]').check();
+    await page.waitForTimeout(500);
+
+    await expect(page.getByText('TEST1-1131')).toBeVisible();
+    await expect(page.getByText(/TEST1-15\b/)).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+});
+
+/**
  * Release Plan
  *
  * Forward-looking version plan (OSAC-4396/OSAC-4399/OSAC-4394), served as a

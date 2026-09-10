@@ -165,7 +165,12 @@
         "storyPointsDone": 0,
         "health": "RED"
       }
-    ]
+    ],
+    "executionIssueCount": 3,
+    "doneExecutionIssueCount": 0,
+    "executionState": "not-started",
+    "executionCoverage": "available",
+    "preparationReadiness": "unknown"
   },
   "topology": {
     "repos": []

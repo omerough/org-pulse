@@ -99,7 +99,12 @@
         "storyPointsDone": 0,
         "health": "RED"
       }
-    ]
+    ],
+    "executionIssueCount": 0,
+    "doneExecutionIssueCount": 0,
+    "executionState": "no-tracked-work",
+    "executionCoverage": "empty",
+    "preparationReadiness": "not-applicable"
   },
   "topology": {
     "repos": []

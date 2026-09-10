@@ -114,6 +114,39 @@ describe('OverviewView (Feature List)', () => {
     expect(text).toContain('0/2')
   })
 
+  it('renders "available" coverage with invalid counts as unavailable, never a fabricated/NaN/clamped percentage', async () => {
+    const badFeatures = [
+      { key: 'BAD-ZERO', summary: 'Zero total', status: 'In Progress', statusCategory: 'In Progress',
+        fixVersions: [], components: [], epicCount: 1, issueCount: 1, blockerCount: 0,
+        executionIssueCount: 0, doneExecutionIssueCount: 0, executionState: 'in-progress', executionCoverage: 'available',
+        preparationReadiness: 'unknown' },
+      { key: 'BAD-NULL', summary: 'Null counts', status: 'In Progress', statusCategory: 'In Progress',
+        fixVersions: [], components: [], epicCount: 1, issueCount: 1, blockerCount: 0,
+        executionIssueCount: null, doneExecutionIssueCount: null, executionState: 'in-progress', executionCoverage: 'available',
+        preparationReadiness: 'unknown' },
+      { key: 'BAD-OVERFLOW', summary: 'Done exceeds total', status: 'In Progress', statusCategory: 'In Progress',
+        fixVersions: [], components: [], epicCount: 1, issueCount: 1, blockerCount: 0,
+        executionIssueCount: 3, doneExecutionIssueCount: 5, executionState: 'in-progress', executionCoverage: 'available',
+        preparationReadiness: 'unknown' },
+      { key: 'BAD-FLOAT', summary: 'Non-integer counts', status: 'In Progress', statusCategory: 'In Progress',
+        fixVersions: [], components: [], epicCount: 1, issueCount: 1, blockerCount: 0,
+        executionIssueCount: 4.5, doneExecutionIssueCount: 1, executionState: 'in-progress', executionCoverage: 'available',
+        preparationReadiness: 'unknown' }
+    ]
+    mockApiRequest.mockImplementation((url) => {
+      if (url.indexOf('/versions') !== -1) return Promise.resolve({ versions: [] })
+      return Promise.resolve({ features: badFeatures, fetchedAt: '2026-09-10T00:00:00Z', featureCount: badFeatures.length })
+    })
+    const wrapper = mount(OverviewView, { global: { provide: { moduleNav: mockNav() } } })
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).not.toMatch(/NaN/)
+    expect(text).not.toContain('0%')
+    const unavailableCount = (text.match(/Execution data unavailable/g) || []).length
+    expect(unavailableCount).toBe(badFeatures.length)
+  })
+
   it('shows preparation readiness independent of execution progress', async () => {
     const { wrapper } = await mountWithData()
     const text = wrapper.text()

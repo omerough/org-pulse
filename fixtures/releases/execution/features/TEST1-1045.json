@@ -405,7 +405,12 @@
         "storyPointsDone": 0,
         "health": "GREEN"
       }
-    ]
+    ],
+    "executionIssueCount": 4,
+    "doneExecutionIssueCount": 4,
+    "executionState": "complete",
+    "executionCoverage": "available",
+    "preparationReadiness": "ready"
   },
   "topology": {
     "repos": []

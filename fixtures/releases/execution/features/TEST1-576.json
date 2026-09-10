@@ -292,7 +292,12 @@
         "storyPointsDone": 0,
         "health": "RED"
       }
-    ]
+    ],
+    "executionIssueCount": null,
+    "doneExecutionIssueCount": null,
+    "executionState": null,
+    "executionCoverage": "insufficient-data",
+    "preparationReadiness": "not-applicable"
   },
   "topology": {
     "repos": []
