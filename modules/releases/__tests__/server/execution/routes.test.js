@@ -134,6 +134,64 @@ describe('execution routes', () => {
     })
   })
 
+  describe('GET /features', () => {
+    it('passes through execution/preparation fields verbatim, preserving null vs zero', () => {
+      storage = makeStorage({
+        'releases/execution/index.json': {
+          fetchedAt: '2026-08-01T00:00:00Z',
+          features: [
+            {
+              key: 'OSAC-1', summary: 'Available complete', status: 'Done', statusCategory: 'Done',
+              executionIssueCount: 2, doneExecutionIssueCount: 2,
+              executionState: 'complete', executionCoverage: 'available', preparationReadiness: 'ready'
+            },
+            {
+              key: 'OSAC-2', summary: 'Insufficient data', status: 'In Progress', statusCategory: 'In Progress',
+              executionIssueCount: null, doneExecutionIssueCount: null,
+              executionState: null, executionCoverage: 'insufficient-data', preparationReadiness: 'not-applicable'
+            }
+          ]
+        }
+      })
+      router = makeRouter()
+      registerExecutionRoutes(router, { ...context, storage })
+
+      const handler = router._routes.get['/features'].at(-1)
+      const res = makeRes()
+      handler({ query: {} }, res)
+
+      const byKey = Object.fromEntries(res._json.features.map(f => [f.key, f]))
+      expect(byKey['OSAC-1']).toMatchObject({
+        executionIssueCount: 2, doneExecutionIssueCount: 2,
+        executionState: 'complete', executionCoverage: 'available', preparationReadiness: 'ready'
+      })
+      expect(byKey['OSAC-2']).toMatchObject({
+        executionIssueCount: null, doneExecutionIssueCount: null,
+        executionState: null, executionCoverage: 'insufficient-data', preparationReadiness: 'not-applicable'
+      })
+    })
+
+    it('leaves an old/missing payload feature visible without the new fields', () => {
+      storage = makeStorage({
+        'releases/execution/index.json': {
+          fetchedAt: '2026-08-01T00:00:00Z',
+          features: [
+            { key: 'OSAC-9', summary: 'Pre-migration feature', status: 'New', statusCategory: 'To Do' }
+          ]
+        }
+      })
+      router = makeRouter()
+      registerExecutionRoutes(router, { ...context, storage })
+
+      const handler = router._routes.get['/features'].at(-1)
+      const res = makeRes()
+      handler({ query: {} }, res)
+
+      expect(res._json.features).toHaveLength(1)
+      expect(res._json.features[0].key).toBe('OSAC-9')
+    })
+  })
+
   describe('POST /refresh', () => {
     it('returns 429 on cooldown', async () => {
       const { init } = require('../../../server/execution/scheduler')

@@ -980,6 +980,11 @@ Derived summary index of all features in the unified feature store. Rebuilt auto
       "issueCount": 30,
       "blockerCount": 1,
       "health": "GREEN",
+      "executionIssueCount": 22,
+      "doneExecutionIssueCount": 15,
+      "executionState": "in-progress",
+      "executionCoverage": "available",
+      "preparationReadiness": "ready",
       "lastUpdated": "2026-06-01T00:00:00Z",
       "targetVersions": ["3.5"],
       "pm": "Product Manager",
@@ -1000,6 +1005,14 @@ Derived summary index of all features in the unified feature store. Rebuilt auto
 - `pm` is flattened to a string from the detail object shape
 - `team` and `components` are Jira-sourced fields surfaced in the index for filtering
 - Metrics fields (`completionPct`, `epicCount`, etc.) are derived from the detail `metrics` object
+- `executionIssueCount`, `doneExecutionIssueCount`, `executionState`, `executionCoverage`, and
+  `preparationReadiness` are pipeline-owned and copied verbatim from the same-named fields under
+  the detail `metrics` object (see below); `executionIssueCount`/`doneExecutionIssueCount`/
+  `executionState` preserve `null` distinctly from `0`. A feature file predating this contract
+  (missing these keys under `metrics`) renders as unavailable: `executionIssueCount`,
+  `doneExecutionIssueCount`, and `executionState` default to `null`, `executionCoverage` defaults
+  to `"insufficient-data"`, and `preparationReadiness` defaults to `"unknown"` — never a fabricated
+  `"empty"` or a legacy-progress fallback
 
 ## Releases — Execution Feature Detail (`data/releases/execution/features/{KEY}.json`)
 
@@ -1064,7 +1077,12 @@ Unified per-feature file combining data from pipeline (GitLab CI), Jira enrichme
     "totalIssues": 30,
     "completionPct": 75,
     "blockerCount": 1,
-    "health": "GREEN"
+    "health": "GREEN",
+    "executionIssueCount": 22,
+    "doneExecutionIssueCount": 15,
+    "executionState": "in-progress",
+    "executionCoverage": "available",
+    "preparationReadiness": "ready"
   },
   "topology": { "repos": [] },
 
@@ -1080,6 +1098,19 @@ Unified per-feature file combining data from pipeline (GitLab CI), Jira enrichme
 - `statusNotes` (pipeline) and `statusSummary` (Jira) are different fields with different formats
 - Jira-owned fields are authoritative when present; pipeline-owned fields (`metrics`, `topology`) are preserved across Jira syncs
 - `aiReview` is optional; only present for features that have been scored by the AI review pipeline
+- `metrics.executionIssueCount`, `metrics.doneExecutionIssueCount`, `metrics.executionState`,
+  `metrics.executionCoverage`, and `metrics.preparationReadiness` are additive, pipeline-owned
+  execution/preparation fields (org-pulse-data project config/normalization owns their semantics;
+  org-pulse consumes them read-only and must not recompute or reclassify). `executionState` is one
+  of `no-tracked-work` / `not-started` / `in-progress` / `complete`, or `null` when
+  `executionCoverage` is `insufficient-data`. `executionCoverage` is one of `available` / `empty` /
+  `insufficient-data`. `preparationReadiness` is one of `ready` / `pending` / `unknown` /
+  `not-applicable`. `executionIssueCount`/`doneExecutionIssueCount` are non-negative integers or
+  `null`; `null` means not computable and must be kept distinct from a measured `0`. These fields
+  are separate from — and never derived from — `completionPct`/`health`/`colorStatus`/
+  `ownerStatusColor`, which remain in the payload for compatibility but are not rendered in Feature
+  List. See `metrics`/`epicMetrics` above for the pre-existing SP-weighted legacy rollup these do
+  not replace.
 
 **Epic provenance (`fixVersionSource`, `componentSource`):** each is one of `direct`, `via-parent-feature`, or `unknown`. Consumers must render `via-parent-feature` values with a visible inherited-source indicator — never as if they were the epic's own — and render `unknown` as an explicit unknown state rather than leaving it blank. `parentFeatureKey`, `issueCount`, `blockerCount`, and `pct`/`progress` (`progress` is an alias of `pct`) make each epic object self-contained for consumers, without a separate lookup into `metrics.epicMetrics[]`.
 

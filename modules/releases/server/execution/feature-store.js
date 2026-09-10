@@ -199,6 +199,19 @@ async function rebuildIndex(storage) {
       issueCount: feature.metrics ? (feature.metrics.totalIssues || 0) : 0,
       blockerCount: feature.metrics ? (feature.metrics.blockerCount || 0) : 0,
       health: feature.metrics ? (feature.metrics.health || null) : null,
+      // Execution/preparation fields (pipeline-owned, nested under detail metrics).
+      // Missing on an older/incompatible payload renders as unavailable — never
+      // fabricate "empty" — while an explicit null or 0 from the producer passes through as-is.
+      executionIssueCount: feature.metrics && feature.metrics.executionIssueCount !== undefined
+        ? feature.metrics.executionIssueCount : null,
+      doneExecutionIssueCount: feature.metrics && feature.metrics.doneExecutionIssueCount !== undefined
+        ? feature.metrics.doneExecutionIssueCount : null,
+      executionState: feature.metrics && feature.metrics.executionState !== undefined
+        ? feature.metrics.executionState : null,
+      executionCoverage: feature.metrics && feature.metrics.executionCoverage !== undefined
+        ? feature.metrics.executionCoverage : 'insufficient-data',
+      preparationReadiness: feature.metrics && feature.metrics.preparationReadiness !== undefined
+        ? feature.metrics.preparationReadiness : 'unknown',
       // Timestamps
       lastUpdated: feature.updated || null,
       // Pipeline-index-only fields
