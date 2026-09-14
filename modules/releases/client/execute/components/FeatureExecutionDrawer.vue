@@ -61,11 +61,13 @@ function isUnclassified(issue) {
 }
 
 function issueMain(epic) {
-  return (epic.issues || []).filter(i => i.isPreparation !== true)
+  if (!Array.isArray(epic.issues)) return []
+  return epic.issues.filter(i => i.isPreparation !== true)
 }
 
 function issuePrep(epic) {
-  return (epic.issues || []).filter(i => i.isPreparation === true)
+  if (!Array.isArray(epic.issues)) return []
+  return epic.issues.filter(i => i.isPreparation === true)
 }
 </script>
 

@@ -34,6 +34,33 @@ const PIPELINE_INDEX_FIELDS = [
 // AI-review-owned fields — preserved across pipeline/Jira merges
 const AI_REVIEW_FIELDS = ['aiReview'];
 
+function epicKeySet(epics) {
+  return new Set((epics || []).map(function(e) { return e.key; }));
+}
+
+// Key-set equality, ignoring order and per-Epic summary/status changes.
+function epicMembershipChanged(before, after) {
+  const beforeKeys = epicKeySet(before);
+  const afterKeys = epicKeySet(after);
+  if (beforeKeys.size !== afterKeys.size) return true;
+  for (const key of beforeKeys) {
+    if (!afterKeys.has(key)) return true;
+  }
+  return false;
+}
+
+// Same shape rebuildIndex() falls back to for a missing/legacy payload.
+// Returns a new object — never mutates the input metrics.
+function invalidateExecutionProgress(metrics) {
+  return Object.assign({}, metrics, {
+    executionIssueCount: null,
+    doneExecutionIssueCount: null,
+    executionState: null,
+    executionCoverage: 'insufficient-data',
+    executionCoverageReason: null
+  });
+}
+
 /**
  * Merge producer-owned Epics against Jira's current Epic membership snapshot.
  * A successful jiraEpics snapshot is authoritative for *membership* — an Epic
@@ -117,6 +144,12 @@ function mergeFeatureData(existing, pipelineData, jiraData) {
   const epicsBase = pipeline.epics !== undefined ? pipeline.epics : base.epics;
   if (jiraData && jira.epics !== undefined) {
     merged.epics = mergeEpics(epicsBase, jira.epics);
+
+    // epicsBase is the Epic set merged.metrics was computed over; if Jira's
+    // membership diverges from it, that aggregate is stale.
+    if (merged.metrics && epicMembershipChanged(epicsBase, merged.epics)) {
+      merged.metrics = invalidateExecutionProgress(merged.metrics);
+    }
   } else if (epicsBase !== undefined) {
     merged.epics = epicsBase;
   }

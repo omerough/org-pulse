@@ -247,12 +247,12 @@ test.describe('Releases Feature List @releases', () => {
     // assuming board/column order (paginated at 6/page).
     await search.fill('TEST1-1131');
     await expect(page.getByRole('button', { name: 'Open details for TEST1-1131', exact: true })).toBeVisible();
-    await expect(page.getByText('2/5')).toBeVisible();
-    await expect(page.getByText('40%')).toBeVisible();
+    await expect(page.getByText('7/10')).toBeVisible();
+    await expect(page.getByText('70%')).toBeVisible();
 
     await search.fill('TEST1-1045');
     await expect(page.getByRole('button', { name: 'Open details for TEST1-1045', exact: true })).toBeVisible();
-    await expect(page.getByText('4/4')).toBeVisible();
+    await expect(page.getByText('9/9')).toBeVisible();
     await expect(page.getByText('100%')).toBeVisible();
 
     // The remaining cases have no measurable execution progress; their truthful

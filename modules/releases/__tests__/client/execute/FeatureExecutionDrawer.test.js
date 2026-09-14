@@ -116,6 +116,27 @@ describe('FeatureExecutionDrawer', () => {
     expect(wrapper.text()).toContain('PRD: Streaming inference')
   })
 
+  it('treats a non-array epic.issues as no issue-level data, not confirmed zero execution', async () => {
+    const detail = {
+      key: 'OSAC-100',
+      epics: [{
+        key: 'EP-1', summary: 'Malformed epic', status: 'In Progress',
+        executionIssueCount: 2, doneExecutionIssueCount: 1,
+        issues: 'not-an-array'
+      }]
+    }
+    const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
+
+    // Epic-level progress still reads from executionIssueCount/doneExecutionIssueCount
+    // directly, unaffected by the malformed issues array.
+    expect(wrapper.text()).toContain('1/2')
+
+    const expandButton = wrapper.findAll('button').find(b => b.text().includes('Malformed epic'))
+    await expandButton.trigger('click')
+    expect(wrapper.text()).toContain('No execution issues')
+    expect(wrapper.findAll('button').find(b => b.text().includes('Show preparation'))).toBeUndefined()
+  })
+
   it('links the Epic key to Jira without toggling expansion, keeping chevron/title as separate controls', async () => {
     const detail = {
       key: 'OSAC-100',

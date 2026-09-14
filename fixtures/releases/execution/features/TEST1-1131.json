@@ -420,8 +420,8 @@
         "health": "GREEN"
       }
     ],
-    "executionIssueCount": 5,
-    "doneExecutionIssueCount": 2,
+    "executionIssueCount": 10,
+    "doneExecutionIssueCount": 7,
     "executionState": "in-progress",
     "executionCoverage": "available",
     "preparationReadiness": "pending",

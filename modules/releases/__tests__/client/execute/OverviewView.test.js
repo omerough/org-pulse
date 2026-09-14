@@ -208,6 +208,11 @@ describe('OverviewView (Feature List)', () => {
     const wrapper = mount(OverviewView, { global: { provide: { moduleNav: mockNav() } } })
     await flushPromises()
 
+    // Invalid counts fail the board's validated-progress check, so these land
+    // in the coverage panel (collapsed by default) rather than on the board.
+    const coverageButton = wrapper.findAll('button').find(b => b.text().includes('Without progress data'))
+    await coverageButton.trigger('click')
+
     const text = wrapper.text()
     expect(text).not.toMatch(/NaN/)
     expect(text).not.toContain('0%')

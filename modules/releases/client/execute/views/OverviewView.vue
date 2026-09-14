@@ -307,22 +307,26 @@ const decoratedFeatures = computed(() => filteredFeatures.value.map(f => ({
   readiness: readinessMeta(f.preparationReadiness, f.key)
 })))
 
+// Requires both a recognized lane and validated progress, so a known lane
+// with invalid counts (or vice versa) lands in coverage, not neither total.
+function isBoardEligible(d) {
+  return BOARD_COLUMNS.includes(d.lane) && d.progress.kind === 'available'
+}
+
 // Three side-by-side execution columns, replacing the previous vertically
 // stacked five-lane board. `LANE_META`/`laneKey` remain in use by filtering
 // and the List view's per-row lane badge.
 const boardColumns = computed(() => {
   const buckets = { 'not-started': [], 'in-progress': [], complete: [] }
   for (const d of decoratedFeatures.value) {
-    if (buckets[d.lane]) buckets[d.lane].push(d)
+    if (isBoardEligible(d)) buckets[d.lane].push(d)
   }
   return BOARD_COLUMNS.map(id => ({ id, ...LANE_META[id], items: buckets[id] }))
 })
 
-// Not additional columns: every feature without measurable execution
-// progress (today's no-tracked-work lane plus the unavailable fallback)
-// combines into one coverage total instead.
+// Exact complement of board membership.
 const coverageFeatures = computed(() =>
-  decoratedFeatures.value.filter(d => !BOARD_COLUMNS.includes(d.lane))
+  decoratedFeatures.value.filter(d => !isBoardEligible(d))
 )
 const measurableCount = computed(() => decoratedFeatures.value.length - coverageFeatures.value.length)
 

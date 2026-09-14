@@ -292,6 +292,113 @@ describe('mergeFeatureData — Epics ownership', () => {
   })
 })
 
+describe('mergeFeatureData — execution progress invalidation on Epic membership change', () => {
+  const availableMetrics = {
+    totalEpics: 2, totalIssues: 6, completionPct: 50, blockerCount: 0, health: 'YELLOW',
+    executionIssueCount: 6, doneExecutionIssueCount: 3,
+    executionState: 'in-progress', executionCoverage: 'available',
+    executionCoverageReason: null, preparationReadiness: 'ready'
+  }
+  const epicA = { key: 'EP-A', summary: 'A', status: 'New', executionIssueCount: 3, doneExecutionIssueCount: 1 }
+  const epicB = { key: 'EP-B', summary: 'B', status: 'New', executionIssueCount: 3, doneExecutionIssueCount: 2 }
+
+  it('invalidates when Jira adds an Epic beyond the metrics snapshot', () => {
+    const existing = { key: 'X-1', metrics: availableMetrics, epics: [epicA, epicB] }
+    const jira = { key: 'X-1', epics: [
+      { key: 'EP-A', summary: 'A', status: 'New' },
+      { key: 'EP-B', summary: 'B', status: 'New' },
+      { key: 'EP-NEW', summary: 'New', status: 'New' }
+    ] }
+    const result = mergeFeatureData(existing, null, jira)
+
+    expect(result.metrics.executionCoverage).toBe('insufficient-data')
+    expect(result.metrics.executionCoverageReason).toBeNull()
+    expect(result.metrics.executionState).toBeNull()
+    expect(result.metrics.executionIssueCount).toBeNull()
+    expect(result.metrics.doneExecutionIssueCount).toBeNull()
+    // Legacy metrics and preparation readiness are untouched
+    expect(result.metrics.totalEpics).toBe(2)
+    expect(result.metrics.health).toBe('YELLOW')
+    expect(result.metrics.preparationReadiness).toBe('ready')
+  })
+
+  it('invalidates when Jira removes an Epic the metrics snapshot counted', () => {
+    const existing = { key: 'X-1', metrics: availableMetrics, epics: [epicA, epicB] }
+    const jira = { key: 'X-1', epics: [{ key: 'EP-A', summary: 'A', status: 'New' }] }
+    const result = mergeFeatureData(existing, null, jira)
+
+    expect(result.metrics.executionCoverage).toBe('insufficient-data')
+    expect(result.metrics.executionIssueCount).toBeNull()
+  })
+
+  it('does not invalidate when Epic membership is unchanged, only reordered', () => {
+    const existing = { key: 'X-1', metrics: availableMetrics, epics: [epicA, epicB] }
+    const jira = { key: 'X-1', epics: [
+      { key: 'EP-B', summary: 'B', status: 'New' },
+      { key: 'EP-A', summary: 'A', status: 'New' }
+    ] }
+    const result = mergeFeatureData(existing, null, jira)
+
+    expect(result.metrics).toEqual(availableMetrics)
+  })
+
+  it('does not invalidate on a summary/status-only refresh of the same Epics', () => {
+    const existing = { key: 'X-1', metrics: availableMetrics, epics: [epicA, epicB] }
+    const jira = { key: 'X-1', epics: [
+      { key: 'EP-A', summary: 'Refreshed A', status: 'In Progress' },
+      { key: 'EP-B', summary: 'B', status: 'New' }
+    ] }
+    const result = mergeFeatureData(existing, null, jira)
+
+    expect(result.metrics).toEqual(availableMetrics)
+    expect(result.epics[0].summary).toBe('Refreshed A')
+  })
+
+  it('does not invalidate when Jira discovery fails or is skipped entirely', () => {
+    const existing = { key: 'X-1', metrics: availableMetrics, epics: [epicA] }
+    const result = mergeFeatureData(existing, null, null)
+
+    expect(result.metrics).toEqual(availableMetrics)
+    expect(result.epics).toEqual([epicA])
+  })
+
+  it('invalidation persists through a subsequent Jira-only refresh with unchanged membership', () => {
+    const existing = { key: 'X-1', metrics: availableMetrics, epics: [epicA, epicB] }
+    const afterMembershipChange = mergeFeatureData(
+      existing, null, { key: 'X-1', epics: [{ key: 'EP-A', summary: 'A', status: 'New' }] }
+    )
+    expect(afterMembershipChange.metrics.executionCoverage).toBe('insufficient-data')
+
+    const afterFollowUpSync = mergeFeatureData(
+      afterMembershipChange, null, { key: 'X-1', epics: [{ key: 'EP-A', summary: 'A', status: 'New' }] }
+    )
+    expect(afterFollowUpSync.metrics.executionCoverage).toBe('insufficient-data')
+    expect(afterFollowUpSync.metrics.executionIssueCount).toBeNull()
+  })
+
+  it('a compatible fresh producer snapshot restores available progress', () => {
+    const invalidated = {
+      key: 'X-1',
+      metrics: { ...availableMetrics, executionCoverage: 'insufficient-data', executionCoverageReason: null, executionState: null, executionIssueCount: null, doneExecutionIssueCount: null },
+      epics: [epicA]
+    }
+    const freshMetrics = { ...availableMetrics, totalEpics: 1, executionIssueCount: 3, doneExecutionIssueCount: 1, executionState: 'in-progress' }
+    const pipeline = { key: 'X-1', metrics: freshMetrics, epics: [epicA] }
+    const jira = { key: 'X-1', epics: [{ key: 'EP-A', summary: 'A', status: 'New' }] }
+    const result = mergeFeatureData(invalidated, pipeline, jira)
+
+    expect(result.metrics).toEqual(freshMetrics)
+  })
+
+  it('does not mutate the existing metrics object when invalidating', () => {
+    const metricsCopy = { ...availableMetrics }
+    const existing = { key: 'X-1', metrics: metricsCopy, epics: [epicA, epicB] }
+    mergeFeatureData(existing, null, { key: 'X-1', epics: [{ key: 'EP-A', summary: 'A', status: 'New' }] })
+
+    expect(metricsCopy).toEqual(availableMetrics)
+  })
+})
+
 describe('rebuildIndex', () => {
   it('builds index from feature files', async () => {
     const storage = makeStorage({
