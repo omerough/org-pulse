@@ -228,42 +228,54 @@ test.describe('Releases Feature List @releases', () => {
     const coverageButton = page.getByRole('button', { name: /Without progress data/ });
     await expect(coverageButton).toBeVisible();
 
-    // Old-payload feature (predates the contract, no metrics.execution* fields at all)
-    // is part of the coverage total rather than dropped; hidden until expanded.
-    await expect(page.getByText('TEST1-1085')).toHaveCount(0);
+    // Old-payload feature is part of the coverage total rather than dropped;
+    // hidden until expanded. Searched by key to land on the panel's first page.
+    await page.getByLabel('Search').fill('TEST1-1085');
+    const oldPayloadTrigger = page.getByRole('button', { name: 'Open details for TEST1-1085', exact: true });
+    await expect(oldPayloadTrigger).toHaveCount(0);
     await coverageButton.click();
-    await expect(page.getByText('TEST1-1085')).toBeVisible();
+    await expect(oldPayloadTrigger).toBeVisible();
 
     expect(page.errors).toHaveLength(0);
   });
 
   test('shows distinct available/empty/unavailable progress presentation on Board and coverage cards', async ({ page }) => {
     await openFeatureList(page);
+    const search = page.getByLabel('Search');
 
-    const availableCard = page.locator('.cursor-pointer', { hasText: 'TEST1-1131' });
-    await expect(availableCard).toContainText('2/5');
-    await expect(availableCard).toContainText('40%');
+    // Each case is searched by key so it lands on the first page rather than
+    // assuming board/column order (paginated at 6/page).
+    await search.fill('TEST1-1131');
+    await expect(page.getByRole('button', { name: 'Open details for TEST1-1131', exact: true })).toBeVisible();
+    await expect(page.getByText('2/5')).toBeVisible();
+    await expect(page.getByText('40%')).toBeVisible();
 
-    const completeCard = page.locator('.cursor-pointer', { hasText: 'TEST1-1045' });
-    await expect(completeCard).toContainText('4/4');
-    await expect(completeCard).toContainText('100%');
+    await search.fill('TEST1-1045');
+    await expect(page.getByRole('button', { name: 'Open details for TEST1-1045', exact: true })).toBeVisible();
+    await expect(page.getByText('4/4')).toBeVisible();
+    await expect(page.getByText('100%')).toBeVisible();
 
     // The remaining cases have no measurable execution progress; their truthful
     // reason (from the producer's executionCoverageReason) only shows once the
-    // coverage total is expanded.
-    await page.getByRole('button', { name: /Without progress data/ }).click();
+    // coverage panel is expanded.
+    const coverageButton = page.getByRole('button', { name: /Without progress data/ });
 
-    const noEpicsCard = page.locator('.cursor-pointer', { hasText: /TEST1-15\b/ });
-    await expect(noEpicsCard).toContainText('No linked Epics');
+    // "TEST1-15" also matches 6 "TEST1-15x" siblings (7 total); both targets
+    // below (indices 0 and 4) land within the first page of 6, regardless.
+    await search.fill('TEST1-15');
+    await coverageButton.click();
+    await expect(page.getByRole('button', { name: 'Open details for TEST1-15', exact: true })).toBeVisible();
+    await expect(page.getByText('No linked epics found')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open details for TEST1-157', exact: true })).toBeVisible();
+    await expect(page.getByText('Only preparation issues found')).toBeVisible();
 
-    const prepOnlyCard = page.locator('.cursor-pointer', { hasText: 'TEST1-157' });
-    await expect(prepOnlyCard).toContainText('Preparation work only');
+    await search.fill('TEST1-576');
+    await expect(page.getByRole('button', { name: 'Open details for TEST1-576', exact: true })).toBeVisible();
+    await expect(page.getByText('Issue details missing')).toBeVisible();
 
-    const epicsNoIssuesCard = page.locator('.cursor-pointer', { hasText: 'TEST1-576' });
-    await expect(epicsNoIssuesCard).toContainText('No issue-level progress available');
-
-    const oldPayloadCard = page.locator('.cursor-pointer', { hasText: 'TEST1-1085' });
-    await expect(oldPayloadCard).toContainText('Execution data unavailable');
+    await search.fill('TEST1-1085');
+    await expect(page.getByRole('button', { name: 'Open details for TEST1-1085', exact: true })).toBeVisible();
+    await expect(page.getByText('Execution data unavailable')).toBeVisible();
 
     expect(page.errors).toHaveLength(0);
   });
@@ -277,7 +289,7 @@ test.describe('Releases Feature List @releases', () => {
     const headers = await page.locator('table thead th').allTextContents();
     expect(headers).toEqual([
       'Key', 'Summary', 'Jira Status', 'Execution State', 'Progress',
-      'Preparation', 'Epics', 'Issues', 'Attention', 'Components', 'Version'
+      'Preparation', 'Epics', 'Total issues', 'Attention', 'Components', 'Version'
     ]);
 
     const availableRow = page.locator('table tbody tr', { hasText: 'TEST1-284' });
