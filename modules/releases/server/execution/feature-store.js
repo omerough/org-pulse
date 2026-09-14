@@ -10,13 +10,15 @@ const DATA_PREFIX = 'releases/execution';
 
 let storeWriteInProgress = false;
 
-// Jira-owned fields — Jira always wins, preserve existing if jiraData is null
+// Jira-owned fields — Jira always wins, preserve existing if jiraData is null.
+// 'epics' is deliberately excluded: it is merged per-Epic in mergeEpics() below,
+// not wholesale-owned by either source.
 const JIRA_FIELDS = [
   'status', 'statusCategory', 'colorStatus', 'ownerStatusColor',
   'statusSummary', 'assignee', 'pm', 'labels', 'fixVersions',
   'targetVersions', 'components', 'priority', 'team', 'releaseType',
   'docsRequired', 'targetEnd', 'riceScore', 'riceStatus', 'isBlocked',
-  'linkedRfeKey', 'issueLinks', 'epics'
+  'linkedRfeKey', 'issueLinks'
 ];
 
 // Pipeline-owned fields — pipeline always wins
@@ -31,6 +33,32 @@ const PIPELINE_INDEX_FIELDS = [
 
 // AI-review-owned fields — preserved across pipeline/Jira merges
 const AI_REVIEW_FIELDS = ['aiReview'];
+
+/**
+ * Merge producer-owned Epics with Jira's key/summary/status-only discovery, by Epic
+ * key — a blind field overwrite would erase issues[]/execution counts/provenance.
+ *
+ * @param {object[]|undefined} baseEpics - Producer-owned Epics (richer shape)
+ * @param {object[]} jiraEpics - Jira-owned Epics (key/summary/status only)
+ * @returns {object[]}
+ */
+function mergeEpics(baseEpics, jiraEpics) {
+  const jiraByKey = new Map(jiraEpics.map(function(e) { return [e.key, e]; }));
+  const seen = new Set();
+
+  const merged = (baseEpics || []).map(function(epic) {
+    seen.add(epic.key);
+    const jiraEpic = jiraByKey.get(epic.key);
+    if (!jiraEpic) return epic;
+    return Object.assign({}, epic, { summary: jiraEpic.summary, status: jiraEpic.status });
+  });
+
+  for (let i = 0; i < jiraEpics.length; i++) {
+    if (!seen.has(jiraEpics[i].key)) merged.push(jiraEpics[i]);
+  }
+
+  return merged;
+}
 
 /**
  * Merge data from existing store, pipeline ingest, and Jira enrichment.
@@ -79,6 +107,14 @@ function mergeFeatureData(existing, pipelineData, jiraData) {
     }
   }
   // If jiraData is null (enrichment failed/skipped), preserve existing Jira fields
+
+  // Epics: this cycle's pipeline Epics if present, else whatever was already stored.
+  const epicsBase = pipeline.epics !== undefined ? pipeline.epics : base.epics;
+  if (jiraData && jira.epics !== undefined) {
+    merged.epics = mergeEpics(epicsBase, jira.epics);
+  } else if (epicsBase !== undefined) {
+    merged.epics = epicsBase;
+  }
 
   // created: Jira is source of truth (issue creation date)
   if (jira.created) {
@@ -253,6 +289,7 @@ async function rebuildIndex(storage) {
 
 module.exports = {
   mergeFeatureData,
+  mergeEpics,
   writeFeatures,
   rebuildIndex,
   DATA_PREFIX,

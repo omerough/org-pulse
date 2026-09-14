@@ -1,8 +1,9 @@
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, inject, computed } from 'vue'
-import { useFeatureTraffic, useVersions } from '../composables/useFeatureTraffic'
+import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue'
+import { useFeatureTraffic, useFeatureDetail, useVersions } from '../composables/useFeatureTraffic'
 import StatusBadge from '../components/StatusBadge.vue'
 import ComponentStatusFilterBar from '../components/ComponentStatusFilterBar.vue'
+import FeatureExecutionDrawer from '../components/FeatureExecutionDrawer.vue'
 import {
   useComponentStatusFilter,
   collectComponentOptions,
@@ -12,9 +13,14 @@ import {
   componentDisplayLabel
 } from '../composables/useComponentStatusFilter'
 
-const nav = inject('moduleNav')
 const { features, fetchedAt, loading, error, loadFeatures } = useFeatureTraffic()
 const { versions, loadVersions } = useVersions()
+const {
+  feature: detailFeature,
+  loading: detailLoading,
+  error: detailError,
+  loadFeature: loadFeatureDetail
+} = useFeatureDetail()
 const {
   selectedComponents,
   selectedStatuses,
@@ -114,7 +120,7 @@ const LANE_META = {
     dotClass: 'bg-blue-500'
   },
   complete: {
-    title: 'Complete',
+    title: 'Observed Work Done',
     subtitle: 'All observed execution work is Done',
     borderClass: 'border-emerald-300 dark:border-emerald-500/40',
     bgClass: 'bg-emerald-50 dark:bg-emerald-500/5',
@@ -367,8 +373,24 @@ function toggleLabelsExpand(key) {
   expandedLabelCards.value = next
 }
 
-function handleSelect(key) {
-  nav.navigateTo('feature-detail', { key })
+const selectedFeatureKey = ref(null)
+const selectedCard = ref(null)
+
+// event.currentTarget is the accessible details-trigger button when it fired the
+// click; explicitly focusing it (rather than relying on click-to-focus, which
+// Safari doesn't do for buttons) guarantees useFocusTrap restores focus there on close.
+function handleSelect(d, event) {
+  if (event && event.currentTarget && typeof event.currentTarget.focus === 'function') {
+    event.currentTarget.focus()
+  }
+  selectedFeatureKey.value = d.feature.key
+  selectedCard.value = d
+  loadFeatureDetail(d.feature.key)
+}
+
+function closeDrawer() {
+  selectedFeatureKey.value = null
+  selectedCard.value = null
 }
 
 function formatDate(iso) {
@@ -574,11 +596,16 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                 v-for="d in pageSlice(coverageFeatures, coveragePage)"
                 :key="d.feature.key"
                 class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200/80 dark:border-gray-700/80 cursor-pointer hover:shadow-md dark:hover:border-gray-600 transition-all p-3"
-                @click="handleSelect(d.feature.key)"
+                @click="handleSelect(d, $event)"
               >
                 <div class="flex items-center justify-between gap-2 mb-1">
                   <div class="flex items-center gap-2">
-                    <span class="text-primary-600 dark:text-blue-400 font-mono text-xs font-semibold">{{ d.feature.key }}</span>
+                    <button
+                      type="button"
+                      class="text-primary-600 dark:text-blue-400 font-mono text-xs font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
+                      :aria-label="'Open details for ' + d.feature.key"
+                      @click.stop="handleSelect(d, $event)"
+                    >{{ d.feature.key }}</button>
                     <StatusBadge :status="d.feature.status" />
                   </div>
                   <span
@@ -646,13 +673,18 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                 v-for="d in pageSlice(col.items, columnPage[col.id])"
                 :key="d.feature.key"
                 class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200/80 dark:border-gray-700/80 cursor-pointer hover:shadow-md dark:hover:border-gray-600 transition-all overflow-hidden"
-                @click="handleSelect(d.feature.key)"
+                @click="handleSelect(d, $event)"
               >
                 <!-- Card header -->
                 <div class="px-4 pt-3 pb-2">
                   <div class="flex items-center justify-between gap-2 mb-1">
                     <div class="flex items-center gap-2">
-                      <span class="text-primary-600 dark:text-blue-400 font-mono text-xs font-semibold">{{ d.feature.key }}</span>
+                      <button
+                        type="button"
+                        class="text-primary-600 dark:text-blue-400 font-mono text-xs font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
+                        :aria-label="'Open details for ' + d.feature.key"
+                        @click.stop="handleSelect(d, $event)"
+                      >{{ d.feature.key }}</button>
                       <StatusBadge :status="d.feature.status" />
                     </div>
                     <span
@@ -809,10 +841,15 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                   v-for="d in decoratedFeatures"
                   :key="d.feature.key"
                   class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
-                  @click="handleSelect(d.feature.key)"
+                  @click="handleSelect(d, $event)"
                 >
                   <td class="px-3 py-2">
-                    <span class="text-primary-600 dark:text-blue-400 font-mono text-xs">{{ d.feature.key }}</span>
+                    <button
+                      type="button"
+                      class="text-primary-600 dark:text-blue-400 font-mono text-xs hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
+                      :aria-label="'Open details for ' + d.feature.key"
+                      @click.stop="handleSelect(d, $event)"
+                    >{{ d.feature.key }}</button>
                   </td>
                   <td class="px-3 py-2 text-gray-900 dark:text-gray-100 max-w-xs truncate">{{ d.feature.summary }}</td>
                   <td class="px-3 py-2"><StatusBadge :status="d.feature.status" /></td>
@@ -870,5 +907,15 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
         </div>
       </template>
     </template>
+
+    <FeatureExecutionDrawer
+      :feature-key="selectedFeatureKey"
+      :card="selectedCard"
+      :detail="detailFeature"
+      :loading="detailLoading"
+      :error="detailError"
+      @close="closeDrawer"
+      @retry="loadFeatureDetail(selectedFeatureKey)"
+    />
   </div>
 </template>

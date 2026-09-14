@@ -217,7 +217,7 @@ test.describe('Releases Feature List @releases', () => {
     await openFeatureList(page);
 
     await expect(page.locator('h1', { hasText: 'Feature Execution Overview' })).toBeVisible();
-    for (const title of ['Not Started', 'In Progress', 'Complete']) {
+    for (const title of ['Not Started', 'In Progress', 'Observed Work Done']) {
       await expect(page.locator('h3', { hasText: title })).toBeVisible();
     }
     await expect(page.locator('h3', { hasText: 'No Tracked Work' })).toHaveCount(0);
@@ -300,7 +300,7 @@ test.describe('Releases Feature List @releases', () => {
 
     // All three columns remain visible (a stable board layout); only Complete has items.
     await expect(page.locator('h3')).toHaveCount(3);
-    await expect(page.locator('h3', { hasText: 'Complete' })).toBeVisible();
+    await expect(page.locator('h3', { hasText: 'Observed Work Done' })).toBeVisible();
     await expect(page.getByText('TEST1-1045')).toBeVisible();
     await expect(page.getByText('TEST1-1131')).toHaveCount(0);
 
@@ -316,6 +316,54 @@ test.describe('Releases Feature List @releases', () => {
 
     await expect(page.getByText('TEST1-1131')).toBeVisible();
     await expect(page.getByText(/TEST1-15\b/)).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('clicking a card opens the execution drawer without navigating away, and Escape closes it', async ({ page }) => {
+    await openFeatureList(page);
+
+    await page.getByRole('button', { name: 'Open details for TEST1-1131' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('TEST1-1131');
+    await expect(page).toHaveURL(/#\/releases\/execute/);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('backdrop click closes the drawer and restores focus to the triggering card', async ({ page }) => {
+    await openFeatureList(page);
+
+    const trigger = page.getByRole('button', { name: 'Open details for TEST1-1131' });
+    await trigger.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    // Backdrop is the fixed, aria-hidden overlay rendered behind the dialog.
+    await page.locator('[aria-hidden="true"].fixed.inset-0').click({ position: { x: 5, y: 5 } });
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Tab wraps focus within the open drawer', async ({ page }) => {
+    await openFeatureList(page);
+
+    await page.getByRole('button', { name: 'Open details for TEST1-1131' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    // Focus opens inside the dialog (the first focusable element); Shift+Tab from
+    // there must wrap to the last focusable element, never escape to the Board behind it.
+    const isFocusInDialog = () => dialog.evaluate(el => el.contains(document.activeElement));
+    expect(await isFocusInDialog()).toBe(true);
+    await page.keyboard.press('Shift+Tab');
+    expect(await isFocusInDialog()).toBe(true);
 
     expect(page.errors).toHaveLength(0);
   });

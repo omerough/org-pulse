@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 const {
   mergeFeatureData,
+  mergeEpics,
   writeFeatures,
   rebuildIndex
 } = require('../../../server/execution/feature-store')
@@ -120,6 +121,116 @@ describe('mergeFeatureData', () => {
     const pipeline = { key: 'X-1', metrics: producerMetrics }
     const result = mergeFeatureData(null, pipeline, null)
     expect(result.metrics).toEqual(producerMetrics)
+  })
+})
+
+describe('mergeEpics', () => {
+  // Regression: Jira's sparse { key, summary, status }-only discovery must not
+  // erase the producer's issues[]/execution counts (previously overwrote them).
+  const producerEpicA = {
+    key: 'EP-A', summary: 'Old summary A', status: 'New', statusCategory: 'To Do',
+    fixVersions: ['1.0'], executionIssueCount: 2, doneExecutionIssueCount: 0,
+    issues: [{ key: 'I-1', summary: 'Do the thing', isPreparation: false }]
+  }
+  const producerEpicB = {
+    key: 'EP-B', summary: 'Old summary B', status: 'In Progress', statusCategory: 'In Progress',
+    executionIssueCount: 0, doneExecutionIssueCount: 0, issues: []
+  }
+
+  it('refreshes only summary/status per matched Epic, preserving producer-owned fields', () => {
+    const jiraEpics = [{ key: 'EP-A', summary: 'New summary A', status: 'In Progress' }]
+    const [merged] = mergeEpics([producerEpicA], jiraEpics)
+
+    expect(merged.summary).toBe('New summary A')
+    expect(merged.status).toBe('In Progress')
+    expect(merged.fixVersions).toEqual(['1.0'])
+    expect(merged.issues).toEqual(producerEpicA.issues)
+    expect(merged.executionIssueCount).toBe(2)
+    expect(merged.doneExecutionIssueCount).toBe(0)
+  })
+
+  it('is order-independent — matches by key regardless of array position', () => {
+    const jiraEpics = [
+      { key: 'EP-B', summary: 'New B', status: 'Done' },
+      { key: 'EP-A', summary: 'New A', status: 'Done' }
+    ]
+    const merged = mergeEpics([producerEpicA, producerEpicB], jiraEpics)
+
+    expect(merged.map(e => e.key)).toEqual(['EP-A', 'EP-B'])
+    expect(merged[0].summary).toBe('New A')
+    expect(merged[1].summary).toBe('New B')
+  })
+
+  it('keeps a producer Epic absent from this Jira batch untouched', () => {
+    const merged = mergeEpics([producerEpicA, producerEpicB], [])
+    expect(merged).toEqual([producerEpicA, producerEpicB])
+  })
+
+  it('appends an Epic Jira discovered that the producer does not know about yet', () => {
+    const jiraEpics = [{ key: 'EP-NEW', summary: 'Brand new', status: 'New' }]
+    const merged = mergeEpics([producerEpicA], jiraEpics)
+    expect(merged).toEqual([producerEpicA, { key: 'EP-NEW', summary: 'Brand new', status: 'New' }])
+  })
+
+  it('preserves explicit null/zero/false execution values untouched, not just truthy ones', () => {
+    const epic = {
+      key: 'EP-C', summary: 'Old', status: 'New',
+      executionIssueCount: null, doneExecutionIssueCount: null,
+      issues: [{ key: 'I-2', summary: 'Prep doc', isPreparation: true }]
+    }
+    const [merged] = mergeEpics([epic], [{ key: 'EP-C', summary: 'Fresh', status: 'New' }])
+    expect(merged.executionIssueCount).toBeNull()
+    expect(merged.doneExecutionIssueCount).toBeNull()
+    expect(merged.issues[0].isPreparation).toBe(true)
+  })
+
+  it('does not fabricate execution fields on an old producer payload that never had them', () => {
+    const legacyEpic = { key: 'EP-D', summary: 'Old', status: 'New', issues: [{ key: 'I-3', summary: 'x' }] }
+    const [merged] = mergeEpics([legacyEpic], [{ key: 'EP-D', summary: 'Fresh', status: 'Closed' }])
+    expect(merged.executionIssueCount).toBeUndefined()
+    expect(merged.issues[0].isPreparation).toBeUndefined()
+  })
+})
+
+describe('mergeFeatureData — Epics ownership', () => {
+  it('post-ingest: fresh pipeline Epics survive same-cycle Jira enrichment (gitlab-fetch.js path)', () => {
+    const pipeline = {
+      key: 'X-1',
+      epics: [{
+        key: 'EP-A', summary: 'Producer summary', status: 'New',
+        executionIssueCount: 3, doneExecutionIssueCount: 1,
+        issues: [{ key: 'I-1', summary: 'Implement thing', isPreparation: false }]
+      }]
+    }
+    const jira = { key: 'X-1', status: 'In Progress', epics: [{ key: 'EP-A', summary: 'Jira summary', status: 'In Review' }] }
+    const result = mergeFeatureData(null, pipeline, jira)
+
+    expect(result.epics[0].status).toBe('In Review')
+    expect(result.epics[0].executionIssueCount).toBe(3)
+    expect(result.epics[0].issues).toEqual(pipeline.epics[0].issues)
+  })
+
+  it('periodic Jira-only sync preserves stored producer Epics (jira-sync.js path)', () => {
+    const existing = {
+      key: 'X-1',
+      epics: [{
+        key: 'EP-A', summary: 'Producer summary', status: 'New',
+        executionIssueCount: 5, doneExecutionIssueCount: 5,
+        issues: [{ key: 'I-1', summary: 'Done thing', isPreparation: false }]
+      }]
+    }
+    const jira = { key: 'X-1', status: 'Done', epics: [{ key: 'EP-A', summary: 'Producer summary', status: 'Done' }] }
+    const result = mergeFeatureData(existing, null, jira)
+
+    expect(result.epics[0].status).toBe('Done')
+    expect(result.epics[0].executionIssueCount).toBe(5)
+    expect(result.epics[0].issues).toEqual(existing.epics[0].issues)
+  })
+
+  it('leaves epics untouched when jiraData carries no epics field at all', () => {
+    const existing = { key: 'X-1', epics: [{ key: 'EP-A', summary: 'S', status: 'New', executionIssueCount: 1 }] }
+    const result = mergeFeatureData(existing, null, { key: 'X-1', status: 'Done' })
+    expect(result.epics).toEqual(existing.epics)
   })
 })
 

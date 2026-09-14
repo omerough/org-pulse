@@ -1,0 +1,130 @@
+import { describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
+import FeatureExecutionDrawer from '../../../client/execute/components/FeatureExecutionDrawer.vue'
+
+function makeCard(overrides = {}) {
+  return {
+    feature: {
+      key: 'OSAC-100', summary: 'Streaming inference endpoint', status: 'In Progress',
+      assignee: 'Jane Doe', components: ['Comp A'], fixVersions: ['1.0'], labels: ['label-a'],
+      epicCount: 1, issueCount: 3, blockerCount: 0,
+      ...overrides.feature
+    },
+    progress: { kind: 'available', pct: 40, done: 2, total: 5 },
+    readiness: { label: 'Ready', class: 'bg-emerald-100' },
+    ...overrides
+  }
+}
+
+function mountDrawer(props) {
+  return mount(FeatureExecutionDrawer, {
+    props: { featureKey: null, card: null, detail: null, loading: false, error: null, ...props },
+    global: { stubs: { Teleport: true, Transition: true } }
+  })
+}
+
+describe('FeatureExecutionDrawer', () => {
+  it('renders nothing when closed', () => {
+    const wrapper = mountDrawer({})
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+  })
+
+  it('renders header identity, status, and readiness when open', () => {
+    const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail: { key: 'OSAC-100', epics: [] } })
+    const dialog = wrapper.find('[role="dialog"]')
+    expect(dialog.exists()).toBe(true)
+    expect(dialog.attributes('aria-modal')).toBe('true')
+    expect(dialog.text()).toContain('OSAC-100')
+    expect(dialog.text()).toContain('Streaming inference endpoint')
+    expect(dialog.text()).toContain('Ready')
+  })
+
+  it('shows the loading state and hides epic content while loading', () => {
+    const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), loading: true })
+    expect(wrapper.text()).toContain('Loading epics')
+    expect(wrapper.text()).not.toContain('No epics for this feature')
+  })
+
+  it('shows the error message with a Retry button that emits retry', async () => {
+    const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), error: 'Failed to load' })
+    expect(wrapper.text()).toContain('Failed to load')
+    const retryButton = wrapper.findAll('button').find(b => b.text() === 'Retry')
+    await retryButton.trigger('click')
+    expect(wrapper.emitted('retry')).toBeTruthy()
+  })
+
+  it('distinguishes missing/malformed detail from a genuinely empty Epic list', () => {
+    const missingDetail = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail: null })
+    expect(missingDetail.text()).toContain('Feature detail unavailable.')
+    expect(missingDetail.text()).not.toContain('No epics for this feature.')
+
+    const malformedDetail = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail: { key: 'OSAC-100' } })
+    expect(malformedDetail.text()).toContain('Epic data unavailable.')
+    expect(malformedDetail.text()).not.toContain('No epics for this feature.')
+
+    const genuinelyEmpty = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail: { key: 'OSAC-100', epics: [] } })
+    expect(genuinelyEmpty.text()).toContain('No epics for this feature.')
+  })
+
+  it('renders per-Epic progress validity: available, verified-empty, and unavailable, never a fabricated 0%', () => {
+    const detail = {
+      key: 'OSAC-100',
+      epics: [
+        { key: 'EP-1', summary: 'Real progress', status: 'In Progress', executionIssueCount: 4, doneExecutionIssueCount: 1, issues: [] },
+        { key: 'EP-2', summary: 'All preparation', status: 'New', executionIssueCount: 0, doneExecutionIssueCount: 0, issues: [] },
+        { key: 'EP-3', summary: 'No issues collected', status: 'New', executionIssueCount: null, doneExecutionIssueCount: null, issues: [] }
+      ]
+    }
+    const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
+    const text = wrapper.text()
+
+    expect(text).toContain('1/4')
+    expect(text).toContain('25%')
+    expect(text).toContain('No tracked execution work')
+    expect(text).toContain('No issue-level progress available')
+    expect(text).not.toMatch(/0\/0/)
+  })
+
+  it('separates execution and preparation issues, flagging missing/unrecognized classification as Unclassified', async () => {
+    const detail = {
+      key: 'OSAC-100',
+      epics: [{
+        key: 'EP-1', summary: 'Mixed epic', status: 'In Progress',
+        executionIssueCount: 2, doneExecutionIssueCount: 1,
+        issues: [
+          { key: 'I-1', summary: 'Implement handler', status: 'Done', isPreparation: false },
+          { key: 'I-2', summary: 'Legacy issue with no flag', status: 'To Do' },
+          { key: 'I-3', summary: 'PRD: Streaming inference', status: 'Done', isPreparation: true }
+        ]
+      }]
+    }
+    const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
+
+    const expandButton = wrapper.findAll('button').find(b => b.text().includes('EP-1'))
+    await expandButton.trigger('click')
+
+    expect(wrapper.text()).toContain('Implement handler')
+    expect(wrapper.text()).toContain('Legacy issue with no flag')
+    expect(wrapper.text()).not.toContain('PRD: Streaming inference')
+
+    const unclassifiedPills = wrapper.findAll('span').filter(s => s.text() === 'Unclassified')
+    expect(unclassifiedPills).toHaveLength(1)
+
+    const showPrepButton = wrapper.findAll('button').find(b => b.text().includes('Show preparation'))
+    expect(showPrepButton.text()).toContain('(1)')
+    await showPrepButton.trigger('click')
+    expect(wrapper.text()).toContain('PRD: Streaming inference')
+  })
+
+  it('closes on Escape via the shared focus-trap composable', async () => {
+    const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail: { key: 'OSAC-100', epics: [] } })
+    await wrapper.find('[role="dialog"]').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('close')).toBeTruthy()
+  })
+
+  it('closes on backdrop click', async () => {
+    const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail: { key: 'OSAC-100', epics: [] } })
+    await wrapper.find('[aria-hidden="true"]').trigger('click')
+    expect(wrapper.emitted('close')).toBeTruthy()
+  })
+})

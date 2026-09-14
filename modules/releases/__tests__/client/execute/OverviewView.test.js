@@ -64,13 +64,20 @@ function mockNav() {
   return { navigateTo: vi.fn(), goBack: vi.fn(), updateParams: vi.fn(), params: ref({}) }
 }
 
-async function mountWithData() {
+async function mountWithData(detailsByKey = {}) {
   mockApiRequest.mockImplementation((url) => {
     if (url.indexOf('/versions') !== -1) return Promise.resolve({ versions: ['1.0', '2.0'] })
+    const detailMatch = url.match(/\/execution\/features\/([^/?]+)$/)
+    if (detailMatch) {
+      const detail = detailsByKey[detailMatch[1]]
+      return detail ? Promise.resolve(detail) : Promise.reject(new Error(`Feature ${detailMatch[1]} not found`))
+    }
     return Promise.resolve({ features: FEATURES, fetchedAt: '2026-09-10T00:00:00Z', featureCount: FEATURES.length })
   })
   const nav = mockNav()
-  const wrapper = mount(OverviewView, { global: { provide: { moduleNav: nav } } })
+  const wrapper = mount(OverviewView, {
+    global: { provide: { moduleNav: nav }, stubs: { Teleport: true, Transition: true } }
+  })
   await flushPromises()
   return { wrapper, nav }
 }
@@ -85,7 +92,7 @@ describe('OverviewView (Feature List)', () => {
     const { wrapper } = await mountWithData()
 
     const columnTitles = wrapper.findAll('h3').map(h => h.text())
-    expect(columnTitles).toEqual(['Not Started', 'In Progress', 'Complete'])
+    expect(columnTitles).toEqual(['Not Started', 'In Progress', 'Observed Work Done'])
 
     // 3 measurable (COMPLETE-1, NS-1, IP-1) + 4 without measurable progress
     // (EMPTY-1, EMPTY-2, NODATA-1, NODATA-2) = all 7 filtered features.
@@ -297,10 +304,121 @@ describe('OverviewView (Feature List)', () => {
     expect(wrapper.text()).toContain('IP-1')
   })
 
-  it('preserves detail navigation on card click', async () => {
-    const { wrapper, nav } = await mountWithData()
+  it('opens the execution drawer on card click instead of navigating to the legacy detail page', async () => {
+    const { wrapper, nav } = await mountWithData({ 'COMPLETE-1': { key: 'COMPLETE-1', epics: [] } })
     const card = wrapper.findAll('.cursor-pointer').find(el => el.text().includes('COMPLETE-1'))
     await card.trigger('click')
-    expect(nav.navigateTo).toHaveBeenCalledWith('feature-detail', { key: 'COMPLETE-1' })
+    await flushPromises()
+
+    expect(nav.navigateTo).not.toHaveBeenCalled()
+    const dialog = wrapper.find('[role="dialog"]')
+    expect(dialog.exists()).toBe(true)
+    expect(dialog.text()).toContain('COMPLETE-1')
+    expect(dialog.text()).toContain('Complete feature')
+  })
+
+  it('closes the drawer via its close button and restores focus to the triggering key button', async () => {
+    // Real focus/activeElement behavior requires the tree to be attached to the document.
+    mockApiRequest.mockImplementation((url) => {
+      if (url.indexOf('/versions') !== -1) return Promise.resolve({ versions: ['1.0', '2.0'] })
+      if (url.endsWith('/features/COMPLETE-1')) return Promise.resolve({ key: 'COMPLETE-1', epics: [] })
+      return Promise.resolve({ features: FEATURES, fetchedAt: '2026-09-10T00:00:00Z', featureCount: FEATURES.length })
+    })
+    const wrapper = mount(OverviewView, {
+      global: { provide: { moduleNav: mockNav() }, stubs: { Teleport: true, Transition: true } },
+      attachTo: document.body
+    })
+    await flushPromises()
+
+    try {
+      const triggerButton = wrapper.findAll('button').find(b => b.attributes('aria-label') === 'Open details for COMPLETE-1')
+      await triggerButton.trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+      const closeButton = wrapper.findAll('button').find(b => b.attributes('aria-label') === 'Close detail panel')
+      await closeButton.trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+      expect(document.activeElement).toBe(triggerButton.element)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('does not open the drawer when a nested label-expansion control is activated', async () => {
+    const { wrapper } = await mountWithData()
+    const card = wrapper.findAll('.cursor-pointer').find(el => el.text().includes('IP-1'))
+    const expandButton = card.findAll('button').find(b => b.attributes('aria-expanded') === 'false')
+
+    await expandButton.trigger('click')
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(card.text()).toContain('label-delta')
+  })
+
+  it('preserves selected filters, view mode, and pagination across opening and closing the drawer', async () => {
+    const { wrapper } = await mountWithData({ 'COMPLETE-1': { key: 'COMPLETE-1', epics: [] } })
+    await wrapper.findAll('button').find(b => b.text() === 'List').trigger('click')
+
+    const versionButton = wrapper.findAll('button').find(b => b.text().includes('All Versions'))
+    await versionButton.trigger('click')
+    const versionOption = wrapper.findAll('label').find(l => l.text() === '1.0')
+    await versionOption.find('input[type="checkbox"]').setValue(true)
+
+    const rowCountBefore = wrapper.findAll('tbody tr').length
+    expect(rowCountBefore).toBeGreaterThan(0)
+
+    const row = wrapper.findAll('tbody tr').find(r => r.text().includes('COMPLETE-1'))
+    await row.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+
+    const closeButton = wrapper.findAll('button').find(b => b.attributes('aria-label') === 'Close detail panel')
+    await closeButton.trigger('click')
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(wrapper.findAll('button').find(b => b.text() === 'List').classes().join(' ')).toContain('bg-white')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(rowCountBefore)
+    expect(wrapper.findAll('button').find(b => b.text().includes('All Versions'))).toBeUndefined() // filter button now shows the selected version, not the "All" label
+    expect(wrapper.text()).toContain('1.0')
+  })
+
+  it('shows a cached selection immediately while a different selection is still pending, unaffected by its late response', async () => {
+    let resolveNs
+    const detailsByKey = {
+      'COMPLETE-1': { key: 'COMPLETE-1', epics: [{ key: 'EP-COMPLETE', summary: 'Complete epic', status: 'Done', issues: [] }] }
+    }
+    mockApiRequest.mockImplementation((url) => {
+      if (url.indexOf('/versions') !== -1) return Promise.resolve({ versions: ['1.0', '2.0'] })
+      if (url.endsWith('/features/COMPLETE-1')) return Promise.resolve(detailsByKey['COMPLETE-1'])
+      if (url.endsWith('/features/NS-1')) return new Promise(resolve => { resolveNs = resolve })
+      return Promise.resolve({ features: FEATURES, fetchedAt: '2026-09-10T00:00:00Z', featureCount: FEATURES.length })
+    })
+    const wrapper = mount(OverviewView, {
+      global: { provide: { moduleNav: mockNav() }, stubs: { Teleport: true, Transition: true } }
+    })
+    await flushPromises()
+
+    const completeTrigger = wrapper.findAll('button').find(b => b.attributes('aria-label') === 'Open details for COMPLETE-1')
+    await completeTrigger.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="dialog"]').text()).toContain('EP-COMPLETE')
+
+    const nsTrigger = wrapper.findAll('button').find(b => b.attributes('aria-label') === 'Open details for NS-1')
+    await nsTrigger.trigger('click') // NS-1 fetch now pending, unresolved
+    expect(wrapper.find('[role="dialog"]').text()).not.toContain('EP-COMPLETE')
+
+    await completeTrigger.trigger('click') // reselect the cached COMPLETE-1
+    await flushPromises()
+    expect(wrapper.find('[role="dialog"]').text()).toContain('EP-COMPLETE')
+
+    resolveNs({ key: 'NS-1', epics: [{ key: 'EP-NS', summary: 'NS epic', status: 'New', issues: [] }] })
+    await flushPromises()
+
+    // The late NS-1 response must not clobber the reselected COMPLETE-1 detail.
+    expect(wrapper.find('[role="dialog"]').text()).toContain('EP-COMPLETE')
+    expect(wrapper.find('[role="dialog"]').text()).not.toContain('EP-NS')
   })
 })
