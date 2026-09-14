@@ -10,6 +10,20 @@
         </p>
       </div>
 
+      <!-- Admin recovery notice: no enabled built-in modules -->
+      <div
+        v-if="isAdmin && builtInManifests.length === 0"
+        class="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-300"
+      >
+        <span>No built-in modules are currently enabled.</span>
+        <button
+          @click="$emit('navigate', 'settings')"
+          class="font-medium text-amber-900 dark:text-amber-200 underline hover:no-underline shrink-0"
+        >
+          Configure modules
+        </button>
+      </div>
+
       <!-- Explore Org Pulse -->
       <section class="mb-8" aria-labelledby="explore-org-pulse-heading">
         <p id="explore-org-pulse-heading" class="px-1 mb-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
@@ -20,14 +34,18 @@
             v-for="card in exploreCards"
             :key="card.slug"
             :disabled="!card.enabled"
+            :title="card.enabled ? undefined : 'Not available in this deployment'"
             @click="$emit('navigate', card.slug)"
             class="rounded-xl border bg-white dark:bg-gray-800 p-5 text-left transition-all focus:outline-none"
             :class="card.enabled
               ? 'border-gray-200 dark:border-gray-700 cursor-pointer hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-md focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900'
               : 'border-gray-100 dark:border-gray-800 opacity-50 cursor-not-allowed'"
           >
-            <div class="w-fit rounded-lg bg-primary-50 dark:bg-primary-900/30 p-2 text-primary-600 dark:text-primary-400">
-              <component :is="getIcon(card.icon)" :size="20" />
+            <div class="flex items-center justify-between gap-2">
+              <div class="w-fit rounded-lg bg-primary-50 dark:bg-primary-900/30 p-2 text-primary-600 dark:text-primary-400">
+                <component :is="getIcon(card.icon)" :size="20" />
+              </div>
+              <span v-if="!card.enabled" class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Unavailable</span>
             </div>
             <h3 class="mt-4 text-base font-semibold text-gray-900 dark:text-gray-100">{{ card.name }}</h3>
             <p class="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">{{ card.description }}</p>
@@ -36,82 +54,74 @@
       </section>
     </div>
 
-    <!-- Your Overview -->
-    <div class="flex items-center justify-between gap-4 mb-6">
-      <p class="px-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
-        YOUR OVERVIEW
-      </p>
-      <button
-        @click="showWidgetPicker = true"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors shrink-0"
-      >
-        <Plus :size="16" />
-        Add Widgets
-      </button>
-    </div>
+    <template v-if="allWidgets.length > 0">
+      <!-- Your Overview -->
+      <div class="flex items-center justify-between gap-4 mb-6">
+        <p class="px-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+          YOUR OVERVIEW
+        </p>
+        <button
+          @click="showWidgetPicker = true"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors shrink-0"
+        >
+          <Plus :size="16" />
+          Add Widgets
+        </button>
+      </div>
 
-    <!-- Widget grid -->
-    <div
-      ref="gridRef"
-      class="sotu-grid"
-    >
-      <SotuWidget
-        v-for="item in resolvedLayout"
-        :key="item.widgetId"
-        :widget-id="item.widgetId"
-        :name="item.widget.name"
-        :module-name="item.widget.moduleName"
-        :size="item.size"
-        :component="item.component"
-        @resize="handleResize"
-        @remove="handleRemove"
+      <!-- Widget grid -->
+      <div
+        ref="gridRef"
+        class="sotu-grid"
+      >
+        <SotuWidget
+          v-for="item in resolvedLayout"
+          :key="item.widgetId"
+          :widget-id="item.widgetId"
+          :name="item.widget.name"
+          :module-name="item.widget.moduleName"
+          :size="item.size"
+          :component="item.component"
+          @resize="handleResize"
+          @remove="handleRemove"
+        />
+      </div>
+
+      <!-- Empty layout state -->
+      <div
+        v-if="resolvedLayout.length === 0"
+        class="flex flex-col items-center justify-center py-16 text-center"
+      >
+        <LayoutGrid :size="48" class="text-gray-300 dark:text-gray-600 mb-4" />
+        <h3 class="text-lg font-medium text-gray-600 dark:text-gray-400 mb-2">Build Your Dashboard</h3>
+        <p class="text-sm text-gray-400 dark:text-gray-500 mb-4 max-w-md">Choose from available widgets to create a personalized overview of what matters to you across the platform.</p>
+        <button
+          @click="showWidgetPicker = true"
+          class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
+        >
+          <Plus :size="16" />
+          Add Widgets
+        </button>
+      </div>
+
+      <!-- Widget picker -->
+      <WidgetPicker
+        v-if="showWidgetPicker"
+        :available-widgets="allWidgets"
+        :active-widget-ids="activeWidgetIds"
+        @close="showWidgetPicker = false"
+        @toggle="handleToggleWidget"
       />
-    </div>
-
-    <!-- Empty layout state -->
-    <div
-      v-if="resolvedLayout.length === 0"
-      class="flex flex-col items-center justify-center py-16 text-center"
-    >
-      <LayoutGrid :size="48" class="text-gray-300 dark:text-gray-600 mb-4" />
-      <h3 class="text-lg font-medium text-gray-600 dark:text-gray-400 mb-2">Build Your Dashboard</h3>
-      <p class="text-sm text-gray-400 dark:text-gray-500 mb-4 max-w-md">Choose from available widgets to create a personalized overview of what matters to you across the platform.</p>
-      <button
-        @click="showWidgetPicker = true"
-        class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
-      >
-        <Plus :size="16" />
-        Add Widgets
-      </button>
-    </div>
-
-    <!-- Widget picker -->
-    <WidgetPicker
-      v-if="showWidgetPicker"
-      :available-widgets="allWidgets"
-      :active-widget-ids="activeWidgetIds"
-      @close="showWidgetPicker = false"
-      @toggle="handleToggleWidget"
-    />
+    </template>
   </div>
 </template>
 
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import {
-  BarChart3,
-  Search,
   Box,
-  GitBranch,
-  Globe,
-  FileText,
-  PieChart,
   UsersRound,
-  Zap,
-  Layout,
   LayoutGrid,
-  Network,
-  ChartCandlestick,
   Sparkles,
   Hospital,
   Rocket,
@@ -125,7 +135,6 @@ import SotuWidget from './SotuWidget.vue'
 import WidgetPicker from './WidgetPicker.vue'
 
 const props = defineProps({
-  modules: { type: Array, default: () => [] },
   builtInManifests: { type: Array, default: () => [] },
   isAdmin: Boolean
 })
@@ -328,19 +337,8 @@ onBeforeUnmount(() => {
 })
 
 const iconMap = {
-  'bar-chart': BarChart3,
-  'search': Search,
-  'git-branch': GitBranch,
-  'globe': Globe,
-  'file-text': FileText,
-  'pie-chart': PieChart,
   'users-round': UsersRound,
   'rocket': Rocket,
-  'zap': Zap,
-  'layout': Layout,
-  'box': Box,
-  'network': Network,
-  'chart-candlestick': ChartCandlestick,
   'sparkles': Sparkles,
   'hospital': Hospital
 }
