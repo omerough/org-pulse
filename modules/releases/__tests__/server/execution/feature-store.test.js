@@ -161,13 +161,22 @@ describe('mergeEpics', () => {
     expect(merged[1].summary).toBe('New B')
   })
 
-  it('keeps a producer Epic absent from this Jira batch untouched', () => {
+  it('drops a producer Epic no longer present in the Jira snapshot', () => {
+    const jiraEpics = [{ key: 'EP-B', summary: 'Old summary B', status: 'In Progress' }]
+    const merged = mergeEpics([producerEpicA, producerEpicB], jiraEpics)
+    expect(merged.map(e => e.key)).toEqual(['EP-B'])
+  })
+
+  it('an explicit empty Jira snapshot removes all Epics', () => {
     const merged = mergeEpics([producerEpicA, producerEpicB], [])
-    expect(merged).toEqual([producerEpicA, producerEpicB])
+    expect(merged).toEqual([])
   })
 
   it('appends an Epic Jira discovered that the producer does not know about yet', () => {
-    const jiraEpics = [{ key: 'EP-NEW', summary: 'Brand new', status: 'New' }]
+    const jiraEpics = [
+      { key: 'EP-A', summary: producerEpicA.summary, status: producerEpicA.status },
+      { key: 'EP-NEW', summary: 'Brand new', status: 'New' }
+    ]
     const merged = mergeEpics([producerEpicA], jiraEpics)
     expect(merged).toEqual([producerEpicA, { key: 'EP-NEW', summary: 'Brand new', status: 'New' }])
   })
@@ -231,6 +240,55 @@ describe('mergeFeatureData — Epics ownership', () => {
     const existing = { key: 'X-1', epics: [{ key: 'EP-A', summary: 'S', status: 'New', executionIssueCount: 1 }] }
     const result = mergeFeatureData(existing, null, { key: 'X-1', status: 'Done' })
     expect(result.epics).toEqual(existing.epics)
+  })
+
+  it('drops a stored Epic no longer in a successful Jira snapshot (unlinked)', () => {
+    const existing = {
+      key: 'X-1',
+      epics: [
+        { key: 'EP-A', summary: 'S', status: 'New', executionIssueCount: 1 },
+        { key: 'EP-B', summary: 'Unlinked now', status: 'New', executionIssueCount: 0 }
+      ]
+    }
+    const jira = { key: 'X-1', status: 'Done', epics: [{ key: 'EP-A', summary: 'S', status: 'New' }] }
+    const result = mergeFeatureData(existing, null, jira)
+    expect(result.epics.map(e => e.key)).toEqual(['EP-A'])
+  })
+
+  it('an explicit empty Jira snapshot removes all stored Epics', () => {
+    const existing = { key: 'X-1', epics: [{ key: 'EP-A', summary: 'S', status: 'New', executionIssueCount: 1 }] }
+    const jira = { key: 'X-1', status: 'Done', epics: [] }
+    const result = mergeFeatureData(existing, null, jira)
+    expect(result.epics).toEqual([])
+  })
+
+  it('preserves stored Epics when Jira enrichment fails for this feature entirely', () => {
+    const existing = { key: 'X-1', epics: [{ key: 'EP-A', summary: 'S', status: 'New', executionIssueCount: 1 }] }
+    const result = mergeFeatureData(existing, null, null)
+    expect(result.epics).toEqual(existing.epics)
+  })
+
+  it('adds a newly-discovered Jira Epic sparse alongside preserved rich Epics', () => {
+    const existing = {
+      key: 'X-1',
+      epics: [{
+        key: 'EP-A', summary: 'S', status: 'New',
+        executionIssueCount: 4, issues: [{ key: 'I-1', summary: 'x', isPreparation: false }]
+      }]
+    }
+    const jira = {
+      key: 'X-1',
+      status: 'Done',
+      epics: [
+        { key: 'EP-A', summary: 'S', status: 'New' },
+        { key: 'EP-NEW', summary: 'Just linked', status: 'New' }
+      ]
+    }
+    const result = mergeFeatureData(existing, null, jira)
+    expect(result.epics).toEqual([
+      existing.epics[0],
+      { key: 'EP-NEW', summary: 'Just linked', status: 'New' }
+    ])
   })
 })
 

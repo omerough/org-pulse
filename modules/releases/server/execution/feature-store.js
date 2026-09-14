@@ -35,26 +35,31 @@ const PIPELINE_INDEX_FIELDS = [
 const AI_REVIEW_FIELDS = ['aiReview'];
 
 /**
- * Merge producer-owned Epics with Jira's key/summary/status-only discovery, by Epic
- * key — a blind field overwrite would erase issues[]/execution counts/provenance.
+ * Merge producer-owned Epics against Jira's current Epic membership snapshot.
+ * A successful jiraEpics snapshot is authoritative for *membership* — an Epic
+ * absent from it is no longer linked and is dropped (an empty array drops all).
+ * For a key present in both, producer-owned fields (issues[], execution counts,
+ * provenance) are preserved and only Jira-owned summary/status is refreshed.
+ * A key Jira discovered that the producer doesn't know about yet is added sparse.
  *
  * @param {object[]|undefined} baseEpics - Producer-owned Epics (richer shape)
- * @param {object[]} jiraEpics - Jira-owned Epics (key/summary/status only)
+ * @param {object[]} jiraEpics - Jira's current Epic snapshot (key/summary/status only)
  * @returns {object[]}
  */
 function mergeEpics(baseEpics, jiraEpics) {
   const jiraByKey = new Map(jiraEpics.map(function(e) { return [e.key, e]; }));
-  const seen = new Set();
+  const baseByKey = new Map((baseEpics || []).map(function(e) { return [e.key, e]; }));
 
-  const merged = (baseEpics || []).map(function(epic) {
-    seen.add(epic.key);
+  const merged = [];
+  for (let i = 0; i < (baseEpics || []).length; i++) {
+    const epic = baseEpics[i];
     const jiraEpic = jiraByKey.get(epic.key);
-    if (!jiraEpic) return epic;
-    return Object.assign({}, epic, { summary: jiraEpic.summary, status: jiraEpic.status });
-  });
+    if (!jiraEpic) continue; // no longer in Jira's snapshot — drop
+    merged.push(Object.assign({}, epic, { summary: jiraEpic.summary, status: jiraEpic.status }));
+  }
 
   for (let i = 0; i < jiraEpics.length; i++) {
-    if (!seen.has(jiraEpics[i].key)) merged.push(jiraEpics[i]);
+    if (!baseByKey.has(jiraEpics[i].key)) merged.push(jiraEpics[i]);
   }
 
   return merged;

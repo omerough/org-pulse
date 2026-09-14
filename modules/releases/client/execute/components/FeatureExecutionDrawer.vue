@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import StatusBadge from './StatusBadge.vue'
 import { componentDisplayLabel } from '../composables/useComponentStatusFilter'
 import { useFocusTrap } from '../../plan/composables/useFocusTrap'
+import { isValidProgressCount } from '../utils/progress'
 
 const props = defineProps({
   featureKey: { type: String, default: null },
@@ -40,10 +41,6 @@ function togglePrep(key) {
   if (next.has(key)) next.delete(key)
   else next.add(key)
   expandedPrep.value = next
-}
-
-function isValidProgressCount(n) {
-  return Number.isInteger(n) && n >= 0
 }
 
 // Per-Epic progress reads the producer's own executionIssueCount/doneExecutionIssueCount

@@ -12,6 +12,7 @@ import {
   matchesStatus,
   componentDisplayLabel
 } from '../composables/useComponentStatusFilter'
+import { isValidProgressCount } from '../utils/progress'
 
 const { features, fetchedAt, loading, error, loadFeatures } = useFeatureTraffic()
 const { versions, loadVersions } = useVersions()
@@ -171,10 +172,6 @@ const READINESS_META = {
 }
 function readinessMeta(r) {
   return READINESS_META[r] || READINESS_META.unknown
-}
-
-function isValidProgressCount(n) {
-  return Number.isInteger(n) && n >= 0
 }
 
 // Presentation only — executionState/executionCoverage/preparationReadiness are
