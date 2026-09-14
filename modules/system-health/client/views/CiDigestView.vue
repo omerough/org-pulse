@@ -113,23 +113,35 @@ const headlineTiles = computed(() => {
 })
 
 function buildRepoRows(window7d, window24h, { secKey, dispKey, countKey }) {
-  const repos7d = (window7d?.by_repo || [])
-    .filter(r => r[secKey] != null)
-    .sort((a, b) => a[secKey] - b[secKey])
+  const by7dMap = Object.fromEntries((window7d?.by_repo || []).map(r => [r.repo, r]))
   const by24hMap = Object.fromEntries((window24h?.by_repo || []).map(r => [r.repo, r]))
-  return repos7d.map(r => {
-    const r24 = by24hMap[r.repo]
+  const repoNames = new Set([...Object.keys(by7dMap), ...Object.keys(by24hMap)])
+
+  const rows = [...repoNames].map(repo => {
+    const r7 = by7dMap[repo]
+    const r24 = by24hMap[repo]
+    const has7 = r7 && r7[secKey] != null
     const has24 = r24 && r24[secKey] != null
     return {
-      repo: r.repo,
-      hours7d: r[secKey] / 3600,
-      label7d: r[dispKey],
-      count7d: r[countKey],
+      repo,
+      hours7d: has7 ? r7[secKey] / 3600 : null,
+      label7d: has7 ? r7[dispKey] : null,
+      count7d: has7 ? r7[countKey] : null,
       hours24: has24 ? r24[secKey] / 3600 : null,
       label24: has24 ? r24[dispKey] : null,
       count24: has24 ? r24[countKey] : null
     }
+  }).filter(row => row.hours7d != null || row.hours24 != null)
+
+  rows.sort((a, b) => {
+    const sortA = a.hours7d ?? a.hours24
+    const sortB = b.hours7d ?? b.hours24
+    if (sortA == null) return sortB == null ? 0 : 1
+    if (sortB == null) return -1
+    return sortA - sortB
   })
+
+  return rows
 }
 
 const mergeTimeRows = computed(() => {

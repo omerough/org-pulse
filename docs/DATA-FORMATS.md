@@ -1817,10 +1817,10 @@ Root-level (not module-namespaced) — delivered directly to the shared data-vol
   "digest": {
     "periodic_24h": { "success": 42, "failure": 2, "success_rate": 0.9545 },
     "periodic_72h": { "success": 103, "failure": 22, "success_rate": 0.824 },
-    "infra_24h": { "infra_total": 0, "test_total": 7, "total_failures": 7, "infra_by_step": [] },
-    "infra_72h": { "infra_total": 44, "test_total": 49, "total_failures": 93, "infra_by_step": [{ "step": "Teardown", "count": 10 }] },
-    "periodic_infra_24h": { "infra_total": 0, "test_total": 2, "total_failures": 2, "infra_by_step": [] },
-    "periodic_infra_72h": { "infra_total": 0, "test_total": 22, "total_failures": 22, "infra_by_step": [] },
+    "infra_24h": { "infra_total": 0, "test_total": 7, "unattributed_total": 0, "total_failures": 7, "infra_by_step": [] },
+    "infra_72h": { "infra_total": 44, "test_total": 49, "unattributed_total": 0, "total_failures": 93, "infra_by_step": [{ "step": "Teardown", "count": 10 }] },
+    "periodic_infra_24h": { "infra_total": 0, "test_total": 2, "unattributed_total": 0, "total_failures": 2, "infra_by_step": [] },
+    "periodic_infra_72h": { "infra_total": 0, "test_total": 22, "unattributed_total": 0, "total_failures": 22, "infra_by_step": [] },
     "merge_time": {
       "median_approval_to_merge_seconds": 16482, "median_approval_to_merge_display": "4h 34m 42s",
       "avg_approval_to_merge_display": "29h 56m 14s", "approved_count": 40, "count": 121,

@@ -22,6 +22,7 @@ vi.mock('chart.js', () => ({
 
 import { apiRequest } from '@shared/client/services/api.js'
 import CiDigestView from '../../client/views/CiDigestView.vue'
+import RepoWindowBarChart from '../../client/components/ci-digest/RepoWindowBarChart.vue'
 
 function makeDigest(overrides = {}) {
   return {
@@ -225,5 +226,56 @@ describe('CiDigestView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('95.5%')
+  })
+
+  it('unions 24h-only, 7d-only, and shared repos across merge-time and queue-time windows without dropping or substituting values', async () => {
+    const mergeTime = {
+      ...makeDigest().merge_time,
+      by_repo: [
+        {
+          repo: 'alpha', median_approval_to_merge_seconds: 3600, median_approval_to_merge_display: '1h 0m 0s', approved_count: 5, count: 10,
+          median_queue_wait_seconds: 1800, median_queue_wait_display: '30m 0s', via_merge_queue_count: 3
+        },
+        {
+          repo: 'bravo', median_approval_to_merge_seconds: 7200, median_approval_to_merge_display: '2h 0m 0s', approved_count: 8, count: 12,
+          median_queue_wait_seconds: null, median_queue_wait_display: null, via_merge_queue_count: 0
+        }
+      ]
+    }
+    const mergeTime24h = {
+      ...makeDigest().merge_time_24h,
+      by_repo: [
+        {
+          repo: 'alpha', median_approval_to_merge_seconds: 5400, median_approval_to_merge_display: '1h 30m 0s', approved_count: 2, count: 3,
+          median_queue_wait_seconds: 900, median_queue_wait_display: '15m 0s', via_merge_queue_count: 1
+        },
+        {
+          repo: 'charlie', median_approval_to_merge_seconds: 1200, median_approval_to_merge_display: '20m 0s', approved_count: 1, count: 1,
+          median_queue_wait_seconds: 600, median_queue_wait_display: '10m 0s', via_merge_queue_count: 1
+        }
+      ]
+    }
+
+    apiRequest.mockResolvedValue(makeEnvelope({ merge_time: mergeTime, merge_time_24h: mergeTime24h }))
+    const wrapper = mount(CiDigestView)
+    await flushPromises()
+    await flushPromises()
+
+    const [mergeChart, queueChart] = wrapper.findAllComponents(RepoWindowBarChart)
+
+    // shared (alpha), 7d-only (bravo), 24h-only (charlie); sorted by the
+    // fastest available metric, preferring 7d and falling back to 24h
+    expect(mergeChart.props('rows')).toEqual([
+      { repo: 'charlie', hours7d: null, label7d: null, count7d: null, hours24: 1200 / 3600, label24: '20m 0s', count24: 1 },
+      { repo: 'alpha', hours7d: 1, label7d: '1h 0m 0s', count7d: 5, hours24: 1.5, label24: '1h 30m 0s', count24: 2 },
+      { repo: 'bravo', hours7d: 2, label7d: '2h 0m 0s', count7d: 8, hours24: null, label24: null, count24: null }
+    ])
+
+    // bravo never used the merge queue in either window, so it's absent
+    // here even though it appears in the merge-time chart above
+    expect(queueChart.props('rows')).toEqual([
+      { repo: 'charlie', hours7d: null, label7d: null, count7d: null, hours24: 600 / 3600, label24: '10m 0s', count24: 1 },
+      { repo: 'alpha', hours7d: 0.5, label7d: '30m 0s', count7d: 3, hours24: 0.25, label24: '15m 0s', count24: 1 }
+    ])
   })
 })
