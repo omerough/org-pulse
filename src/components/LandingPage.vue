@@ -45,7 +45,7 @@
               <div class="w-fit rounded-lg bg-primary-50 dark:bg-primary-900/30 p-2 text-primary-600 dark:text-primary-400">
                 <component :is="getIcon(card.icon)" :size="20" />
               </div>
-              <span v-if="!card.enabled" class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Unavailable</span>
+              <span v-if="!card.enabled" class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Not Enabled</span>
             </div>
             <h3 class="mt-4 text-base font-semibold text-gray-900 dark:text-gray-100">{{ card.name }}</h3>
             <p class="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">{{ card.description }}</p>

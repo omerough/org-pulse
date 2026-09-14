@@ -94,7 +94,14 @@ describe('LandingPage', () => {
       expect(card.attributes('disabled')).toBeDefined()
       expect(card.attributes('title')).toBe('Not available in this deployment')
     }
-    expect(wrapper.text()).toContain('Unavailable')
+    expect(wrapper.text()).toContain('Not Enabled')
+  })
+
+  it('does not render text matching the smoke test error-state pattern in a core (single-module) deployment', async () => {
+    // tests/smoke/app-loads.spec.js flags any visible "error|failed|unavailable" text as an API error.
+    const wrapper = await mountLandingPage({ builtInManifests: [{ slug: 'team-tracker', name: 'People & Teams' }], isAdmin: false })
+    await flushPromises()
+    expect(wrapper.text()).not.toMatch(/error|failed|unavailable/i)
   })
 
   it('keeps enabled explore cards clickable and navigable', async () => {
