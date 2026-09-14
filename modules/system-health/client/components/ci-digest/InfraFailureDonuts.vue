@@ -13,24 +13,35 @@ ChartJS.register(ArcElement, Tooltip, Legend)
 
 const COLOR_INFRA = '#ef4444'
 const COLOR_TEST = '#10b981'
+const COLOR_UNATTRIBUTED = '#9ca3af'
 
 const props = defineProps({
-  // { infra_total, test_total, total_failures, infra_by_step }
+  // { infra_total, test_total, unattributed_total, total_failures, infra_by_step }
   window24: { type: Object, required: true },
   window72: { type: Object, required: true }
 })
 
 const { gridColor } = useDarkMode()
 
+// The exporter partitions every failed job into exactly one of infra/test/
+// unattributed (see get_presubmit_infra_failures_json in workflow-exporter.py),
+// so total_failures === infra_total + test_total + unattributed_total always
+// -- the ring must include all three or it under-represents the "N failures"
+// caption whenever a job's failure_reason is missing/unrecognized.
+function windowTotal(window) {
+  return (window.infra_total || 0) + (window.test_total || 0) + (window.unattributed_total || 0)
+}
+
 function donutData(window) {
   const infra = window.infra_total || 0
   const test = window.test_total || 0
-  if (infra + test === 0) {
+  const unattributed = window.unattributed_total || 0
+  if (windowTotal(window) === 0) {
     return { labels: ['No failures'], datasets: [{ data: [1], backgroundColor: [gridColor.value], borderWidth: 0 }] }
   }
   return {
-    labels: ['Infra', 'Test'],
-    datasets: [{ data: [infra, test], backgroundColor: [COLOR_INFRA, COLOR_TEST], borderWidth: 2, borderColor: 'transparent' }]
+    labels: ['Infra', 'Test', 'Unattributed'],
+    datasets: [{ data: [infra, test, unattributed], backgroundColor: [COLOR_INFRA, COLOR_TEST, COLOR_UNATTRIBUTED], borderWidth: 2, borderColor: 'transparent' }]
   }
 }
 
@@ -38,7 +49,7 @@ const data24 = computed(() => donutData(props.window24))
 const data72 = computed(() => donutData(props.window72))
 
 function donutOptions(window) {
-  const total = (window.infra_total || 0) + (window.test_total || 0)
+  const total = windowTotal(window)
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -61,6 +72,12 @@ const options24 = computed(() => donutOptions(props.window24))
 const options72 = computed(() => donutOptions(props.window72))
 
 const topSteps = computed(() => (props.window72.infra_by_step || []).slice(0, 5))
+
+// Kept out of the legend in the common case (both windows report 0) so the
+// chart doesn't advertise a category that never actually appears.
+const hasUnattributed = computed(() =>
+  (props.window24.unattributed_total || 0) > 0 || (props.window72.unattributed_total || 0) > 0
+)
 </script>
 
 <template>
@@ -87,6 +104,7 @@ const topSteps = computed(() => (props.window72.infra_by_step || []).slice(0, 5)
     <div class="flex justify-center gap-4 mt-3 text-[11px] text-gray-500 dark:text-gray-400">
       <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#ef4444"></span>Infra</span>
       <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#10b981"></span>Test</span>
+      <span v-if="hasUnattributed" class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#9ca3af"></span>Unattributed</span>
     </div>
     <p v-if="topSteps.length" class="text-[11px] text-gray-400 dark:text-gray-500 mt-3">
       Top infra steps (72h): {{ topSteps.map(s => `${s.step} (${s.count})`).join(', ') }}
