@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import LandingPage from '../components/LandingPage.vue'
+import { _resetForTesting } from '../composables/useSotuLayout.js'
 
 const mockIsManager = { value: false }
 const mockIsTeamAdmin = { value: false }
@@ -35,11 +37,10 @@ const AI_IMPACT_MANIFEST = {
   }
 }
 
-// useSotuLayout's layout ref is a singleton seeded from localStorage at import time.
-async function mountLandingPage(props) {
-  vi.resetModules()
-  const mod = await import('../components/LandingPage.vue')
-  return mount(mod.default, { props })
+// useSotuLayout's layout ref is a module-level singleton; reset it from localStorage before each mount.
+function mountLandingPage(props) {
+  _resetForTesting()
+  return mount(LandingPage, { props })
 }
 
 describe('LandingPage', () => {
