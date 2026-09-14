@@ -11,12 +11,13 @@ import { useDarkMode } from '@shared/client'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
-const COLOR_INFRA = '#ef4444'
-// Test-failure violet, stepped per theme rather than a single mid-tone --
-// dark `#9085e9` clears contrast against the dark card surface the way the
+const COLOR_INFRA_LIGHT = '#ef4444'
+const COLOR_INFRA_DARK = '#c39764'
+// Test-failure hue, stepped per theme rather than a single mid-tone --
+// dark `#7295ce` clears contrast against the dark card surface the way the
 // light `#4a3aa7` does against white.
 const COLOR_TEST_LIGHT = '#4a3aa7'
-const COLOR_TEST_DARK = '#9085e9'
+const COLOR_TEST_DARK = '#7295ce'
 const COLOR_UNATTRIBUTED = '#9ca3af'
 
 const props = defineProps({
@@ -27,6 +28,7 @@ const props = defineProps({
 
 const { isDark, gridColor } = useDarkMode()
 
+const colorInfra = computed(() => isDark.value ? COLOR_INFRA_DARK : COLOR_INFRA_LIGHT)
 const colorTest = computed(() => isDark.value ? COLOR_TEST_DARK : COLOR_TEST_LIGHT)
 
 // The exporter partitions every failed job into exactly one of infra/test/
@@ -47,7 +49,7 @@ function donutData(window) {
   }
   return {
     labels: ['Infra', 'Test', 'Unattributed'],
-    datasets: [{ data: [infra, test, unattributed], backgroundColor: [COLOR_INFRA, colorTest.value, COLOR_UNATTRIBUTED], borderWidth: 2, borderColor: 'transparent' }]
+    datasets: [{ data: [infra, test, unattributed], backgroundColor: [colorInfra.value, colorTest.value, COLOR_UNATTRIBUTED], borderWidth: 2, borderColor: 'transparent' }]
   }
 }
 
@@ -89,7 +91,7 @@ const hasUnattributed = computed(() =>
 <template>
   <div>
     <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-      Red = infra-caused failures (CI's own fault), purple = product/test failures.
+      Infra = CI's own fault (setup/teardown/provisioning), Test = product/test failures.
     </p>
     <div class="grid grid-cols-2 gap-4">
       <div class="text-center">
@@ -108,7 +110,7 @@ const hasUnattributed = computed(() =>
       </div>
     </div>
     <div class="flex justify-center gap-4 mt-3 text-[11px] text-gray-500 dark:text-gray-400">
-      <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#ef4444"></span>Infra</span>
+      <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full inline-block" :style="{ background: colorInfra }"></span>Infra</span>
       <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full inline-block" :style="{ background: colorTest }"></span>Test</span>
       <span v-if="hasUnattributed" class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#9ca3af"></span>Unattributed</span>
     </div>

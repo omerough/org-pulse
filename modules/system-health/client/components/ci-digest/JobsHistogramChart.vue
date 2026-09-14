@@ -12,19 +12,24 @@ import { useDarkMode } from '@shared/client'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip)
 
+const COLOR_LIGHT = '#3b82f6'
+const COLOR_DARK = '#7295ce'
+
 const props = defineProps({
   // [{ bucket, prs, success, cancelled, failure }]
   histogram: { type: Array, default: () => [] }
 })
 
-const { textColor, gridColor } = useDarkMode()
+const { isDark, textColor, gridColor } = useDarkMode()
+
+const barColor = computed(() => isDark.value ? COLOR_DARK : COLOR_LIGHT)
 
 const chartData = computed(() => ({
   labels: props.histogram.map(d => d.bucket),
   datasets: [{
     label: 'PRs',
     data: props.histogram.map(d => d.prs),
-    backgroundColor: '#3b82f6',
+    backgroundColor: barColor.value,
     borderRadius: 3
   }]
 }))

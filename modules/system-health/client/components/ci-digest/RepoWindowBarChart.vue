@@ -13,8 +13,10 @@ import { useDarkMode } from '@shared/client'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
-const COLOR_24H = '#f97316'
-const COLOR_7D = '#3b82f6'
+const COLOR_24H_LIGHT = '#f97316'
+const COLOR_24H_DARK = '#c39764'
+const COLOR_7D_LIGHT = '#3b82f6'
+const COLOR_7D_DARK = '#7295ce'
 
 const props = defineProps({
   // [{ repo, hours24, label24, count24, hours7d, label7d, count7d }]
@@ -22,13 +24,16 @@ const props = defineProps({
   emptyMessage: { type: String, default: 'No data in this window.' }
 })
 
-const { textColor, gridColor } = useDarkMode()
+const { isDark, textColor, gridColor } = useDarkMode()
+
+const color24h = computed(() => isDark.value ? COLOR_24H_DARK : COLOR_24H_LIGHT)
+const color7d = computed(() => isDark.value ? COLOR_7D_DARK : COLOR_7D_LIGHT)
 
 const chartData = computed(() => ({
   labels: props.rows.map(r => r.repo),
   datasets: [
-    { label: '24h', data: props.rows.map(r => r.hours24), backgroundColor: COLOR_24H, borderRadius: 3 },
-    { label: '7d', data: props.rows.map(r => r.hours7d), backgroundColor: COLOR_7D, borderRadius: 3 }
+    { label: '24h', data: props.rows.map(r => r.hours24), backgroundColor: color24h.value, borderRadius: 3 },
+    { label: '7d', data: props.rows.map(r => r.hours7d), backgroundColor: color7d.value, borderRadius: 3 }
   ]
 }))
 
