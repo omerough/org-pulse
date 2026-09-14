@@ -69,7 +69,7 @@ function pct(rate) {
 }
 
 function statusColorClass(rate) {
-  if (rate == null) return 'text-gray-400 dark:text-gray-500'
+  if (rate == null) return 'text-gray-500 dark:text-gray-400'
   if (rate < 0.5) return 'text-red-600 dark:text-red-400'
   if (rate < 0.8) return 'text-amber-600 dark:text-amber-400'
   return 'text-green-600 dark:text-green-400'
@@ -222,7 +222,7 @@ function retry() {
           :href="source.runUrl"
           target="_blank"
           rel="noopener noreferrer"
-          class="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 mt-0.5"
+          class="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 mt-0.5"
         >Source run <ExternalLinkIcon :size="11" /></a>
       </div>
     </div>
@@ -272,7 +272,7 @@ function retry() {
         >
           <div class="text-xs text-gray-500 dark:text-gray-400 mb-1.5">{{ tile.label }}</div>
           <div class="text-2xl font-bold tabular-nums" :class="tile.colorClass">{{ tile.value }}</div>
-          <div class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">{{ tile.sub }}</div>
+          <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{{ tile.sub }}</div>
         </div>
       </section>
 
@@ -299,7 +299,7 @@ function retry() {
       <section class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
         <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Time to Merge (24h &amp; 7d)</h2>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Median time from first approval to merge, by repo</p>
-        <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">{{ mergeDesc }}</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ mergeDesc }}</p>
         <RepoWindowBarChart :rows="mergeTimeRows" empty-message="No merged PRs had a human approval in this window." />
       </section>
 
@@ -307,7 +307,7 @@ function retry() {
       <section class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
         <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Time in Merge Queue (24h &amp; 7d)</h2>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Median time from entering the merge queue to merge, by repo</p>
-        <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">{{ queueDesc }}</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">{{ queueDesc }}</p>
         <RepoWindowBarChart :rows="queueWaitRows" empty-message="No merged PRs went through the merge queue in this window." />
       </section>
 

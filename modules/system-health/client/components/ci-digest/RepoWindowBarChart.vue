@@ -70,5 +70,5 @@ const chartOptions = computed(() => ({
   <div v-if="rows.length" class="h-[220px]">
     <Bar :data="chartData" :options="chartOptions" />
   </div>
-  <p v-else class="text-sm text-gray-400 dark:text-gray-500 py-6 text-center">{{ emptyMessage }}</p>
+  <p v-else class="text-sm text-gray-500 dark:text-gray-400 py-6 text-center">{{ emptyMessage }}</p>
 </template>
