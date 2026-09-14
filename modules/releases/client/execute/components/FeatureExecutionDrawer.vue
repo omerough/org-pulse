@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import StatusBadge from './StatusBadge.vue'
+import AIInfoBubble from './AIInfoBubble.vue'
 import { componentDisplayLabel } from '../composables/useComponentStatusFilter'
 import { useFocusTrap } from '../../plan/composables/useFocusTrap'
-import { isValidProgressCount } from '../utils/progress'
+import { isValidProgressCount, PROGRESS_SUPPORTING_TEXT, PROGRESS_HELP_TEXT } from '../utils/progress'
 
 const props = defineProps({
   featureKey: { type: String, default: null },
@@ -120,13 +121,21 @@ function issuePrep(epic) {
               </button>
             </div>
 
-            <div class="flex flex-wrap items-center gap-2 mt-2.5">
-              <StatusBadge :status="card.feature.status" />
-              <span
-                class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold"
-                :class="card.readiness.class"
-                title="Preparation readiness — independent of execution progress"
-              >{{ card.readiness.label }}</span>
+            <div class="flex flex-wrap items-center gap-3 mt-2.5">
+              <span class="inline-flex items-center gap-1">
+                <span class="text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Jira status</span>
+                <StatusBadge :status="card.feature.status" />
+              </span>
+              <span class="inline-flex items-center gap-1">
+                <span class="inline-flex items-center text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
+                  Preparation
+                  <AIInfoBubble v-if="card.readiness.help" :text="card.readiness.help" />
+                </span>
+                <span
+                  class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold"
+                  :class="card.readiness.class"
+                >{{ card.readiness.label }}</span>
+              </span>
             </div>
           </div>
 
@@ -135,19 +144,23 @@ function issuePrep(epic) {
 
             <!-- Execution Progress -->
             <section class="px-4 py-4">
-              <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">Execution Progress</p>
+              <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3 flex items-center">
+                Execution Progress
+                <AIInfoBubble :text="PROGRESS_HELP_TEXT" />
+              </p>
               <template v-if="card.progress.kind === 'available'">
                 <div class="flex items-center gap-2">
                   <div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                     <div class="h-full rounded-full bg-primary-500" :style="{ width: card.progress.pct + '%' }" />
                   </div>
-                  <span class="text-xs font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap">{{ card.progress.done }}/{{ card.progress.total }} &middot; {{ card.progress.pct }}%</span>
                 </div>
+                <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 mt-2">{{ card.progress.done }} of {{ card.progress.total }} tracked execution issues done &middot; {{ card.progress.pct }}%</p>
+                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-2">{{ PROGRESS_SUPPORTING_TEXT }}</p>
               </template>
-              <p v-else class="text-xs italic text-gray-400 dark:text-gray-500">{{ card.progress.text }}</p>
-              <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
-                Covers observed execution issues; recognized preparation work is excluded. Preparation classification can be partial.
-              </p>
+              <template v-else>
+                <p class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ card.progress.caption }}</p>
+                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-1">{{ card.progress.detail }}</p>
+              </template>
             </section>
 
             <!-- Details -->
@@ -196,7 +209,7 @@ function issuePrep(epic) {
                 <dt class="text-gray-400 dark:text-gray-500">Epics</dt>
                 <dd class="text-gray-700 dark:text-gray-300">{{ card.feature.epicCount }}</dd>
 
-                <dt class="text-gray-400 dark:text-gray-500" title="Total tracked child issues, including recognized preparation">Issues</dt>
+                <dt class="text-gray-400 dark:text-gray-500" title="Total tracked child issues, including recognized preparation">Total issues</dt>
                 <dd class="text-gray-700 dark:text-gray-300">{{ card.feature.issueCount }}</dd>
 
                 <template v-if="card.feature.blockerCount > 0">

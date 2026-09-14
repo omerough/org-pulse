@@ -94,13 +94,13 @@ describe('OverviewView (Feature List)', () => {
     const columnTitles = wrapper.findAll('h3').map(h => h.text())
     expect(columnTitles).toEqual(['Not Started', 'In Progress', 'Observed Work Done'])
 
-    // 3 measurable (COMPLETE-1, NS-1, IP-1) + 4 without measurable progress
+    // 3 with progress data (COMPLETE-1, NS-1, IP-1) + 4 without
     // (EMPTY-1, EMPTY-2, NODATA-1, NODATA-2) = all 7 filtered features.
-    expect(wrapper.text()).toContain('Filtered Features:')
+    expect(wrapper.text()).toContain('Features:')
     expect(wrapper.text()).toContain('7')
-    expect(wrapper.text()).toContain('Measurable execution:')
+    expect(wrapper.text()).toContain('With progress data:')
     expect(wrapper.text()).toContain('3')
-    expect(wrapper.text()).toContain('Without measurable progress:')
+    expect(wrapper.text()).toContain('Without progress data:')
     expect(wrapper.text()).toContain('4')
 
     for (const key of ['COMPLETE-1', 'NS-1', 'IP-1']) {
@@ -111,7 +111,7 @@ describe('OverviewView (Feature List)', () => {
       expect(wrapper.text()).not.toContain(key)
     }
 
-    const coverageButton = wrapper.findAll('button').find(b => b.text().includes('Without measurable progress'))
+    const coverageButton = wrapper.findAll('button').find(b => b.text().includes('Without progress data'))
     await coverageButton.trigger('click')
     for (const key of ['EMPTY-1', 'EMPTY-2', 'NODATA-1', 'NODATA-2']) {
       expect(wrapper.text()).toContain(key)
@@ -124,14 +124,13 @@ describe('OverviewView (Feature List)', () => {
     // Real nonzero all-To-Do scope shows 0%, not blank/unavailable, directly on the board
     expect(wrapper.text()).toContain('0/2')
 
-    const coverageButton = wrapper.findAll('button').find(b => b.text().includes('Without measurable progress'))
+    const coverageButton = wrapper.findAll('button').find(b => b.text().includes('Without progress data'))
     await coverageButton.trigger('click')
     const text = wrapper.text()
 
-    expect(text).toContain('No linked Epics')
-    expect(text).toContain('Preparation work only')
-    expect(text).toContain('9 epics')
-    expect(text).toContain('No issue-level progress available')
+    expect(text).toContain('No linked epics found')
+    expect(text).toContain('Only preparation issues found')
+    expect(text).toContain('Issue details missing')
     expect(text).toContain('Execution data unavailable')
   })
 
@@ -160,7 +159,7 @@ describe('OverviewView (Feature List)', () => {
     expect(wrapper.text()).toContain('PAGED-7')
     expect(wrapper.text()).toContain('Page 2 of 2')
     // Pagination is presentation-only; the filtered population is unchanged
-    expect(wrapper.text()).toContain('Filtered Features:')
+    expect(wrapper.text()).toContain('Features:')
     expect(wrapper.text()).toContain('8')
   })
 
@@ -222,7 +221,7 @@ describe('OverviewView (Feature List)', () => {
     expect(wrapper.text()).toContain('Pending')
     expect(wrapper.text()).toContain('Unknown')
 
-    const coverageButton = wrapper.findAll('button').find(b => b.text().includes('Without measurable progress'))
+    const coverageButton = wrapper.findAll('button').find(b => b.text().includes('Without progress data'))
     await coverageButton.trigger('click')
     expect(wrapper.text()).toContain('N/A')
   })
@@ -242,7 +241,7 @@ describe('OverviewView (Feature List)', () => {
     const headers = wrapper.findAll('th').map(h => h.text())
     expect(headers).toEqual([
       'Key', 'Summary', 'Jira Status', 'Execution State', 'Progress',
-      'Preparation', 'Epics', 'Issues', 'Attention', 'Components', 'Version'
+      'Preparation', 'Epics', 'Total issues', 'Attention', 'Components', 'Version'
     ])
 
     const rows = wrapper.findAll('tbody tr')

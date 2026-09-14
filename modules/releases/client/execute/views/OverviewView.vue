@@ -2,7 +2,7 @@
 import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useFeatureTraffic, useFeatureDetail, useVersions } from '../composables/useFeatureTraffic'
 import StatusBadge from '../components/StatusBadge.vue'
-import ComponentStatusFilterBar from '../components/ComponentStatusFilterBar.vue'
+import AIInfoBubble from '../components/AIInfoBubble.vue'
 import FeatureExecutionDrawer from '../components/FeatureExecutionDrawer.vue'
 import {
   useComponentStatusFilter,
@@ -12,7 +12,8 @@ import {
   matchesStatus,
   componentDisplayLabel
 } from '../composables/useComponentStatusFilter'
-import { isValidProgressCount } from '../utils/progress'
+import { isValidProgressCount, executionUnavailableInfo, PROGRESS_SUPPORTING_TEXT } from '../utils/progress'
+import { preparationHelpText } from '../utils/readiness'
 
 const { features, fetchedAt, loading, error, loadFeatures } = useFeatureTraffic()
 const { versions, loadVersions } = useVersions()
@@ -37,8 +38,13 @@ const attentionBlockersOnly = ref(false)
 const searchQuery = ref('')
 const viewMode = ref('board') // 'board' or 'list'
 
-const versionDropdownOpen = ref(false)
-const executionStateDropdownOpen = ref(false)
+const CLOSED_DROPDOWNS = { version: false, executionState: false, component: false, jiraStatus: false }
+const openDropdown = ref({ ...CLOSED_DROPDOWNS })
+
+function toggleDropdown(name) {
+  const wasOpen = openDropdown.value[name]
+  openDropdown.value = { ...CLOSED_DROPDOWNS, [name]: !wasOpen }
+}
 
 function toggleVersion(v) {
   const idx = selectedVersions.value.indexOf(v)
@@ -57,6 +63,14 @@ const versionFilterLabel = computed(() => {
   if (selectedVersions.value.length === 1) return selectedVersions.value[0]
   return selectedVersions.value.length + ' versions'
 })
+
+function multiFilterLabel(selectedLabels, allLabel) {
+  if (!selectedLabels || selectedLabels.length === 0) return allLabel
+  if (selectedLabels.length === 1) return selectedLabels[0]
+  return selectedLabels.length + ' selected'
+}
+const componentFilterLabel = computed(() => multiFilterLabel(selectedComponents.value.map(componentDisplayLabel), 'All components'))
+const jiraStatusFilterLabel = computed(() => multiFilterLabel(selectedStatuses.value, 'All statuses'))
 
 const EXECUTION_STATE_FILTER_OPTIONS = [
   { value: 'no-tracked-work', label: 'No Tracked Work' },
@@ -79,8 +93,7 @@ const executionStateFilterLabel = computed(() => {
 // Close dropdowns on outside click
 function handleOutsideClick(e) {
   if (!e.target.closest('.multi-select-dropdown')) {
-    versionDropdownOpen.value = false
-    executionStateDropdownOpen.value = false
+    openDropdown.value = { ...CLOSED_DROPDOWNS }
   }
 }
 
@@ -145,25 +158,6 @@ const LANE_META = {
 const BOARD_COLUMNS = ['not-started', 'in-progress', 'complete']
 const PAGE_SIZE = 6
 
-const COVERAGE_REASON_CAPTIONS = {
-  'no-epics': 'No linked Epics',
-  'preparation-only': 'Preparation work only · No tracked execution work',
-  'data-unavailable': 'Execution data unavailable'
-}
-const GENERIC_UNAVAILABLE_CAPTION = 'Execution data unavailable'
-
-// Caption comes verbatim from the producer's executionCoverageReason — never
-// inferred from epicCount/issueCount. A missing/unrecognized reason (older
-// payload) renders the same generic caption as data-unavailable.
-function coverageCaption(f) {
-  const reason = f.executionCoverageReason
-  if (reason === 'epics-without-issue-detail') {
-    const epics = Number.isInteger(f.epicCount) && f.epicCount >= 0 ? f.epicCount : 0
-    return epics + ' epic' + (epics === 1 ? '' : 's') + ' · No issue-level progress available'
-  }
-  return COVERAGE_REASON_CAPTIONS[reason] || GENERIC_UNAVAILABLE_CAPTION
-}
-
 const READINESS_META = {
   ready: { label: 'Ready', class: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' },
   pending: { label: 'Pending', class: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-500/30' },
@@ -171,15 +165,12 @@ const READINESS_META = {
   'not-applicable': { label: 'N/A', class: 'bg-gray-50 dark:bg-gray-800/40 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700' }
 }
 function readinessMeta(r) {
-  return READINESS_META[r] || READINESS_META.unknown
+  const key = READINESS_META[r] ? r : 'unknown'
+  return { ...READINESS_META[key], help: preparationHelpText(key) }
 }
 
-// Presentation only — executionState/executionCoverage/preparationReadiness are
-// producer-owned and consumed read-only here, never recomputed. The two distinct
-// "unavailable" captions mirror the two known unavailable causes: epics observed
-// with no child issues at all, versus hierarchy/metrics genuinely missing.
-// "available" coverage with counts that fail validation also falls through to
-// the unavailable caption, rather than a fabricated 0%/NaN/clamped value.
+// Presentation only — executionState/executionCoverage/executionCoverageReason are
+// producer-owned and never recomputed; invalid counts also fall through to unavailable.
 function executionSummary(f) {
   if (f.executionCoverage === 'available') {
     const total = f.executionIssueCount
@@ -187,20 +178,15 @@ function executionSummary(f) {
     if (isValidProgressCount(total) && isValidProgressCount(done) && total > 0 && done <= total) {
       return { kind: 'available', pct: Math.round((done / total) * 100), done, total }
     }
-  } else if (f.executionCoverage === 'empty') {
-    const hasIssues = (f.issueCount || 0) > 0
-    return {
-      kind: 'empty',
-      text: hasIssues ? 'Preparation work only · No tracked execution work' : 'No tracked execution work'
-    }
   }
-  const epics = f.epicCount || 0
-  const issues = f.issueCount || 0
-  const text = epics > 0 && issues === 0
-    ? epics + ' epic' + (epics === 1 ? '' : 's') + ' · No issue-level progress available'
-    : 'Execution data unavailable'
-  return { kind: 'unavailable', text }
+  const info = executionUnavailableInfo(f.executionCoverageReason)
+  return { kind: 'unavailable', caption: info.caption, detail: info.detail }
 }
+
+const WITH_PROGRESS_DATA_HELP =
+  'Features with collected execution issues that can be used to calculate progress. Includes work that has not started.'
+const WITHOUT_PROGRESS_DATA_HELP =
+  'Progress cannot be calculated because no execution issues were found, only preparation issues were found, or issue details are missing. This does not necessarily mean work hasn’t started.'
 
 const OVERVIEW_FILTER_STORAGE_KEY = 'releases:feature-list-filters'
 
@@ -441,82 +427,162 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
       </div>
     </div>
 
-    <!-- Filters -->
-    <div class="flex flex-wrap gap-3 items-center">
-      <input
-        v-model="searchQuery"
-        type="text"
-        placeholder="Search features..."
-        class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-      />
+    <!-- Filter toolbar -->
+    <div class="flex flex-wrap gap-3 items-end p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <div class="flex flex-col gap-0.5">
+        <label for="feature-search" class="text-xs font-medium text-gray-600 dark:text-gray-400">Search</label>
+        <input
+          id="feature-search"
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search features..."
+          class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+        />
+      </div>
 
       <!-- Multi-select: Versions -->
-      <div class="relative multi-select-dropdown">
-        <button
-          @click.stop="versionDropdownOpen = !versionDropdownOpen; executionStateDropdownOpen = false"
-          class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[140px]"
-          :class="selectedVersions.length > 0
-            ? 'border-primary-500 ring-1 ring-primary-500'
-            : 'border-gray-300 dark:border-gray-600'"
-        >
-          <span class="flex-1 text-left truncate">{{ versionFilterLabel }}</span>
-          <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform" :class="{ 'rotate-180': versionDropdownOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </button>
-        <div
-          v-if="versionDropdownOpen"
-          class="absolute z-20 mt-1 w-56 max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1"
-        >
-          <label
-            v-for="v in versions"
-            :key="v"
-            class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+      <div class="flex flex-col gap-0.5">
+        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">Version</label>
+        <div class="relative multi-select-dropdown">
+          <button
+            @click.stop="toggleDropdown('version')"
+            class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[140px]"
+            :class="selectedVersions.length > 0
+              ? 'border-primary-500 ring-1 ring-primary-500'
+              : 'border-gray-300 dark:border-gray-600'"
           >
-            <input
-              type="checkbox"
-              :checked="selectedVersions.includes(v)"
-              @change="toggleVersion(v)"
-              class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
-            />
-            <span class="truncate">{{ v }}</span>
-          </label>
-          <div v-if="versions.length === 0" class="px-3 py-2 text-xs text-gray-400">No versions available</div>
+            <span class="flex-1 text-left truncate">{{ versionFilterLabel }}</span>
+            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform" :class="{ 'rotate-180': openDropdown.version }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div
+            v-if="openDropdown.version"
+            class="absolute z-20 mt-1 w-56 max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1"
+          >
+            <label
+              v-for="v in versions"
+              :key="v"
+              class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedVersions.includes(v)"
+                @change="toggleVersion(v)"
+                class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+              />
+              <span class="truncate">{{ v }}</span>
+            </label>
+            <div v-if="versions.length === 0" class="px-3 py-2 text-xs text-gray-400">No versions available</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Multi-select: Component -->
+      <div v-if="componentOptions.length > 0" class="flex flex-col gap-0.5">
+        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">Component</label>
+        <div class="relative multi-select-dropdown">
+          <button
+            @click.stop="toggleDropdown('component')"
+            class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[140px]"
+            :class="selectedComponents.length > 0
+              ? 'border-primary-500 ring-1 ring-primary-500'
+              : 'border-gray-300 dark:border-gray-600'"
+          >
+            <span class="flex-1 text-left truncate">{{ componentFilterLabel }}</span>
+            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform" :class="{ 'rotate-180': openDropdown.component }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div
+            v-if="openDropdown.component"
+            class="absolute z-20 mt-1 w-56 max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1"
+          >
+            <label
+              v-for="c in componentOptions"
+              :key="c"
+              class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedComponents.includes(c)"
+                @change="toggleComponent(c)"
+                class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+              />
+              <span class="truncate">{{ componentDisplayLabel(c) }}</span>
+            </label>
+          </div>
         </div>
       </div>
 
       <!-- Multi-select: Execution State -->
-      <div class="relative multi-select-dropdown">
-        <button
-          @click.stop="executionStateDropdownOpen = !executionStateDropdownOpen; versionDropdownOpen = false"
-          class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[160px]"
-          title="Execution state reflects observed, normalized Jira issues only; recognized preparation work is excluded."
-          :class="selectedExecutionStates.length > 0
-            ? 'border-primary-500 ring-1 ring-primary-500'
-            : 'border-gray-300 dark:border-gray-600'"
-        >
-          <span class="flex-1 text-left truncate">{{ executionStateFilterLabel }}</span>
-          <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform" :class="{ 'rotate-180': executionStateDropdownOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </button>
-        <div
-          v-if="executionStateDropdownOpen"
-          class="absolute z-20 mt-1 w-60 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1"
-        >
-          <label
-            v-for="opt in EXECUTION_STATE_FILTER_OPTIONS"
-            :key="opt.value"
-            class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+      <div class="flex flex-col gap-0.5">
+        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">Execution state</label>
+        <div class="relative multi-select-dropdown">
+          <button
+            @click.stop="toggleDropdown('executionState')"
+            class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[160px]"
+            title="Execution state reflects observed, normalized Jira issues only; recognized preparation work is excluded."
+            :class="selectedExecutionStates.length > 0
+              ? 'border-primary-500 ring-1 ring-primary-500'
+              : 'border-gray-300 dark:border-gray-600'"
           >
-            <input
-              type="checkbox"
-              :checked="selectedExecutionStates.includes(opt.value)"
-              @change="toggleExecutionState(opt.value)"
-              class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
-            />
-            <span>{{ opt.label }}</span>
-          </label>
+            <span class="flex-1 text-left truncate">{{ executionStateFilterLabel }}</span>
+            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform" :class="{ 'rotate-180': openDropdown.executionState }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div
+            v-if="openDropdown.executionState"
+            class="absolute z-20 mt-1 w-60 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1"
+          >
+            <label
+              v-for="opt in EXECUTION_STATE_FILTER_OPTIONS"
+              :key="opt.value"
+              class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedExecutionStates.includes(opt.value)"
+                @change="toggleExecutionState(opt.value)"
+                class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+              />
+              <span>{{ opt.label }}</span>
+            </label>
+          </div>
         </div>
       </div>
 
-      <!-- Attention toggle -->
+      <!-- Multi-select: Jira status -->
+      <div v-if="jiraStatusOptions.length > 0" class="flex flex-col gap-0.5">
+        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">Jira status</label>
+        <div class="relative multi-select-dropdown">
+          <button
+            @click.stop="toggleDropdown('jiraStatus')"
+            class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[140px]"
+            :class="selectedStatuses.length > 0
+              ? 'border-primary-500 ring-1 ring-primary-500'
+              : 'border-gray-300 dark:border-gray-600'"
+          >
+            <span class="flex-1 text-left truncate">{{ jiraStatusFilterLabel }}</span>
+            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform" :class="{ 'rotate-180': openDropdown.jiraStatus }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div
+            v-if="openDropdown.jiraStatus"
+            class="absolute z-20 mt-1 w-60 max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1"
+          >
+            <label
+              v-for="s in jiraStatusOptions"
+              :key="s"
+              class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedStatuses.includes(s)"
+                @change="toggleStatus(s)"
+                class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+              />
+              <span class="truncate">{{ s }}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Blockers only toggle -->
       <label class="flex items-center gap-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
         <input
           v-model="attentionBlockersOnly"
@@ -528,23 +594,12 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
 
       <button
         v-if="isAnyFiltered"
-        class="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+        class="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white py-1.5"
         @click="clearAllFilters"
       >
-        Clear Filters
+        Clear filters
       </button>
     </div>
-
-    <ComponentStatusFilterBar
-      class="rounded-xl border border-gray-200 dark:border-gray-700"
-      :component-options="componentOptions"
-      :status-options="jiraStatusOptions"
-      :selected-components="selectedComponents"
-      :selected-statuses="selectedStatuses"
-      @toggle-component="toggleComponent"
-      @toggle-status="toggleStatus"
-      @clear="clearComponentStatusFilters"
-    />
 
     <!-- Error -->
     <div v-if="error" class="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-4 text-red-700 dark:text-red-400 text-sm">
@@ -563,20 +618,24 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
              filtered population's measurable-vs-not execution progress. -->
         <div class="flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 text-sm mb-4">
           <span class="text-gray-600 dark:text-gray-300">
-            Filtered Features: <strong class="text-gray-900 dark:text-gray-100">{{ filteredFeatures.length }}</strong>
+            Features: <strong class="text-gray-900 dark:text-gray-100">{{ filteredFeatures.length }}</strong>
           </span>
-          <span class="text-gray-600 dark:text-gray-300">
-            Measurable execution: <strong class="text-gray-900 dark:text-gray-100">{{ measurableCount }}</strong>
+          <span class="inline-flex items-center text-gray-600 dark:text-gray-300">
+            With progress data: <strong class="text-gray-900 dark:text-gray-100 ml-1">{{ measurableCount }}</strong>
+            <AIInfoBubble :text="WITH_PROGRESS_DATA_HELP" />
           </span>
-          <button
-            type="button"
-            class="text-gray-600 dark:text-gray-300 underline decoration-dotted underline-offset-2 hover:text-gray-900 dark:hover:text-white"
-            :aria-expanded="coveragePanelOpen"
-            aria-controls="coverage-panel"
-            @click="coveragePanelOpen = !coveragePanelOpen"
-          >
-            Without measurable progress: <strong class="text-gray-900 dark:text-gray-100">{{ coverageFeatures.length }}</strong>
-          </button>
+          <span class="inline-flex items-center">
+            <button
+              type="button"
+              class="text-gray-600 dark:text-gray-300 underline decoration-dotted underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+              :aria-expanded="coveragePanelOpen"
+              aria-controls="coverage-panel"
+              @click="coveragePanelOpen = !coveragePanelOpen"
+            >
+              Without progress data: <strong class="text-gray-900 dark:text-gray-100">{{ coverageFeatures.length }}</strong>
+            </button>
+            <AIInfoBubble :text="WITHOUT_PROGRESS_DATA_HELP" />
+          </span>
         </div>
 
         <div
@@ -603,16 +662,24 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                       :aria-label="'Open details for ' + d.feature.key"
                       @click.stop="handleSelect(d, $event)"
                     >{{ d.feature.key }}</button>
-                    <StatusBadge :status="d.feature.status" />
+                    <span class="inline-flex items-center gap-1">
+                      <span class="text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Jira status</span>
+                      <StatusBadge :status="d.feature.status" />
+                    </span>
                   </div>
-                  <span
-                    class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold"
-                    :class="d.readiness.class"
-                    title="Preparation readiness — independent of execution progress"
-                  >{{ d.readiness.label }}</span>
+                  <span class="inline-flex items-center gap-1">
+                    <span class="inline-flex items-center text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
+                      Preparation
+                      <AIInfoBubble v-if="d.readiness.help" :text="d.readiness.help" />
+                    </span>
+                    <span
+                      class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold"
+                      :class="d.readiness.class"
+                    >{{ d.readiness.label }}</span>
+                  </span>
                 </div>
                 <p class="text-sm text-gray-900 dark:text-gray-100 font-medium leading-snug mb-1">{{ d.feature.summary }}</p>
-                <p class="text-xs italic text-gray-500 dark:text-gray-400">{{ coverageCaption(d.feature) }}</p>
+                <p class="text-xs italic text-gray-500 dark:text-gray-400">{{ d.progress.caption }}</p>
               </div>
             </div>
             <div v-if="pageCount(coverageFeatures) > 1" class="flex items-center justify-center gap-3 mt-3 text-xs text-gray-500 dark:text-gray-400">
@@ -682,13 +749,21 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                         :aria-label="'Open details for ' + d.feature.key"
                         @click.stop="handleSelect(d, $event)"
                       >{{ d.feature.key }}</button>
-                      <StatusBadge :status="d.feature.status" />
+                      <span class="inline-flex items-center gap-1">
+                        <span class="text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Jira status</span>
+                        <StatusBadge :status="d.feature.status" />
+                      </span>
                     </div>
-                    <span
-                      class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold"
-                      :class="d.readiness.class"
-                      title="Preparation readiness — independent of execution progress"
-                    >{{ d.readiness.label }}</span>
+                    <span class="inline-flex items-center gap-1">
+                      <span class="inline-flex items-center text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
+                        Preparation
+                        <AIInfoBubble v-if="d.readiness.help" :text="d.readiness.help" />
+                      </span>
+                      <span
+                        class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold"
+                        :class="d.readiness.class"
+                      >{{ d.readiness.label }}</span>
+                    </span>
                   </div>
                   <p class="text-sm text-gray-900 dark:text-gray-100 font-medium leading-snug">{{ d.feature.summary }}</p>
                 </div>
@@ -703,7 +778,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                       <span class="text-xs font-semibold text-gray-600 dark:text-gray-300 w-24 text-right">{{ d.progress.done }}/{{ d.progress.total }} &middot; {{ d.progress.pct }}%</span>
                     </div>
                   </template>
-                  <p v-else class="text-xs italic text-gray-400 dark:text-gray-500">{{ d.progress.text }}</p>
+                  <p v-else class="text-xs italic text-gray-400 dark:text-gray-500">{{ d.progress.caption }}</p>
                 </div>
 
                 <!-- Counts breakdown -->
@@ -713,7 +788,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                   </span>
                   <span class="text-gray-300 dark:text-gray-600">|</span>
                   <span class="text-gray-500 dark:text-gray-400" title="Total tracked child issues, including recognized preparation">
-                    <span class="font-semibold text-gray-700 dark:text-gray-300">{{ d.feature.issueCount }}</span> Issues
+                    <span class="font-semibold text-gray-700 dark:text-gray-300">{{ d.feature.issueCount }}</span> Total issues
                   </span>
                   <span v-if="d.feature.blockerCount > 0" class="text-gray-300 dark:text-gray-600">|</span>
                   <span v-if="d.feature.blockerCount > 0" class="text-amber-600 dark:text-amber-400 font-semibold">
@@ -817,17 +892,14 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Execution State</th>
                   <th
                     class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium"
-                    title="Done / observed execution issues. Recognized preparation work is excluded from both counts."
+                    :title="PROGRESS_SUPPORTING_TEXT"
                   >Progress</th>
-                  <th
-                    class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium"
-                    title="Preparation readiness is independent of execution progress; classification can be partial."
-                  >Preparation</th>
+                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Preparation</th>
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Epics</th>
                   <th
                     class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium"
                     title="Total tracked child issues, including recognized preparation — a different denominator than Progress"
-                  >Issues</th>
+                  >Total issues</th>
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Attention</th>
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Components</th>
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Version</th>
@@ -865,10 +937,13 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                         <span class="text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">{{ d.progress.done }}/{{ d.progress.total }} &middot; {{ d.progress.pct }}%</span>
                       </div>
                     </template>
-                    <span v-else class="text-xs italic text-gray-400 dark:text-gray-500">{{ d.progress.text }}</span>
+                    <span v-else class="text-xs italic text-gray-400 dark:text-gray-500">{{ d.progress.caption }}</span>
                   </td>
                   <td class="px-3 py-2">
-                    <span class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold" :class="d.readiness.class">{{ d.readiness.label }}</span>
+                    <span class="inline-flex items-center gap-1">
+                      <span class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold" :class="d.readiness.class">{{ d.readiness.label }}</span>
+                      <AIInfoBubble v-if="d.readiness.help" :text="d.readiness.help" />
+                    </span>
                   </td>
                   <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ d.feature.epicCount }}</td>
                   <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ d.feature.issueCount }}</td>
