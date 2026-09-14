@@ -223,9 +223,9 @@ test.describe('Releases Feature List @releases', () => {
     await expect(page.locator('h3', { hasText: 'No Tracked Work' })).toHaveCount(0);
     await expect(page.locator('h3', { hasText: 'Execution Data Unavailable' })).toHaveCount(0);
 
-    await expect(page.getByText('Filtered Features:')).toBeVisible();
-    await expect(page.getByText('Measurable execution:')).toBeVisible();
-    const coverageButton = page.getByRole('button', { name: /Without measurable progress/ });
+    await expect(page.getByText('Features:')).toBeVisible();
+    await expect(page.getByText('With progress data:')).toBeVisible();
+    const coverageButton = page.getByRole('button', { name: /Without progress data/ });
     await expect(coverageButton).toBeVisible();
 
     // Old-payload feature (predates the contract, no metrics.execution* fields at all)
@@ -251,7 +251,7 @@ test.describe('Releases Feature List @releases', () => {
     // The remaining cases have no measurable execution progress; their truthful
     // reason (from the producer's executionCoverageReason) only shows once the
     // coverage total is expanded.
-    await page.getByRole('button', { name: /Without measurable progress/ }).click();
+    await page.getByRole('button', { name: /Without progress data/ }).click();
 
     const noEpicsCard = page.locator('.cursor-pointer', { hasText: /TEST1-15\b/ });
     await expect(noEpicsCard).toContainText('No linked Epics');
@@ -271,7 +271,7 @@ test.describe('Releases Feature List @releases', () => {
   test('switches to List view exposing the same population with Execution State and Progress columns', async ({ page }) => {
     await openFeatureList(page);
 
-    await page.locator('button', { hasText: 'List' }).click();
+    await page.getByRole('button', { name: 'List', exact: true }).click();
     await page.waitForTimeout(500);
 
     const headers = await page.locator('table thead th').allTextContents();
