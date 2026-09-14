@@ -100,7 +100,7 @@ describe('FeatureExecutionDrawer', () => {
     }
     const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
 
-    const expandButton = wrapper.findAll('button').find(b => b.text().includes('EP-1'))
+    const expandButton = wrapper.findAll('button').find(b => b.text().includes('Mixed epic'))
     await expandButton.trigger('click')
 
     expect(wrapper.text()).toContain('Implement handler')
@@ -116,10 +116,41 @@ describe('FeatureExecutionDrawer', () => {
     expect(wrapper.text()).toContain('PRD: Streaming inference')
   })
 
+  it('links the Epic key to Jira without toggling expansion, keeping chevron/title as separate controls', async () => {
+    const detail = {
+      key: 'OSAC-100',
+      epics: [{ key: 'OSAC-1862', summary: 'Streaming epic', status: 'In Progress', executionIssueCount: 2, doneExecutionIssueCount: 1, issues: [] }]
+    }
+    const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
+
+    const epicLink = wrapper.findAll('a').find(a => a.text().includes('OSAC-1862'))
+    expect(epicLink.exists()).toBe(true)
+    expect(epicLink.attributes('href')).toBe('https://issues.redhat.com/browse/OSAC-1862')
+    expect(epicLink.attributes('target')).toBe('_blank')
+    expect(epicLink.attributes('rel')).toContain('noopener')
+    expect(epicLink.element.tagName).toBe('A')
+    expect(epicLink.element.closest('button')).toBeNull()
+
+    await epicLink.trigger('click')
+    expect(wrapper.text()).not.toContain('No execution issues')
+
+    const titleToggle = wrapper.findAll('button').find(b => b.text().includes('Streaming epic'))
+    await titleToggle.trigger('click')
+    expect(wrapper.text()).toContain('No execution issues')
+  })
+
   it('closes on Escape via the shared focus-trap composable', async () => {
     const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail: { key: 'OSAC-100', epics: [] } })
     await wrapper.find('[role="dialog"]').trigger('keydown', { key: 'Escape' })
     expect(wrapper.emitted('close')).toBeTruthy()
+  })
+
+  it('dismisses an info bubble on Escape without closing the drawer', async () => {
+    const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail: { key: 'OSAC-100', epics: [] } })
+    const infoButton = wrapper.find('[aria-label="More info"]')
+    await infoButton.trigger('click')
+    await infoButton.trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('close')).toBeFalsy()
   })
 
   it('closes on backdrop click', async () => {

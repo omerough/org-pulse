@@ -164,9 +164,9 @@ const READINESS_META = {
   unknown: { label: 'Unknown', class: 'bg-gray-100 dark:bg-gray-500/15 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-500/30' },
   'not-applicable': { label: 'N/A', class: 'bg-gray-50 dark:bg-gray-800/40 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700' }
 }
-function readinessMeta(r) {
+function readinessMeta(r, featureKey) {
   const key = READINESS_META[r] ? r : 'unknown'
-  return { ...READINESS_META[key], help: preparationHelpText(key) }
+  return { ...READINESS_META[key], help: preparationHelpText(key, featureKey) }
 }
 
 // Presentation only — executionState/executionCoverage/executionCoverageReason are
@@ -304,7 +304,7 @@ const decoratedFeatures = computed(() => filteredFeatures.value.map(f => ({
   feature: f,
   lane: laneKey(f),
   progress: executionSummary(f),
-  readiness: readinessMeta(f.preparationReadiness)
+  readiness: readinessMeta(f.preparationReadiness, f.key)
 })))
 
 // Three side-by-side execution columns, replacing the previous vertically
@@ -330,6 +330,22 @@ const columnPage = ref({ 'not-started': 1, 'in-progress': 1, complete: 1 })
 const coveragePage = ref(1)
 const coveragePanelOpen = ref(false)
 const activeColumnMobile = ref('not-started')
+
+// Measured content width, not viewport width — the sidebar can leave a "wide" viewport narrow.
+const rootEl = ref(null)
+const contentWidth = ref(Infinity)
+let contentResizeObserver = null
+
+function updateContentWidth() {
+  if (rootEl.value) contentWidth.value = rootEl.value.getBoundingClientRect().width
+}
+
+const useColumnTabs = computed(() => contentWidth.value < 700)
+const coverageGridClass = computed(() => {
+  if (contentWidth.value < 420) return 'grid-cols-1'
+  if (contentWidth.value < 700) return 'grid-cols-2'
+  return 'grid-cols-3'
+})
 
 // Independent per-column pagination — a presentation slice only, it never
 // changes the filtered population or the counts shown in headers/tabs.
@@ -387,13 +403,24 @@ onMounted(() => {
   loadFeatures()
   loadVersions()
   saveOverviewFilters()
+
+  updateContentWidth()
+  if (typeof ResizeObserver !== 'undefined' && rootEl.value) {
+    contentResizeObserver = new ResizeObserver(updateContentWidth)
+    contentResizeObserver.observe(rootEl.value)
+  }
+  window.addEventListener('resize', updateContentWidth)
 })
 
-onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleOutsideClick)
+  window.removeEventListener('resize', updateContentWidth)
+  contentResizeObserver?.disconnect()
+})
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div ref="rootEl" class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
@@ -622,7 +649,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
           </span>
           <span class="inline-flex items-center text-gray-600 dark:text-gray-300">
             With progress data: <strong class="text-gray-900 dark:text-gray-100 ml-1">{{ measurableCount }}</strong>
-            <AIInfoBubble :text="WITH_PROGRESS_DATA_HELP" />
+            <AIInfoBubble hoverable :text="WITH_PROGRESS_DATA_HELP" />
           </span>
           <span class="inline-flex items-center">
             <button
@@ -634,7 +661,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
             >
               Without progress data: <strong class="text-gray-900 dark:text-gray-100">{{ coverageFeatures.length }}</strong>
             </button>
-            <AIInfoBubble :text="WITHOUT_PROGRESS_DATA_HELP" />
+            <AIInfoBubble hoverable :text="WITHOUT_PROGRESS_DATA_HELP" />
           </span>
         </div>
 
@@ -647,18 +674,18 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
             No features without measurable execution progress.
           </div>
           <template v-else>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div class="grid gap-2" :class="coverageGridClass">
               <div
                 v-for="d in pageSlice(coverageFeatures, coveragePage)"
                 :key="d.feature.key"
                 class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200/80 dark:border-gray-700/80 cursor-pointer hover:shadow-md dark:hover:border-gray-600 transition-all p-3"
                 @click="handleSelect(d, $event)"
               >
-                <div class="flex items-center justify-between gap-2 mb-1">
-                  <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
+                  <div class="flex items-center gap-2 min-w-0">
                     <button
                       type="button"
-                      class="text-primary-600 dark:text-blue-400 font-mono text-xs font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
+                      class="text-primary-600 dark:text-blue-400 font-mono text-xs font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded whitespace-nowrap shrink-0"
                       :aria-label="'Open details for ' + d.feature.key"
                       @click.stop="handleSelect(d, $event)"
                     >{{ d.feature.key }}</button>
@@ -670,7 +697,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                   <span class="inline-flex items-center gap-1">
                     <span class="inline-flex items-center text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
                       Preparation
-                      <AIInfoBubble v-if="d.readiness.help" :text="d.readiness.help" />
+                      <AIInfoBubble hoverable v-if="d.readiness.help" :text="d.readiness.help" />
                     </span>
                     <span
                       class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold"
@@ -696,8 +723,8 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
           </template>
         </div>
 
-        <!-- Column selector, narrow widths only: tabs replace squeezed side-by-side columns -->
-        <div class="flex md:hidden gap-2 mb-3 overflow-x-auto">
+        <!-- Column selector, narrow content width only: tabs replace squeezed side-by-side columns -->
+        <div v-if="useColumnTabs" class="flex gap-2 mb-3 overflow-x-auto">
           <button
             v-for="col in boardColumns"
             :key="col.id"
@@ -711,12 +738,12 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
         </div>
 
         <!-- Three side-by-side execution columns -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid gap-4" :class="useColumnTabs ? 'grid-cols-1' : 'grid-cols-3'">
           <div
             v-for="col in boardColumns"
             :key="col.id"
-            class="rounded-lg border overflow-hidden md:block"
-            :class="[col.borderClass, col.bgClass, activeColumnMobile === col.id ? 'block' : 'hidden']"
+            class="rounded-lg border overflow-hidden"
+            :class="[col.borderClass, col.bgClass, !useColumnTabs || activeColumnMobile === col.id ? 'block' : 'hidden']"
           >
             <!-- Column header -->
             <div class="px-4 py-3 flex items-center justify-between" :class="col.headerBg">
@@ -741,11 +768,11 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
               >
                 <!-- Card header -->
                 <div class="px-4 pt-3 pb-2">
-                  <div class="flex items-center justify-between gap-2 mb-1">
-                    <div class="flex items-center gap-2">
+                  <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
+                    <div class="flex items-center gap-2 min-w-0">
                       <button
                         type="button"
-                        class="text-primary-600 dark:text-blue-400 font-mono text-xs font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
+                        class="text-primary-600 dark:text-blue-400 font-mono text-xs font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded whitespace-nowrap shrink-0"
                         :aria-label="'Open details for ' + d.feature.key"
                         @click.stop="handleSelect(d, $event)"
                       >{{ d.feature.key }}</button>
@@ -757,7 +784,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                     <span class="inline-flex items-center gap-1">
                       <span class="inline-flex items-center text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
                         Preparation
-                        <AIInfoBubble v-if="d.readiness.help" :text="d.readiness.help" />
+                        <AIInfoBubble hoverable v-if="d.readiness.help" :text="d.readiness.help" />
                       </span>
                       <span
                         class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold"
@@ -942,7 +969,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
                   <td class="px-3 py-2">
                     <span class="inline-flex items-center gap-1">
                       <span class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold" :class="d.readiness.class">{{ d.readiness.label }}</span>
-                      <AIInfoBubble v-if="d.readiness.help" :text="d.readiness.help" />
+                      <AIInfoBubble hoverable v-if="d.readiness.help" :text="d.readiness.help" />
                     </span>
                   </td>
                   <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ d.feature.epicCount }}</td>

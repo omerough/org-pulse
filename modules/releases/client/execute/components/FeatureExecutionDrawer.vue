@@ -129,7 +129,7 @@ function issuePrep(epic) {
               <span class="inline-flex items-center gap-1">
                 <span class="inline-flex items-center text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
                   Preparation
-                  <AIInfoBubble v-if="card.readiness.help" :text="card.readiness.help" />
+                  <AIInfoBubble hoverable v-if="card.readiness.help" :text="card.readiness.help" />
                 </span>
                 <span
                   class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold"
@@ -146,7 +146,7 @@ function issuePrep(epic) {
             <section class="px-4 py-4">
               <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3 flex items-center">
                 Execution Progress
-                <AIInfoBubble :text="PROGRESS_HELP_TEXT" />
+                <AIInfoBubble hoverable :text="PROGRESS_HELP_TEXT" />
               </p>
               <template v-if="card.progress.kind === 'available'">
                 <div class="flex items-center gap-2">
@@ -241,23 +241,44 @@ function issuePrep(epic) {
 
               <div v-else class="space-y-2">
                 <div v-for="epic in detail.epics" :key="epic.key" class="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                  <button
-                    type="button"
-                    class="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800/60"
-                    :aria-expanded="expandedEpics.has(epic.key)"
-                    @click="toggleEpic(epic.key)"
-                  >
-                    <span class="flex items-center gap-2 min-w-0">
-                      <svg
-                        class="w-3.5 h-3.5 shrink-0 transition-transform"
-                        :class="expandedEpics.has(epic.key) ? 'rotate-90' : ''"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"
-                      ><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-                      <span class="font-mono text-xs font-semibold text-primary-600 dark:text-blue-400 shrink-0">{{ epic.key }}</span>
-                      <span class="text-xs text-gray-700 dark:text-gray-300 truncate">{{ epic.summary }}</span>
+                  <div class="w-full flex items-center justify-between gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/60">
+                    <span class="flex items-center gap-2 min-w-0 flex-1">
+                      <button
+                        type="button"
+                        class="shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
+                        :aria-expanded="expandedEpics.has(epic.key)"
+                        :aria-label="(expandedEpics.has(epic.key) ? 'Collapse' : 'Expand') + ' ' + epic.key"
+                        @click="toggleEpic(epic.key)"
+                      >
+                        <svg
+                          class="w-3.5 h-3.5 transition-transform"
+                          :class="expandedEpics.has(epic.key) ? 'rotate-90' : ''"
+                          fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"
+                        ><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                      </button>
+                      <a
+                        :href="`${jiraBaseUrl}/${epic.key}`"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        :aria-label="'Open ' + epic.key + ' in Jira'"
+                        class="inline-flex items-center gap-0.5 font-mono text-xs font-semibold text-primary-600 dark:text-blue-400 hover:underline shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
+                      >
+                        {{ epic.key }}
+                        <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                      <button
+                        type="button"
+                        class="flex-1 min-w-0 text-left focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
+                        :aria-expanded="expandedEpics.has(epic.key)"
+                        @click="toggleEpic(epic.key)"
+                      >
+                        <span class="text-xs text-gray-700 dark:text-gray-300 truncate block">{{ epic.summary }}</span>
+                      </button>
                     </span>
                     <StatusBadge :status="epic.status" />
-                  </button>
+                  </div>
 
                   <div class="px-3 pb-2">
                     <template v-if="epicProgress(epic).kind === 'available'">
