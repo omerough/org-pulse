@@ -140,7 +140,10 @@ function isEpicStale(stored, incoming) {
 // When no Jira snapshot is available to arbitrate, keeps a stale incoming
 // Epic's classification/`updated` pinned to the stored (newer) values, while
 // every other field (issues[], counts, summary/status) still comes from
-// `incoming`. Never re-derives the classification itself.
+// `incoming`. Never re-derives the classification itself. `changed` reflects
+// whether the effective classification was actually contradicted, not merely
+// whether `stored` had a newer timestamp, so callers don't invalidate metrics
+// on a no-op replay.
 function reconcileEpicClassifications(storedEpics, incomingEpics) {
   const storedByKey = new Map((storedEpics || []).map(function(e) { return [e.key, e]; }));
   let changed = false;
@@ -149,12 +152,35 @@ function reconcileEpicClassifications(storedEpics, incomingEpics) {
     const stored = storedByKey.get(epic.key);
     if (!stored || !isEpicStale(stored, epic)) return epic;
 
-    changed = true;
     const reconciled = Object.assign({}, epic, { updated: stored.updated });
     if (Object.prototype.hasOwnProperty.call(stored, 'statusCategory')) reconciled.statusCategory = stored.statusCategory;
     if (Object.prototype.hasOwnProperty.call(stored, 'resolution')) reconciled.resolution = stored.resolution;
-    if (Object.prototype.hasOwnProperty.call(stored, 'completedViaStatus')) reconciled.completedViaStatus = stored.completedViaStatus;
-    if (Object.prototype.hasOwnProperty.call(stored, 'excludedFromExecution')) reconciled.excludedFromExecution = stored.excludedFromExecution;
+    // status is a display label paired with statusCategory — keep them consistent
+    // rather than pairing a newer statusCategory with incoming's older status.
+    if (Object.prototype.hasOwnProperty.call(stored, 'status')) reconciled.status = stored.status;
+
+    // A flag the producer computed against incoming's classification can't be
+    // trusted once that classification was overridden above. Prefer the stored
+    // flag when available; otherwise, absence of a stored flag is not evidence
+    // the incoming one remains valid — invalidate rather than fabricate a value
+    // the producer never gave us for the reconciled classification.
+    const classificationChanged = reconciled.statusCategory !== epic.statusCategory || reconciled.resolution !== epic.resolution;
+    if (Object.prototype.hasOwnProperty.call(stored, 'completedViaStatus')) {
+      reconciled.completedViaStatus = stored.completedViaStatus;
+    } else if (classificationChanged && Object.prototype.hasOwnProperty.call(reconciled, 'completedViaStatus')) {
+      reconciled.completedViaStatus = false;
+    }
+    if (Object.prototype.hasOwnProperty.call(stored, 'excludedFromExecution')) {
+      reconciled.excludedFromExecution = stored.excludedFromExecution;
+    } else if (classificationChanged && Object.prototype.hasOwnProperty.call(reconciled, 'excludedFromExecution')) {
+      reconciled.excludedFromExecution = false;
+    }
+
+    if (classificationChanged ||
+        reconciled.completedViaStatus !== epic.completedViaStatus ||
+        reconciled.excludedFromExecution !== epic.excludedFromExecution) {
+      changed = true;
+    }
     return reconciled;
   });
 

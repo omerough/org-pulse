@@ -364,6 +364,52 @@ describe('reconcileEpicClassifications', () => {
     expect(changed).toBe(false)
     expect(epics[0]).toBe(incoming)
   })
+
+  it('does not report changed for a summary-only refresh where classification is identical (timestamp-only difference)', () => {
+    const identicalIncoming = {
+      key: 'EP-A', summary: 'Refreshed summary', statusCategory: 'To Do', resolution: null,
+      completedViaStatus: false, excludedFromExecution: false,
+      updated: '2026-06-01T00:00:00Z'
+    }
+    const { epics, changed } = reconcileEpicClassifications([stored], [identicalIncoming])
+    expect(changed).toBe(false)
+    expect(epics[0].statusCategory).toBe('To Do')
+    expect(epics[0].completedViaStatus).toBe(false)
+  })
+
+  it('preserves status alongside a newer stored statusCategory, not incoming\'s stale status', () => {
+    const reopenedStored = {
+      key: 'EP-A', status: 'New', statusCategory: 'To Do', resolution: null,
+      completedViaStatus: false, excludedFromExecution: false,
+      updated: '2026-06-05T00:00:00Z'
+    }
+    const staleClosedIncoming = {
+      key: 'EP-A', status: 'Closed', statusCategory: 'Done', resolution: 'Done',
+      completedViaStatus: true, excludedFromExecution: false,
+      updated: '2026-06-01T00:00:00Z'
+    }
+    const { epics, changed } = reconcileEpicClassifications([reopenedStored], [staleClosedIncoming])
+    expect(changed).toBe(true)
+    expect(epics[0].status).toBe('New')
+    expect(epics[0].statusCategory).toBe('To Do')
+    expect(epics[0].completedViaStatus).toBe(false)
+  })
+
+  it('does not let a stale incoming flag survive when stored has newer classification but no flags of its own', () => {
+    const jiraOnlyStored = {
+      key: 'EP-A', status: 'New', statusCategory: 'To Do', resolution: null,
+      updated: '2026-06-05T00:00:00Z'
+    }
+    const staleCompletedIncoming = {
+      key: 'EP-A', status: 'Done', statusCategory: 'Done', resolution: 'Done',
+      completedViaStatus: true, excludedFromExecution: false,
+      updated: '2026-06-01T00:00:00Z'
+    }
+    const { epics, changed } = reconcileEpicClassifications([jiraOnlyStored], [staleCompletedIncoming])
+    expect(changed).toBe(true)
+    expect(epics[0].completedViaStatus).toBe(false)
+    expect(epics[0].statusCategory).toBe('To Do')
+  })
 })
 
 describe('mergeFeatureData — Epics ownership', () => {
