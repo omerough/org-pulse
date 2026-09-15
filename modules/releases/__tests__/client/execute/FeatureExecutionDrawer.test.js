@@ -179,4 +179,64 @@ describe('FeatureExecutionDrawer', () => {
     await wrapper.find('[aria-hidden="true"]').trigger('click')
     expect(wrapper.emitted('close')).toBeTruthy()
   })
+
+  describe('Epic completion/exclusion override', () => {
+    it('shows "Completed via Epic status" with the actual N/M below it, labelled as actual', () => {
+      const detail = {
+        key: 'OSAC-100',
+        epics: [{
+          key: 'EP-1', summary: 'Completed via status', status: 'Done', resolution: 'Done',
+          completedViaStatus: true, excludedFromExecution: false,
+          executionIssueCount: 3, doneExecutionIssueCount: 1, issues: []
+        }]
+      }
+      const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
+      const text = wrapper.text()
+      expect(text).toContain('Completed via Epic status')
+      expect(text).toContain('1/3')
+      expect(text).toContain('(actual)')
+    })
+
+    it('shows resolution and "Excluded from execution progress" instead of a progress bar for an excluded Epic', () => {
+      const detail = {
+        key: 'OSAC-100',
+        epics: [{
+          key: 'EP-1', summary: "Won't Do epic", status: 'Closed', resolution: "Won't Do",
+          completedViaStatus: false, excludedFromExecution: true,
+          executionIssueCount: 2, doneExecutionIssueCount: 0, issues: []
+        }]
+      }
+      const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
+      const text = wrapper.text()
+      expect(text).toContain("Won't Do")
+      expect(text).toContain('Excluded from execution progress')
+      expect(text).not.toContain('No tracked execution work')
+      expect(text).not.toContain('No issue-level progress available')
+      expect(text).not.toMatch(/0\/2/)
+    })
+
+    it('adds a feature-level explanatory line summarizing completed-via-status and excluded Epics', () => {
+      const detail = {
+        key: 'OSAC-100',
+        epics: [
+          { key: 'EP-1', summary: 'A', status: 'Done', completedViaStatus: true, excludedFromExecution: false, executionIssueCount: 2, doneExecutionIssueCount: 1, issues: [] },
+          { key: 'EP-2', summary: 'B', status: 'Closed', completedViaStatus: false, excludedFromExecution: true, resolution: 'Duplicate', executionIssueCount: 1, doneExecutionIssueCount: 0, issues: [] },
+          { key: 'EP-3', summary: 'C', status: 'In Progress', completedViaStatus: false, excludedFromExecution: false, executionIssueCount: 2, doneExecutionIssueCount: 1, issues: [] }
+        ]
+      }
+      const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
+      expect(wrapper.text()).toContain('1 epic completed via Epic status.')
+      expect(wrapper.text()).toContain('1 epic excluded from execution progress.')
+    })
+
+    it('omits the completed-via-status/excluded explanatory line when no Epic carries either flag', () => {
+      const detail = {
+        key: 'OSAC-100',
+        epics: [{ key: 'EP-1', summary: 'Normal', status: 'In Progress', executionIssueCount: 2, doneExecutionIssueCount: 1, issues: [] }]
+      }
+      const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
+      expect(wrapper.text()).not.toContain('completed via Epic status')
+      expect(wrapper.text()).not.toContain('excluded from execution progress')
+    })
+  })
 })

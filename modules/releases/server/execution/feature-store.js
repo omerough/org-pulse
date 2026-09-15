@@ -49,6 +49,23 @@ function epicMembershipChanged(before, after) {
   return false;
 }
 
+// For Epics present in both sets (membership unchanged), true if Jira's
+// statusCategory/resolution snapshot diverges from what the effective fields
+// were last computed over — a reopened/re-resolved Epic invalidates the
+// completedViaStatus/excludedFromExecution classification, not just membership.
+function epicClassificationChanged(before, after) {
+  const beforeByKey = new Map((before || []).map(function(e) { return [e.key, e]; }));
+  for (let i = 0; i < (after || []).length; i++) {
+    const epic = after[i];
+    const priorEpic = beforeByKey.get(epic.key);
+    if (!priorEpic) continue;
+    if (priorEpic.statusCategory !== epic.statusCategory || priorEpic.resolution !== epic.resolution) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Same shape rebuildIndex() falls back to for a missing/legacy payload.
 // Returns a new object — never mutates the input metrics.
 function invalidateExecutionProgress(metrics) {
@@ -57,7 +74,25 @@ function invalidateExecutionProgress(metrics) {
     doneExecutionIssueCount: null,
     executionState: null,
     executionCoverage: 'insufficient-data',
-    executionCoverageReason: null
+    executionCoverageReason: null,
+    effectiveExecutionIssueCount: null,
+    effectiveDoneExecutionIssueCount: null,
+    effectiveExecutionState: null,
+    effectiveExecutionCoverage: 'insufficient-data',
+    effectiveExecutionCoverageReason: null
+  });
+}
+
+// Narrower than invalidateExecutionProgress: nulls only the effective fields,
+// leaving raw execution* untouched — for a classification-only change where
+// Epic membership (and thus the raw rollup) is still valid.
+function invalidateEffectiveExecutionProgress(metrics) {
+  return Object.assign({}, metrics, {
+    effectiveExecutionIssueCount: null,
+    effectiveDoneExecutionIssueCount: null,
+    effectiveExecutionState: null,
+    effectiveExecutionCoverage: 'insufficient-data',
+    effectiveExecutionCoverageReason: null
   });
 }
 
@@ -82,7 +117,12 @@ function mergeEpics(baseEpics, jiraEpics) {
     const epic = baseEpics[i];
     const jiraEpic = jiraByKey.get(epic.key);
     if (!jiraEpic) continue; // no longer in Jira's snapshot — drop
-    merged.push(Object.assign({}, epic, { summary: jiraEpic.summary, status: jiraEpic.status }));
+    const refreshed = Object.assign({}, epic, { summary: jiraEpic.summary, status: jiraEpic.status });
+    // Never overwrite with undefined — a Jira snapshot that doesn't carry these
+    // fields (e.g. an older caller) must not erase a producer-known value.
+    if (jiraEpic.statusCategory !== undefined) refreshed.statusCategory = jiraEpic.statusCategory;
+    if (jiraEpic.resolution !== undefined) refreshed.resolution = jiraEpic.resolution;
+    merged.push(refreshed);
   }
 
   for (let i = 0; i < jiraEpics.length; i++) {
@@ -146,9 +186,15 @@ function mergeFeatureData(existing, pipelineData, jiraData) {
     merged.epics = mergeEpics(epicsBase, jira.epics);
 
     // epicsBase is the Epic set merged.metrics was computed over; if Jira's
-    // membership diverges from it, that aggregate is stale.
+    // membership diverges from it, that aggregate is stale. A membership change
+    // already invalidates effective fields too (they're scoped to the same Epic
+    // set); a narrower classification-only change (Epic reopened/re-resolved,
+    // same membership) invalidates just the effective fields until the next
+    // full producer run recomputes them.
     if (merged.metrics && epicMembershipChanged(epicsBase, merged.epics)) {
       merged.metrics = invalidateExecutionProgress(merged.metrics);
+    } else if (merged.metrics && epicClassificationChanged(epicsBase, merged.epics)) {
+      merged.metrics = invalidateEffectiveExecutionProgress(merged.metrics);
     }
   } else if (epicsBase !== undefined) {
     merged.epics = epicsBase;
@@ -290,6 +336,18 @@ async function rebuildIndex(storage) {
       // payload renders as unavailable in the UI, never a guessed reason.
       executionCoverageReason: feature.metrics && feature.metrics.executionCoverageReason !== undefined
         ? feature.metrics.executionCoverageReason : null,
+      // Effective execution progress (Epic completion/exclusion override) — same
+      // absent-vs-null-vs-value convention as the raw fields above.
+      effectiveExecutionIssueCount: feature.metrics && feature.metrics.effectiveExecutionIssueCount !== undefined
+        ? feature.metrics.effectiveExecutionIssueCount : null,
+      effectiveDoneExecutionIssueCount: feature.metrics && feature.metrics.effectiveDoneExecutionIssueCount !== undefined
+        ? feature.metrics.effectiveDoneExecutionIssueCount : null,
+      effectiveExecutionState: feature.metrics && feature.metrics.effectiveExecutionState !== undefined
+        ? feature.metrics.effectiveExecutionState : null,
+      effectiveExecutionCoverage: feature.metrics && feature.metrics.effectiveExecutionCoverage !== undefined
+        ? feature.metrics.effectiveExecutionCoverage : 'insufficient-data',
+      effectiveExecutionCoverageReason: feature.metrics && feature.metrics.effectiveExecutionCoverageReason !== undefined
+        ? feature.metrics.effectiveExecutionCoverageReason : null,
       // Timestamps
       lastUpdated: feature.updated || null,
       // Pipeline-index-only fields
@@ -328,6 +386,10 @@ async function rebuildIndex(storage) {
 module.exports = {
   mergeFeatureData,
   mergeEpics,
+  epicMembershipChanged,
+  epicClassificationChanged,
+  invalidateExecutionProgress,
+  invalidateEffectiveExecutionProgress,
   writeFeatures,
   rebuildIndex,
   DATA_PREFIX,
