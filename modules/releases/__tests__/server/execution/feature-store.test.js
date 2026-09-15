@@ -1,10 +1,16 @@
 import { describe, it, expect } from 'vitest'
+import {
+  effectiveExecutionState,
+  effectiveExecutionIssueCount,
+  effectiveDoneExecutionIssueCount
+} from '../../../client/execute/utils/progress'
 
 const {
   mergeFeatureData,
   mergeEpics,
   epicClassificationChanged,
   invalidateEffectiveExecutionProgress,
+  invalidateChangedEpicFlags,
   writeFeatures,
   rebuildIndex
 } = require('../../../server/execution/feature-store')
@@ -212,10 +218,12 @@ describe('mergeEpics', () => {
     ])
     expect(merged.statusCategory).toBe('To Do')
     expect(merged.resolution).toBeNull()
-    // Only feature-store's classification-aware invalidation (tested separately)
-    // resets completedViaStatus/excludedFromExecution — mergeEpics itself only
-    // refreshes the raw Jira snapshot fields it was given.
     expect(merged.executionIssueCount).toBe(2)
+    // mergeEpics only refreshes the raw Jira snapshot fields — it does not reset
+    // completedViaStatus/excludedFromExecution; that's invalidateChangedEpicFlags'
+    // job, applied by mergeFeatureData (see the classification-change describe block).
+    expect(merged.completedViaStatus).toBe(false)
+    expect(merged.excludedFromExecution).toBe(true)
   })
 
   it('does not overwrite statusCategory/resolution with undefined when the Jira snapshot omits them', () => {
@@ -272,6 +280,31 @@ describe('invalidateEffectiveExecutionProgress', () => {
     expect(result.effectiveExecutionCoverageReason).toBeNull()
     // Does not mutate the input.
     expect(metrics.effectiveExecutionState).toBe('complete')
+  })
+})
+
+describe('invalidateChangedEpicFlags', () => {
+  it('resets completedViaStatus/excludedFromExecution to false when a matched Epic\'s classification changed', () => {
+    const before = [{ key: 'EP-A', statusCategory: 'Done', resolution: 'Done', completedViaStatus: true, excludedFromExecution: false }]
+    const after = [{ key: 'EP-A', statusCategory: 'To Do', resolution: null, completedViaStatus: true, excludedFromExecution: false }]
+    const [result] = invalidateChangedEpicFlags(before, after)
+    expect(result.completedViaStatus).toBe(false)
+    expect(result.excludedFromExecution).toBe(false)
+  })
+
+  it('leaves flags untouched when classification is unchanged', () => {
+    const before = [{ key: 'EP-A', statusCategory: 'Done', resolution: 'Done', completedViaStatus: true, excludedFromExecution: false }]
+    const after = [{ key: 'EP-A', statusCategory: 'Done', resolution: 'Done', completedViaStatus: true, excludedFromExecution: false }]
+    const [result] = invalidateChangedEpicFlags(before, after)
+    expect(result).toBe(after[0])
+  })
+
+  it('does not fabricate flags onto a sparse Jira-only Epic that never had them', () => {
+    const before = [{ key: 'EP-A', statusCategory: 'Done', resolution: 'Done' }]
+    const after = [{ key: 'EP-A', statusCategory: 'To Do', resolution: null }]
+    const [result] = invalidateChangedEpicFlags(before, after)
+    expect(result.completedViaStatus).toBeUndefined()
+    expect(result.excludedFromExecution).toBeUndefined()
   })
 })
 
@@ -485,6 +518,10 @@ describe('mergeFeatureData — narrower invalidation on Epic classification chan
     key: 'EP-A', summary: 'A', status: 'Done', statusCategory: 'Done', resolution: 'Done',
     completedViaStatus: true, excludedFromExecution: false, executionIssueCount: 3, doneExecutionIssueCount: 1
   }
+  const excludedEpic = {
+    key: 'EP-A', summary: 'A', status: 'Closed', statusCategory: 'Done', resolution: "Won't Do",
+    completedViaStatus: false, excludedFromExecution: true, executionIssueCount: 3, doneExecutionIssueCount: 1
+  }
 
   it('invalidates only effective fields when a matched Epic is reopened (statusCategory changes, membership unchanged)', () => {
     const existing = { key: 'X-1', metrics: metricsWithEffective, epics: [completedViaStatusEpic] }
@@ -501,6 +538,9 @@ describe('mergeFeatureData — narrower invalidation on Epic classification chan
     expect(result.metrics.effectiveDoneExecutionIssueCount).toBeNull()
     expect(result.metrics.effectiveExecutionState).toBeNull()
     expect(result.metrics.effectiveExecutionCoverage).toBe('insufficient-data')
+    // The stale "Completed via Epic status" label/summary must not survive the reopen.
+    expect(result.epics[0].completedViaStatus).toBe(false)
+    expect(result.epics[0].excludedFromExecution).toBe(false)
   })
 
   it('invalidates only effective fields when a matched Epic\'s resolution changes with statusCategory unchanged', () => {
@@ -511,14 +551,38 @@ describe('mergeFeatureData — narrower invalidation on Epic classification chan
     expect(result.metrics.executionIssueCount).toBe(3)
     expect(result.metrics.effectiveExecutionState).toBeNull()
     expect(result.metrics.effectiveExecutionCoverage).toBe('insufficient-data')
+    // The App must not re-derive the new Won't Do classification itself.
+    expect(result.epics[0].completedViaStatus).toBe(false)
+    expect(result.epics[0].excludedFromExecution).toBe(false)
   })
 
-  it('does not invalidate effective fields on a summary/status-only refresh with unchanged classification', () => {
+  it('resets a stale exclusion flag when an excluded Epic is reopened', () => {
+    const existing = { key: 'X-1', metrics: metricsWithEffective, epics: [excludedEpic] }
+    const jira = { key: 'X-1', epics: [{ key: 'EP-A', summary: 'A', status: 'New', statusCategory: 'To Do', resolution: null }] }
+    const result = mergeFeatureData(existing, null, jira)
+
+    expect(result.epics[0].excludedFromExecution).toBe(false)
+    expect(result.epics[0].completedViaStatus).toBe(false)
+  })
+
+  it('does not invalidate effective fields or Epic flags on a summary/status-only refresh with unchanged classification', () => {
     const existing = { key: 'X-1', metrics: metricsWithEffective, epics: [completedViaStatusEpic] }
     const jira = { key: 'X-1', epics: [{ key: 'EP-A', summary: 'Refreshed', status: 'Done', statusCategory: 'Done', resolution: 'Done' }] }
     const result = mergeFeatureData(existing, null, jira)
 
     expect(result.metrics).toEqual(metricsWithEffective)
+    expect(result.epics[0].completedViaStatus).toBe(true)
+    expect(result.epics[0].excludedFromExecution).toBe(false)
+  })
+
+  it('keeps an invalidated Epic flag reset across a repeated refresh reporting the same reopened classification', () => {
+    const existing = { key: 'X-1', metrics: metricsWithEffective, epics: [completedViaStatusEpic] }
+    const reopenedJira = { key: 'X-1', epics: [{ key: 'EP-A', summary: 'A', status: 'New', statusCategory: 'To Do', resolution: null }] }
+    const afterReopen = mergeFeatureData(existing, null, reopenedJira)
+    expect(afterReopen.epics[0].completedViaStatus).toBe(false)
+
+    const afterFollowUpSync = mergeFeatureData(afterReopen, null, reopenedJira)
+    expect(afterFollowUpSync.epics[0].completedViaStatus).toBe(false)
   })
 })
 
@@ -693,13 +757,64 @@ describe('rebuildIndex', () => {
       expect(byKey[key].executionCoverage).toBe('insufficient-data')
       expect(byKey[key].executionCoverageReason).toBeNull()
       expect(byKey[key].preparationReadiness).toBe('unknown')
-      // Effective fields default the same way as raw for a pre-effective-contract payload.
-      expect(byKey[key].effectiveExecutionIssueCount).toBeNull()
-      expect(byKey[key].effectiveDoneExecutionIssueCount).toBeNull()
-      expect(byKey[key].effectiveExecutionState).toBeNull()
-      expect(byKey[key].effectiveExecutionCoverage).toBe('insufficient-data')
-      expect(byKey[key].effectiveExecutionCoverageReason).toBeNull()
+      // Effective fields are absent, not defaulted — a pre-effective-contract
+      // payload must leave the client's own raw fallback intact.
+      expect('effectiveExecutionIssueCount' in byKey[key]).toBe(false)
+      expect('effectiveDoneExecutionIssueCount' in byKey[key]).toBe(false)
+      expect('effectiveExecutionState' in byKey[key]).toBe(false)
+      expect('effectiveExecutionCoverage' in byKey[key]).toBe(false)
+      expect('effectiveExecutionCoverageReason' in byKey[key]).toBe(false)
     }
+  })
+
+  it('preserves absence of effective fields when raw execution fields are present (narrower legacy case), and the client accessor falls back to raw', async () => {
+    const storage = makeStorage({
+      'releases/execution/features/X-8.json': {
+        key: 'X-8', summary: 'Raw-only, pre-effective-contract feature', status: 'In Progress',
+        metrics: {
+          totalEpics: 1, totalIssues: 2, completionPct: 50, blockerCount: 0, health: 'YELLOW',
+          executionIssueCount: 2, doneExecutionIssueCount: 1,
+          executionState: 'in-progress', executionCoverage: 'available', executionCoverageReason: null,
+          preparationReadiness: 'ready'
+          // No effective* fields.
+        }
+      }
+    })
+
+    await rebuildIndex(storage)
+    const entry = storage._files['releases/execution/index.json'].features[0]
+
+    expect('effectiveExecutionState' in entry).toBe(false)
+    expect('effectiveExecutionIssueCount' in entry).toBe(false)
+    expect('effectiveDoneExecutionIssueCount' in entry).toBe(false)
+
+    // The real client accessor (not a hand-built index fixture) must fall back to raw.
+    expect(effectiveExecutionState(entry)).toBe('in-progress')
+    expect(effectiveExecutionIssueCount(entry)).toBe(2)
+    expect(effectiveDoneExecutionIssueCount(entry)).toBe(1)
+  })
+
+  it('keeps an explicitly invalidated effective state as insufficient-data, never falling back to raw', async () => {
+    const storage = makeStorage({
+      'releases/execution/features/X-9.json': {
+        key: 'X-9', summary: 'Reopened Epic, effective invalidated', status: 'In Progress',
+        metrics: invalidateEffectiveExecutionProgress({
+          totalEpics: 1, totalIssues: 2, completionPct: 50, blockerCount: 0, health: 'YELLOW',
+          executionIssueCount: 2, doneExecutionIssueCount: 1,
+          executionState: 'in-progress', executionCoverage: 'available', executionCoverageReason: null,
+          effectiveExecutionIssueCount: 2, effectiveDoneExecutionIssueCount: 2,
+          effectiveExecutionState: 'complete', effectiveExecutionCoverage: 'available', effectiveExecutionCoverageReason: null,
+          preparationReadiness: 'ready'
+        })
+      }
+    })
+
+    await rebuildIndex(storage)
+    const entry = storage._files['releases/execution/index.json'].features[0]
+
+    expect(effectiveExecutionState(entry)).toBeNull()
+    expect(effectiveExecutionIssueCount(entry)).toBeNull()
+    expect(effectiveDoneExecutionIssueCount(entry)).toBeNull()
   })
 
   // metrics generated by fetch-ep-review.py enrich_epics_with_provenance()/compute_metrics()

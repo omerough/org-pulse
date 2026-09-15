@@ -229,6 +229,22 @@ describe('FeatureExecutionDrawer', () => {
       expect(wrapper.text()).toContain('1 epic excluded from execution progress.')
     })
 
+    it('does not show a stale completion/exclusion label for a reopened Epic whose flags were invalidated to false', () => {
+      const detail = {
+        key: 'OSAC-100',
+        epics: [{
+          key: 'EP-1', summary: 'Reopened Epic', status: 'New', statusCategory: 'To Do', resolution: null,
+          completedViaStatus: false, excludedFromExecution: false,
+          executionIssueCount: 3, doneExecutionIssueCount: 1, issues: []
+        }]
+      }
+      const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
+      const text = wrapper.text()
+      expect(text).not.toContain('Completed via Epic status')
+      expect(text).not.toContain('Excluded from execution progress')
+      expect(text).toContain('1/3')
+    })
+
     it('omits the completed-via-status/excluded explanatory line when no Epic carries either flag', () => {
       const detail = {
         key: 'OSAC-100',

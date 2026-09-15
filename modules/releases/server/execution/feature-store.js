@@ -34,6 +34,15 @@ const PIPELINE_INDEX_FIELDS = [
 // AI-review-owned fields — preserved across pipeline/Jira merges
 const AI_REVIEW_FIELDS = ['aiReview'];
 
+// Epic completion/exclusion override fields under detail.metrics. See rebuildIndex().
+const EFFECTIVE_EXECUTION_FIELDS = [
+  'effectiveExecutionIssueCount',
+  'effectiveDoneExecutionIssueCount',
+  'effectiveExecutionState',
+  'effectiveExecutionCoverage',
+  'effectiveExecutionCoverageReason'
+];
+
 function epicKeySet(epics) {
   return new Set((epics || []).map(function(e) { return e.key; }));
 }
@@ -93,6 +102,29 @@ function invalidateEffectiveExecutionProgress(metrics) {
     effectiveExecutionState: null,
     effectiveExecutionCoverage: 'insufficient-data',
     effectiveExecutionCoverageReason: null
+  });
+}
+
+// Resets completedViaStatus/excludedFromExecution to false for Epics whose
+// statusCategory/resolution changed — the producer classified them against the
+// old values, so the flags are stale until the next full producer run. Keeps
+// the documented boolean type (no null sentinel); never fabricates the flags
+// onto a sparse Jira-only Epic that never had them.
+function invalidateChangedEpicFlags(before, after) {
+  const beforeByKey = new Map((before || []).map(function(e) { return [e.key, e]; }));
+  return (after || []).map(function(epic) {
+    const priorEpic = beforeByKey.get(epic.key);
+    if (!priorEpic) return epic;
+    if (priorEpic.statusCategory === epic.statusCategory && priorEpic.resolution === epic.resolution) return epic;
+
+    const hasCompletedFlag = Object.prototype.hasOwnProperty.call(epic, 'completedViaStatus');
+    const hasExcludedFlag = Object.prototype.hasOwnProperty.call(epic, 'excludedFromExecution');
+    if (!hasCompletedFlag && !hasExcludedFlag) return epic;
+
+    const invalidated = Object.assign({}, epic);
+    if (hasCompletedFlag) invalidated.completedViaStatus = false;
+    if (hasExcludedFlag) invalidated.excludedFromExecution = false;
+    return invalidated;
   });
 }
 
@@ -183,7 +215,7 @@ function mergeFeatureData(existing, pipelineData, jiraData) {
   // Epics: this cycle's pipeline Epics if present, else whatever was already stored.
   const epicsBase = pipeline.epics !== undefined ? pipeline.epics : base.epics;
   if (jiraData && jira.epics !== undefined) {
-    merged.epics = mergeEpics(epicsBase, jira.epics);
+    merged.epics = invalidateChangedEpicFlags(epicsBase, mergeEpics(epicsBase, jira.epics));
 
     // epicsBase is the Epic set merged.metrics was computed over; if Jira's
     // membership diverges from it, that aggregate is stale. A membership change
@@ -336,18 +368,6 @@ async function rebuildIndex(storage) {
       // payload renders as unavailable in the UI, never a guessed reason.
       executionCoverageReason: feature.metrics && feature.metrics.executionCoverageReason !== undefined
         ? feature.metrics.executionCoverageReason : null,
-      // Effective execution progress (Epic completion/exclusion override) — same
-      // absent-vs-null-vs-value convention as the raw fields above.
-      effectiveExecutionIssueCount: feature.metrics && feature.metrics.effectiveExecutionIssueCount !== undefined
-        ? feature.metrics.effectiveExecutionIssueCount : null,
-      effectiveDoneExecutionIssueCount: feature.metrics && feature.metrics.effectiveDoneExecutionIssueCount !== undefined
-        ? feature.metrics.effectiveDoneExecutionIssueCount : null,
-      effectiveExecutionState: feature.metrics && feature.metrics.effectiveExecutionState !== undefined
-        ? feature.metrics.effectiveExecutionState : null,
-      effectiveExecutionCoverage: feature.metrics && feature.metrics.effectiveExecutionCoverage !== undefined
-        ? feature.metrics.effectiveExecutionCoverage : 'insufficient-data',
-      effectiveExecutionCoverageReason: feature.metrics && feature.metrics.effectiveExecutionCoverageReason !== undefined
-        ? feature.metrics.effectiveExecutionCoverageReason : null,
       // Timestamps
       lastUpdated: feature.updated || null,
       // Pipeline-index-only fields
@@ -372,6 +392,18 @@ async function rebuildIndex(storage) {
       } : null
     };
 
+    // Effective execution fields are copied only when present on metrics, so the
+    // client's hasOwnProperty fallback (progress.js effectiveOrRaw) can tell a
+    // legacy payload (key absent) from an explicit invalidated value (key present).
+    if (feature.metrics) {
+      for (let j = 0; j < EFFECTIVE_EXECUTION_FIELDS.length; j++) {
+        const field = EFFECTIVE_EXECUTION_FIELDS[j];
+        if (Object.prototype.hasOwnProperty.call(feature.metrics, field)) {
+          indexEntry[field] = feature.metrics[field];
+        }
+      }
+    }
+
     features.push(indexEntry);
   }
 
@@ -390,6 +422,7 @@ module.exports = {
   epicClassificationChanged,
   invalidateExecutionProgress,
   invalidateEffectiveExecutionProgress,
+  invalidateChangedEpicFlags,
   writeFeatures,
   rebuildIndex,
   DATA_PREFIX,
