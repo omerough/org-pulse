@@ -88,9 +88,8 @@ function invalidateExecutionProgress(metrics) {
   });
 }
 
-// Narrower than invalidateExecutionProgress: nulls only the effective fields,
-// leaving raw execution* untouched — for a classification-only change where
-// Epic membership (and thus the raw rollup) is still valid.
+// Narrower than invalidateExecutionProgress: nulls only the effective fields, leaving
+// raw execution* untouched — for a classification-only change where membership is still valid.
 function invalidateEffectiveExecutionProgress(metrics) {
   return Object.assign({}, metrics, {
     effectiveExecutionIssueCount: null,
@@ -101,9 +100,8 @@ function invalidateEffectiveExecutionProgress(metrics) {
   });
 }
 
-// Resets completedViaStatus to false for Epics whose statusCategory changed,
-// since it's stale until the next producer run. Never fabricates the flag
-// onto a sparse Jira-only Epic that never had it.
+// Resets completedViaStatus to false for Epics whose statusCategory changed (stale until the
+// next producer run); never fabricates the flag onto a sparse Jira-only Epic that never had it.
 function invalidateChangedEpicFlags(before, after) {
   const beforeByKey = new Map((before || []).map(function(e) { return [e.key, e]; }));
   return (after || []).map(function(epic) {
@@ -123,10 +121,8 @@ function isEpicStale(stored, incoming) {
   return storedTime > incomingTime;
 }
 
-// With no Jira snapshot to arbitrate, pins a stale incoming Epic's
-// statusCategory/`updated`/completedViaStatus to the stored (newer) values.
-// `changed` is true only when that actually contradicts `incoming`, so a
-// no-op replay doesn't trigger metrics invalidation.
+// With no Jira snapshot to arbitrate, pins a stale incoming Epic's statusCategory/`updated`/
+// completedViaStatus to the stored values; `changed` is true only on an actual contradiction.
 function reconcileEpicClassifications(storedEpics, incomingEpics) {
   const storedByKey = new Map((storedEpics || []).map(function(e) { return [e.key, e]; }));
   let changed = false;
@@ -246,9 +242,8 @@ function mergeFeatureData(existing, pipelineData, jiraData) {
   if (jiraData && jira.epics !== undefined) {
     merged.epics = invalidateChangedEpicFlags(epicsBase, mergeEpics(epicsBase, jira.epics));
 
-    // epicsBase is the Epic set merged.metrics was computed over: a membership
-    // change invalidates it wholesale; a classification-only change (Epic
-    // reopened, same membership) invalidates just the effective fields.
+    // epicsBase is the Epic set merged.metrics was computed over: a membership change
+    // invalidates it wholesale; a classification-only change invalidates just the effective fields.
     if (merged.metrics && epicMembershipChanged(epicsBase, merged.epics)) {
       merged.metrics = invalidateExecutionProgress(merged.metrics);
     } else if (merged.metrics && epicClassificationChanged(epicsBase, merged.epics)) {

@@ -219,9 +219,8 @@ describe('mergeEpics', () => {
     ])
     expect(merged.statusCategory).toBe('To Do')
     expect(merged.executionIssueCount).toBe(2)
-    // mergeEpics only refreshes the raw Jira snapshot fields — it does not reset
-    // completedViaStatus; that's invalidateChangedEpicFlags' job, applied by
-    // mergeFeatureData (see the classification-change describe block).
+    // mergeEpics only refreshes raw Jira snapshot fields — it does not reset
+    // completedViaStatus; that's invalidateChangedEpicFlags' job.
     expect(merged.completedViaStatus).toBe(true)
   })
 
@@ -651,8 +650,7 @@ describe('mergeFeatureData — narrower invalidation on Epic classification chan
 })
 
 describe('mergeFeatureData — stale pipeline replay after Jira invalidation', () => {
-  // Reopened in Jira and invalidated by a prior Jira-only sync (see the
-  // classification-change describe block above).
+  // Reopened in Jira and invalidated by a prior Jira-only sync.
   const reopenedExisting = {
     key: 'X-1',
     metrics: {

@@ -381,12 +381,8 @@ test.describe('Releases Feature List @releases', () => {
   });
 
   /**
-   * Epic status-completion override (OSAC-5234). Fixture keys:
-   *   TEST1-9101 (zero-child completed-via-status Epic: raw insufficient-data,
-   *   effective complete/0/0), TEST1-9102 (completed-via-status Epic with open
-   *   children, mixed with a normal Epic), TEST1-9103 (a Won't Do-closed Epic
-   *   with real open work credited complete), TEST1-9104 (a Duplicate-closed
-   *   Epic with zero real progress credited fully complete).
+   * Covers zero-child, mixed-child, and closed-with-any-resolution Epics
+   * (fixtures TEST1-9101/9102/9103/9104).
    */
   test('effective execution fields override raw for the board/coverage progress display', async ({ page }) => {
     await openFeatureList(page);
@@ -404,8 +400,7 @@ test.describe('Releases Feature List @releases', () => {
     await expect(page.getByRole('button', { name: 'Open details for TEST1-9103', exact: true })).toBeVisible();
     await expect(page.getByText('5/5')).toBeVisible();
 
-    // A Duplicate-closed Epic with zero real progress is credited fully complete,
-    // regardless of resolution -- the core OSAC-5234 product decision.
+    // A Duplicate-closed Epic with zero real progress is credited fully complete, regardless of resolution.
     await search.fill('TEST1-9104');
     await expect(page.getByRole('button', { name: 'Open details for TEST1-9104', exact: true })).toBeVisible();
     await expect(page.getByText('2/2')).toBeVisible();
