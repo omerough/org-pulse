@@ -316,7 +316,7 @@ const excludedEpicCount = computed(() =>
                           </span>
                         </div>
                       </template>
-                      <p v-else-if="epicProgress(epic).kind === 'empty'" class="text-[11px] italic text-gray-400 dark:text-gray-500">{{ epic.completedViaStatus ? 'No child issues recorded' : 'No tracked execution work' }}</p>
+                      <p v-else-if="epicProgress(epic).kind === 'empty'" class="text-[11px] italic text-gray-400 dark:text-gray-500">{{ epic.completedViaStatus ? 'No execution issues recorded' : 'No tracked execution work' }}</p>
                       <p v-else class="text-[11px] italic text-gray-400 dark:text-gray-500">No issue-level progress available</p>
                     </template>
                   </div>

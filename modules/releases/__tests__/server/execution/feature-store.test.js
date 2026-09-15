@@ -692,9 +692,12 @@ describe('mergeFeatureData — stale pipeline replay after Jira invalidation', (
     // Raw pipeline-owned counts still come from the fresh pipeline delivery.
     expect(result.epics[0].executionIssueCount).toBe(4)
     expect(result.epics[0].doneExecutionIssueCount).toBe(2)
-    // The pipeline's own effective rollup assumed the stale classification — invalidated.
+    // The pipeline's own effective rollup claimed complete/100% (4/4) off the stale
+    // classification — none of it survives, not just the state label.
     expect(result.metrics.effectiveExecutionState).toBeNull()
     expect(result.metrics.effectiveExecutionCoverage).toBe('insufficient-data')
+    expect(result.metrics.effectiveExecutionIssueCount).toBeNull()
+    expect(result.metrics.effectiveDoneExecutionIssueCount).toBeNull()
     // Raw metrics are pipeline-owned and untouched by the reconciliation.
     expect(result.metrics.executionState).toBe('in-progress')
     expect(result.metrics.doneExecutionIssueCount).toBe(2)
@@ -707,6 +710,8 @@ describe('mergeFeatureData — stale pipeline replay after Jira invalidation', (
     expect(secondPass.epics[0].completedViaStatus).toBe(false)
     expect(secondPass.epics[0].updated).toBe(reopenedExisting.epics[0].updated)
     expect(secondPass.metrics.effectiveExecutionState).toBeNull()
+    expect(secondPass.metrics.effectiveExecutionIssueCount).toBeNull()
+    expect(secondPass.metrics.effectiveDoneExecutionIssueCount).toBeNull()
   })
 
   it('accepts a genuinely newer producer snapshot that already reflects the reopen', () => {

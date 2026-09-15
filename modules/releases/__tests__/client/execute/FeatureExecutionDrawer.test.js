@@ -197,7 +197,7 @@ describe('FeatureExecutionDrawer', () => {
       expect(text).toContain('(actual)')
     })
 
-    it('shows "No child issues recorded" for a confirmed zero-child completed-via-status Epic', () => {
+    it('shows "No execution issues recorded" for a confirmed zero-execution-issue completed-via-status Epic', () => {
       const detail = {
         key: 'OSAC-100',
         epics: [{
@@ -209,8 +209,22 @@ describe('FeatureExecutionDrawer', () => {
       const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
       const text = wrapper.text()
       expect(text).toContain('Completed via Epic status')
-      expect(text).toContain('No child issues recorded')
+      expect(text).toContain('No execution issues recorded')
       expect(text).not.toContain('No tracked execution work')
+    })
+
+    it('shows "No execution issues recorded" (not "no children") when a completed-via-status Epic has only preparation children', () => {
+      const detail = {
+        key: 'OSAC-100',
+        epics: [{
+          key: 'EP-1', summary: 'Completed Epic with only prep issues', status: 'Done', resolution: 'Done',
+          completedViaStatus: true, excludedFromExecution: false,
+          executionIssueCount: 0, doneExecutionIssueCount: 0,
+          issues: [{ key: 'I-1', summary: 'PRD doc', isPreparation: true }]
+        }]
+      }
+      const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
+      expect(wrapper.text()).toContain('No execution issues recorded')
     })
 
     it('keeps "No issue-level progress available" for a completed-via-status Epic with no collected count, not a confirmed zero', () => {
@@ -226,7 +240,7 @@ describe('FeatureExecutionDrawer', () => {
       const text = wrapper.text()
       expect(text).toContain('Completed via Epic status')
       expect(text).toContain('No issue-level progress available')
-      expect(text).not.toContain('No child issues recorded')
+      expect(text).not.toContain('No execution issues recorded')
     })
 
     it('shows resolution and "Excluded from execution progress" instead of a progress bar for an excluded Epic', () => {
