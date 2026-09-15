@@ -11828,7 +11828,7 @@
     },
     {
       "key": "TEST1-9103",
-      "summary": "Feature with one excluded Epic and one fully-done Epic",
+      "summary": "Feature with a Won't Do-closed Epic credited complete despite no real progress",
       "status": "In Progress",
       "statusCategory": "To Do",
       "priority": "Major",
@@ -11855,15 +11855,15 @@
       "executionCoverage": "available",
       "preparationReadiness": "not-applicable",
       "executionCoverageReason": null,
-      "effectiveExecutionIssueCount": 3,
-      "effectiveDoneExecutionIssueCount": 3,
+      "effectiveExecutionIssueCount": 5,
+      "effectiveDoneExecutionIssueCount": 5,
       "effectiveExecutionState": "complete",
       "effectiveExecutionCoverage": "available",
       "effectiveExecutionCoverageReason": null
     },
     {
       "key": "TEST1-9104",
-      "summary": "Feature with all Epics excluded from execution",
+      "summary": "Feature with a Duplicate-closed Epic credited complete despite zero real progress",
       "status": "In Progress",
       "statusCategory": "To Do",
       "priority": "Minor",
@@ -11890,11 +11890,11 @@
       "executionCoverage": "available",
       "preparationReadiness": "not-applicable",
       "executionCoverageReason": null,
-      "effectiveExecutionIssueCount": 0,
-      "effectiveDoneExecutionIssueCount": 0,
-      "effectiveExecutionState": "no-tracked-work",
-      "effectiveExecutionCoverage": "empty",
-      "effectiveExecutionCoverageReason": "all-epics-excluded"
+      "effectiveExecutionIssueCount": 2,
+      "effectiveDoneExecutionIssueCount": 2,
+      "effectiveExecutionState": "complete",
+      "effectiveExecutionCoverage": "available",
+      "effectiveExecutionCoverageReason": null
     }
   ],
   "rfes": [

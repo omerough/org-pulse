@@ -426,7 +426,7 @@ describe('OverviewView (Feature List)', () => {
     expect(wrapper.find('[role="dialog"]').text()).not.toContain('EP-NS')
   })
 
-  describe('effective execution fields (Epic completion/exclusion override)', () => {
+  describe('effective execution fields (Epic status-completion override)', () => {
     async function mountFeatures(features) {
       mockApiRequest.mockImplementation((url) => {
         if (url.indexOf('/versions') !== -1) return Promise.resolve({ versions: [] })
@@ -505,22 +505,6 @@ describe('OverviewView (Feature List)', () => {
       expect(columns[2].text()).toContain('ZEROCOMPLETE-1')
       expect(columns[2].text()).toContain('0/0')
       expect(columns[2].text()).toContain('100%')
-    })
-
-    it('shows an "All epics excluded" caption for the all-epics-excluded coverage reason, distinct from completed work', async () => {
-      const wrapper = await mountFeatures([{
-        key: 'EXCLUDED-ALL', summary: 'All epics excluded', status: 'Closed', statusCategory: 'Done',
-        fixVersions: [], components: [], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
-        executionIssueCount: 2, doneExecutionIssueCount: 0, executionState: 'in-progress', executionCoverage: 'available',
-        executionCoverageReason: null, preparationReadiness: 'not-applicable',
-        effectiveExecutionIssueCount: 0, effectiveDoneExecutionIssueCount: 0, effectiveExecutionState: 'no-tracked-work',
-        effectiveExecutionCoverage: 'empty', effectiveExecutionCoverageReason: 'all-epics-excluded'
-      }])
-
-      const coverageButton = wrapper.findAll('button').find(b => b.text().includes('Without progress data'))
-      await coverageButton.trigger('click')
-      expect(wrapper.text()).toContain('All epics excluded from execution')
-      expect(wrapper.text()).not.toContain('100%')
     })
   })
 })

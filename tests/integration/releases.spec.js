@@ -381,17 +381,16 @@ test.describe('Releases Feature List @releases', () => {
   });
 
   /**
-   * Epic completion/exclusion override (OSAC-5234). Fixture keys:
+   * Epic status-completion override (OSAC-5234). Fixture keys:
    *   TEST1-9101 (zero-child completed-via-status Epic: raw insufficient-data,
    *   effective complete/0/0), TEST1-9102 (completed-via-status Epic with open
-   *   children, mixed with a normal Epic), TEST1-9103 (excluded Epic's real
-   *   open work hidden from effective progress: raw in-progress, effective
-   *   complete), TEST1-9104 (all Epics excluded: no execution scope at all).
+   *   children, mixed with a normal Epic), TEST1-9103 (a Won't Do-closed Epic
+   *   with real open work credited complete), TEST1-9104 (a Duplicate-closed
+   *   Epic with zero real progress credited fully complete).
    */
   test('effective execution fields override raw for the board/coverage progress display', async ({ page }) => {
     await openFeatureList(page);
     const search = page.getByLabel('Search');
-    const coverageButton = page.getByRole('button', { name: /Without progress data/ });
 
     // Zero-child completed-via-status Epic: must render 100%, not 0% or unavailable.
     await search.fill('TEST1-9101');
@@ -399,22 +398,22 @@ test.describe('Releases Feature List @releases', () => {
     await expect(page.getByText('0/0')).toBeVisible();
     await expect(page.getByText('100%')).toBeVisible();
 
-    // Excluded Epic's real open work is removed from effective progress entirely,
+    // A Won't Do-closed Epic with no real progress is still credited complete,
     // so the feature reads complete even though raw execution is in-progress.
     await search.fill('TEST1-9103');
     await expect(page.getByRole('button', { name: 'Open details for TEST1-9103', exact: true })).toBeVisible();
-    await expect(page.getByText('3/3')).toBeVisible();
+    await expect(page.getByText('5/5')).toBeVisible();
 
-    // All Epics excluded: no execution scope at all -- distinct from completed work.
+    // A Duplicate-closed Epic with zero real progress is credited fully complete,
+    // regardless of resolution -- the core OSAC-5234 product decision.
     await search.fill('TEST1-9104');
-    await coverageButton.click();
     await expect(page.getByRole('button', { name: 'Open details for TEST1-9104', exact: true })).toBeVisible();
-    await expect(page.getByText('All epics excluded from execution')).toBeVisible();
+    await expect(page.getByText('2/2')).toBeVisible();
 
     expect(page.errors).toHaveLength(0);
   });
 
-  test('drawer shows "Completed via Epic status" and "Excluded from execution progress" for the corresponding Epics', async ({ page }) => {
+  test('drawer shows "Completed via Epic status" for a completed-via-status Epic', async ({ page }) => {
     await openFeatureList(page);
     const search = page.getByLabel('Search');
 
@@ -422,15 +421,7 @@ test.describe('Releases Feature List @releases', () => {
     await page.getByRole('button', { name: 'Open details for TEST1-9102' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('Completed via Epic status')).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
-
-    await search.fill('TEST1-9103');
-    await page.getByRole('button', { name: 'Open details for TEST1-9103' }).click();
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('Excluded from execution progress')).toBeVisible();
-    await expect(dialog.getByText("Won't Do")).toBeVisible();
+    await expect(dialog.getByText('Completed via Epic status', { exact: true })).toBeVisible();
 
     expect(page.errors).toHaveLength(0);
   });

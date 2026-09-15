@@ -70,13 +70,8 @@ function issuePrep(epic) {
   return epic.issues.filter(i => i.isPreparation === true)
 }
 
-// Aggregated purely from producer-supplied per-Epic flags already on detail.epics —
-// not a re-derivation of the completion/exclusion policy itself.
 const completedViaStatusEpicCount = computed(() =>
   Array.isArray(props.detail?.epics) ? props.detail.epics.filter(e => e.completedViaStatus).length : 0
-)
-const excludedEpicCount = computed(() =>
-  Array.isArray(props.detail?.epics) ? props.detail.epics.filter(e => e.excludedFromExecution).length : 0
 )
 </script>
 
@@ -172,9 +167,8 @@ const excludedEpicCount = computed(() =>
                 <p class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ card.progress.caption }}</p>
                 <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-1">{{ card.progress.detail }}</p>
               </template>
-              <p v-if="completedViaStatusEpicCount > 0 || excludedEpicCount > 0" class="text-[11px] text-gray-500 dark:text-gray-400 mt-2">
-                <template v-if="completedViaStatusEpicCount > 0">{{ completedViaStatusEpicCount }} epic{{ completedViaStatusEpicCount !== 1 ? 's' : '' }} completed via Epic status.</template>
-                <template v-if="excludedEpicCount > 0"> {{ excludedEpicCount }} epic{{ excludedEpicCount !== 1 ? 's' : '' }} excluded from execution progress.</template>
+              <p v-if="completedViaStatusEpicCount > 0" class="text-[11px] text-gray-500 dark:text-gray-400 mt-2">
+                {{ completedViaStatusEpicCount }} epic{{ completedViaStatusEpicCount !== 1 ? 's' : '' }} completed via Epic status.
               </p>
             </section>
 
@@ -296,29 +290,21 @@ const excludedEpicCount = computed(() =>
                   </div>
 
                   <div class="px-3 pb-2">
-                    <template v-if="epic.excludedFromExecution">
-                      <p class="text-[11px] text-gray-500 dark:text-gray-400">
-                        <span class="font-semibold text-gray-700 dark:text-gray-300">{{ epic.resolution || 'Excluded' }}</span>
-                        &middot; Excluded from execution progress
-                      </p>
-                    </template>
-                    <template v-else>
-                      <p v-if="epic.completedViaStatus" class="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mb-1">
-                        Completed via Epic status
-                      </p>
-                      <template v-if="epicProgress(epic).kind === 'available'">
-                        <div class="flex items-center gap-2">
-                          <div class="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div class="h-full rounded-full bg-primary-500" :style="{ width: epicProgress(epic).pct + '%' }" />
-                          </div>
-                          <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                            {{ epicProgress(epic).done }}/{{ epicProgress(epic).total }} &middot; {{ epicProgress(epic).pct }}%<template v-if="epic.completedViaStatus"> (actual)</template>
-                          </span>
+                    <p v-if="epic.completedViaStatus" class="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mb-1">
+                      Completed via Epic status
+                    </p>
+                    <template v-if="epicProgress(epic).kind === 'available'">
+                      <div class="flex items-center gap-2">
+                        <div class="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div class="h-full rounded-full bg-primary-500" :style="{ width: epicProgress(epic).pct + '%' }" />
                         </div>
-                      </template>
-                      <p v-else-if="epicProgress(epic).kind === 'empty'" class="text-[11px] italic text-gray-400 dark:text-gray-500">{{ epic.completedViaStatus ? 'No execution issues recorded' : 'No tracked execution work' }}</p>
-                      <p v-else class="text-[11px] italic text-gray-400 dark:text-gray-500">No issue-level progress available</p>
+                        <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                          {{ epicProgress(epic).done }}/{{ epicProgress(epic).total }} &middot; {{ epicProgress(epic).pct }}%<template v-if="epic.completedViaStatus"> (actual)</template>
+                        </span>
+                      </div>
                     </template>
+                    <p v-else-if="epicProgress(epic).kind === 'empty'" class="text-[11px] italic text-gray-400 dark:text-gray-500">{{ epic.completedViaStatus ? 'No execution issues recorded' : 'No tracked execution work' }}</p>
+                    <p v-else class="text-[11px] italic text-gray-400 dark:text-gray-500">No issue-level progress available</p>
                   </div>
 
                   <div v-if="expandedEpics.has(epic.key)" class="border-t border-gray-100 dark:border-gray-800 px-3 py-2 space-y-1">

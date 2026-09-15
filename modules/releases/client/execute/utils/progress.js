@@ -15,17 +15,11 @@ const EXECUTION_UNAVAILABLE_REASONS = {
   'epics-without-issue-detail': {
     caption: 'Issue details missing',
     detail: 'Some linked epics have no collected issue details, so execution progress cannot be determined.'
-  },
-  'all-epics-excluded': {
-    caption: 'All epics excluded from execution',
-    detail: 'Every linked epic was excluded from execution progress (e.g. Won’t Do / Duplicate / Obsolete), so there is no execution scope for this feature.'
   }
 }
 
-// A field is "effective-aware" once the producer started emitting it; a payload
-// predating that only has the raw key, so `hasOwnProperty` (not `??`) decides the
-// fallback — `effective* === null` on a new payload is a real insufficient-data
-// value, not a missing one.
+// `hasOwnProperty` (not `??`) so an explicit `effective* === null` (insufficient-data)
+// is distinguished from a legacy payload that predates the effective fields.
 function effectiveOrRaw(feature, effectiveKey, rawKey) {
   return Object.prototype.hasOwnProperty.call(feature, effectiveKey) ? feature[effectiveKey] : feature[rawKey]
 }

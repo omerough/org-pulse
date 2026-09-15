@@ -34,7 +34,7 @@ const PIPELINE_INDEX_FIELDS = [
 // AI-review-owned fields — preserved across pipeline/Jira merges
 const AI_REVIEW_FIELDS = ['aiReview'];
 
-// Epic completion/exclusion override fields under detail.metrics. See rebuildIndex().
+// Epic status-completion override fields under detail.metrics. See rebuildIndex().
 const EFFECTIVE_EXECUTION_FIELDS = [
   'effectiveExecutionIssueCount',
   'effectiveDoneExecutionIssueCount',
@@ -58,19 +58,15 @@ function epicMembershipChanged(before, after) {
   return false;
 }
 
-// For Epics present in both sets (membership unchanged), true if Jira's
-// statusCategory/resolution snapshot diverges from what the effective fields
-// were last computed over — a reopened/re-resolved Epic invalidates the
-// completedViaStatus/excludedFromExecution classification, not just membership.
+// True if any Epic present in both sets has a changed statusCategory — a
+// reopened Epic invalidates completedViaStatus even with membership unchanged.
 function epicClassificationChanged(before, after) {
   const beforeByKey = new Map((before || []).map(function(e) { return [e.key, e]; }));
   for (let i = 0; i < (after || []).length; i++) {
     const epic = after[i];
     const priorEpic = beforeByKey.get(epic.key);
     if (!priorEpic) continue;
-    if (priorEpic.statusCategory !== epic.statusCategory || priorEpic.resolution !== epic.resolution) {
-      return true;
-    }
+    if (priorEpic.statusCategory !== epic.statusCategory) return true;
   }
   return false;
 }
@@ -105,26 +101,16 @@ function invalidateEffectiveExecutionProgress(metrics) {
   });
 }
 
-// Resets completedViaStatus/excludedFromExecution to false for Epics whose
-// statusCategory/resolution changed — the producer classified them against the
-// old values, so the flags are stale until the next full producer run. Keeps
-// the documented boolean type (no null sentinel); never fabricates the flags
-// onto a sparse Jira-only Epic that never had them.
+// Resets completedViaStatus to false for Epics whose statusCategory changed,
+// since it's stale until the next producer run. Never fabricates the flag
+// onto a sparse Jira-only Epic that never had it.
 function invalidateChangedEpicFlags(before, after) {
   const beforeByKey = new Map((before || []).map(function(e) { return [e.key, e]; }));
   return (after || []).map(function(epic) {
     const priorEpic = beforeByKey.get(epic.key);
-    if (!priorEpic) return epic;
-    if (priorEpic.statusCategory === epic.statusCategory && priorEpic.resolution === epic.resolution) return epic;
-
-    const hasCompletedFlag = Object.prototype.hasOwnProperty.call(epic, 'completedViaStatus');
-    const hasExcludedFlag = Object.prototype.hasOwnProperty.call(epic, 'excludedFromExecution');
-    if (!hasCompletedFlag && !hasExcludedFlag) return epic;
-
-    const invalidated = Object.assign({}, epic);
-    if (hasCompletedFlag) invalidated.completedViaStatus = false;
-    if (hasExcludedFlag) invalidated.excludedFromExecution = false;
-    return invalidated;
+    if (!priorEpic || priorEpic.statusCategory === epic.statusCategory) return epic;
+    if (!Object.prototype.hasOwnProperty.call(epic, 'completedViaStatus')) return epic;
+    return Object.assign({}, epic, { completedViaStatus: false });
   });
 }
 
@@ -137,13 +123,10 @@ function isEpicStale(stored, incoming) {
   return storedTime > incomingTime;
 }
 
-// When no Jira snapshot is available to arbitrate, keeps a stale incoming
-// Epic's classification/`updated` pinned to the stored (newer) values, while
-// every other field (issues[], counts, summary/status) still comes from
-// `incoming`. Never re-derives the classification itself. `changed` reflects
-// whether the effective classification was actually contradicted, not merely
-// whether `stored` had a newer timestamp, so callers don't invalidate metrics
-// on a no-op replay.
+// With no Jira snapshot to arbitrate, pins a stale incoming Epic's
+// statusCategory/`updated`/completedViaStatus to the stored (newer) values.
+// `changed` is true only when that actually contradicts `incoming`, so a
+// no-op replay doesn't trigger metrics invalidation.
 function reconcileEpicClassifications(storedEpics, incomingEpics) {
   const storedByKey = new Map((storedEpics || []).map(function(e) { return [e.key, e]; }));
   let changed = false;
@@ -154,31 +137,19 @@ function reconcileEpicClassifications(storedEpics, incomingEpics) {
 
     const reconciled = Object.assign({}, epic, { updated: stored.updated });
     if (Object.prototype.hasOwnProperty.call(stored, 'statusCategory')) reconciled.statusCategory = stored.statusCategory;
-    if (Object.prototype.hasOwnProperty.call(stored, 'resolution')) reconciled.resolution = stored.resolution;
-    // status is a display label paired with statusCategory — keep them consistent
-    // rather than pairing a newer statusCategory with incoming's older status.
+    // status is a display label paired with statusCategory — keep them consistent.
     if (Object.prototype.hasOwnProperty.call(stored, 'status')) reconciled.status = stored.status;
 
-    // A flag the producer computed against incoming's classification can't be
-    // trusted once that classification was overridden above. Prefer the stored
-    // flag when available; otherwise, absence of a stored flag is not evidence
-    // the incoming one remains valid — invalidate rather than fabricate a value
-    // the producer never gave us for the reconciled classification.
-    const classificationChanged = reconciled.statusCategory !== epic.statusCategory || reconciled.resolution !== epic.resolution;
+    // Prefer the stored flag; if absent, invalidate rather than trust a flag
+    // the producer computed against incoming's now-overridden classification.
+    const classificationChanged = reconciled.statusCategory !== epic.statusCategory;
     if (Object.prototype.hasOwnProperty.call(stored, 'completedViaStatus')) {
       reconciled.completedViaStatus = stored.completedViaStatus;
     } else if (classificationChanged && Object.prototype.hasOwnProperty.call(reconciled, 'completedViaStatus')) {
       reconciled.completedViaStatus = false;
     }
-    if (Object.prototype.hasOwnProperty.call(stored, 'excludedFromExecution')) {
-      reconciled.excludedFromExecution = stored.excludedFromExecution;
-    } else if (classificationChanged && Object.prototype.hasOwnProperty.call(reconciled, 'excludedFromExecution')) {
-      reconciled.excludedFromExecution = false;
-    }
 
-    if (classificationChanged ||
-        reconciled.completedViaStatus !== epic.completedViaStatus ||
-        reconciled.excludedFromExecution !== epic.excludedFromExecution) {
+    if (classificationChanged || reconciled.completedViaStatus !== epic.completedViaStatus) {
       changed = true;
     }
     return reconciled;
@@ -209,10 +180,8 @@ function mergeEpics(baseEpics, jiraEpics) {
     const jiraEpic = jiraByKey.get(epic.key);
     if (!jiraEpic) continue; // no longer in Jira's snapshot — drop
     const refreshed = Object.assign({}, epic, { summary: jiraEpic.summary, status: jiraEpic.status });
-    // Never overwrite with undefined — a Jira snapshot that doesn't carry these
-    // fields (e.g. an older caller) must not erase a producer-known value.
+    // Never overwrite with undefined — an older caller's snapshot must not erase a producer-known value.
     if (jiraEpic.statusCategory !== undefined) refreshed.statusCategory = jiraEpic.statusCategory;
-    if (jiraEpic.resolution !== undefined) refreshed.resolution = jiraEpic.resolution;
     if (jiraEpic.updated !== undefined) refreshed.updated = jiraEpic.updated;
     merged.push(refreshed);
   }
@@ -277,12 +246,9 @@ function mergeFeatureData(existing, pipelineData, jiraData) {
   if (jiraData && jira.epics !== undefined) {
     merged.epics = invalidateChangedEpicFlags(epicsBase, mergeEpics(epicsBase, jira.epics));
 
-    // epicsBase is the Epic set merged.metrics was computed over; if Jira's
-    // membership diverges from it, that aggregate is stale. A membership change
-    // already invalidates effective fields too (they're scoped to the same Epic
-    // set); a narrower classification-only change (Epic reopened/re-resolved,
-    // same membership) invalidates just the effective fields until the next
-    // full producer run recomputes them.
+    // epicsBase is the Epic set merged.metrics was computed over: a membership
+    // change invalidates it wholesale; a classification-only change (Epic
+    // reopened, same membership) invalidates just the effective fields.
     if (merged.metrics && epicMembershipChanged(epicsBase, merged.epics)) {
       merged.metrics = invalidateExecutionProgress(merged.metrics);
     } else if (merged.metrics && epicClassificationChanged(epicsBase, merged.epics)) {
@@ -458,9 +424,8 @@ async function rebuildIndex(storage) {
       } : null
     };
 
-    // Effective execution fields are copied only when present on metrics, so the
-    // client's hasOwnProperty fallback (progress.js effectiveOrRaw) can tell a
-    // legacy payload (key absent) from an explicit invalidated value (key present).
+    // Copied only when present so the client (progress.js effectiveOrRaw) can
+    // tell a legacy payload (key absent) from an invalidated value (key present, null).
     if (feature.metrics) {
       for (let j = 0; j < EFFECTIVE_EXECUTION_FIELDS.length; j++) {
         const field = EFFECTIVE_EXECUTION_FIELDS[j];

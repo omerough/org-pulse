@@ -1,6 +1,6 @@
 {
   "key": "TEST1-9104",
-  "summary": "Feature with all Epics excluded from execution",
+  "summary": "Feature with a Duplicate-closed Epic credited complete despite zero real progress",
   "status": "In Progress",
   "statusCategory": "To Do",
   "priority": "Minor",
@@ -24,7 +24,6 @@
       "summary": "Sole Epic closed as Duplicate",
       "status": "Closed",
       "statusCategory": "Done",
-      "resolution": "Duplicate",
       "priority": "Normal",
       "assignee": "Sam Okafor",
       "components": [],
@@ -49,8 +48,7 @@
       ],
       "executionIssueCount": 2,
       "doneExecutionIssueCount": 0,
-      "completedViaStatus": false,
-      "excludedFromExecution": true
+      "completedViaStatus": true
     }
   ],
   "metrics": {
@@ -87,11 +85,11 @@
     "executionCoverage": "available",
     "preparationReadiness": "not-applicable",
     "executionCoverageReason": null,
-    "effectiveExecutionIssueCount": 0,
-    "effectiveDoneExecutionIssueCount": 0,
-    "effectiveExecutionState": "no-tracked-work",
-    "effectiveExecutionCoverage": "empty",
-    "effectiveExecutionCoverageReason": "all-epics-excluded"
+    "effectiveExecutionIssueCount": 2,
+    "effectiveDoneExecutionIssueCount": 2,
+    "effectiveExecutionState": "complete",
+    "effectiveExecutionCoverage": "available",
+    "effectiveExecutionCoverageReason": null
   },
   "topology": {
     "repos": []

@@ -1,6 +1,6 @@
 {
   "key": "TEST1-9103",
-  "summary": "Feature with one excluded Epic and one fully-done Epic",
+  "summary": "Feature with a Won't Do-closed Epic credited complete despite no real progress",
   "status": "In Progress",
   "statusCategory": "To Do",
   "priority": "Major",
@@ -21,10 +21,9 @@
     {
       "key": "TEST9-3001",
       "parentKey": "TEST1-9103",
-      "summary": "Epic closed as Won't Do",
+      "summary": "Epic closed as Won't Do, credited complete via status",
       "status": "Closed",
       "statusCategory": "Done",
-      "resolution": "Won't Do",
       "priority": "Normal",
       "assignee": "Elena Kowalski",
       "components": [],
@@ -49,8 +48,7 @@
       ],
       "executionIssueCount": 2,
       "doneExecutionIssueCount": 0,
-      "completedViaStatus": false,
-      "excludedFromExecution": true
+      "completedViaStatus": true
     },
     {
       "key": "TEST9-3002",
@@ -58,7 +56,6 @@
       "summary": "Fully done Epic",
       "status": "Done",
       "statusCategory": "Done",
-      "resolution": null,
       "priority": "Normal",
       "assignee": "Frank Jansen",
       "components": [],
@@ -90,8 +87,7 @@
       ],
       "executionIssueCount": 3,
       "doneExecutionIssueCount": 3,
-      "completedViaStatus": false,
-      "excludedFromExecution": false
+      "completedViaStatus": true
     }
   ],
   "metrics": {
@@ -135,8 +131,8 @@
     "executionCoverage": "available",
     "preparationReadiness": "not-applicable",
     "executionCoverageReason": null,
-    "effectiveExecutionIssueCount": 3,
-    "effectiveDoneExecutionIssueCount": 3,
+    "effectiveExecutionIssueCount": 5,
+    "effectiveDoneExecutionIssueCount": 5,
     "effectiveExecutionState": "complete",
     "effectiveExecutionCoverage": "available",
     "effectiveExecutionCoverageReason": null

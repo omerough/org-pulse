@@ -296,11 +296,11 @@ describe('enrichFeatures', () => {
 
     const result = await enrichFeatures(['RHAISTRAT-1'], mockJiraRequest, mockFetchAll)
     expect(result.get('RHAISTRAT-1').epics).toEqual([{
-      key: 'RHOAIENG-500', summary: 'Child epic', status: 'In Progress', statusCategory: null, resolution: null, updated: null
+      key: 'RHOAIENG-500', summary: 'Child epic', status: 'In Progress', statusCategory: null, updated: null
     }])
   })
 
-  it('includes statusCategory/resolution on discovered epics, null when Jira has none (Epic reopened)', async () => {
+  it('includes statusCategory on discovered epics, null when Jira has none (Epic reopened)', async () => {
     const mockJiraRequest = vi.fn()
     const mockFetchAll = vi.fn()
 
@@ -310,16 +310,14 @@ describe('enrichFeatures', () => {
       fields: {
         summary: 'Closed epic',
         status: { name: 'Closed', statusCategory: { name: 'Done' } },
-        resolution: { name: "Won't Do" },
         parent: { key: 'RHAISTRAT-1' },
         customfield_10014: null
       }
     }, {
       key: 'RHOAIENG-502',
       fields: {
-        summary: 'Reopened epic, no resolution',
+        summary: 'Reopened epic',
         status: { name: 'New', statusCategory: { name: 'To Do' } },
-        resolution: null,
         parent: { key: 'RHAISTRAT-1' },
         customfield_10014: null
       }
@@ -328,10 +326,10 @@ describe('enrichFeatures', () => {
     const result = await enrichFeatures(['RHAISTRAT-1'], mockJiraRequest, mockFetchAll)
     const epics = result.get('RHAISTRAT-1').epics
     expect(epics.find(e => e.key === 'RHOAIENG-501')).toEqual({
-      key: 'RHOAIENG-501', summary: 'Closed epic', status: 'Closed', statusCategory: 'Done', resolution: "Won't Do", updated: null
+      key: 'RHOAIENG-501', summary: 'Closed epic', status: 'Closed', statusCategory: 'Done', updated: null
     })
     expect(epics.find(e => e.key === 'RHOAIENG-502')).toEqual({
-      key: 'RHOAIENG-502', summary: 'Reopened epic, no resolution', status: 'New', statusCategory: 'To Do', resolution: null, updated: null
+      key: 'RHOAIENG-502', summary: 'Reopened epic', status: 'New', statusCategory: 'To Do', updated: null
     })
   })
 

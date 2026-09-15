@@ -179,10 +179,8 @@ function readinessMeta(r, featureKey) {
   return { ...READINESS_META[key], help: preparationHelpText(key, featureKey) }
 }
 
-// Presentation only — the effective execution fields are producer-owned and never
-// recomputed; invalid counts also fall through to unavailable. `complete` is
-// state-driven 100%, not a done/total division — a confirmed-complete Epic can
-// have zero actual children (0/0), which must never read as 0% or unavailable.
+// `complete` is state-driven 100%, not a done/total division — a
+// confirmed-complete Epic can have zero actual children (0/0).
 function executionSummary(f) {
   const coverage = effectiveExecutionCoverage(f)
   const total = effectiveExecutionIssueCount(f)

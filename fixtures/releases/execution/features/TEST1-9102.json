@@ -24,7 +24,6 @@
       "summary": "Completed-via-status Epic with open children",
       "status": "Done",
       "statusCategory": "Done",
-      "resolution": "Done",
       "priority": "Normal",
       "assignee": "Marcus Webb",
       "components": [],
@@ -56,8 +55,7 @@
       ],
       "executionIssueCount": 3,
       "doneExecutionIssueCount": 1,
-      "completedViaStatus": true,
-      "excludedFromExecution": false
+      "completedViaStatus": true
     },
     {
       "key": "TEST9-2002",
@@ -65,7 +63,6 @@
       "summary": "Normal in-progress Epic",
       "status": "In Progress",
       "statusCategory": "In Progress",
-      "resolution": null,
       "priority": "Normal",
       "assignee": "Dana Brown",
       "components": [],
@@ -111,8 +108,7 @@
       ],
       "executionIssueCount": 5,
       "doneExecutionIssueCount": 2,
-      "completedViaStatus": false,
-      "excludedFromExecution": false
+      "completedViaStatus": false
     }
   ],
   "metrics": {

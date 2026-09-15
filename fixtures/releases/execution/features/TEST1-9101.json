@@ -24,7 +24,6 @@
       "summary": "Zero-child epic closed as Done",
       "status": "Done",
       "statusCategory": "Done",
-      "resolution": "Done",
       "priority": "Normal",
       "assignee": "Priya Natarajan",
       "components": [],
@@ -34,8 +33,7 @@
       "issues": [],
       "executionIssueCount": null,
       "doneExecutionIssueCount": null,
-      "completedViaStatus": true,
-      "excludedFromExecution": false
+      "completedViaStatus": true
     }
   ],
   "metrics": {
