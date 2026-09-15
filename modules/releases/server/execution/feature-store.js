@@ -128,6 +128,39 @@ function invalidateChangedEpicFlags(before, after) {
   });
 }
 
+// True when `stored.updated` is strictly newer than `incoming.updated`. Absent
+// or unparsable timestamps can't establish staleness, so they're not flagged.
+function isEpicStale(stored, incoming) {
+  const storedTime = stored.updated ? Date.parse(stored.updated) : NaN;
+  const incomingTime = incoming.updated ? Date.parse(incoming.updated) : NaN;
+  if (Number.isNaN(storedTime) || Number.isNaN(incomingTime)) return false;
+  return storedTime > incomingTime;
+}
+
+// When no Jira snapshot is available to arbitrate, keeps a stale incoming
+// Epic's classification/`updated` pinned to the stored (newer) values, while
+// every other field (issues[], counts, summary/status) still comes from
+// `incoming`. Never re-derives the classification itself.
+function reconcileEpicClassifications(storedEpics, incomingEpics) {
+  const storedByKey = new Map((storedEpics || []).map(function(e) { return [e.key, e]; }));
+  let changed = false;
+
+  const epics = (incomingEpics || []).map(function(epic) {
+    const stored = storedByKey.get(epic.key);
+    if (!stored || !isEpicStale(stored, epic)) return epic;
+
+    changed = true;
+    const reconciled = Object.assign({}, epic, { updated: stored.updated });
+    if (Object.prototype.hasOwnProperty.call(stored, 'statusCategory')) reconciled.statusCategory = stored.statusCategory;
+    if (Object.prototype.hasOwnProperty.call(stored, 'resolution')) reconciled.resolution = stored.resolution;
+    if (Object.prototype.hasOwnProperty.call(stored, 'completedViaStatus')) reconciled.completedViaStatus = stored.completedViaStatus;
+    if (Object.prototype.hasOwnProperty.call(stored, 'excludedFromExecution')) reconciled.excludedFromExecution = stored.excludedFromExecution;
+    return reconciled;
+  });
+
+  return { epics: epics, changed: changed };
+}
+
 /**
  * Merge producer-owned Epics against Jira's current Epic membership snapshot.
  * A successful jiraEpics snapshot is authoritative for *membership* — an Epic
@@ -154,6 +187,7 @@ function mergeEpics(baseEpics, jiraEpics) {
     // fields (e.g. an older caller) must not erase a producer-known value.
     if (jiraEpic.statusCategory !== undefined) refreshed.statusCategory = jiraEpic.statusCategory;
     if (jiraEpic.resolution !== undefined) refreshed.resolution = jiraEpic.resolution;
+    if (jiraEpic.updated !== undefined) refreshed.updated = jiraEpic.updated;
     merged.push(refreshed);
   }
 
@@ -229,7 +263,13 @@ function mergeFeatureData(existing, pipelineData, jiraData) {
       merged.metrics = invalidateEffectiveExecutionProgress(merged.metrics);
     }
   } else if (epicsBase !== undefined) {
-    merged.epics = epicsBase;
+    // No Jira snapshot to arbitrate this cycle — reconcile against what's
+    // stored so a stale/replayed producer Epic can't undo a newer invalidation.
+    const reconciled = reconcileEpicClassifications(base.epics, epicsBase);
+    merged.epics = reconciled.epics;
+    if (merged.metrics && reconciled.changed) {
+      merged.metrics = invalidateEffectiveExecutionProgress(merged.metrics);
+    }
   }
 
   // created: Jira is source of truth (issue creation date)
@@ -420,6 +460,7 @@ module.exports = {
   mergeEpics,
   epicMembershipChanged,
   epicClassificationChanged,
+  reconcileEpicClassifications,
   invalidateExecutionProgress,
   invalidateEffectiveExecutionProgress,
   invalidateChangedEpicFlags,

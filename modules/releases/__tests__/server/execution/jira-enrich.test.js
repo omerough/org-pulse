@@ -296,7 +296,7 @@ describe('enrichFeatures', () => {
 
     const result = await enrichFeatures(['RHAISTRAT-1'], mockJiraRequest, mockFetchAll)
     expect(result.get('RHAISTRAT-1').epics).toEqual([{
-      key: 'RHOAIENG-500', summary: 'Child epic', status: 'In Progress', statusCategory: null, resolution: null
+      key: 'RHOAIENG-500', summary: 'Child epic', status: 'In Progress', statusCategory: null, resolution: null, updated: null
     }])
   })
 
@@ -328,10 +328,30 @@ describe('enrichFeatures', () => {
     const result = await enrichFeatures(['RHAISTRAT-1'], mockJiraRequest, mockFetchAll)
     const epics = result.get('RHAISTRAT-1').epics
     expect(epics.find(e => e.key === 'RHOAIENG-501')).toEqual({
-      key: 'RHOAIENG-501', summary: 'Closed epic', status: 'Closed', statusCategory: 'Done', resolution: "Won't Do"
+      key: 'RHOAIENG-501', summary: 'Closed epic', status: 'Closed', statusCategory: 'Done', resolution: "Won't Do", updated: null
     })
     expect(epics.find(e => e.key === 'RHOAIENG-502')).toEqual({
-      key: 'RHOAIENG-502', summary: 'Reopened epic, no resolution', status: 'New', statusCategory: 'To Do', resolution: null
+      key: 'RHOAIENG-502', summary: 'Reopened epic, no resolution', status: 'New', statusCategory: 'To Do', resolution: null, updated: null
     })
+  })
+
+  it('includes the Epic\'s Jira updated timestamp when present', async () => {
+    const mockJiraRequest = vi.fn()
+    const mockFetchAll = vi.fn()
+
+    mockFetchAll.mockResolvedValueOnce([makeJiraIssue('RHAISTRAT-1')])
+    mockFetchAll.mockResolvedValueOnce([{
+      key: 'RHOAIENG-503',
+      fields: {
+        summary: 'Epic',
+        status: { name: 'New' },
+        parent: { key: 'RHAISTRAT-1' },
+        customfield_10014: null,
+        updated: '2026-06-10T00:00:00.000+0000'
+      }
+    }])
+
+    const result = await enrichFeatures(['RHAISTRAT-1'], mockJiraRequest, mockFetchAll)
+    expect(result.get('RHAISTRAT-1').epics[0].updated).toBe('2026-06-10T00:00:00.000+0000')
   })
 })

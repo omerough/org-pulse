@@ -9,6 +9,7 @@ const {
   mergeFeatureData,
   mergeEpics,
   epicClassificationChanged,
+  reconcileEpicClassifications,
   invalidateEffectiveExecutionProgress,
   invalidateChangedEpicFlags,
   writeFeatures,
@@ -232,6 +233,12 @@ describe('mergeEpics', () => {
     expect(merged.statusCategory).toBe('In Progress')
     expect(merged.resolution).toBeNull()
   })
+
+  it('refreshes updated from the Jira snapshot when present', () => {
+    const epic = { key: 'EP-G', summary: 'S', status: 'New', updated: '2026-01-01T00:00:00Z' }
+    const [merged] = mergeEpics([epic], [{ key: 'EP-G', summary: 'S', status: 'New', updated: '2026-02-01T00:00:00Z' }])
+    expect(merged.updated).toBe('2026-02-01T00:00:00Z')
+  })
 })
 
 describe('epicClassificationChanged', () => {
@@ -305,6 +312,57 @@ describe('invalidateChangedEpicFlags', () => {
     const [result] = invalidateChangedEpicFlags(before, after)
     expect(result.completedViaStatus).toBeUndefined()
     expect(result.excludedFromExecution).toBeUndefined()
+  })
+})
+
+describe('reconcileEpicClassifications', () => {
+  const stored = {
+    key: 'EP-A', statusCategory: 'To Do', resolution: null,
+    completedViaStatus: false, excludedFromExecution: false,
+    updated: '2026-06-05T00:00:00Z'
+  }
+
+  it('keeps the stored classification when the incoming Epic is older', () => {
+    const incoming = {
+      key: 'EP-A', statusCategory: 'Done', resolution: 'Done',
+      completedViaStatus: true, excludedFromExecution: false,
+      executionIssueCount: 4, doneExecutionIssueCount: 2,
+      updated: '2026-06-01T00:00:00Z'
+    }
+    const { epics, changed } = reconcileEpicClassifications([stored], [incoming])
+    expect(changed).toBe(true)
+    expect(epics[0].completedViaStatus).toBe(false)
+    expect(epics[0].statusCategory).toBe('To Do')
+    expect(epics[0].resolution).toBeNull()
+    expect(epics[0].updated).toBe(stored.updated)
+    // Raw pipeline-owned fields are untouched.
+    expect(epics[0].executionIssueCount).toBe(4)
+    expect(epics[0].doneExecutionIssueCount).toBe(2)
+  })
+
+  it('accepts the incoming classification when it is newer', () => {
+    const incoming = {
+      key: 'EP-A', statusCategory: 'In Progress', resolution: null,
+      completedViaStatus: false, excludedFromExecution: false,
+      updated: '2026-06-10T00:00:00Z'
+    }
+    const { epics, changed } = reconcileEpicClassifications([stored], [incoming])
+    expect(changed).toBe(false)
+    expect(epics[0]).toBe(incoming)
+  })
+
+  it('accepts the incoming Epic when timestamps are missing or unparsable on either side', () => {
+    const incoming = { key: 'EP-A', statusCategory: 'Done', completedViaStatus: true }
+    const { epics, changed } = reconcileEpicClassifications([stored], [incoming])
+    expect(changed).toBe(false)
+    expect(epics[0]).toBe(incoming)
+  })
+
+  it('is a no-op for an Epic absent from the stored set', () => {
+    const incoming = { key: 'EP-NEW', statusCategory: 'To Do', updated: '2026-01-01T00:00:00Z' }
+    const { epics, changed } = reconcileEpicClassifications([stored], [incoming])
+    expect(changed).toBe(false)
+    expect(epics[0]).toBe(incoming)
   })
 })
 
@@ -583,6 +641,97 @@ describe('mergeFeatureData — narrower invalidation on Epic classification chan
 
     const afterFollowUpSync = mergeFeatureData(afterReopen, null, reopenedJira)
     expect(afterFollowUpSync.epics[0].completedViaStatus).toBe(false)
+  })
+})
+
+describe('mergeFeatureData — stale pipeline replay after Jira invalidation', () => {
+  // Reopened in Jira and invalidated by a prior Jira-only sync (see the
+  // classification-change describe block above).
+  const reopenedExisting = {
+    key: 'X-1',
+    metrics: {
+      totalEpics: 1, totalIssues: 4, completionPct: 50, blockerCount: 0, health: 'YELLOW',
+      executionIssueCount: 4, doneExecutionIssueCount: 3,
+      executionState: 'in-progress', executionCoverage: 'available', executionCoverageReason: null,
+      effectiveExecutionIssueCount: null, effectiveDoneExecutionIssueCount: null,
+      effectiveExecutionState: null, effectiveExecutionCoverage: 'insufficient-data', effectiveExecutionCoverageReason: null
+    },
+    epics: [{
+      key: 'EP-A', summary: 'A', status: 'New', statusCategory: 'To Do', resolution: null,
+      completedViaStatus: false, excludedFromExecution: false,
+      executionIssueCount: 4, doneExecutionIssueCount: 3,
+      updated: '2026-06-05T00:00:00Z'
+    }]
+  }
+
+  // A CI artifact generated before the reopen — still classifies EP-A as
+  // Done/completedViaStatus, with an older `updated`.
+  const stalePipeline = {
+    key: 'X-1',
+    metrics: {
+      totalEpics: 1, totalIssues: 4, completionPct: 100, blockerCount: 0, health: 'GREEN',
+      executionIssueCount: 4, doneExecutionIssueCount: 2,
+      executionState: 'in-progress', executionCoverage: 'available', executionCoverageReason: null,
+      effectiveExecutionIssueCount: 4, effectiveDoneExecutionIssueCount: 4,
+      effectiveExecutionState: 'complete', effectiveExecutionCoverage: 'available', effectiveExecutionCoverageReason: null
+    },
+    epics: [{
+      key: 'EP-A', summary: 'A', status: 'Done', statusCategory: 'Done', resolution: 'Done',
+      completedViaStatus: true, excludedFromExecution: false,
+      executionIssueCount: 4, doneExecutionIssueCount: 2,
+      updated: '2026-06-01T00:00:00Z'
+    }]
+  }
+
+  it('does not revive a stale completedViaStatus flag when Jira enrichment fails this cycle', () => {
+    const result = mergeFeatureData(reopenedExisting, stalePipeline, null)
+
+    expect(result.epics[0].completedViaStatus).toBe(false)
+    expect(result.epics[0].statusCategory).toBe('To Do')
+    expect(result.epics[0].resolution).toBeNull()
+    // Raw pipeline-owned counts still come from the fresh pipeline delivery.
+    expect(result.epics[0].executionIssueCount).toBe(4)
+    expect(result.epics[0].doneExecutionIssueCount).toBe(2)
+    // The pipeline's own effective rollup assumed the stale classification — invalidated.
+    expect(result.metrics.effectiveExecutionState).toBeNull()
+    expect(result.metrics.effectiveExecutionCoverage).toBe('insufficient-data')
+    // Raw metrics are pipeline-owned and untouched by the reconciliation.
+    expect(result.metrics.executionState).toBe('in-progress')
+    expect(result.metrics.doneExecutionIssueCount).toBe(2)
+  })
+
+  it('keeps rejecting the same stale replay on a repeated ingest', () => {
+    const firstPass = mergeFeatureData(reopenedExisting, stalePipeline, null)
+    const secondPass = mergeFeatureData(firstPass, stalePipeline, null)
+
+    expect(secondPass.epics[0].completedViaStatus).toBe(false)
+    expect(secondPass.epics[0].updated).toBe(reopenedExisting.epics[0].updated)
+    expect(secondPass.metrics.effectiveExecutionState).toBeNull()
+  })
+
+  it('accepts a genuinely newer producer snapshot that already reflects the reopen', () => {
+    const freshPipeline = {
+      key: 'X-1',
+      metrics: {
+        totalEpics: 1, totalIssues: 4, completionPct: 75, blockerCount: 0, health: 'YELLOW',
+        executionIssueCount: 4, doneExecutionIssueCount: 3,
+        executionState: 'in-progress', executionCoverage: 'available', executionCoverageReason: null,
+        effectiveExecutionIssueCount: 4, effectiveDoneExecutionIssueCount: 3,
+        effectiveExecutionState: 'in-progress', effectiveExecutionCoverage: 'available', effectiveExecutionCoverageReason: null
+      },
+      epics: [{
+        key: 'EP-A', summary: 'A', status: 'New', statusCategory: 'To Do', resolution: null,
+        completedViaStatus: false, excludedFromExecution: false,
+        executionIssueCount: 4, doneExecutionIssueCount: 3,
+        updated: '2026-06-10T00:00:00Z'
+      }]
+    }
+    const result = mergeFeatureData(reopenedExisting, freshPipeline, null)
+
+    expect(result.epics[0].completedViaStatus).toBe(false)
+    expect(result.epics[0].updated).toBe('2026-06-10T00:00:00Z')
+    expect(result.metrics.effectiveExecutionState).toBe('in-progress')
+    expect(result.metrics.effectiveDoneExecutionIssueCount).toBe(3)
   })
 })
 

@@ -197,6 +197,38 @@ describe('FeatureExecutionDrawer', () => {
       expect(text).toContain('(actual)')
     })
 
+    it('shows "No child issues recorded" for a confirmed zero-child completed-via-status Epic', () => {
+      const detail = {
+        key: 'OSAC-100',
+        epics: [{
+          key: 'EP-1', summary: 'Zero-child epic closed as Done', status: 'Done', resolution: 'Done',
+          completedViaStatus: true, excludedFromExecution: false,
+          executionIssueCount: 0, doneExecutionIssueCount: 0, issues: []
+        }]
+      }
+      const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
+      const text = wrapper.text()
+      expect(text).toContain('Completed via Epic status')
+      expect(text).toContain('No child issues recorded')
+      expect(text).not.toContain('No tracked execution work')
+    })
+
+    it('keeps "No issue-level progress available" for a completed-via-status Epic with no collected count, not a confirmed zero', () => {
+      const detail = {
+        key: 'OSAC-100',
+        epics: [{
+          key: 'EP-1', summary: 'Completed epic, no issue detail collected', status: 'Done', resolution: 'Done',
+          completedViaStatus: true, excludedFromExecution: false,
+          executionIssueCount: null, doneExecutionIssueCount: null, issues: []
+        }]
+      }
+      const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), detail })
+      const text = wrapper.text()
+      expect(text).toContain('Completed via Epic status')
+      expect(text).toContain('No issue-level progress available')
+      expect(text).not.toContain('No child issues recorded')
+    })
+
     it('shows resolution and "Excluded from execution progress" instead of a progress bar for an excluded Epic', () => {
       const detail = {
         key: 'OSAC-100',

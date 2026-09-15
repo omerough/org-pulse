@@ -1084,6 +1084,7 @@ Unified per-feature file combining data from pipeline (GitLab CI), Jira enrichme
       "status": "In Progress",
       "statusCategory": "In Progress",
       "resolution": null,
+      "updated": "2026-05-20T09:00:00.000+0000",
       "fixVersions": ["0.4"],
       "fixVersionSource": "direct",
       "components": ["Model Serving"],
@@ -1188,6 +1189,14 @@ org-pulse-data's `releases/execution/feature-list-config.json` (e.g. OSAC's
 "Obsolete"]`); an unconfigured project defaults both lists to empty, so no Epic gets either
 treatment. org-pulse consumes all three fields read-only and must not re-derive them from
 `status`/`resolution` itself.
+
+When a merge cycle has no Jira snapshot to arbitrate an Epic (enrichment failed or skipped),
+org-pulse compares the Epic's `updated` timestamp against the stored copy: an incoming Epic
+older than the one already stored keeps the stored `statusCategory`/`resolution`/
+`completedViaStatus`/`excludedFromExecution`/`updated` rather than reviving a classification a
+more recent Jira observation already invalidated. Raw issue data (`issues[]`, execution counts)
+always comes from the incoming Epic regardless. Epics without a comparable `updated` on both
+sides always accept the incoming classification, as before this check existed.
 
 **Optional — AI Review (`aiReview`):**
 
