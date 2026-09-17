@@ -42,8 +42,11 @@ test.describe('Product Builds OSAC @product-builds-osac', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
-    await expect(page.getByText('Latest published build')).toBeVisible();
-    await expect(page.getByText('0.0.10-nightly.2')).toBeVisible();
+    const latestBuildCard = page.getByText('Latest published build').locator('xpath=..');
+    await expect(latestBuildCard).toBeVisible();
+
+    const versionHeadline = latestBuildCard.locator('span.text-lg.font-semibold', { hasText: '0.0.10-nightly.2' });
+    await expect(versionHeadline).toBeVisible();
 
     expect(page.errors).toHaveLength(0);
   });
