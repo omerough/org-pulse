@@ -2031,6 +2031,44 @@ Synced from a Google Sheet via the catalyst-showcase module. Contains all showca
 
 ---
 
+## Product Builds — OSAC Build History (`data/osac-builds-data.json`)
+
+Root-level (not module-namespaced). Served via `GET /api/modules/product-builds/osac/builds`, a pure `readFromStorage` passthrough. Consumed by `modules/product-builds/client/views/OsacBuildsView.vue`.
+
+```json
+{
+  "schemaVersion": 1,
+  "lastFetchedAt": "2026-09-16T03:41:07Z",
+  "builds": [
+    {
+      "runId": 1,
+      "runUrl": "https://github.com/osac-project/osac/actions/runs/1",
+      "mode": "nightly",
+      "version": "0.0.10-nightly.1",
+      "publishedAt": "2026-09-16T03:41:07Z",
+      "e2eSkipped": false,
+      "charts": [{ "name": "osac", "version": "0.0.10-nightly.1" }],
+      "images": ["ghcr.io/osac-project/osac-ui:sha-abc"]
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|--------------|
+| `schemaVersion` | number | Envelope schema version |
+| `lastFetchedAt` | ISO string \| null | When the build list was last fetched |
+| `builds[].runId` | number | GitHub Actions run ID |
+| `builds[].runUrl` | string | Link to the GitHub Actions run |
+| `builds[].mode` | string | `nightly` or `release` |
+| `builds[].version` | string | Published build version |
+| `builds[].publishedAt` | ISO string | Publish timestamp; the view sorts builds by this field, newest first |
+| `builds[].e2eSkipped` | boolean | Whether end-to-end tests were skipped for this build |
+| `builds[].charts[]` | array | `{ name, version }` — Helm charts published with this build |
+| `builds[].images[]` | string[] | Container image references published with this build |
+
+---
+
 ## Fixture Rules
 
 The `fixtures/` directory provides read-only demo data used when `DEMO_MODE=true`. These rules prevent data format drift:
