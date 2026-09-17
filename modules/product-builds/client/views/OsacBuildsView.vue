@@ -20,64 +20,65 @@
     </div>
 
     <template v-else>
-      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5 mb-6">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Latest published build</span>
+      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8">
+        <div class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">Latest published build</div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <div class="flex flex-wrap items-center gap-3">
+            <span :class="modeBadgeClasses(latestBuild.mode)" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border">
+              {{ modeLabel(latestBuild.mode) }}
+            </span>
+            <span class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ latestBuild.version }}</span>
+            <span class="text-sm text-gray-500 dark:text-gray-400">{{ formatDate(latestBuild.publishedAt) }}</span>
+            <span v-if="latestBuild.e2eSkipped" :class="E2E_BADGE_CLASSES" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border">
+              E2E skipped
+            </span>
+          </div>
           <a
             :href="latestBuild.runUrl" target="_blank" rel="noopener noreferrer"
-            class="inline-flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400 hover:underline"
+            class="inline-flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400 hover:underline shrink-0"
           >
             GitHub Actions run
             <ExternalLinkIcon :size="14" />
           </a>
         </div>
-        <div class="flex flex-wrap items-center gap-3 mb-4">
-          <span :class="modeBadgeClasses(latestBuild.mode)" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border">
-            {{ modeLabel(latestBuild.mode) }}
-          </span>
-          <span class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ latestBuild.version }}</span>
-          <span class="text-sm text-gray-500 dark:text-gray-400">{{ formatDate(latestBuild.publishedAt) }}</span>
-          <span
-            v-if="latestBuild.e2eSkipped"
-            class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-500/30"
-          >
-            E2E skipped
-          </span>
-        </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-5 border-t border-gray-100 dark:border-gray-700/60 text-sm">
           <div>
-            <div class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Charts</div>
-            <ul v-if="latestBuild.charts?.length" class="space-y-0.5">
-              <li v-for="chart in latestBuild.charts" :key="chart.name" class="text-gray-700 dark:text-gray-300">
-                <span class="font-medium">{{ chart.name }}</span>
-                <span class="text-gray-500 dark:text-gray-400"> {{ chart.version }}</span>
-              </li>
-            </ul>
+            <div class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Charts</div>
+            <div v-if="latestBuild.charts?.length" class="divide-y divide-gray-100 dark:divide-gray-700/50">
+              <div v-for="chart in latestBuild.charts" :key="chart.name" class="flex items-center justify-between gap-4 py-1.5">
+                <span class="font-medium text-gray-800 dark:text-gray-200">{{ chart.name }}</span>
+                <span class="text-gray-500 dark:text-gray-400 tabular-nums shrink-0">{{ chart.version }}</span>
+              </div>
+            </div>
             <div v-else class="text-gray-400 dark:text-gray-500">No charts published.</div>
           </div>
           <div>
-            <div class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Images</div>
-            <ul v-if="latestBuild.images?.length" class="space-y-0.5">
-              <li v-for="image in latestBuild.images" :key="image" class="font-mono text-xs text-gray-700 dark:text-gray-300 break-all">
+            <div class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Images</div>
+            <div v-if="latestBuild.images?.length" class="space-y-1.5">
+              <div
+                v-for="image in latestBuild.images" :key="image"
+                class="font-mono text-xs leading-relaxed text-gray-600 dark:text-gray-400 break-all"
+              >
                 {{ image }}
-              </li>
-            </ul>
+              </div>
+            </div>
             <div v-else class="text-gray-400 dark:text-gray-500">No images published.</div>
           </div>
         </div>
       </div>
 
       <div>
-        <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Build history</h2>
+        <h2 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Build history</h2>
         <div v-if="historyBuilds.length === 0" class="text-sm text-gray-500 dark:text-gray-400">No previous builds.</div>
-        <div v-else class="space-y-2">
+        <div v-else class="space-y-3">
           <div
             v-for="build in historyBuilds" :key="build.runId"
             class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
           >
             <div
-              class="px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30"
+              class="px-4 py-3.5 flex items-center gap-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30"
               @click="toggleBuild(build.runId)"
             >
               <ChevronDownIcon
@@ -88,38 +89,43 @@
                 {{ modeLabel(build.mode) }}
               </span>
               <span class="font-medium text-gray-900 dark:text-gray-100">{{ build.version }}</span>
-              <span v-if="build.e2eSkipped" class="text-xs text-amber-600 dark:text-amber-400">E2E skipped</span>
-              <span class="ml-auto text-sm text-gray-500 dark:text-gray-400">{{ formatDate(build.publishedAt) }}</span>
+              <span v-if="build.e2eSkipped" :class="E2E_BADGE_CLASSES" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border shrink-0">
+                E2E skipped
+              </span>
+              <span class="ml-auto text-xs text-gray-400 dark:text-gray-500 tabular-nums">{{ formatDate(build.publishedAt) }}</span>
             </div>
             <div
               v-if="expandedBuilds.has(build.runId)"
-              class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 text-sm"
+              class="px-4 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 text-sm"
             >
               <a
                 :href="build.runUrl" target="_blank" rel="noopener noreferrer"
-                class="inline-flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400 hover:underline mb-3"
+                class="inline-flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400 hover:underline mb-4"
               >
                 GitHub Actions run
                 <ExternalLinkIcon :size="14" />
               </a>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                  <div class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Charts</div>
-                  <ul v-if="build.charts?.length" class="space-y-0.5">
-                    <li v-for="chart in build.charts" :key="chart.name" class="text-gray-700 dark:text-gray-300">
-                      <span class="font-medium">{{ chart.name }}</span>
-                      <span class="text-gray-500 dark:text-gray-400"> {{ chart.version }}</span>
-                    </li>
-                  </ul>
+                  <div class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Charts</div>
+                  <div v-if="build.charts?.length" class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                    <div v-for="chart in build.charts" :key="chart.name" class="flex items-center justify-between gap-4 py-1.5">
+                      <span class="font-medium text-gray-800 dark:text-gray-200">{{ chart.name }}</span>
+                      <span class="text-gray-500 dark:text-gray-400 tabular-nums shrink-0">{{ chart.version }}</span>
+                    </div>
+                  </div>
                   <div v-else class="text-gray-400 dark:text-gray-500">No charts published.</div>
                 </div>
                 <div>
-                  <div class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">Images</div>
-                  <ul v-if="build.images?.length" class="space-y-0.5">
-                    <li v-for="image in build.images" :key="image" class="font-mono text-xs text-gray-700 dark:text-gray-300 break-all">
+                  <div class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Images</div>
+                  <div v-if="build.images?.length" class="space-y-1.5">
+                    <div
+                      v-for="image in build.images" :key="image"
+                      class="font-mono text-xs leading-relaxed text-gray-600 dark:text-gray-400 break-all"
+                    >
                       {{ image }}
-                    </li>
-                  </ul>
+                    </div>
+                  </div>
                   <div v-else class="text-gray-400 dark:text-gray-500">No images published.</div>
                 </div>
               </div>
@@ -135,6 +141,8 @@
 import { ref, computed } from 'vue'
 import { ExternalLinkIcon, ChevronDownIcon } from 'lucide-vue-next'
 import { apiRequest } from '@shared/client/services/api.js'
+
+const E2E_BADGE_CLASSES = 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-500/30'
 
 const builds = ref([])
 const loading = ref(true)
