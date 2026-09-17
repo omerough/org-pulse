@@ -27,6 +27,40 @@ describe('FeatureListItem Missing Design badge', () => {
     const wrapper = mount(FeatureListItem, { props: { feature } });
     expect(wrapper.text()).not.toContain('Missing Design');
   });
+
+  it('renders separate canonical PRD and Design PR links', () => {
+    const feature = makeFeature({
+      designPrStatus: 'Open',
+      prdPrUrl: 'https://github.com/org/repo/pull/168',
+      designPrUrl: 'https://github.com/org/repo/pull/208'
+    });
+    const wrapper = mount(FeatureListItem, { props: { feature } });
+    const links = wrapper.findAll('a');
+
+    expect(links.map(link => link.attributes('href'))).toEqual([
+      'https://github.com/org/repo/pull/168',
+      'https://github.com/org/repo/pull/208'
+    ]);
+    expect(links[0].attributes('title')).toBe('View PRD pull request on GitHub');
+    expect(links[1].attributes('title')).toBe('View design pull request on GitHub');
+  });
+
+  it('derives the PRD link from an EP source when prdPrUrl is missing', () => {
+    const wrapper = mount(FeatureListItem, {
+      props: { feature: makeFeature({ sourceRfe: 'EP-208', prdPrUrl: null }) }
+    });
+
+    expect(wrapper.find('a[title="View PRD pull request on GitHub"]').attributes('href'))
+      .toBe('https://github.com/osac-project/enhancement-proposals/pull/208');
+  });
+
+  it('does not derive a PRD link for an EP source marked No PR', () => {
+    const wrapper = mount(FeatureListItem, {
+      props: { feature: makeFeature({ sourceRfe: 'EP-208', status: 'No PR', prdPrUrl: null }) }
+    });
+
+    expect(wrapper.find('a[title="View PRD pull request on GitHub"]').exists()).toBe(false);
+  });
 });
 
 describe('FeatureListItem Review pill (meaningful humanReviewStatus only)', () => {

@@ -228,4 +228,24 @@ describe('FeatureDetailPanel Design artifact/review semantics', () => {
     wrapper = mountPanel(makeFeature({ designPrStatus: 'Merged', designPrUrl: null }));
     expect(document.body.querySelector('a[title="View design PR on GitHub"]')).toBeNull();
   });
+
+  it('renders canonical PRD and Design PR links independently', () => {
+    wrapper = mountPanel(makeFeature({
+      designPrStatus: 'Open',
+      prdPrUrl: 'https://github.com/org/repo/pull/168',
+      designPrUrl: 'https://github.com/org/repo/pull/208'
+    }));
+
+    expect(document.body.querySelector('a[title="View PRD pull request on GitHub"]')?.getAttribute('href'))
+      .toBe('https://github.com/org/repo/pull/168');
+    expect(document.body.querySelector('a[title="View design PR on GitHub"]')?.getAttribute('href'))
+      .toBe('https://github.com/org/repo/pull/208');
+  });
+
+  it('derives the PRD link from an EP source when prdPrUrl is missing', () => {
+    wrapper = mountPanel(makeFeature({ sourceRfe: 'EP-208', prdPrUrl: null }));
+
+    expect(document.body.querySelector('a[title="View PRD pull request on GitHub"]')?.getAttribute('href'))
+      .toBe('https://github.com/osac-project/enhancement-proposals/pull/208');
+  });
 });

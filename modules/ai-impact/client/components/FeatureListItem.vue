@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import {
   getReviewStatusClass, getReviewStatusLabel, getReviewStatusTooltip,
   getDesignStatusClass, getDesignStatusLabel, getMeaningfulDesignReviewStatus,
-  getInvolvementLabel, getInvolvementClass
+  getInvolvementLabel, getInvolvementClass, getPrdReviewPrUrl
 } from '../utils/feature-helpers.js'
 import InfoBubble from './InfoBubble.vue'
 
@@ -15,6 +15,11 @@ const props = defineProps({
 const emit = defineEmits(['select'])
 
 const reviewStatus = computed(() => getMeaningfulDesignReviewStatus(props.feature))
+const prdPrUrl = computed(() => getPrdReviewPrUrl({
+  status: props.feature.status,
+  sourceRfe: props.feature.sourceRfe,
+  linkedFeature: props.feature
+}))
 </script>
 
 <template>
@@ -73,15 +78,32 @@ const reviewStatus = computed(() => getMeaningfulDesignReviewStatus(props.featur
         </div>
       </div>
       <div class="flex items-center gap-1 shrink-0">
-        <span
-          v-if="feature.sourceRfe"
+        <a
+          v-if="prdPrUrl"
+          :href="prdPrUrl"
+          target="_blank"
+          rel="noopener noreferrer"
           class="text-blue-500 dark:text-blue-400"
-          title="View PRD"
+          title="View PRD pull request on GitHub"
+          @click.stop
         >
           <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
-        </span>
+        </a>
+        <a
+          v-if="feature.designPrUrl"
+          :href="feature.designPrUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-purple-500 dark:text-purple-400"
+          title="View design pull request on GitHub"
+          @click.stop
+        >
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
         <svg class="h-4 w-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
         </svg>
