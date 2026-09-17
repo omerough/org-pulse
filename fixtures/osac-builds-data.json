@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "lastFetchedAt": "2026-09-16T03:41:07Z",
+  "builds": [
+    {
+      "runId": 2,
+      "runUrl": "https://github.com/osac-project/osac/actions/runs/2",
+      "mode": "nightly",
+      "version": "0.0.10-nightly.2",
+      "publishedAt": "2026-09-16T03:41:07Z",
+      "e2eSkipped": false,
+      "charts": [{ "name": "osac", "version": "0.0.10-nightly.2" }],
+      "images": ["ghcr.io/osac-project/osac-ui:sha-def"]
+    },
+    {
+      "runId": 1,
+      "runUrl": "https://github.com/osac-project/osac/actions/runs/1",
+      "mode": "release",
+      "version": "0.0.9",
+      "publishedAt": "2026-09-10T18:12:44Z",
+      "e2eSkipped": true,
+      "charts": [{ "name": "osac", "version": "0.0.9" }],
+      "images": ["ghcr.io/osac-project/osac-ui:sha-abc"]
+    }
+  ]
+}
