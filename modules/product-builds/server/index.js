@@ -1,4 +1,5 @@
 const { proxyGet } = require('./proxy');
+const registerOsacRoutes = require('./osac');
 const { createJiraClient } = require('../../../shared/server/jira');
 const { buildReport, getPackagesOnboarded } = require('./analysis');
 const {
@@ -42,6 +43,9 @@ function getConfig(readFromStorage) {
 module.exports = function registerRoutes(router, context) {
   const { storage, requireAdmin } = context;
   const { readFromStorage, writeToStorage } = storage;
+
+  // OSAC routes are self-contained, with no AIPCC/proxy dependencies.
+  registerOsacRoutes(router, { storage });
 
   // --- Config routes (admin) ---
 
