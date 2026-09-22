@@ -9,7 +9,7 @@
       "version": "0.0.10-nightly.2",
       "publishedAt": "2026-09-16T03:41:07Z",
       "e2eSkipped": false,
-      "charts": [{ "name": "osac", "version": "0.0.10-nightly.2" }],
+      "charts": [{ "name": "osac", "version": "0.0.10-nightly.2", "url": "https://github.com/osac-project/osac/pkgs/container/osac-chart/0.0.10-nightly.2" }],
       "images": ["ghcr.io/osac-project/osac-ui:sha-def"]
     },
     {
