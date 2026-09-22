@@ -1961,6 +1961,26 @@ Root-level (not module-namespaced) — delivered directly to the shared data-vol
 
 ---
 
+## System Health — CI Duty (`data/ci-duty-data.json`)
+
+Root-level (not module-namespaced) — delivered directly to the shared data-volume root by `org-pulse-data`'s `fetch-ci-duty-data.py`, which reads a private Google Sheet roster. `org-pulse` is a read-only consumer served via `GET /api/modules/system-health/ci-duty` — a pure `readFromStorage` passthrough, same pattern as CI Digest.
+
+```json
+{
+  "generatedAt": "2026-09-17T08:00:00Z",
+  "entries": [
+    { "lead": "Riccardo Piccoli", "workgroup": "CaaS", "startDate": "2026-09-16", "endDate": "2026-09-22" }
+  ]
+}
+```
+
+**Shape notes:**
+- `startDate`/`endDate` are date-only `YYYY-MM-DD` strings, both ends inclusive.
+- Entries carry no `current`/`next`/`isCurrent` flags — that selection is computed by the consumer at read time against "today" (see `modules/system-health/client/composables/useCiDuty.js`), so the file can be regenerated independent of when it's read.
+- The collector rejects (and keeps the last good file for) missing/malformed fields, `startDate > endDate`, duplicate entries, and overlapping date ranges — the published file should never contain them, but consumers should still resolve overlaps deterministically as defense in depth.
+
+---
+
 ## Catalyst Showcase Data — `data/catalyst-showcase/showcase-data.json`
 
 Synced from a Google Sheet via the catalyst-showcase module. Contains all showcase entries and strategy pillar definitions.
