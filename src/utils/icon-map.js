@@ -45,7 +45,8 @@ import {
   Brain,
   PenSquare,
   FileUp,
-  Trophy
+  Trophy,
+  ShieldCheck
 } from 'lucide-vue-next'
 
 export const ICON_MAP = {
@@ -104,7 +105,8 @@ export const ICON_MAP = {
   UserCircle,
   'rocket': Rocket,
   'users': Users,
-  Trophy
+  Trophy,
+  'shield-check': ShieldCheck
 }
 
 export function resolveIcon(iconName) {
