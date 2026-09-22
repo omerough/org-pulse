@@ -2047,7 +2047,7 @@ Root-level (not module-namespaced). Served via `GET /api/modules/product-builds/
       "version": "0.0.10-nightly.1",
       "publishedAt": "2026-09-16T03:41:07Z",
       "e2eSkipped": false,
-      "charts": [{ "name": "osac", "version": "0.0.10-nightly.1", "url": "https://github.com/osac-project/osac/pkgs/container/osac-chart/0.0.10-nightly.1" }],
+      "charts": [{ "name": "osac", "version": "0.0.10-nightly.1", "url": "https://github.com/orgs/osac-project/packages/container/charts%2Fosac/1253573494?tag=0.0.10-nightly.1" }],
       "images": ["ghcr.io/osac-project/osac-ui:sha-abc"]
     }
   ]
