@@ -222,20 +222,28 @@ function retry() {
           OSAC end-to-end CI health, from osac-project/osac-test-infra's daily digest report
         </p>
       </div>
-      <div v-if="digest" class="text-right">
-        <p class="text-xs text-gray-500 dark:text-gray-400">
-          Generated {{ digest.now }} ({{ formatRelativeTime(generatedAt?.toISOString()) }})
-        </p>
-        <p v-if="isStale" class="text-xs font-semibold text-amber-600 dark:text-amber-400 mt-0.5">
-          ⚠ Report is more than {{ STALE_THRESHOLD_HOURS }}h old — the daily digest run may have stopped
-        </p>
+      <div class="text-right">
+        <template v-if="digest">
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            Generated {{ digest.now }} ({{ formatRelativeTime(generatedAt?.toISOString()) }})
+          </p>
+          <p v-if="isStale" class="text-xs font-semibold text-amber-600 dark:text-amber-400 mt-0.5">
+            ⚠ Report is more than {{ STALE_THRESHOLD_HOURS }}h old — the daily digest run may have stopped
+          </p>
+          <a
+            v-if="source?.runUrl"
+            :href="source.runUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 mt-0.5"
+          >Source run <ExternalLinkIcon :size="11" /></a>
+        </template>
         <a
-          v-if="source?.runUrl"
-          :href="source.runUrl"
+          href="https://osac-ci.redhat.com:3000/d/osac-workflow-metrics/osac-ci-workflow-metrics?orgId=1&from=now-24h&to=now&timezone=browser"
           target="_blank"
           rel="noopener noreferrer"
           class="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 mt-0.5"
-        >Source run <ExternalLinkIcon :size="11" /></a>
+        >Live CI metrics <ExternalLinkIcon :size="11" /></a>
       </div>
     </div>
 

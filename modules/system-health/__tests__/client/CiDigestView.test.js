@@ -90,6 +90,17 @@ describe('CiDigestView', () => {
     expect(wrapper.text()).toContain('Loading CI digest')
   })
 
+  it('always shows a link to the live CI Grafana dashboard, even before the digest loads', () => {
+    apiRequest.mockReturnValue(new Promise(() => {}))
+    const wrapper = mount(CiDigestView)
+    const link = wrapper.findAll('a').find(a => a.text().includes('Live CI metrics'))
+    expect(link).toBeTruthy()
+    expect(link.attributes('href')).toBe('https://osac-ci.redhat.com:3000/d/osac-workflow-metrics/osac-ci-workflow-metrics?orgId=1&from=now-24h&to=now&timezone=browser')
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toContain('noopener')
+    expect(link.attributes('rel')).toContain('noreferrer')
+  })
+
   it('renders a distinct empty state on 404 (no report delivered yet)', async () => {
     const err = new Error('No CI digest report available yet')
     err.status = 404
