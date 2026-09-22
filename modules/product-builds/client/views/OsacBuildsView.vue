@@ -49,7 +49,11 @@
             <div v-if="latestBuild.charts?.length" class="divide-y divide-gray-100 dark:divide-gray-700/50">
               <div v-for="chart in latestBuild.charts" :key="chart.name" class="flex items-center justify-between gap-4 py-1.5">
                 <span class="font-medium text-gray-800 dark:text-gray-200">{{ chart.name }}</span>
-                <span class="text-gray-500 dark:text-gray-400 tabular-nums shrink-0">{{ chart.version }}</span>
+                <a
+                  v-if="chart.url" :href="chart.url" target="_blank" rel="noopener noreferrer"
+                  class="text-primary-600 dark:text-primary-400 tabular-nums shrink-0 hover:underline"
+                >{{ chart.version }}</a>
+                <span v-else class="text-gray-500 dark:text-gray-400 tabular-nums shrink-0">{{ chart.version }}</span>
               </div>
             </div>
             <div v-else class="text-gray-400 dark:text-gray-500">No charts published.</div>
@@ -111,7 +115,11 @@
                   <div v-if="build.charts?.length" class="divide-y divide-gray-100 dark:divide-gray-700/50">
                     <div v-for="chart in build.charts" :key="chart.name" class="flex items-center justify-between gap-4 py-1.5">
                       <span class="font-medium text-gray-800 dark:text-gray-200">{{ chart.name }}</span>
-                      <span class="text-gray-500 dark:text-gray-400 tabular-nums shrink-0">{{ chart.version }}</span>
+                      <a
+                        v-if="chart.url" :href="chart.url" target="_blank" rel="noopener noreferrer"
+                        class="text-primary-600 dark:text-primary-400 tabular-nums shrink-0 hover:underline"
+                      >{{ chart.version }}</a>
+                      <span v-else class="text-gray-500 dark:text-gray-400 tabular-nums shrink-0">{{ chart.version }}</span>
                     </div>
                   </div>
                   <div v-else class="text-gray-400 dark:text-gray-500">No charts published.</div>

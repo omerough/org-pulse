@@ -2067,7 +2067,7 @@ Root-level (not module-namespaced). Served via `GET /api/modules/product-builds/
       "version": "0.0.10-nightly.1",
       "publishedAt": "2026-09-16T03:41:07Z",
       "e2eSkipped": false,
-      "charts": [{ "name": "osac", "version": "0.0.10-nightly.1" }],
+      "charts": [{ "name": "osac", "version": "0.0.10-nightly.1", "url": "https://github.com/orgs/osac-project/packages/container/charts%2Fosac/1253573494?tag=0.0.10-nightly.1" }],
       "images": ["ghcr.io/osac-project/osac-ui:sha-abc"]
     }
   ]
@@ -2084,7 +2084,7 @@ Root-level (not module-namespaced). Served via `GET /api/modules/product-builds/
 | `builds[].version` | string | Published build version |
 | `builds[].publishedAt` | ISO string | Publish timestamp; the view sorts builds by this field, newest first |
 | `builds[].e2eSkipped` | boolean | Whether end-to-end tests were skipped for this build |
-| `builds[].charts[]` | array | `{ name, version }` — Helm charts published with this build |
+| `builds[].charts[]` | array | `{ name, version, url? }` — Helm charts published with this build; `url` links to the exact published chart version and is optional |
 | `builds[].images[]` | string[] | Container image references published with this build |
 
 ---
