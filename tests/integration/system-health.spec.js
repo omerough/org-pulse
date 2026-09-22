@@ -15,6 +15,35 @@ const { setupErrorTracking, logCapturedErrors, pageHasContent, pageLoadComplete,
  * Usage: npx playwright test --grep @system-health
  */
 
+// Offsets `base` by whole UTC days so CI Duty fixtures never go stale against the wall clock.
+function ciDutyIsoDate(base, offsetDays) {
+  const d = new Date(base);
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+}
+
+function makeCiDutyRoster() {
+  const today = new Date();
+  return {
+    generatedAt: today.toISOString(),
+    entries: [
+      { lead: 'Riccardo Piccoli', workgroup: 'CaaS', startDate: ciDutyIsoDate(today, -3), endDate: ciDutyIsoDate(today, 3) },
+      { lead: 'Adrien Gentil', workgroup: 'BMaaS', startDate: ciDutyIsoDate(today, 4), endDate: ciDutyIsoDate(today, 10) },
+      { lead: 'Ygal Blum', workgroup: 'VMaaS', startDate: ciDutyIsoDate(today, 11), endDate: ciDutyIsoDate(today, 17) }
+    ]
+  };
+}
+
+function makeCiDutyGapRoster() {
+  const today = new Date();
+  return {
+    generatedAt: today.toISOString(),
+    entries: [
+      { lead: 'Adrien Gentil', workgroup: 'BMaaS', startDate: ciDutyIsoDate(today, 4), endDate: ciDutyIsoDate(today, 10) }
+    ]
+  };
+}
+
 test.describe('System Health Module @system-health', () => {
   test.beforeEach(async ({ page }) => {
     setupErrorTracking(page);
@@ -580,5 +609,176 @@ test.describe('CI Daily Digest @system-health', () => {
 
     // The browser logs the mocked 500 resource load itself; only assert no uncaught app errors
     expect(page.errors.filter(e => e.type === 'pageerror')).toHaveLength(0);
+  });
+});
+
+/**
+ * CI Duty
+ *
+ * Mocks the ci-duty API directly, same page.route convention as CI Daily
+ * Digest above.
+ */
+test.describe('CI Duty View @system-health', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  test('is reachable via sidebar navigation', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const moduleHeader = page.locator('aside nav button').filter({ hasText: 'System Health' }).first();
+    await moduleHeader.click();
+    await page.waitForTimeout(500);
+
+    const viewLink = page.locator('aside nav button').filter({ hasText: 'CI Duty' }).first();
+    await expect(viewLink).toBeVisible();
+    await viewLink.click();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    expect(page.url()).toMatch(/system-health\/ci-duty/);
+
+    const mainContentVisible = await mainContentIsVisible(page);
+    expect(mainContentVisible).toBe(true);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('renders current, next, and upcoming rotation from a successful API response', async ({ page }) => {
+    await page.route('**/api/modules/system-health/ci-duty', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeCiDutyRoster()) });
+    });
+
+    await page.goto('/#/system-health/ci-duty');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    await expect(page.getByRole('heading', { name: 'CI Duty' })).toBeVisible();
+
+    // Current duty
+    await expect(page.getByText('Current').first()).toBeVisible();
+    await expect(page.getByText('Riccardo Piccoli').first()).toBeVisible();
+    await expect(page.getByText('CaaS').first()).toBeVisible();
+
+    // Up next
+    await expect(page.getByText('Up Next')).toBeVisible();
+    await expect(page.getByText('Adrien Gentil').first()).toBeVisible();
+    await expect(page.getByText('BMaaS').first()).toBeVisible();
+
+    // Upcoming rotation lists all three leads and workgroups
+    await expect(page.getByRole('heading', { name: 'Upcoming Rotation' })).toBeVisible();
+    await expect(page.getByText('Ygal Blum')).toBeVisible();
+    await expect(page.getByText('VMaaS')).toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('shows the gap state with no current duty while a future duty remains visible', async ({ page }) => {
+    await page.route('**/api/modules/system-health/ci-duty', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeCiDutyGapRoster()) });
+    });
+
+    await page.goto('/#/system-health/ci-duty');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    await expect(page.getByText('No one is currently on CI Duty.')).toBeVisible();
+
+    await expect(page.getByText('Up Next')).toBeVisible();
+    await expect(page.getByText('Adrien Gentil').first()).toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
+});
+
+/**
+ * CI Duty Home Widget
+ *
+ * Adds the widget via the real Home widget picker (not a direct mount).
+ * Each test gets a fresh browser context, so widget layout localStorage
+ * starts empty and must be added explicitly.
+ */
+test.describe('CI Duty Home Widget @system-health', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  // Scopes queries to the CI Duty widget card, so "View all" stays
+  // unambiguous if other widgets add the same action later.
+  function ciDutyWidget(page) {
+    return page.locator('.sotu-widget').filter({ has: page.getByRole('heading', { name: 'CI Duty' }) });
+  }
+
+  async function addCiDutyWidget(page) {
+    await page.goto('/', { waitUntil: 'networkidle' });
+    await pageLoadComplete(page);
+
+    await page.getByRole('button', { name: 'Add Widgets' }).first().click();
+    await expect(page.locator('h2:has-text("Add Widgets")')).toBeVisible({ timeout: DEFAULT_PAGE_WAIT_TIME });
+
+    const ciDutyOption = page.locator('button', { hasText: 'CI Duty' });
+    await expect(ciDutyOption).toBeVisible();
+    await ciDutyOption.click();
+
+    // Close the picker via the backdrop, same convention as other widget tests
+    await page.locator('.fixed.inset-0.bg-black').click();
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+  }
+
+  test('adds and renders the CI Duty widget with current and next duty', async ({ page }) => {
+    await page.route('**/api/modules/system-health/ci-duty', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeCiDutyRoster()) });
+    });
+
+    await addCiDutyWidget(page);
+
+    await expect(page.getByRole('heading', { name: 'CI Duty' })).toBeVisible();
+    await expect(page.getByText('Riccardo Piccoli')).toBeVisible();
+    await expect(page.getByText('CaaS')).toBeVisible();
+    await expect(page.getByText('On duty this week')).toBeVisible();
+    await expect(page.getByText('Keeping our CI systems healthy and running.')).toBeVisible();
+    await expect(page.getByText('Adrien Gentil')).toBeVisible();
+    await expect(ciDutyWidget(page).getByRole('button', { name: 'View all' })).toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('navigates to the full CI Duty view via View all', async ({ page }) => {
+    await page.route('**/api/modules/system-health/ci-duty', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeCiDutyRoster()) });
+    });
+
+    await addCiDutyWidget(page);
+    await ciDutyWidget(page).getByRole('button', { name: 'View all' }).click();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    expect(page.url()).toMatch(/system-health\/ci-duty/);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('shows the gap state with no current duty while the next duty remains visible', async ({ page }) => {
+    await page.route('**/api/modules/system-health/ci-duty', async route => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(makeCiDutyGapRoster()) });
+    });
+
+    await addCiDutyWidget(page);
+
+    await expect(page.getByText('No one is currently on CI Duty.')).toBeVisible();
+    await expect(page.getByText('Next:')).toBeVisible();
+    await expect(page.getByText('Adrien Gentil')).toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
   });
 });
