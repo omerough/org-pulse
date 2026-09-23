@@ -14,8 +14,6 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate-manage'])
-
 const visible = ref(false)
 const dontShowAgain = ref(false)
 const activeTab = ref('overview')
@@ -37,11 +35,6 @@ function dismiss() {
       localStorage.setItem(STORAGE_KEY, 'true')
     } catch { /* localStorage unavailable */ }
   }
-}
-
-function goToManage() {
-  dismiss()
-  emit('navigate-manage')
 }
 
 function show() {
@@ -123,13 +116,6 @@ const enabledRuleCount = computed(() => {
             Click any card to see full details and specific guidance on how to resolve
             outstanding items.
           </p>
-
-          <p v-if="isPlanningManager" class="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700 pt-3">
-            As a planning manager, you can view which rules are enabled and their
-            thresholds on the
-            <button @click="goToManage" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Manage</button>
-            page. Rules are configured in org-pulse-data, not here.
-          </p>
         </div>
 
         <!-- Rules tab -->
@@ -171,14 +157,6 @@ const enabledRuleCount = computed(() => {
           <div v-else class="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">
             Rule details are only visible to planning managers.
           </div>
-          <p
-            v-if="isPlanningManager && ruleDetails"
-            class="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700 pt-3 mt-4"
-          >
-            See the full read-only rule configuration on the
-            <button @click="goToManage" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">Manage</button>
-            page. Rules are configured in org-pulse-data, not here.
-          </p>
         </div>
 
         <div class="mt-5 flex items-center justify-between">

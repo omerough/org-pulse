@@ -382,7 +382,6 @@ import {
   Github as GithubIcon,
   TrendingUp,
   BarChart3,
-  PieChart,
   Milestone,
   Bug,
   MessageSquarePlus,
@@ -450,7 +449,6 @@ watch(activeTab, (tab) => {
 const valueProps = [
   { title: 'Delivery Velocity', desc: 'Track issue throughput and story points across teams', icon: TrendingUp },
   { title: 'Trends Over Time', desc: 'Spot patterns in monthly resolution and contribution data', icon: BarChart3 },
-  { title: 'Work Allocation', desc: 'See how effort is distributed across priorities and initiatives', icon: PieChart },
   { title: 'Release Tracking', desc: 'Monitor sprint commitments and delivery against plans', icon: Milestone }
 ]
 

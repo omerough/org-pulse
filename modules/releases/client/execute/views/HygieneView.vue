@@ -491,7 +491,6 @@ const versionOptions = computed(() =>
       ref="welcomeModalRef"
       :rule-details="hygieneRuleDetails"
       :is-planning-manager="isPlanningManager"
-      @navigate-manage="nav.navigateTo('registry', { tab: 'hygiene' })"
     />
   </div>
 </template>
