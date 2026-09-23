@@ -221,12 +221,7 @@ onMounted(loadData)
     <div v-if="!loading && people.length > 0" class="grid grid-cols-3 gap-4 mb-6">
       <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ filteredStats.total }}</div>
-        <div class="text-xs text-gray-500 dark:text-gray-400">
-          People
-          <template v-if="stats?.byOrgType">
-            <span class="text-gray-400 dark:text-gray-500 ml-1">({{ stats.byOrgType.engineering }} eng, {{ stats.byOrgType.auxiliary }} non-eng)</span>
-          </template>
-        </div>
+        <div class="text-xs text-gray-500 dark:text-gray-400">People</div>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <div class="text-2xl font-bold text-green-600">{{ filteredStats.github }} <span class="text-sm font-normal text-gray-400">/ {{ filteredStats.total }}</span></div>
