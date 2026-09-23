@@ -38,6 +38,8 @@ module.exports = defineConfig({
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:5173',
     actionTimeout: 10 * 1000,
+    screenshot: 'only-on-failure',
+    trace: 'retain-on-failure',
   },
 
   // Web server configuration - only for local dev (not used in container tests)

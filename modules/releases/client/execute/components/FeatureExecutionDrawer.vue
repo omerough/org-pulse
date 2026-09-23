@@ -134,7 +134,7 @@ const completedViaStatusEpicCount = computed(() =>
               </span>
               <span class="inline-flex items-center gap-1">
                 <span class="inline-flex items-center text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                  Preparation
+                  Planning
                   <AIInfoBubble hoverable v-if="card.readiness.help" :text="card.readiness.help" />
                 </span>
                 <span
@@ -218,7 +218,7 @@ const completedViaStatusEpicCount = computed(() =>
                 <dt class="text-gray-400 dark:text-gray-500">Epics</dt>
                 <dd class="text-gray-700 dark:text-gray-300">{{ card.feature.epicCount }}</dd>
 
-                <dt class="text-gray-400 dark:text-gray-500" title="Total tracked child issues, including recognized preparation">Total issues</dt>
+                <dt class="text-gray-400 dark:text-gray-500" title="Total tracked child issues, including recognized planning">Total issues</dt>
                 <dd class="text-gray-700 dark:text-gray-300">{{ card.feature.issueCount }}</dd>
 
                 <template v-if="card.feature.blockerCount > 0">
@@ -320,7 +320,7 @@ const completedViaStatusEpicCount = computed(() =>
                       <span
                         v-if="isUnclassified(issue)"
                         class="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400"
-                        title="Preparation classification missing or unrecognized for this issue"
+                        title="Planning classification missing or unrecognized for this issue"
                       >Unclassified</span>
                       <span class="text-gray-400 dark:text-gray-500 text-[11px] shrink-0">{{ issue.assignee || 'Unassigned' }}</span>
                       <StatusBadge :status="issue.status" />
@@ -332,7 +332,7 @@ const completedViaStatusEpicCount = computed(() =>
                         class="text-[11px] text-gray-500 dark:text-gray-400 underline decoration-dotted mt-1"
                         :aria-expanded="expandedPrep.has(epic.key)"
                         @click="togglePrep(epic.key)"
-                      >{{ expandedPrep.has(epic.key) ? 'Hide' : 'Show' }} preparation ({{ issuePrep(epic).length }})</button>
+                      >{{ expandedPrep.has(epic.key) ? 'Hide' : 'Show' }} planning ({{ issuePrep(epic).length }})</button>
                       <div v-if="expandedPrep.has(epic.key)" class="space-y-1 mt-1">
                         <div v-for="issue in issuePrep(epic)" :key="issue.key" class="flex items-center gap-2 text-xs py-1 opacity-75">
                           <a

@@ -33,3 +33,10 @@ runs:
       env:
         CONTAINER_RUNTIME: docker
         MODULE: ${{ inputs.module }}
+
+    - name: Upload Playwright failure diagnostics
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-report-${{ inputs.module }}
+        path: test-results/

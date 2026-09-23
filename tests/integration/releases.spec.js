@@ -274,7 +274,7 @@ test.describe('Releases Feature List @releases', () => {
     await expect(page.getByRole('button', { name: 'Open details for TEST1-15', exact: true })).toBeVisible();
     await expect(page.getByText('No linked epics found')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open details for TEST1-157', exact: true })).toBeVisible();
-    await expect(page.getByText('Only preparation issues found')).toBeVisible();
+    await expect(page.getByText('Only planning issues found')).toBeVisible();
 
     await search.fill('TEST1-576');
     await expect(page.getByRole('button', { name: 'Open details for TEST1-576', exact: true })).toBeVisible();
@@ -296,7 +296,7 @@ test.describe('Releases Feature List @releases', () => {
     const headers = await page.locator('table thead th').allTextContents();
     expect(headers).toEqual([
       'Key', 'Summary', 'Jira Status', 'Execution State', 'Progress',
-      'Preparation', 'Epics', 'Total issues', 'Attention', 'Components', 'Version'
+      'Planning', 'Epics', 'Total issues', 'Attention', 'Components', 'Version'
     ]);
 
     const availableRow = page.locator('table tbody tr', { hasText: 'TEST1-284' });

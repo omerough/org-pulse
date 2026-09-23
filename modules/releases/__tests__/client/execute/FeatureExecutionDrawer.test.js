@@ -110,7 +110,7 @@ describe('FeatureExecutionDrawer', () => {
     const unclassifiedPills = wrapper.findAll('span').filter(s => s.text() === 'Unclassified')
     expect(unclassifiedPills).toHaveLength(1)
 
-    const showPrepButton = wrapper.findAll('button').find(b => b.text().includes('Show preparation'))
+    const showPrepButton = wrapper.findAll('button').find(b => b.text().includes('Show planning'))
     expect(showPrepButton.text()).toContain('(1)')
     await showPrepButton.trigger('click')
     expect(wrapper.text()).toContain('PRD: Streaming inference')
@@ -134,7 +134,7 @@ describe('FeatureExecutionDrawer', () => {
     const expandButton = wrapper.findAll('button').find(b => b.text().includes('Malformed epic'))
     await expandButton.trigger('click')
     expect(wrapper.text()).toContain('No execution issues')
-    expect(wrapper.findAll('button').find(b => b.text().includes('Show preparation'))).toBeUndefined()
+    expect(wrapper.findAll('button').find(b => b.text().includes('Show planning'))).toBeUndefined()
   })
 
   it('links the Epic key to Jira without toggling expansion, keeping chevron/title as separate controls', async () => {

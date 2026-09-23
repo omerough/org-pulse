@@ -11,13 +11,13 @@ describe('preparationHelpText', () => {
   it('falls back to generic wording for non-OSAC feature keys, never asserting OSAC policy', () => {
     const text = preparationHelpText('ready', 'RHOAIENG-500')
     expect(text).not.toContain('PRD')
-    expect(text).toContain('Required preparation is confirmed complete.')
+    expect(text).toContain('Required planning is confirmed complete.')
   })
 
   it('falls back to generic wording when the feature key is missing', () => {
     const text = preparationHelpText('pending', undefined)
     expect(text).not.toContain('PRD')
-    expect(text).toContain('Required preparation is still pending.')
+    expect(text).toContain('Required planning is still pending.')
   })
 
   it('returns null for not-applicable regardless of project', () => {

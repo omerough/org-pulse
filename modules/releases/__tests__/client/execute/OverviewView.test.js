@@ -129,7 +129,7 @@ describe('OverviewView (Feature List)', () => {
     const text = wrapper.text()
 
     expect(text).toContain('No linked epics found')
-    expect(text).toContain('Only preparation issues found')
+    expect(text).toContain('Only planning issues found')
     expect(text).toContain('Issue details missing')
     expect(text).toContain('Execution data unavailable')
   })
@@ -264,7 +264,7 @@ describe('OverviewView (Feature List)', () => {
     const headers = wrapper.findAll('th').map(h => h.text())
     expect(headers).toEqual([
       'Key', 'Summary', 'Jira Status', 'Execution State', 'Progress',
-      'Preparation', 'Epics', 'Total issues', 'Attention', 'Components', 'Version'
+      'Planning', 'Epics', 'Total issues', 'Attention', 'Components', 'Version'
     ])
 
     const rows = wrapper.findAll('tbody tr')

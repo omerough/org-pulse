@@ -1,7 +1,7 @@
 const GENERIC_PREPARATION_HELP = {
-  ready: 'Required preparation is confirmed complete.',
-  pending: 'Required preparation is still pending.',
-  unknown: 'There isn’t enough information to determine preparation readiness.'
+  ready: 'Required planning is confirmed complete.',
+  pending: 'Required planning is still pending.',
+  unknown: 'There isn’t enough information to determine planning readiness.'
 }
 
 // OSAC-specific policy wording; other projects get the generic text instead.
@@ -21,5 +21,5 @@ function projectKeyOf(featureKey) {
 export function preparationHelpText(readiness, featureKey) {
   const table = projectKeyOf(featureKey) === OSAC_PROJECT_KEY ? OSAC_PREPARATION_HELP : GENERIC_PREPARATION_HELP
   const base = table[readiness]
-  return base ? base + ' Preparation is separate from execution progress.' : null
+  return base ? base + ' Planning is separate from execution progress.' : null
 }

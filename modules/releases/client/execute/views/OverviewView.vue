@@ -199,7 +199,7 @@ function executionSummary(f) {
 const WITH_PROGRESS_DATA_HELP =
   'Features with collected execution issues that can be used to calculate progress. Includes work that has not started.'
 const WITHOUT_PROGRESS_DATA_HELP =
-  'Progress cannot be calculated because no execution issues were found, only preparation issues were found, or issue details are missing. This does not necessarily mean work hasn’t started.'
+  'Progress cannot be calculated because no execution issues were found, only planning issues were found, or issue details are missing. This does not necessarily mean work hasn’t started.'
 
 const OVERVIEW_FILTER_STORAGE_KEY = 'releases:feature-list-filters'
 
@@ -567,7 +567,7 @@ onBeforeUnmount(() => {
           <button
             @click.stop="toggleDropdown('executionState')"
             class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[160px]"
-            title="Execution state reflects observed, normalized Jira issues only; recognized preparation work is excluded."
+            title="Execution state reflects observed, normalized Jira issues only; recognized planning work is excluded."
             :class="selectedExecutionStates.length > 0
               ? 'border-primary-500 ring-1 ring-primary-500'
               : 'border-gray-300 dark:border-gray-600'"
@@ -718,7 +718,7 @@ onBeforeUnmount(() => {
                   </div>
                   <span class="inline-flex items-center gap-1">
                     <span class="inline-flex items-center text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                      Preparation
+                      Planning
                       <AIInfoBubble hoverable v-if="d.readiness.help" :text="d.readiness.help" />
                     </span>
                     <span
@@ -807,7 +807,7 @@ onBeforeUnmount(() => {
                     </div>
                     <span class="inline-flex items-center gap-1">
                       <span class="inline-flex items-center text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                        Preparation
+                        Planning
                         <AIInfoBubble hoverable v-if="d.readiness.help" :text="d.readiness.help" />
                       </span>
                       <span
@@ -838,7 +838,7 @@ onBeforeUnmount(() => {
                     <span class="font-semibold text-gray-700 dark:text-gray-300">{{ d.feature.epicCount }}</span> Epics
                   </span>
                   <span class="text-gray-300 dark:text-gray-600">|</span>
-                  <span class="text-gray-500 dark:text-gray-400" title="Total tracked child issues, including recognized preparation">
+                  <span class="text-gray-500 dark:text-gray-400" title="Total tracked child issues, including recognized planning">
                     <span class="font-semibold text-gray-700 dark:text-gray-300">{{ d.feature.issueCount }}</span> Total issues
                   </span>
                   <span v-if="d.feature.blockerCount > 0" class="text-gray-300 dark:text-gray-600">|</span>
@@ -946,11 +946,11 @@ onBeforeUnmount(() => {
                     class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium"
                     :title="PROGRESS_SUPPORTING_TEXT"
                   >Progress</th>
-                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Preparation</th>
+                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Planning</th>
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Epics</th>
                   <th
                     class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium"
-                    title="Total tracked child issues, including recognized preparation — a different denominator than Progress"
+                    title="Total tracked child issues, including recognized planning — a different denominator than Progress"
                   >Total issues</th>
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Attention</th>
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Components</th>

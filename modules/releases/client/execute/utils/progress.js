@@ -5,8 +5,8 @@ export function isValidProgressCount(n) {
 // Keyed by executionCoverageReason; caption is short card/table wording, detail is the fuller explanation.
 const EXECUTION_UNAVAILABLE_REASONS = {
   'preparation-only': {
-    caption: 'Only preparation issues found',
-    detail: 'The collected issues cover preparation, such as PRD or Design. No execution issues were found to calculate progress.'
+    caption: 'Only planning issues found',
+    detail: 'The collected issues cover planning, such as PRD or Design. No execution issues were found to calculate progress.'
   },
   'no-epics': {
     caption: 'No linked epics found',
@@ -55,7 +55,7 @@ export function executionUnavailableInfo(reason) {
 }
 
 export const PROGRESS_SUPPORTING_TEXT =
-  'Excludes identified preparation issues, such as PRD and Design tasks. This does not indicate release readiness.'
+  'Excludes identified planning issues, such as PRD and Design tasks. This does not indicate release readiness.'
 
 export const PROGRESS_HELP_TEXT =
-  'Only issues identified as preparation are excluded from this calculation. Other collected issues remain included, even if their type wasn’t confirmed.'
+  'Only issues identified as planning are excluded from this calculation. Other collected issues remain included, even if their type wasn’t confirmed.'
