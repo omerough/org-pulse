@@ -87,12 +87,13 @@ const filteredFeatures = computed(() => {
       matchesStatus(e.status, selectedStatuses.value) &&
       matchesAssignee(e.assignee, selectedAssignees.value)
     )
-    // Assignee has no Feature-level equivalent, so an active Assignee filter can only be
-    // satisfied by a matching Epic — the Feature itself never counts as a match for it.
-    const featureMatches =
-      selectedAssignees.value.length === 0 &&
+    const featureMatchesComponentStatus =
       matchesComponents(feature.components, selectedComponents.value) &&
       matchesStatus(feature.status, selectedStatuses.value)
+    // Assignee has no Feature-level equivalent, so an active Assignee filter can only be
+    // satisfied by a matching Epic — the Feature itself never counts as a match for it.
+    const assigneeFilterActive = selectedAssignees.value.length > 0
+    const featureMatches = featureMatchesComponentStatus && !assigneeFilterActive
     if (!featureMatches && matchingEpics.length === 0) continue
     // directEpicCount preserves the release-context Epic count (pre-filter) so the
     // caption never attributes Component/Status-filter narrowing to version context.

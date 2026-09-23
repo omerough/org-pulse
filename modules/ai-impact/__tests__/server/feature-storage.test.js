@@ -413,7 +413,25 @@ describe('readFeatures', () => {
     });
 
     const result = readFeatures(read);
-    expect(result).toBe(legacyData);
+    expect(result.lastSyncedAt).toBe(legacyData.lastSyncedAt);
+    expect(result.totalFeatures).toBe(legacyData.totalFeatures);
+    expect(result.features.A.latest.assignee).toBeNull();
+  });
+
+  it('normalizes an object-shaped assignee on a legacy record when there is no releases index', () => {
+    const legacyData = {
+      lastSyncedAt: '2026-04-19T12:00:00Z',
+      totalFeatures: 1,
+      features: { A: { latest: { key: 'A', assignee: { displayName: 'Dan Manor' } }, history: [] } }
+    };
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') return null;
+      if (key === 'ai-impact/features.json') return legacyData;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features.A.latest.assignee).toBe('Dan Manor');
   });
 
   it('falls back to legacy store when releases index has no aiReview features, backfilling fixVersions by key', () => {
@@ -444,6 +462,25 @@ describe('readFeatures', () => {
     expect(result.features.A.latest.fixVersions).toEqual(['0.2']);
     // Legacy's own fixVersions is preserved, not overwritten by the index
     expect(result.features.B.latest.fixVersions).toEqual(['legacy-existing']);
+    expect(result.features.A.latest.assignee).toBeNull();
+  });
+
+  it('normalizes assignee on the legacy fixVersions-backfill fallback path', () => {
+    const legacyData = {
+      lastSyncedAt: '2026-04-19T12:00:00Z',
+      totalFeatures: 1,
+      features: { A: { latest: { key: 'A', assignee: 'dmanor@redhat.com' }, history: [] } }
+    };
+    const read = vi.fn(function(key) {
+      if (key === 'releases/execution/index.json') {
+        return makeReleasesIndex([{ key: 'A', summary: 'No AI', fixVersions: ['0.2'] }]);
+      }
+      if (key === 'ai-impact/features.json') return legacyData;
+      return null;
+    });
+
+    const result = readFeatures(read);
+    expect(result.features.A.latest.assignee).toBe('dmanor@redhat.com');
   });
 
   it('backfills from the index when the legacy record has an empty fixVersions array', () => {

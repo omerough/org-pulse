@@ -52,6 +52,20 @@ function extractAssignee(assignee) {
 }
 
 /**
+ * Applies extractAssignee to every legacy record's assignee, matching the
+ * normalization the main path applies. Does not mutate the input.
+ * @param {object} legacy - The legacy features data object
+ * @returns {object} Legacy data with normalized assignee values
+ */
+function normalizeLegacyAssignees(legacy) {
+  const features = {};
+  for (const [key, record] of Object.entries(legacy.features)) {
+    features[key] = { ...record, latest: { ...record.latest, assignee: extractAssignee(record.latest.assignee) } };
+  }
+  return { ...legacy, features };
+}
+
+/**
  * Read features from the unified releases store and reshape into the
  * AI Impact format ({ features: { [key]: { latest, history } }, ... }).
  *
@@ -67,7 +81,7 @@ function readFeatures(readFromStorage) {
     // Fallback to legacy store
     const legacy = readFromStorage(LEGACY_STORAGE_KEY);
     if (legacy && typeof legacy === 'object' && legacy.features) {
-      return legacy;
+      return normalizeLegacyAssignees(legacy);
     }
     return { lastSyncedAt: null, totalFeatures: 0, features: {} };
   }
@@ -78,7 +92,7 @@ function readFeatures(readFromStorage) {
     // Check legacy store as fallback
     const legacy = readFromStorage(LEGACY_STORAGE_KEY);
     if (legacy && typeof legacy === 'object' && legacy.features && Object.keys(legacy.features).length > 0) {
-      return backfillFixVersionsFromIndex(legacy, index.features);
+      return normalizeLegacyAssignees(backfillFixVersionsFromIndex(legacy, index.features));
     }
     return { lastSyncedAt: null, totalFeatures: 0, features: {} };
   }
