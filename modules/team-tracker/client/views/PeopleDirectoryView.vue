@@ -357,13 +357,7 @@ onMounted(loadData)
               >
                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ p.orgDisplayName }}</td>
                 <td class="px-4 py-3">
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">{{ p.name }}</span>
-                    <span
-                      v-if="(p.orgType || 'engineering') === 'auxiliary'"
-                      class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
-                    >Non-Eng</span>
-                  </div>
+                  <span class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">{{ p.name }}</span>
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">{{ p.title }}</td>
                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden lg:table-cell">{{ p.geo }}</td>
