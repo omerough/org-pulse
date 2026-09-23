@@ -126,13 +126,58 @@ test.describe('People & Teams Disabled Menu Items @people-teams', () => {
 });
 
 /**
+ * Hidden Menu Items
+ *
+ * Manage and Work Allocation are hidden from nav for the broader engineering
+ * rollout (see modules/team-tracker/module.json and
+ * modules/team-tracker/client/reports/registry.js) — their underlying views
+ * remain in place, just unreachable through nav/the Reports catalog.
+ */
+test.describe('People & Teams Hidden Menu Items @people-teams', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  test('Manage is hidden from nav', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const moduleHeader = page.locator('aside nav button').filter({ hasText: 'People & Teams' }).first();
+    await moduleHeader.click();
+    await page.waitForTimeout(500);
+
+    const manageItem = page.locator('aside nav button').filter({ hasText: 'Manage' });
+    expect(await manageItem.count()).toBe(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Work Allocation is hidden from the Reports catalog', async ({ page }) => {
+    await page.goto('/#/team-tracker/reports');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const allocationCard = page.locator('.cursor-pointer', { hasText: 'Work Allocation' });
+    expect(await allocationCard.count()).toBe(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+});
+
+/**
  * Active Components
  *
  * Verify each major view (aka menu item) in the People & Teams module loads
  * with meaningful content.
  *
- * Note: "My Teams" and "Manage" views require specific roles (manager,
- * team-admin) and are not tested here since demo mode runs unauthenticated.
+ * Note: "My Teams" requires the manager role and is not tested here since
+ * demo mode runs unauthenticated. "Manage" is hidden from nav (see the
+ * Hidden Menu Items describe block below) and is not part of this loop.
  */
 test.describe('People & Teams Views @people-teams', () => {
   test.beforeEach(async ({ page }) => {

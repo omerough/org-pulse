@@ -32,7 +32,7 @@
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <ReportCard
-          v-for="report in reports"
+          v-for="report in visibleReports"
           :key="report.id"
           :title="report.title"
           :description="report.description"
@@ -56,6 +56,8 @@ import { useReportFilters } from '../composables/useReportFilters'
 
 const nav = inject('moduleNav')
 const { orgs, selectedOrgKeys, selectedTeamKeys, availableTeams } = useReportFilters()
+
+const visibleReports = computed(() => reports.filter(r => !r.hidden))
 
 // Memoize defineAsyncComponent wrappers so they aren't recreated on every recomputation
 const componentCache = new Map()

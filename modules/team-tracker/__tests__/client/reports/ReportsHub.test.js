@@ -52,7 +52,8 @@ describe('ReportsHub', () => {
   it('renders catalog with report cards when no report param', () => {
     const wrapper = createWrapper()
     const cards = wrapper.findAll('[data-testid="report-card"]')
-    expect(cards.length).toBe(3)
+    // Allocation is configured by the mocked strategy but hidden from the catalog.
+    expect(cards.length).toBe(2)
   })
 
   it('shows catalog title', () => {
@@ -74,9 +75,16 @@ describe('ReportsHub', () => {
     expect(wrapper.text()).toContain('Productivity Trends')
   })
 
+  it('still renders a hidden report directly via its report param', () => {
+    // Allocation is hidden from the catalog, but its route stays functional.
+    const wrapper = createWrapper({ report: 'allocation' })
+    expect(wrapper.find('[data-testid="report-shell-back"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Work Allocation')
+  })
+
   it('renders catalog when report param does not match any report', () => {
     const wrapper = createWrapper({ report: 'nonexistent' })
     const cards = wrapper.findAll('[data-testid="report-card"]')
-    expect(cards.length).toBe(3)
+    expect(cards.length).toBe(2)
   })
 })

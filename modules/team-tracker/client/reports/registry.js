@@ -29,5 +29,6 @@ export const reports = [
     tags: ['Allocation'],
     component: () => import('./AllocationReport.vue'),
     filters: [],
+    hidden: true,
   }] : []),
 ]

@@ -107,6 +107,38 @@ test.describe('Releases RICE Config API @releases', () => {
 })
 
 /**
+ * Hidden Menu Items
+ *
+ * Manage and Deliver are hidden from nav for the broader engineering rollout
+ * (see modules/releases/module.json) — their routes remain functional, as
+ * proven by the direct-URL "should load Deliver view" test below.
+ */
+test.describe('Releases Hidden Menu Items @releases', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  test('Manage and Deliver are hidden from nav', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const moduleHeader = page.locator('aside nav button').filter({ hasText: 'Releases' }).first();
+    await moduleHeader.click();
+    await page.waitForTimeout(500);
+
+    expect(await page.locator('aside nav button').filter({ hasText: 'Manage' }).count()).toBe(0);
+    expect(await page.locator('aside nav button').filter({ hasText: 'Deliver' }).count()).toBe(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+});
+
+/**
  * Active Components
  *
  * Verify each major view (aka menu item) in the Releases module loads with
