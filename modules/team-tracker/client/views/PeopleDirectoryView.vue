@@ -221,12 +221,7 @@ onMounted(loadData)
     <div v-if="!loading && people.length > 0" class="grid grid-cols-3 gap-4 mb-6">
       <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ filteredStats.total }}</div>
-        <div class="text-xs text-gray-500 dark:text-gray-400">
-          People
-          <template v-if="stats?.byOrgType">
-            <span class="text-gray-400 dark:text-gray-500 ml-1">({{ stats.byOrgType.engineering }} eng, {{ stats.byOrgType.auxiliary }} non-eng)</span>
-          </template>
-        </div>
+        <div class="text-xs text-gray-500 dark:text-gray-400">People</div>
       </div>
       <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <div class="text-2xl font-bold text-green-600">{{ filteredStats.github }} <span class="text-sm font-normal text-gray-400">/ {{ filteredStats.total }}</span></div>
@@ -357,13 +352,7 @@ onMounted(loadData)
               >
                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ p.orgDisplayName }}</td>
                 <td class="px-4 py-3">
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">{{ p.name }}</span>
-                    <span
-                      v-if="(p.orgType || 'engineering') === 'auxiliary'"
-                      class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
-                    >Non-Eng</span>
-                  </div>
+                  <span class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">{{ p.name }}</span>
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">{{ p.title }}</td>
                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden lg:table-cell">{{ p.geo }}</td>
