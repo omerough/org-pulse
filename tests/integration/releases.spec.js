@@ -109,9 +109,10 @@ test.describe('Releases RICE Config API @releases', () => {
 /**
  * Hidden Menu Items
  *
- * Manage and Deliver are hidden from nav for the broader engineering rollout
- * (see modules/releases/module.json) — their routes remain functional, as
- * proven by the direct-URL "should load Deliver view" test below.
+ * Manage is hidden from nav for the broader engineering rollout (see
+ * modules/releases/module.json). Deliver remains visible but disabled — its
+ * route stays functional, as proven by the direct-URL "should load Deliver
+ * view" test below.
  */
 test.describe('Releases Hidden Menu Items @releases', () => {
   test.beforeEach(async ({ page }) => {
@@ -122,7 +123,7 @@ test.describe('Releases Hidden Menu Items @releases', () => {
     logCapturedErrors(page, testInfo);
   });
 
-  test('Manage and Deliver are hidden from nav', async ({ page }) => {
+  test('Manage is hidden from nav; Deliver is visible but disabled', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
@@ -132,7 +133,11 @@ test.describe('Releases Hidden Menu Items @releases', () => {
     await page.waitForTimeout(500);
 
     expect(await page.locator('aside nav button').filter({ hasText: 'Manage' }).count()).toBe(0);
-    expect(await page.locator('aside nav button').filter({ hasText: 'Deliver' }).count()).toBe(0);
+
+    const deliverItem = page.locator('aside nav button').filter({ hasText: 'Deliver' }).first();
+    await expect(deliverItem).toBeVisible();
+    const isDisabled = await deliverItem.getAttribute('disabled');
+    expect(isDisabled).not.toBeNull();
 
     expect(page.errors).toHaveLength(0);
   });

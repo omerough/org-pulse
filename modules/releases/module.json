@@ -10,6 +10,7 @@
     "navItems": [
       { "id": "schedule", "label": "Schedule", "icon": "CalendarDays" },
       { "id": "execute", "label": "Execute", "icon": "GitBranch", "default": true },
+      { "id": "deliver", "label": "Deliver", "icon": "Rocket", "disabled": true },
       { "id": "jira-hygiene", "label": "Jira Hygiene", "icon": "BarChart3" },
       { "id": "release-plan", "label": "Release Plan", "icon": "Map" }
     ],
