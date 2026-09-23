@@ -42,6 +42,16 @@ function backfillFixVersionsFromIndex(legacy, indexFeatures) {
 }
 
 /**
+ * Normalizes the observed assignee shapes (null, `{displayName}`, bare string) to a plain string.
+ * @param {*} assignee - Raw assignee value from a feature detail file
+ * @returns {string|null}
+ */
+function extractAssignee(assignee) {
+  if (!assignee) return null;
+  return typeof assignee === 'string' ? assignee : (assignee.displayName || null);
+}
+
+/**
  * Read features from the unified releases store and reshape into the
  * AI Impact format ({ features: { [key]: { latest, history } }, ... }).
  *
@@ -103,6 +113,8 @@ function readFeatures(readFromStorage) {
         scores: aiReview.scores || (entry.aiReview && entry.aiReview.scores) || null,
         reviewers: aiReview.reviewers || null,
         labels: entry.labels || [],
+        // From the per-feature detail file only — index.json's assignee is a different, unrelated field.
+        assignee: extractAssignee(featureFile && featureFile.assignee),
         components: components,
         reviewedAt: aiReview.reviewedAt || (entry.aiReview && entry.aiReview.reviewedAt) || null,
         // aiInvolvement/provenanceKind are only present once the design-provenance pipeline
@@ -160,6 +172,7 @@ function getLatestProjection(data) {
       scores: entry.latest.scores,
       reviewers: entry.latest.reviewers,
       reviewedAt: entry.latest.reviewedAt,
+      assignee: entry.latest.assignee || null,
       aiInvolvement: entry.latest.aiInvolvement || null,
       provenanceKind: entry.latest.provenanceKind || null,
       created: entry.latest.created || null,
