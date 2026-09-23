@@ -6,9 +6,11 @@ import {
   collectComponentOptions,
   collectStatusOptions,
   collectTeamOptions,
+  collectAssigneeOptions,
   matchesComponents,
   matchesStatus,
-  matchesTeam
+  matchesTeam,
+  matchesAssignee
 } from '../composables/useComponentStatusFilter'
 import StatusBadge from '../components/StatusBadge.vue'
 import EpicBreakdown from '../components/EpicBreakdown.vue'
@@ -20,9 +22,11 @@ const {
   selectedComponents,
   selectedStatuses,
   selectedTeams,
+  selectedAssignees,
   toggleComponent,
   toggleStatus,
   toggleTeam,
+  toggleAssignee,
   clearFilters,
   isFiltered
 } = useComponentStatusFilter()
@@ -58,6 +62,14 @@ const statusOptions = computed(() => {
 // options are sourced from Features alone rather than the Feature+Epic union above.
 const teamOptions = computed(() => collectTeamOptions(features.value, f => f.team))
 
+// Assignee is the direct epic.assignee only — no Feature-level assignee exists, so
+// options are sourced from Epics alone (never the Feature, never a rollup).
+const assigneeOptions = computed(() => {
+  const items = []
+  for (const f of features.value) items.push(...f.epics)
+  return collectAssigneeOptions(items, e => e.assignee)
+})
+
 // A Feature stays visible when it, or at least one of its Epics, matches the active
 // Component/Status filters — only the matching Epics are shown under it (mirrors how a
 // context Feature already narrows to its directly-matching Epic(s) rather than its full
@@ -72,9 +84,13 @@ const filteredFeatures = computed(() => {
     if (!matchesTeam(feature.team, selectedTeams.value)) continue
     const matchingEpics = feature.epics.filter(e =>
       matchesComponents(e.components, selectedComponents.value) &&
-      matchesStatus(e.status, selectedStatuses.value)
+      matchesStatus(e.status, selectedStatuses.value) &&
+      matchesAssignee(e.assignee, selectedAssignees.value)
     )
+    // Assignee has no Feature-level equivalent, so an active Assignee filter can only be
+    // satisfied by a matching Epic — the Feature itself never counts as a match for it.
     const featureMatches =
+      selectedAssignees.value.length === 0 &&
       matchesComponents(feature.components, selectedComponents.value) &&
       matchesStatus(feature.status, selectedStatuses.value)
     if (!featureMatches && matchingEpics.length === 0) continue
@@ -131,12 +147,15 @@ onMounted(async () => {
       :component-options="componentOptions"
       :status-options="statusOptions"
       :team-options="teamOptions"
+      :assignee-options="assigneeOptions"
       :selected-components="selectedComponents"
       :selected-statuses="selectedStatuses"
       :selected-teams="selectedTeams"
+      :selected-assignees="selectedAssignees"
       @toggle-component="toggleComponent"
       @toggle-status="toggleStatus"
       @toggle-team="toggleTeam"
+      @toggle-assignee="toggleAssignee"
       @clear="clearFilters"
     />
 
