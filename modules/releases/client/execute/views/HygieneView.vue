@@ -198,12 +198,10 @@ onMounted(() => {
 
 const welcomeModalRef = ref(null)
 const hygieneRuleDetails = ref(null)
-const isPlanningManager = ref(false)
 
 async function loadRuleCategories() {
   try {
     const data = await apiRequest('/modules/releases/hygiene/config')
-    isPlanningManager.value = true
     if (data && data.ruleDefinitions) {
       const rulesConfig = (data.config && data.config.rules) || {}
       const detailMap = {}
@@ -228,7 +226,6 @@ async function loadRuleCategories() {
   } catch {
     // Non-managers can't access config — fall back to static summary
     hygieneRuleDetails.value = null
-    isPlanningManager.value = false
   }
 }
 
@@ -490,7 +487,6 @@ const versionOptions = computed(() =>
     <HygieneWelcomeModal
       ref="welcomeModalRef"
       :rule-details="hygieneRuleDetails"
-      :is-planning-manager="isPlanningManager"
     />
   </div>
 </template>

@@ -7,10 +7,6 @@ const props = defineProps({
   ruleDetails: {
     type: Object,
     default: null
-  },
-  isPlanningManager: {
-    type: Boolean,
-    default: false
   }
 })
 
