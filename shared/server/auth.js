@@ -15,27 +15,37 @@ function blockDuringImpersonation(req, res, next) {
   next();
 }
 
+const UNRESOLVED_IDENTITY = { jiraDisplayName: null, jiraAccountId: null };
+
 /**
- * Resolve a roster person's Jira identity (display name / account id) for a given uid,
- * via the registry name and team-tracker's per-person metrics cache (people/<slug>.json).
- * Returns null fields — never throws — when the uid, person, or cache entry isn't found,
- * or when Jira name resolution failed (`_nameNotFound`) for that person: an unverified
- * roster name must never be returned as a Jira identity. When Jira resolved a different
- * display name than the roster's (`_resolvedName`), that verified name is preferred.
+ * Resolve a roster person's verified Jira identity (display name + account id) for a given uid.
+ *
+ * team-tracker's writers always persist people/<slug>.json with jiraDisplayName set to the
+ * (unverified) roster name — the Jira-verified display name only survives in jira-name-map.json,
+ * keyed by that same roster name, alongside the accountId that resolved it. A verified identity
+ * therefore requires both: a people/<slug>.json entry confirming resolution succeeded (accountId
+ * present, no `_nameNotFound`) AND a jira-name-map.json entry for that same accountId, from which
+ * the verified display name is read. Any missing, legacy (non-object), or mismatched-accountId
+ * cache entry is treated as unresolved — an unverified or stale name is never returned.
  */
 function resolveJiraIdentity(readFromStorage, uid) {
-  if (!uid) return { jiraDisplayName: null, jiraAccountId: null };
+  if (!uid) return UNRESOLVED_IDENTITY;
   const registry = readFromStorage('team-data/registry.json');
   const person = registry?.people?.[uid];
-  if (!person || !person.name) return { jiraDisplayName: null, jiraAccountId: null };
+  if (!person || !person.name) return UNRESOLVED_IDENTITY;
   // Must match team-tracker's sanitizeFilename() convention for people/*.json cache keys.
   const slug = person.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
   const metrics = readFromStorage(`people/${slug}.json`);
-  if (!metrics || metrics._nameNotFound) return { jiraDisplayName: null, jiraAccountId: null };
-  return {
-    jiraDisplayName: metrics._resolvedName || metrics.jiraDisplayName || null,
-    jiraAccountId: metrics.jiraAccountId || null
-  };
+  if (!metrics || metrics._nameNotFound || !metrics.jiraAccountId) return UNRESOLVED_IDENTITY;
+
+  const nameMap = readFromStorage('jira-name-map.json');
+  const cached = nameMap?.[person.name];
+  if (!cached || typeof cached !== 'object' || !cached.accountId || !cached.displayName) {
+    return UNRESOLVED_IDENTITY;
+  }
+  if (cached.accountId !== metrics.jiraAccountId) return UNRESOLVED_IDENTITY;
+
+  return { jiraDisplayName: cached.displayName, jiraAccountId: cached.accountId };
 }
 
 function createAuthMiddleware(readFromStorage, writeToStorage, options = {}) {
