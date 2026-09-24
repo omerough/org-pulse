@@ -181,4 +181,16 @@ describe('useComponentStatusFilter', () => {
     expect(f.selectedAssignees.value).toEqual([])
     expect(f.isFiltered.value).toBe(false)
   })
+
+  it('setAssignees overwrites the Assignee selection outright ("Assigned to me" shortcut)', () => {
+    const f = useComponentStatusFilter()
+
+    f.toggleAssignee('Alice')
+    f.toggleAssignee('Bob')
+    expect(f.selectedAssignees.value).toEqual(['Alice', 'Bob'])
+
+    f.setAssignees(['Carol'])
+    expect(f.selectedAssignees.value).toEqual(['Carol'])
+    expect(f.selectedComponents.value).toEqual([])
+  })
 })

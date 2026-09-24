@@ -15,6 +15,25 @@ function blockDuringImpersonation(req, res, next) {
   next();
 }
 
+/**
+ * Resolve a roster person's Jira identity (display name / account id) for a given uid,
+ * via the registry name and team-tracker's per-person metrics cache (people/<slug>.json).
+ * Returns null fields — never throws — when the uid, person, or cache entry isn't found.
+ */
+function resolveJiraIdentity(readFromStorage, uid) {
+  if (!uid) return { jiraDisplayName: null, jiraAccountId: null };
+  const registry = readFromStorage('team-data/registry.json');
+  const person = registry?.people?.[uid];
+  if (!person || !person.name) return { jiraDisplayName: null, jiraAccountId: null };
+  // Must match team-tracker's sanitizeFilename() convention for people/*.json cache keys.
+  const slug = person.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const metrics = readFromStorage(`people/${slug}.json`);
+  return {
+    jiraDisplayName: metrics?.jiraDisplayName || null,
+    jiraAccountId: metrics?.jiraAccountId || null
+  };
+}
+
 function createAuthMiddleware(readFromStorage, writeToStorage, options = {}) {
   const { tokenValidator, roleStore } = options;
 
@@ -308,4 +327,4 @@ function proxySecretGuard(req, res, next, options = {}) {
   return res.status(401).json({ error: 'Unauthorized' });
 }
 
-module.exports = { createAuthMiddleware, proxySecretGuard, blockDuringImpersonation }
+module.exports = { createAuthMiddleware, proxySecretGuard, blockDuringImpersonation, resolveJiraIdentity }

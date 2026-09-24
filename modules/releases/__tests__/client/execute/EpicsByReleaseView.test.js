@@ -1,9 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { ref } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 
 const mockApiRequest = vi.fn()
 vi.mock('@shared/client/services/api.js', () => ({
   apiRequest: (...args) => mockApiRequest(...args)
+}))
+
+const mockUser = ref({})
+vi.mock('@shared/client/composables/useAuth.js', () => ({
+  useAuth: () => ({ user: mockUser })
 }))
 
 import EpicsByReleaseView from '../../../client/execute/views/EpicsByReleaseView.vue'
@@ -45,6 +51,7 @@ function epicsResponse(overrides = {}) {
 describe('EpicsByReleaseView', () => {
   beforeEach(() => {
     mockApiRequest.mockReset()
+    mockUser.value = {}
   })
 
   it('loads versions, defaults to the first one, and renders its Features and Epics', async () => {
@@ -541,6 +548,50 @@ describe('EpicsByReleaseView', () => {
       expect(wrapper.text()).toContain('OSAC-101')
       expect(wrapper.text()).toContain('OSAC-102')
       expect(wrapper.text()).toContain('OSAC-201')
+    })
+
+    it('search narrows the visible Assignee options without altering the selection', async () => {
+      const wrapper = await mountWithAssigneeFilters()
+
+      await openDropdown(wrapper, 'All assignees')
+      await checkOption(wrapper, 'Alice')
+      await wrapper.find('input[placeholder="Search assignees..."]').setValue('bob')
+
+      expect(wrapper.findAll('label').some(l => l.text() === 'Alice')).toBe(false)
+      expect(wrapper.findAll('label').some(l => l.text() === 'Bob')).toBe(true)
+      // Alice stays selected even though search hides her from the option list.
+      expect(wrapper.text()).toContain('OSAC-101')
+      expect(wrapper.text()).not.toContain('OSAC-201')
+    })
+
+    it('shows a no-results state when the Assignee search matches nothing', async () => {
+      const wrapper = await mountWithAssigneeFilters()
+
+      await openDropdown(wrapper, 'All assignees')
+      await wrapper.find('input[placeholder="Search assignees..."]').setValue('zzz')
+
+      expect(wrapper.text()).toContain('No matches for "zzz"')
+    })
+
+    it('hides the "Assigned to me" shortcut when no jiraDisplayName is resolved', async () => {
+      mockUser.value = {}
+      const wrapper = await mountWithAssigneeFilters()
+
+      await openDropdown(wrapper, 'All assignees')
+      expect(wrapper.text()).not.toContain('Assigned to me')
+    })
+
+    it('"Assigned to me" sets the Assignee filter to only the current user\'s Jira display name', async () => {
+      mockUser.value = { jiraDisplayName: 'Bob' }
+      const wrapper = await mountWithAssigneeFilters()
+
+      await openDropdown(wrapper, 'All assignees')
+      const meButton = wrapper.findAll('button').find(b => b.text() === 'Assigned to me')
+      await meButton.trigger('click')
+
+      expect(wrapper.text()).toContain('OSAC-201')
+      expect(wrapper.text()).not.toContain('OSAC-101')
+      expect(wrapper.text()).not.toContain('OSAC-102')
     })
   })
 })

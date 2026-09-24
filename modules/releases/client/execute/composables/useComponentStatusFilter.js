@@ -115,6 +115,11 @@ export function useComponentStatusFilter() {
     else selectedAssignees.value.push(value)
   }
 
+  // Overwrites the Assignee selection outright — used by the "Assigned to me" shortcut.
+  function setAssignees(values) {
+    selectedAssignees.value = [...values]
+  }
+
   function clearFilters() {
     selectedComponents.value = []
     selectedStatuses.value = []
@@ -136,6 +141,7 @@ export function useComponentStatusFilter() {
     toggleStatus,
     toggleTeam,
     toggleAssignee,
+    setAssignees,
     clearFilters,
     isFiltered
   }

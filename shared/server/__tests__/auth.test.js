@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 
-const { proxySecretGuard } = require('../auth');
+const { proxySecretGuard, resolveJiraIdentity } = require('../auth');
 
 function createMockReq(overrides = {}) {
   return {
@@ -111,5 +111,53 @@ describe('proxySecretGuard', () => {
     expect(called).toBe(false);
     expect(res.statusCode).toBe(401);
     expect(res.body).toEqual({ error: 'Unauthorized' });
+  });
+});
+
+describe('resolveJiraIdentity', () => {
+  function makeStorage(files) {
+    return (key) => files[key] ?? null;
+  }
+
+  it('returns null fields when uid is missing', () => {
+    const readFromStorage = makeStorage({});
+    expect(resolveJiraIdentity(readFromStorage, null)).toEqual({ jiraDisplayName: null, jiraAccountId: null });
+  });
+
+  it('returns null fields when the uid has no registry person', () => {
+    const readFromStorage = makeStorage({
+      'team-data/registry.json': { people: {} }
+    });
+    expect(resolveJiraIdentity(readFromStorage, 'jdoe')).toEqual({ jiraDisplayName: null, jiraAccountId: null });
+  });
+
+  it('returns null fields when the person has no Jira metrics cache entry', () => {
+    const readFromStorage = makeStorage({
+      'team-data/registry.json': { people: { jdoe: { name: 'Jane Doe' } } }
+      // people/jane_doe.json intentionally absent
+    });
+    expect(resolveJiraIdentity(readFromStorage, 'jdoe')).toEqual({ jiraDisplayName: null, jiraAccountId: null });
+  });
+
+  it('resolves jiraDisplayName and jiraAccountId via the registry name and people cache', () => {
+    const readFromStorage = makeStorage({
+      'team-data/registry.json': { people: { jdoe: { name: 'Jane Doe' } } },
+      'people/jane_doe.json': { jiraDisplayName: 'Jane Doe', jiraAccountId: '5e41b8c0-abc123' }
+    });
+    expect(resolveJiraIdentity(readFromStorage, 'jdoe')).toEqual({
+      jiraDisplayName: 'Jane Doe',
+      jiraAccountId: '5e41b8c0-abc123'
+    });
+  });
+
+  it('returns jiraAccountId null when the cache entry has no account id', () => {
+    const readFromStorage = makeStorage({
+      'team-data/registry.json': { people: { jdoe: { name: 'Jane Doe' } } },
+      'people/jane_doe.json': { jiraDisplayName: 'Jane Doe' }
+    });
+    expect(resolveJiraIdentity(readFromStorage, 'jdoe')).toEqual({
+      jiraDisplayName: 'Jane Doe',
+      jiraAccountId: null
+    });
   });
 });

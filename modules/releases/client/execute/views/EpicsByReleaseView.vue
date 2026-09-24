@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useAuth } from '@shared/client/composables/useAuth.js'
 import { useVersions, useEpicsByRelease } from '../composables/useFeatureTraffic'
 import {
   useComponentStatusFilter,
@@ -27,9 +28,18 @@ const {
   toggleStatus,
   toggleTeam,
   toggleAssignee,
+  setAssignees,
   clearFilters,
   isFiltered
 } = useComponentStatusFilter()
+
+const { user } = useAuth()
+// Hidden when no reliable jiraDisplayName is resolved for the current user — never guessed client-side.
+const meAssignee = computed(() => user.value?.jiraDisplayName || null)
+
+function selectMeAssignee() {
+  if (meAssignee.value) setAssignees([meAssignee.value])
+}
 
 const selectedVersion = ref('')
 
@@ -153,10 +163,12 @@ onMounted(async () => {
       :selected-statuses="selectedStatuses"
       :selected-teams="selectedTeams"
       :selected-assignees="selectedAssignees"
+      :me-assignee="meAssignee"
       @toggle-component="toggleComponent"
       @toggle-status="toggleStatus"
       @toggle-team="toggleTeam"
       @toggle-assignee="toggleAssignee"
+      @set-assignee-me="selectMeAssignee"
       @clear="clearFilters"
     />
 

@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ref } from 'vue';
 import { mount } from '@vue/test-utils';
+
+const mockUser = ref({});
+vi.mock('@shared/client/composables/useAuth.js', () => ({
+  useAuth: () => ({ user: mockUser })
+}));
+
 import FeatureList from '../../client/components/FeatureList.vue';
 import FeatureListItem from '../../client/components/FeatureListItem.vue';
 import ForYouMultiSelect from '../../client/components/ForYouMultiSelect.vue';
@@ -263,6 +270,10 @@ describe('FeatureList sort (aligned with PRD Review)', () => {
 });
 
 describe('FeatureList Assignee filter', () => {
+  beforeEach(() => {
+    mockUser.value = {};
+  });
+
   function renderedKeys(wrapper) {
     return wrapper.findAllComponents(FeatureListItem).map(c => c.props('feature').key);
   }
@@ -317,6 +328,20 @@ describe('FeatureList Assignee filter', () => {
     const multiSelect = wrapper.findComponent(ForYouMultiSelect);
     multiSelect.vm.$emit('update:modelValue', ['Dan Manor']);
     expect(wrapper.emitted('update:assigneeFilter')[0]).toEqual([['Dan Manor']]);
+  });
+
+  it('passes a meOption to the multiselect when the current user has a resolved jiraDisplayName', () => {
+    mockUser.value = { jiraDisplayName: 'Dan Manor' };
+    const wrapper = mount(FeatureList, { props: { features } });
+    const multiSelect = wrapper.findComponent(ForYouMultiSelect);
+    expect(multiSelect.props('meOption')).toEqual({ value: 'Dan Manor', label: 'Assigned to me' });
+  });
+
+  it('passes no meOption when the current user has no resolved jiraDisplayName', () => {
+    mockUser.value = {};
+    const wrapper = mount(FeatureList, { props: { features } });
+    const multiSelect = wrapper.findComponent(ForYouMultiSelect);
+    expect(multiSelect.props('meOption')).toBe(null);
   });
 });
 

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useAuth } from '@shared/client/composables/useAuth.js'
 import RFEListItem from './RFEListItem.vue'
 import ForYouMultiSelect from './ForYouMultiSelect.vue'
 import {
@@ -57,6 +58,13 @@ const assigneeOptions = computed(() => {
   const opts = collectAssigneeOptions(props.rfes, rfe => rfe.jiraAssignee).map(name => ({ value: name, label: name }))
   if (hasUnassignedAssignee.value) opts.push({ value: ASSIGNEE_FILTER_UNASSIGNED, label: 'Unassigned' })
   return opts
+})
+
+const { user } = useAuth()
+// Hidden when no reliable jiraDisplayName is resolved for the current user — never guessed client-side.
+const meAssigneeOption = computed(() => {
+  const name = user.value?.jiraDisplayName
+  return name ? { value: name, label: 'Assigned to me' } : null
 })
 
 const sortedAndFilteredRFEs = computed(() => {
@@ -234,6 +242,7 @@ function handleSelectRFE(rfe) {
       <ForYouMultiSelect
         :modelValue="assigneeFilter"
         :options="assigneeOptions"
+        :meOption="meAssigneeOption"
         placeholder="All Assignees"
         @update:modelValue="emit('update:assigneeFilter', $event)"
       />

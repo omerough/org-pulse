@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ref } from 'vue';
 import { mount } from '@vue/test-utils';
+
+const mockUser = ref({});
+vi.mock('@shared/client/composables/useAuth.js', () => ({
+  useAuth: () => ({ user: mockUser })
+}));
+
 import RFEList from '../../client/components/RFEList.vue';
 import RFEListItem from '../../client/components/RFEListItem.vue';
 import ForYouMultiSelect from '../../client/components/ForYouMultiSelect.vue';
@@ -198,6 +205,10 @@ describe('RFEList default ordering', () => {
 });
 
 describe('RFEList Assignee filter', () => {
+  beforeEach(() => {
+    mockUser.value = {};
+  });
+
   function renderedKeys(wrapper) {
     return wrapper.findAllComponents(RFEListItem).map(c => c.props('rfe').key);
   }
@@ -250,5 +261,19 @@ describe('RFEList Assignee filter', () => {
     const multiSelect = wrapper.findComponent(ForYouMultiSelect);
     multiSelect.vm.$emit('update:modelValue', ['Dan Manor']);
     expect(wrapper.emitted('update:assigneeFilter')[0]).toEqual([['Dan Manor']]);
+  });
+
+  it('passes a meOption to the multiselect when the current user has a resolved jiraDisplayName', () => {
+    mockUser.value = { jiraDisplayName: 'Dan Manor' };
+    const wrapper = mount(RFEList, { props: { rfes } });
+    const multiSelect = wrapper.findComponent(ForYouMultiSelect);
+    expect(multiSelect.props('meOption')).toEqual({ value: 'Dan Manor', label: 'Assigned to me' });
+  });
+
+  it('passes no meOption when the current user has no resolved jiraDisplayName', () => {
+    mockUser.value = {};
+    const wrapper = mount(RFEList, { props: { rfes } });
+    const multiSelect = wrapper.findComponent(ForYouMultiSelect);
+    expect(multiSelect.props('meOption')).toBe(null);
   });
 });
