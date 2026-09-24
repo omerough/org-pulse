@@ -274,6 +274,46 @@ describe('mergeEpics', () => {
     expect(merged.issues).toEqual(producerEpicA.issues)
     expect(merged.executionIssueCount).toBe(2)
   })
+
+  it('a stale (older) Jira snapshot does not overwrite a newer assignee', () => {
+    const epic = { key: 'EP-K', summary: 'S', status: 'New', assignee: 'Bob', updated: '2026-02-01T00:00:00Z' }
+    const [merged] = mergeEpics([epic], [
+      { key: 'EP-K', summary: 'S', status: 'New', assignee: 'Alice', updated: '2026-01-01T00:00:00Z' }
+    ])
+    expect(merged.assignee).toBe('Bob')
+    expect(merged.updated).toBe('2026-02-01T00:00:00Z')
+  })
+
+  it('a stale (older) Jira snapshot does not clear a newer assignee', () => {
+    const epic = { key: 'EP-L', summary: 'S', status: 'New', assignee: 'Bob', updated: '2026-02-01T00:00:00Z' }
+    const [merged] = mergeEpics([epic], [
+      { key: 'EP-L', summary: 'S', status: 'New', assignee: null, updated: '2026-01-01T00:00:00Z' }
+    ])
+    expect(merged.assignee).toBe('Bob')
+    expect(merged.updated).toBe('2026-02-01T00:00:00Z')
+  })
+
+  it('rejects a repeated stale snapshot on a second merge pass (updated is never downgraded)', () => {
+    const epic = { key: 'EP-M', summary: 'S', status: 'New', assignee: 'Bob', updated: '2026-02-01T00:00:00Z' }
+    const staleJiraEpic = { key: 'EP-M', summary: 'S', status: 'New', assignee: 'Alice', updated: '2026-01-01T00:00:00Z' }
+
+    const [firstPass] = mergeEpics([epic], [staleJiraEpic])
+    expect(firstPass.assignee).toBe('Bob')
+    expect(firstPass.updated).toBe('2026-02-01T00:00:00Z')
+
+    const [secondPass] = mergeEpics([firstPass], [staleJiraEpic])
+    expect(secondPass.assignee).toBe('Bob')
+    expect(secondPass.updated).toBe('2026-02-01T00:00:00Z')
+  })
+
+  it('a fresh (newer or same) explicit null assignee still clears the assignment', () => {
+    const epic = { key: 'EP-N', summary: 'S', status: 'New', assignee: 'Bob', updated: '2026-01-01T00:00:00Z' }
+    const [merged] = mergeEpics([epic], [
+      { key: 'EP-N', summary: 'S', status: 'New', assignee: null, updated: '2026-02-01T00:00:00Z' }
+    ])
+    expect(merged.assignee).toBeNull()
+    expect(merged.updated).toBe('2026-02-01T00:00:00Z')
+  })
 })
 
 describe('epicClassificationChanged', () => {
