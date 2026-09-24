@@ -160,4 +160,34 @@ describe('resolveJiraIdentity', () => {
       jiraAccountId: null
     });
   });
+
+  it('uses the resolved Jira name when it differs from the roster name', () => {
+    const readFromStorage = makeStorage({
+      'team-data/registry.json': { people: { jdoe: { name: 'Jane Doe' } } },
+      'people/jane_doe.json': {
+        jiraDisplayName: 'Jane Doe',
+        _resolvedName: 'Jane D. Doe',
+        jiraAccountId: '5e41b8c0-abc123'
+      }
+    });
+    expect(resolveJiraIdentity(readFromStorage, 'jdoe')).toEqual({
+      jiraDisplayName: 'Jane D. Doe',
+      jiraAccountId: '5e41b8c0-abc123'
+    });
+  });
+
+  it('returns null identity — never the unverified roster name — when Jira resolution failed', () => {
+    const readFromStorage = makeStorage({
+      'team-data/registry.json': { people: { jdoe: { name: 'Jane Doe' } } },
+      'people/jane_doe.json': {
+        jiraDisplayName: 'Jane Doe',
+        _nameNotFound: true,
+        _error: 'Could not resolve Jira accountId for "Jane Doe"'
+      }
+    });
+    expect(resolveJiraIdentity(readFromStorage, 'jdoe')).toEqual({
+      jiraDisplayName: null,
+      jiraAccountId: null
+    });
+  });
 });

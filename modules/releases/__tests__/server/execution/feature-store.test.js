@@ -235,6 +235,45 @@ describe('mergeEpics', () => {
     const [merged] = mergeEpics([epic], [{ key: 'EP-G', summary: 'S', status: 'New', updated: '2026-02-01T00:00:00Z' }])
     expect(merged.updated).toBe('2026-02-01T00:00:00Z')
   })
+
+  it('a newly discovered Epic carries the assignee Jira supplied', () => {
+    const jiraEpics = [{ key: 'EP-NEW', summary: 'Brand new', status: 'New', assignee: 'Alice' }]
+    const merged = mergeEpics([], jiraEpics)
+    expect(merged).toEqual([{ key: 'EP-NEW', summary: 'Brand new', status: 'New', assignee: 'Alice' }])
+  })
+
+  it('a newly discovered unassigned Epic carries an explicit null assignee', () => {
+    const jiraEpics = [{ key: 'EP-NEW', summary: 'Brand new', status: 'New', assignee: null }]
+    const merged = mergeEpics([], jiraEpics)
+    expect(merged[0].assignee).toBeNull()
+  })
+
+  it('refreshes assignee on a matched Epic (reassignment)', () => {
+    const epic = { key: 'EP-H', summary: 'S', status: 'New', assignee: 'Alice' }
+    const [merged] = mergeEpics([epic], [{ key: 'EP-H', summary: 'S', status: 'New', assignee: 'Bob' }])
+    expect(merged.assignee).toBe('Bob')
+  })
+
+  it('an explicit null assignee from Jira clears a prior assignment', () => {
+    const epic = { key: 'EP-I', summary: 'S', status: 'New', assignee: 'Alice' }
+    const [merged] = mergeEpics([epic], [{ key: 'EP-I', summary: 'S', status: 'New', assignee: null }])
+    expect(merged.assignee).toBeNull()
+  })
+
+  it('an undefined assignee from an older/sparse caller preserves the existing value', () => {
+    const epic = { key: 'EP-J', summary: 'S', status: 'New', assignee: 'Alice' }
+    const [merged] = mergeEpics([epic], [{ key: 'EP-J', summary: 'S', status: 'New' }])
+    expect(merged.assignee).toBe('Alice')
+  })
+
+  it('preserves producer-owned fields/issues when refreshing assignee', () => {
+    const [merged] = mergeEpics([producerEpicA], [
+      { key: 'EP-A', summary: producerEpicA.summary, status: producerEpicA.status, assignee: 'Alice' }
+    ])
+    expect(merged.assignee).toBe('Alice')
+    expect(merged.issues).toEqual(producerEpicA.issues)
+    expect(merged.executionIssueCount).toBe(2)
+  })
 })
 
 describe('epicClassificationChanged', () => {
