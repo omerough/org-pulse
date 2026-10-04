@@ -48,6 +48,7 @@ Filename is the person's display name lowercased with non-alphanumeric chars rep
 ```
 
 **Notes:**
+- `inProgress` issues are selected by Jira's `statusCategory = "In Progress"`, not a fixed status-name list. This follows each project's own workflow, so it can include review and QA stages (e.g. `Code Review`, `ON_QA`) and workflow-specific assigned states (e.g. `ASSIGNED`, `POST`, `MODIFIED`) — it is not a measure of active coding time or individual workload.
 - `resolution` is the Jira resolution name (e.g., `"Done"`, `"Fixed"`) or `null` for unresolved issues. Issues with no-work resolutions (`"Won't Do"`, `"Obsolete"`, `"Duplicate"`, `"Cannot Reproduce"`) are excluded from resolved metrics at fetch time.
 - `resolutionDate` uses ISO 8601 with timezone offset (e.g., `"2026-02-26T08:23:28.000+0000"`), NOT simple `YYYY-MM-DD`
 - `lookbackDays` is currently 365 for most users but may vary
