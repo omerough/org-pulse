@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { DEFAULT_PAGE_WAIT_TIME } = require('./constants');
-const { setupErrorTracking, logCapturedErrors, pageHasContent, pageLoadComplete, mainContentIsVisible } = require('./helpers');
+const { setupErrorTracking, mockProjectRoster, logCapturedErrors, pageHasContent, pageLoadComplete, mainContentIsVisible } = require('./helpers');
 
 /**
  * Integration tests for AI Impact module
@@ -122,8 +122,31 @@ test.describe('AI Impact Disabled Menu Items @ai-impact', () => {
     await testDisabledMenuItem(page, 'Security Review');
   });
 
-  test('Documentation menu item should be disabled', async ({ page }) => {
-    await testDisabledMenuItem(page, 'Documentation');
+  test('Documentation opens the selected project and shows absent publication honestly', async ({ page }) => {
+    await mockProjectRoster(page, 'flightctl');
+    const designDocsProjects = [];
+    page.on('request', request => {
+      const url = new URL(request.url());
+      if (url.pathname === '/api/modules/ai-impact/project-design-docs') {
+        designDocsProjects.push(url.searchParams.get('projectId'));
+      }
+    });
+
+    await page.goto('/#/ai-impact/ai-factory-guide?projectId=flightctl');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const documentationItem = page.locator('aside nav button').filter({ hasText: 'Documentation' }).first();
+    await expect(documentationItem).toBeVisible();
+    expect(await documentationItem.getAttribute('aria-disabled')).not.toBe('true');
+    await documentationItem.click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Design Documentation' })).toBeVisible();
+    await expect(page.getByText('Design-docs evidence unavailable')).toBeVisible();
+    await expect(page.getByText('No design-docs publication for this project yet')).toBeVisible();
+    expect(designDocsProjects).toContain('flightctl');
+    // The app logs the publication's 404 response, but handles it as the designed unavailable state.
+    expect(page.errors.filter(error => error.type === 'pageerror')).toHaveLength(0);
   });
 
   test('Build & Release menu item should be disabled', async ({ page }) => {

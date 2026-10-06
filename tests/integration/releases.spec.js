@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { DEFAULT_PAGE_WAIT_TIME } = require('./constants');
-const { setupErrorTracking, logCapturedErrors } = require('./helpers');
+const { setupErrorTracking, mockProjectRoster, logCapturedErrors } = require('./helpers');
 
 /**
  * Integration tests for Releases module
@@ -49,6 +49,17 @@ test.describe('Releases Module @releases', () => {
       console.log(`  ${req.method} ${req.url}`);
     });
 
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Execute keeps the Hygiene tab available for the selected project', async ({ page }) => {
+    await mockProjectRoster(page, 'flightctl');
+    await page.goto('/#/releases/execute?tab=feature-status&projectId=flightctl');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const executeTabs = page.getByRole('navigation', { name: 'Execute sub-tabs' });
+    await expect(executeTabs.getByRole('button', { name: 'Hygiene' })).toBeVisible();
     expect(page.errors).toHaveLength(0);
   });
 
