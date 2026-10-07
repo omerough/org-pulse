@@ -1,11 +1,23 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TeamMembersTable from '../../client/components/TeamMembersTable.vue'
 
 vi.mock('@shared/client/composables/useModuleLink', () => ({
   useModuleLink: () => ({
-    linkTo: (_mod, _view, _params) => '#'
+    linkTo: (mod, view, params) => {
+      const qs = Object.entries(params)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join('&')
+      return `#/${mod}/${view}${qs ? `?${qs}` : ''}`
+    }
   })
+}))
+
+const { mockProjectId } = vi.hoisted(() => ({ mockProjectId: { value: '' } }))
+vi.mock('@shared/client/composables/useProjectId', () => ({
+  useProjectId: () => mockProjectId,
+  projectParam: (id) => (id ? { projectId: id } : {})
 }))
 
 const sampleMembers = [
@@ -65,5 +77,31 @@ describe('TeamMembersTable region/country filters', () => {
     const singleRegionMembers = sampleMembers.map(m => ({ ...m, geo: 'NA', country: 'USA' }))
     const wrapper = mount(TeamMembersTable, { props: { members: singleRegionMembers } })
     expect(wrapper.findAll('select').length).toBe(0)
+  })
+})
+
+describe('TeamMembersTable project context preservation (OSAC-5968)', () => {
+  beforeEach(() => {
+    mockProjectId.value = ''
+  })
+
+  it('preserves the selected project and uses accountId identity for a project-qualified member', () => {
+    mockProjectId.value = 'flightctl'
+    const member = { name: 'Priya Shah', accountId: 'acc-123' }
+    const wrapper = mount(TeamMembersTable, { props: { members: [member], teamKey: 'flightctl::Core' } })
+
+    const href = wrapper.find('a').attributes('href')
+    expect(href).toContain('projectId=flightctl')
+    expect(href).toContain('accountId=acc-123')
+    expect(href).not.toContain('person=')
+  })
+
+  it('leaves legacy OSAC uid links unaffected when no project is selected', () => {
+    const member = { name: 'Alice Smith', uid: 'asmith' }
+    const wrapper = mount(TeamMembersTable, { props: { members: [member] } })
+
+    const href = wrapper.find('a').attributes('href')
+    expect(href).toContain('uid=asmith')
+    expect(href).not.toContain('projectId=')
   })
 })

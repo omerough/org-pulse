@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, inject } from 'vue'
 import { apiRequest } from '@shared/client/services/api.js'
 import { useAuth } from '@shared/client/composables/useAuth.js'
 import { useRoster } from '@shared/client/composables/useRoster.js'
+import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import { useGithubStats } from '@shared/client/composables/useGithubStats.js'
 import { useGitlabStats } from '@shared/client/composables/useGitlabStats.js'
 import { usePermissions } from '@shared/client/composables/usePermissions.js'
@@ -13,7 +14,8 @@ import { useManagerTutorial } from '../composables/useManagerTutorial'
 
 const nav = inject('moduleNav')
 const { isAdmin, refresh: refreshAuth } = useAuth()
-const { getTeamsForPerson, teams: allTeams, rosterData } = useRoster()
+const { getTeamsForPerson, teams: allTeams, rosterData, loading: rosterLoading, getPersonByAccountId } = useRoster()
+const projectId = useProjectId()
 const { canEdit, refresh: refreshPermissions } = usePermissions()
 const { startImpersonating } = useImpersonation()
 const { definitions, fetchDefinitions } = useFieldDefinitions()
@@ -38,7 +40,7 @@ const gitlabContribs = computed(() => {
 
 const personTeams = computed(() => {
   if (!person.value) return []
-  return getTeamsForPerson(person.value.name)
+  return getTeamsForPerson(person.value.accountId || person.value.name)
 })
 
 const rosterMember = computed(() => {
@@ -171,9 +173,61 @@ const editSaving = ref(false)
 
 const uid = computed(() => nav.params.value?.uid)
 const personName = computed(() => nav.params.value?.person)
+const accountId = computed(() => nav.params.value?.accountId)
 const fromTeamKey = computed(() => nav.params.value?.teamKey)
+const isProjectPerson = computed(() => Boolean(accountId.value))
+
+// Never resolves via the legacy registry or name fallback: a name
+// collision there could surface an unrelated OSAC person's profile.
+function loadProjectPerson() {
+  const expectedProjectId = projectId.value
+  const expectedAccountId = accountId.value
+  loading.value = true
+  error.value = null
+  person.value = null
+  managerChain.value = []
+  directReports.value = []
+  associatedTeams.value = []
+  jiraMetrics.value = null
+
+  // Stay loading until the roster matches this project, to avoid flashing "not found".
+  if (rosterData.value?.projectId !== expectedProjectId || rosterLoading.value) {
+    return
+  }
+
+  const projectPerson = getPersonByAccountId(expectedAccountId)
+  if (!projectPerson) {
+    error.value = 'Person not found'
+    loading.value = false
+    return
+  }
+  person.value = {
+    accountId: projectPerson.accountId,
+    uid: null,
+    name: projectPerson.displayName,
+    status: projectPerson.active ? 'active' : 'inactive',
+    email: projectPerson.email,
+    title: projectPerson.title,
+    geo: projectPerson.geo,
+    city: null,
+    country: null,
+    github: null,
+    gitlab: null,
+    orgType: 'engineering',
+    _appFields: {},
+    firstSeenAt: null,
+    lastSeenAt: null,
+    inactiveSince: null
+  }
+  loading.value = false
+}
 
 async function loadPerson() {
+  if (isProjectPerson.value) {
+    loadProjectPerson()
+    return
+  }
+
   const lookupId = uid.value || personName.value
   if (!lookupId) return
   loading.value = true
@@ -290,13 +344,18 @@ function handleImpersonate() {
   }
 }
 
-watch([uid, personName], loadPerson)
+watch([uid, personName, accountId, projectId], loadPerson)
 watch(isAuxiliary, (val) => {
   if (!val) loadGitlabStats()
 })
+// Re-resolve on every roster change: handles the deep-link case where the
+// roster is still loading, and avoids a stale person after a project switch.
+watch([rosterData, rosterLoading], () => {
+  if (isProjectPerson.value) loadPerson()
+})
 onMounted(() => {
   loadPerson()
-  loadGitlabStats()
+  if (!isProjectPerson.value) loadGitlabStats()
   fetchDefinitions()
   resumeTourIfActive('person-detail')
 })
@@ -341,9 +400,9 @@ onBeforeUnmount(() => {
                   </a>
                   <span v-if="person.status === 'inactive'" class="text-xs font-normal px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">Inactive</span>
                 </div>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{{ person.title }}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{{ person.title || '—' }}</p>
               </div>
-              <div v-if="isAdmin" class="flex gap-2 flex-shrink-0">
+              <div v-if="isAdmin && !isProjectPerson" class="flex gap-2 flex-shrink-0">
                 <button
                   v-if="person.status === 'active' && person.uid"
                   @click="handleImpersonate"
@@ -361,20 +420,21 @@ onBeforeUnmount(() => {
                 <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                <a :href="'mailto:' + person.email" class="text-primary-600 dark:text-primary-400 hover:underline truncate">{{ person.email }}</a>
+                <a v-if="person.email" :href="'mailto:' + person.email" class="text-primary-600 dark:text-primary-400 hover:underline truncate">{{ person.email }}</a>
+                <span v-else class="text-gray-400 dark:text-gray-500">—</span>
               </div>
               <div class="flex items-center gap-2.5">
                 <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0" />
                 </svg>
-                <span class="text-gray-900 dark:text-gray-100 font-mono text-xs">{{ person.uid }}</span>
+                <span class="text-gray-900 dark:text-gray-100 font-mono text-xs">{{ person.uid || person.accountId || '—' }}</span>
               </div>
               <div class="flex items-center gap-2.5">
                 <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                <span class="text-gray-900 dark:text-gray-100">{{ person.city }}{{ person.country ? ', ' + person.country : '' }}</span>
+                <span class="text-gray-900 dark:text-gray-100">{{ [person.city, person.country].filter(Boolean).join(', ') || '—' }}</span>
               </div>
               <div class="flex items-center gap-2.5">
                 <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -425,7 +485,7 @@ onBeforeUnmount(() => {
                     </template>
                   </div>
                 </div>
-                <div v-if="isAdmin && editField !== platform" class="flex gap-2">
+                <div v-if="isAdmin && !isProjectPerson && editField !== platform" class="flex gap-2">
                   <button @click="startEdit(platform)" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" :title="person[platform] && person[platform].username ? 'Edit' : 'Set'">
                     <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />

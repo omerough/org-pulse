@@ -85,11 +85,13 @@ import { ref, computed } from 'vue'
 import DynamicFieldBadge from './DynamicFieldBadge.vue'
 import { useRoster } from '@shared/client/composables/useRoster'
 import { useModuleLink } from '@shared/client/composables/useModuleLink'
+import { useProjectId, projectParam } from '@shared/client/composables/useProjectId'
 import { useGithubStats } from '@shared/client/composables/useGithubStats'
 import { useGitlabStats } from '@shared/client/composables/useGitlabStats'
 
 const { linkTo } = useModuleLink()
 const { visibleFields, primaryDisplayField } = useRoster()
+const projectId = useProjectId()
 const { getContributions } = useGithubStats()
 const { getContributions: getGitlabContributions } = useGitlabStats()
 
@@ -103,8 +105,10 @@ const props = defineProps({
 defineEmits(['select', 'view-history'])
 
 function personLink(member) {
-  if (member.uid) return linkTo('team-tracker', 'person-detail', { uid: member.uid, ...(props.teamKey && { teamKey: props.teamKey }) })
-  return linkTo('team-tracker', 'person-detail', { person: member.name, ...(props.teamKey && { teamKey: props.teamKey }) })
+  const params = { ...projectParam(projectId.value), ...(props.teamKey && { teamKey: props.teamKey }) }
+  if (member.uid) return linkTo('team-tracker', 'person-detail', { ...params, uid: member.uid })
+  if (member.accountId) return linkTo('team-tracker', 'person-detail', { ...params, accountId: member.accountId })
+  return linkTo('team-tracker', 'person-detail', { ...params, person: member.name })
 }
 
 const columns = computed(() => {
@@ -138,7 +142,7 @@ function toggleSort(key) {
 }
 
 function getTeamCount(member) {
-  return props.getTeamsForPerson(member.jiraDisplayName).length || 1
+  return props.getTeamsForPerson(member.accountId || member.jiraDisplayName).length || 1
 }
 
 function getMemberMetric(member, field) {

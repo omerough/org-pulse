@@ -234,7 +234,7 @@ function exportCsv() {
   const headers = ['Name', ...customFieldHeaders, 'Issues Resolved', 'Story Points', 'Avg Cycle Time (days)', 'In Progress', 'GitHub Contributions (1yr)', 'GitLab Contributions (1yr)', 'Teams']
   const rows = uniqueMembers.value.map(member => {
     const metrics = memberMetricsMap.value.get(member.jiraDisplayName)
-    const teamCount = getTeamsForPerson(member.jiraDisplayName).length
+    const teamCount = getTeamsForPerson(member.accountId || member.jiraDisplayName).length
     const ghContribs = getContributions(member.githubUsername)
     const glContribs = getGitlabContributions(member.gitlabUsername)
     const customFieldValues = visibleFields.value.map(f => member.customFields?.[f.key] || '')

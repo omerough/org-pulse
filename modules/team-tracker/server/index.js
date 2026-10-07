@@ -1,7 +1,7 @@
 module.exports = function registerRoutes(router, context) {
   const { storage, requireAdmin, requireTeamAdmin, requireScope } = context;
   const { readFromStorage, writeToStorage, listStorageFiles, deleteStorageDirectory } = storage;
-  const { readProjectRoster } = require('./project-roster');
+  const { readProjectPeopleTeams } = require('./project-roster');
   const { resolveProjectSelection } = require('../../../shared/server/project-profile');
 
   // Register module scopes
@@ -2805,13 +2805,16 @@ module.exports = function registerRoutes(router, context) {
    *         name: projectId
    *         required: false
    *         schema: { type: string }
+   *         description: OSAC and an unset projectId return the legacy roster; any other project returns its normalized read model.
    *     responses:
    *       200:
    *         description: Organization roster data
    *         content:
    *           application/json:
    *             schema:
-   *               $ref: '#/components/schemas/RosterResponse'
+   *               oneOf:
+   *                 - $ref: '#/components/schemas/RosterResponse'
+   *                 - $ref: '#/components/schemas/ProjectPeopleTeamsResponse'
    */
   function readLegacyRosterResponse(req) {
     const full = readRosterFull();
@@ -2840,9 +2843,9 @@ module.exports = function registerRoutes(router, context) {
       if (selection.status) return res.status(selection.status).json({ error: selection.error });
       // OSAC's project publication has a minimal person contract; use the enriched legacy roster instead.
       if (selection.provided && selection.projectId !== 'osac') {
-        const result = readProjectRoster(context.projects, selection.projectId);
+        const result = readProjectPeopleTeams(context.projects, selection.projectId);
         if (result.status !== 200) return res.status(result.status).json({ error: result.error });
-        return res.json(result.roster);
+        return res.json(result.model);
       }
       res.json(readLegacyRosterResponse(req));
     } catch (error) {

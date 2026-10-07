@@ -167,11 +167,13 @@
 <script setup>
 import { ref, computed, toRef } from 'vue'
 import { useModuleLink } from '@shared/client/composables/useModuleLink'
+import { useProjectId, projectParam } from '@shared/client/composables/useProjectId'
 import { useRoster } from '@shared/client/composables/useRoster'
 import { useFieldFilters } from '../composables/useFieldFilters'
 
 const { linkTo } = useModuleLink()
 const { managerNames } = useRoster()
+const projectId = useProjectId()
 
 const props = defineProps({
   members: { type: Array, required: true },
@@ -247,10 +249,14 @@ const columns = [
 ]
 
 function personLink(member) {
+  const params = { ...projectParam(projectId.value), ...(props.teamKey && { teamKey: props.teamKey }) }
   if (member.uid) {
-    return linkTo('team-tracker', 'person-detail', { uid: member.uid, ...(props.teamKey && { teamKey: props.teamKey }) })
+    return linkTo('team-tracker', 'person-detail', { ...params, uid: member.uid })
   }
-  return linkTo('team-tracker', 'person-detail', { person: member.name, ...(props.teamKey && { teamKey: props.teamKey }) })
+  if (member.accountId) {
+    return linkTo('team-tracker', 'person-detail', { ...params, accountId: member.accountId })
+  }
+  return linkTo('team-tracker', 'person-detail', { ...params, person: member.name })
 }
 
 function getCustomFieldByLabel(member, label) {

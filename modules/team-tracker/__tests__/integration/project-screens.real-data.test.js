@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { readProjectRoster } from '../../server/project-roster.js'
+import { readProjectPeopleTeams } from '../../server/project-roster.js'
 
 let projects
 
@@ -36,31 +36,25 @@ beforeAll(() => {
 })
 
 describe.skipIf(!process.env.ORG_PULSE_REAL_DATA_DIR)('published roster resolves from real collected data', () => {
-  it('derives the flightctl roster with real team membership', () => {
-    const result = readProjectRoster(projects, 'flightctl')
+  it('derives the flightctl read model with real team membership', () => {
+    const result = readProjectPeopleTeams(projects, 'flightctl')
     expect(result.status).toBe(200)
-    const roster = result.roster
-    expect(roster.projectId).toBe('flightctl')
-    expect(roster.teamDataSource).toBe('project-publication')
-    if (roster.state === 'supported') {
-      expect(roster.publication.state).toBe('supported')
-      expect(roster.publication.generatedAt).toBeTruthy()
-      expect(roster.people).toHaveLength(23)
-      expect(roster.people.filter(person => person.status === 'active')).toHaveLength(23)
-      const org = roster.orgs[0]
-      expect(org.key).toBe('flightctl')
-      expect(Object.keys(org.teams).length).toBeGreaterThan(0)
-      const memberCount = Object.values(org.teams).reduce(
-        (sum, team) => sum + team.members.length, 0
-      )
+    const model = result.model
+    expect(model.projectId).toBe('flightctl')
+    if (model.availability === 'available') {
+      expect(model.generatedAt).toBeTruthy()
+      expect(model.people).toHaveLength(23)
+      expect(model.people.filter(person => person.active)).toHaveLength(23)
+      expect(model.teams.length).toBeGreaterThan(0)
+      const memberCount = model.teams.reduce((sum, team) => sum + team.memberAccountIds.length, 0)
       expect(memberCount).toBeGreaterThan(0)
     } else {
-      expect(['unavailable', 'empty']).toContain(roster.state)
+      expect(['unavailable', 'empty']).toContain(model.availability)
     }
   })
 
   it('returns 404 for an unknown project from real data', () => {
-    const result = readProjectRoster(projects, 'nonexistent')
+    const result = readProjectPeopleTeams(projects, 'nonexistent')
     expect(result.status).toBe(404)
     expect(result.error).toBe('Unknown project')
   })

@@ -49,7 +49,7 @@
               {{ teamDetail.rfeCount }} open PRDs
             </span>
             <button
-              v-if="isAdmin"
+              v-if="isAdmin && !isNormalizedModel"
               @click="showRefreshModal = true"
               :disabled="isRefreshing"
               title="Refresh all metrics for this team"
@@ -360,7 +360,7 @@ import { Marked } from 'marked'
 import DOMPurify from 'dompurify'
 
 const nav = inject('moduleNav')
-const { teams: allTeams, rosterData, loading: rosterLoading, reloadRoster } = useRoster()
+const { teams: allTeams, rosterData, loading: rosterLoading, reloadRoster, isNormalizedModel } = useRoster()
 const { loadTeamDetail, loadRfeConfig } = useOrgRoster()
 const { loadGitlabStats } = useGitlabStats()
 const { isAdmin } = useAuth()
@@ -503,7 +503,9 @@ const teamDetailError = ref(false)
 const rfeConfig = ref({})
 
 async function fetchTeamDetail() {
-  if (!team.value) return
+  // No project-qualified source exists yet for the enriched org-teams detail.
+  // While the roster is still loading, isNormalizedModel can't be trusted yet.
+  if (rosterLoading.value || !team.value || isNormalizedModel.value) return
   teamDetailError.value = false
   const detailKey = team.value.displayKey || team.value.key
   try {
@@ -514,6 +516,8 @@ async function fetchTeamDetail() {
 }
 
 async function fetchRfeConfig() {
+  // No project-qualified source exists yet for RFE config.
+  if (rosterLoading.value || isNormalizedModel.value) return
   try {
     rfeConfig.value = await loadRfeConfig()
   } catch {
@@ -527,7 +531,9 @@ const isRefreshing = ref(false)
 const showRefreshModal = ref(false)
 
 async function fetchTeamMetrics() {
-  if (!team.value) return
+  // No project-qualified source exists yet for delivery metrics; the
+  // Delivery tab renders its shared unavailable state when this stays null.
+  if (rosterLoading.value || !team.value || isNormalizedModel.value) return
   try {
     teamMetrics.value = await getTeamMetrics(team.value.key)
   } catch (error) {
@@ -706,6 +712,8 @@ watch(() => nav.params.value?.tab, (tabParam) => {
 function handleSelectPerson(member) {
   if (member.uid) {
     nav.navigateTo('person-detail', { uid: member.uid })
+  } else if (member.accountId) {
+    nav.navigateTo('person-detail', { accountId: member.accountId, teamKey: team.value?.key })
   } else {
     nav.navigateTo('person-detail', { teamKey: team.value?.key, person: member.jiraDisplayName || member.name })
   }
@@ -747,11 +755,19 @@ watch(() => nav.params.value?.teamKey, () => {
   fetchRfeConfig()
 })
 
-// Retry loading once team resolves from roster async load
-watch(team, (newVal, oldVal) => {
-  if (newVal && !oldVal) {
-    if (!teamMetrics.value) fetchTeamMetrics()
-    if (!teamDetail.value) fetchTeamDetail()
-  }
+// Retry loading once team resolves from roster async load, or once a pending
+// roster fetch (e.g. after a project switch) settles. `team` and
+// `rosterLoading` can both flip in the same reactive flush, so they're
+// watched together — two separate watchers here would each independently
+// pass the `!teamMetrics.value`/`!teamDetail.value` guard before either
+// fetch resolves, firing duplicate requests for the same team.
+watch([team, rosterLoading], ([newTeam, isLoading], [oldTeam, wasLoading]) => {
+  if (isLoading) return
+  const teamJustResolved = newTeam && !oldTeam
+  const rosterJustFinishedLoading = wasLoading && !isLoading
+  if (!teamJustResolved && !rosterJustFinishedLoading) return
+  if (!teamMetrics.value) fetchTeamMetrics()
+  if (!teamDetail.value) fetchTeamDetail()
+  if (rosterJustFinishedLoading) fetchRfeConfig()
 })
 </script>

@@ -186,7 +186,7 @@ describe('GET /roster project-selection dispatch', () => {
     expect(body.orgs[0].key).toBe('uid_lead')
   })
 
-  it('routes projectId=flightctl through the project publication, unaffected by the OSAC change', async () => {
+  it('routes projectId=flightctl through the normalized project read model, unaffected by the OSAC change', async () => {
     const projects = makeProjectsReader({
       knownProjectIds: ['osac', 'flightctl'],
       publishedProjectIds: ['flightctl']
@@ -196,11 +196,14 @@ describe('GET /roster project-selection dispatch', () => {
     const { status, body } = await requestGet(app, '/roster?projectId=flightctl')
 
     expect(status).toBe(200)
-    expect(body.teamDataSource).toBe('project-publication')
-    const org = body.orgs[0]
-    expect(org.key).toBe('flightctl')
-    const member = org.teams['RHEM-DEV'].members[0]
-    expect(member).toEqual({ accountId: 'acct-1', name: 'Alice', jiraDisplayName: 'Alice', customFields: {} })
+    expect(body.projectId).toBe('flightctl')
+    expect(body.availability).toBe('available')
+    expect(body.teams).toEqual([
+      { key: 'flightctl::team-1', projectId: 'flightctl', id: 'team-1', displayName: 'RHEM-DEV', description: null, state: null, teamType: null, memberAccountIds: ['acct-1'] }
+    ])
+    expect(body.people).toEqual([
+      { key: 'flightctl::acct-1', projectId: 'flightctl', accountId: 'acct-1', displayName: 'Alice', active: true, email: null, teamIds: ['team-1'], title: null, manager: null, geo: null, identities: {} }
+    ])
   })
 
   it('returns 404 for an unknown project', async () => {

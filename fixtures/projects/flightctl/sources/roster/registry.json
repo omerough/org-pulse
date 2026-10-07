@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "projectId": "flightctl",
+  "profileRevision": "84d6e4c515154de5",
+  "artifactKey": "sources/roster/registry.json",
+  "source": {
+    "id": "flightctl-roster",
+    "kind": "atlassian-teams"
+  },
+  "generatedAt": "2026-10-05T11:00:00Z",
+  "state": "supported",
+  "freshness": "fresh",
+  "partial": false,
+  "error": null,
+  "data": {
+    "projectId": "flightctl",
+    "teams": [
+      {
+        "id": "366df4de-dc38-4f71-9f0d-9916d450c20c",
+        "name": "Flight Control Core",
+        "state": "ACTIVE"
+      },
+      {
+        "id": "73ce1d26-43fc-4432-92eb-ce48c5e5e200",
+        "name": "Flight Control UI",
+        "state": "ACTIVE"
+      }
+    ],
+    "people": [
+      {
+        "accountId": "fc-acc-1",
+        "displayName": "Nadia Osei",
+        "active": true,
+        "email": "nosei@example.com",
+        "teamIds": ["366df4de-dc38-4f71-9f0d-9916d450c20c"]
+      },
+      {
+        "accountId": "fc-acc-2",
+        "displayName": "Marco Liu",
+        "active": true,
+        "email": "mliu@example.com",
+        "teamIds": ["366df4de-dc38-4f71-9f0d-9916d450c20c", "73ce1d26-43fc-4432-92eb-ce48c5e5e200"]
+      },
+      {
+        "accountId": "fc-acc-3",
+        "displayName": "Priya Shah",
+        "active": false,
+        "teamIds": ["73ce1d26-43fc-4432-92eb-ce48c5e5e200"]
+      }
+    ]
+  }
+}

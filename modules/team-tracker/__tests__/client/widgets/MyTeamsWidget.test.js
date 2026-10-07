@@ -29,11 +29,11 @@ vi.mock('@shared/client/composables/usePermissions', () => ({
   })
 }))
 
-const mockRosterData = ref(null)
+const mockTeams = ref([])
 const mockRosterLoading = ref(false)
 vi.mock('@shared/client/composables/useRoster', () => ({
   useRoster: () => ({
-    rosterData: mockRosterData,
+    teams: mockTeams,
     loading: mockRosterLoading,
     loadRoster: vi.fn()
   })
@@ -49,20 +49,21 @@ vi.mock('@shared/client/composables/useFieldDefinitions', () => ({
   })
 }))
 
-function makeRosterData(orgTeams) {
-  return {
-    orgs: orgTeams.map(o => ({
-      key: o.orgKey,
-      displayName: o.orgKey,
-      teams: o.teams
+function makeTeams(orgTeams) {
+  return orgTeams.flatMap(o =>
+    Object.entries(o.teams).map(([teamName, team]) => ({
+      key: `${o.orgKey}::${teamName}`,
+      displayName: team.displayName,
+      members: team.members,
+      metadata: team.metadata || {}
     }))
-  }
+  )
 }
 
 beforeEach(() => {
   mockUser.value = { email: 'jsmith@redhat.com' }
   mockUserUid.value = 'jsmith'
-  mockRosterData.value = null
+  mockTeams.value = []
   mockRosterLoading.value = false
   mockDefinitions.value = { personFields: [], teamFields: [] }
   mockDefsLoading.value = false
@@ -90,7 +91,7 @@ describe('MyTeamsWidget', () => {
   })
 
   it('shows empty state when user has no teams', async () => {
-    mockRosterData.value = makeRosterData([{
+    mockTeams.value = makeTeams([{
       orgKey: 'org',
       teams: {
         TeamB: { displayName: 'Team B', members: [{ uid: 'other', email: 'other@redhat.com', name: 'Other', customFields: {} }], metadata: {} }
@@ -102,7 +103,7 @@ describe('MyTeamsWidget', () => {
   })
 
   it('renders cards for teams the user belongs to', async () => {
-    mockRosterData.value = makeRosterData([{
+    mockTeams.value = makeTeams([{
       orgKey: 'org',
       teams: {
         TeamA: { displayName: 'Team A', members: [{ uid: 'jsmith', email: 'jsmith@redhat.com', name: 'Jane Smith', customFields: {} }], metadata: {} },
@@ -116,7 +117,7 @@ describe('MyTeamsWidget', () => {
   })
 
   it('navigates to team-detail with from=sotu on card click', async () => {
-    mockRosterData.value = makeRosterData([{
+    mockTeams.value = makeTeams([{
       orgKey: 'org',
       teams: {
         TeamA: { displayName: 'Team A', members: [{ uid: 'jsmith', email: 'jsmith@redhat.com', name: 'Jane Smith', customFields: {} }], metadata: {} }
@@ -134,7 +135,7 @@ describe('MyTeamsWidget', () => {
       personFields: [{ id: 'field_spec', label: 'Speciality', primaryDisplay: true, deleted: false }],
       teamFields: []
     }
-    mockRosterData.value = makeRosterData([{
+    mockTeams.value = makeTeams([{
       orgKey: 'org',
       teams: {
         TeamA: { displayName: 'Team A', members: [{ uid: 'jsmith', email: 'jsmith@redhat.com', name: 'Jane Smith', customFields: { field_spec: 'Backend Engineer' } }], metadata: {} }
@@ -151,7 +152,7 @@ describe('MyTeamsWidget', () => {
       personFields: [],
       teamFields: [{ id: 'field_comp', label: 'Component', optionsRef: 'component', deleted: false }]
     }
-    mockRosterData.value = makeRosterData([{
+    mockTeams.value = makeTeams([{
       orgKey: 'org',
       teams: {
         TeamA: { displayName: 'Team A', members: [{ uid: 'jsmith', email: 'jsmith@redhat.com', name: 'Jane', customFields: {} }], metadata: { field_comp: ['API', 'Auth'] } }

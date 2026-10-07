@@ -214,7 +214,7 @@ import { Menu as MenuIcon, RefreshCw, ExternalLink as ExternalLinkIcon, Sun as S
 import LoadingOverlay from '@shared/client/components/LoadingOverlay.vue'
 import Toast from '@shared/client/components/Toast.vue'
 import RefreshModal from '@shared/client/components/RefreshModal.vue'
-import { useProjectId, projectParam } from '@shared/client/composables/useProjectId.js'
+import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import SettingsView from './SettingsView.vue'
 import AboutView from './AboutView.vue'
 import ApiTokensView from './ApiTokensView.vue'
@@ -235,6 +235,7 @@ import { useGithubStats } from '@shared/client/composables/useGithubStats'
 import { useGitlabStats } from '@shared/client/composables/useGitlabStats'
 import { useModules } from '../composables/useModules'
 import { useTheme } from '../composables/useTheme'
+import { createModuleNav, getDefaultViewId } from '../composables/useModuleNav'
 import { refreshMetrics, getLastRefreshed, apiRequest, getSiteConfig } from '@shared/client/services/api'
 import { loadModuleManifests, loadModuleClient } from '../module-loader'
 import { loadPlatformAboutTabs } from '../platform-loader'
@@ -383,68 +384,14 @@ export default {
 
     // --- Module navigation (provide/inject) ---
     const activeModuleSlugRef = ref(null)
-    const routeParams = ref({})
+    const moduleNav = createModuleNav({ activeModuleSlugRef, builtInManifests })
+    const routeParams = moduleNav.routeParams
 
     provide('moduleNav', {
-      navigateTo(viewId, params = {}) {
-        const slug = activeModuleSlugRef.value
-        if (!slug) return
-        // Preserve the shell project context across module navigation unless
-        // the caller explicitly passes a different projectId
-        const merged = { ...projectParam(useProjectId().value), ...params }
-        routeParams.value = merged
-        // Build hash with query params
-        let hash = `#/${slug}/${viewId}`
-        const qs = Object.entries(merged)
-          .filter(([, v]) => v !== undefined && v !== null)
-          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-          .join('&')
-        if (qs) hash += `?${qs}`
-        window.location.hash = hash
-      },
-      updateParams(newParams, { push = true } = {}) {
-        const hash = window.location.hash || '#/'
-        const raw = hash.slice(2)
-        const qIdx = raw.indexOf('?')
-        const pathPart = qIdx >= 0 ? raw.substring(0, qIdx) : raw
-        const queryPart = qIdx >= 0 ? raw.substring(qIdx + 1) : ''
-        const params = {}
-        if (queryPart) {
-          for (const pair of queryPart.split('&')) {
-            const eqIdx = pair.indexOf('=')
-            if (eqIdx >= 0) {
-              params[decodeURIComponent(pair.substring(0, eqIdx))] = decodeURIComponent(pair.substring(eqIdx + 1))
-            } else if (pair) {
-              params[decodeURIComponent(pair)] = ''
-            }
-          }
-        }
-        for (const [k, v] of Object.entries(newParams)) {
-          if (v === undefined || v === null) {
-            delete params[k]
-          } else {
-            params[k] = String(v)
-          }
-        }
-        let newHash = `#/${pathPart}`
-        const qs = Object.entries(params)
-          .filter(([, v]) => v !== undefined && v !== null)
-          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-          .join('&')
-        if (qs) newHash += `?${qs}`
-        routeParams.value = { ...params }
-        const method = push ? 'pushState' : 'replaceState'
-        history[method](null, '', newHash)
-        // history writes do not fire hashchange; hash-query listeners
-        // (useProjectId) rely on this signal to pick up the new params
-        window.dispatchEvent(new Event('urlchange'))
-      },
-      goBack() {
-        history.back()
-      },
-      isModuleAvailable(slug) {
-        return builtInManifests.value.some(m => m.slug === slug)
-      },
+      navigateTo: moduleNav.navigateTo,
+      updateParams: moduleNav.updateParams,
+      goBack: moduleNav.goBack,
+      isModuleAvailable: moduleNav.isModuleAvailable,
       params: readonly(routeParams),
       moduleSlug: readonly(activeModuleSlugRef)
     })
@@ -754,7 +701,7 @@ export default {
           return
         }
 
-        const viewId = parts[1] || this.getDefaultViewId(manifest)
+        const viewId = parts[1] || getDefaultViewId(manifest)
         this.activeViewId = viewId
         await this.loadModuleView(manifest.slug, viewId)
 
@@ -780,11 +727,6 @@ export default {
 
       // Default: landing page
       this.setShellView('home')
-    },
-
-    getDefaultViewId(manifest) {
-      const defaultNav = manifest.client?.navItems?.find(n => n.default)
-      return defaultNav?.id || manifest.client?.navItems?.[0]?.id || 'dashboard'
     },
 
     async loadModuleView(slug, viewId) {
@@ -865,7 +807,7 @@ export default {
       const [slug, viewId] = target.includes('::') ? target.split('::') : [target, null]
       const manifest = this.builtInManifests.find(m => m.slug === slug)
       if (manifest) {
-        const resolvedViewId = viewId || this.getDefaultViewId(manifest)
+        const resolvedViewId = viewId || getDefaultViewId(manifest)
         this.activeModuleSlugRef = manifest.slug
         this.activeModule = manifest.slug
         this.activeViewId = resolvedViewId

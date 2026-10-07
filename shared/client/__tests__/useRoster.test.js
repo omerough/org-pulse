@@ -72,3 +72,83 @@ describe('useRoster project migration', () => {
     expect(roster.rosterData.value).toBeNull()
   })
 })
+
+describe('useRoster shared Team/Person shape across both response contracts', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    mocks.getRoster.mockReset()
+  })
+
+  it('builds the same team/member shape from the normalized project read model', async () => {
+    mocks.getRoster.mockResolvedValueOnce({
+      projectId: 'flightctl',
+      availability: 'available',
+      teams: [
+        { key: 'flightctl::team-1', id: 'team-1', displayName: 'RHEM-DEV', description: 'desc', memberAccountIds: ['acct-1', 'acct-2'] }
+      ],
+      people: [
+        { accountId: 'acct-1', displayName: 'Alice', active: true, teamIds: ['team-1'] },
+        { accountId: 'acct-2', displayName: 'Bob', active: false, teamIds: ['team-1'] }
+      ]
+    })
+    const roster = await createRoster('flightctl')
+    await roster.loadRoster()
+
+    expect(roster.isNormalizedModel.value).toBe(true)
+    expect(roster.teams.value).toEqual([
+      {
+        key: 'flightctl::team-1',
+        displayKey: null,
+        displayName: 'RHEM-DEV',
+        members: [{ accountId: 'acct-1', name: 'Alice', jiraDisplayName: 'Alice', email: null, title: null, geo: null, customFields: {} }],
+        teamId: 'team-1',
+        metadata: {},
+        description: 'desc'
+      }
+    ])
+    expect(roster.people.value).toHaveLength(2)
+    expect(roster.getPersonByAccountId('acct-2')?.displayName).toBe('Bob')
+    expect(roster.getPersonByAccountId('nonexistent')).toBeNull()
+  })
+
+  it('carries forward already-published optional person fields on team members', async () => {
+    mocks.getRoster.mockResolvedValueOnce({
+      projectId: 'flightctl',
+      availability: 'available',
+      teams: [
+        { key: 'flightctl::team-1', id: 'team-1', displayName: 'RHEM-DEV', description: null, memberAccountIds: ['acct-1'] }
+      ],
+      people: [
+        { accountId: 'acct-1', displayName: 'Alice', active: true, email: 'alice@example.com', title: 'Engineer', geo: 'NA', teamIds: ['team-1'] }
+      ]
+    })
+    const roster = await createRoster('flightctl')
+    await roster.loadRoster()
+
+    expect(roster.teams.value[0].members[0]).toMatchObject({
+      email: 'alice@example.com',
+      title: 'Engineer',
+      geo: 'NA'
+    })
+  })
+
+  it('keeps the legacy orgs-based shape for OSAC, with no normalized-model flag', async () => {
+    mocks.getRoster.mockResolvedValueOnce({
+      orgs: [{
+        key: 'osac',
+        displayName: 'OSAC',
+        teams: {
+          'RHEM-DEV': { displayName: 'RHEM-DEV', members: [{ accountId: 'acct-1', name: 'Carol', jiraDisplayName: 'Carol' }], metadata: {} }
+        }
+      }]
+    })
+    const roster = await createRoster('osac')
+    await roster.loadRoster()
+
+    expect(roster.isNormalizedModel.value).toBe(false)
+    expect(roster.teams.value).toEqual([
+      { key: 'osac::RHEM-DEV', displayKey: 'OSAC::RHEM-DEV', displayName: 'RHEM-DEV', members: [{ accountId: 'acct-1', name: 'Carol', jiraDisplayName: 'Carol' }], teamId: null, metadata: {}, description: null }
+    ])
+    expect(roster.people.value).toEqual([])
+  })
+})

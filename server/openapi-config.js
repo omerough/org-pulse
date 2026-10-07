@@ -173,6 +173,52 @@ function createOpenApiSpec() {
               }
             }
           },
+          ProjectPeopleTeamsResponse: {
+            type: 'object',
+            description: 'Normalized project-qualified People & Teams read model; identity is (projectId, accountId) and (projectId, teamId).',
+            properties: {
+              projectId: { type: 'string' },
+              availability: { type: 'string', enum: ['available', 'empty', 'unavailable'] },
+              reason: { type: 'string', nullable: true },
+              publicationState: { type: 'string', nullable: true },
+              generatedAt: { type: 'string', nullable: true, format: 'date-time' },
+              teams: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    key: { type: 'string' },
+                    projectId: { type: 'string' },
+                    id: { type: 'string' },
+                    displayName: { type: 'string' },
+                    description: { type: 'string', nullable: true },
+                    state: { type: 'string', nullable: true },
+                    teamType: { type: 'string', nullable: true },
+                    memberAccountIds: { type: 'array', items: { type: 'string' } }
+                  }
+                }
+              },
+              people: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    key: { type: 'string' },
+                    projectId: { type: 'string' },
+                    accountId: { type: 'string' },
+                    displayName: { type: 'string' },
+                    active: { type: 'boolean' },
+                    email: { type: 'string', nullable: true },
+                    teamIds: { type: 'array', items: { type: 'string' } },
+                    title: { type: 'string', nullable: true },
+                    manager: { type: 'object', nullable: true },
+                    geo: { type: 'string', nullable: true },
+                    identities: { type: 'object' }
+                  }
+                }
+              }
+            }
+          },
           GitHubContributions: {
             type: 'object',
             properties: {

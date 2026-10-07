@@ -2,6 +2,19 @@ import { ref, computed, watch } from 'vue'
 import { getRoster } from '../services/api'
 import { useProjectId } from './useProjectId.js'
 
+// Carries forward normalized person fields as-is; never fabricates ones the source hasn't published.
+function _toNormalizedMember(person) {
+  return {
+    accountId: person.accountId,
+    name: person.displayName,
+    jiraDisplayName: person.displayName,
+    email: person.email ?? null,
+    title: person.title ?? null,
+    geo: person.geo ?? null,
+    customFields: {}
+  }
+}
+
 const rosterData = ref(null)
 const loading = ref(false)
 const error = ref(null)
@@ -74,10 +87,24 @@ function reloadRoster() {
 }
 
 export function useRoster() {
+  // The project-qualified read model has flat teams[]/people[] instead of
+  // the legacy orgs{} shape; org selection and custom fields don't apply to it.
+  const isNormalizedModel = computed(() => Array.isArray(rosterData.value?.teams))
+
   const orgs = computed(() => {
+    if (isNormalizedModel.value) return []
     if (!rosterData.value?.orgs) return []
     return rosterData.value.orgs
   })
+
+  const people = computed(() => {
+    if (isNormalizedModel.value) return rosterData.value.people || []
+    return Array.isArray(rosterData.value?.people) ? rosterData.value.people : []
+  })
+
+  function getPersonByAccountId(accountId) {
+    return people.value.find(p => p.accountId === accountId) || null
+  }
 
   const visibleFields = computed(() => {
     return rosterData.value?.visibleFields || []
@@ -97,6 +124,22 @@ export function useRoster() {
   })
 
   const teams = computed(() => {
+    if (isNormalizedModel.value) {
+      const peopleByAccountId = new Map(people.value.map(p => [p.accountId, p]))
+      return (rosterData.value.teams || []).map(team => ({
+        key: team.key,
+        displayKey: null,
+        displayName: team.displayName,
+        members: team.memberAccountIds
+          .map(accountId => peopleByAccountId.get(accountId))
+          .filter(person => person?.active)
+          .map(_toNormalizedMember),
+        teamId: team.id,
+        metadata: {},
+        description: team.description
+      }))
+    }
+
     function buildTeam(org, teamName, team) {
       return {
         key: `${org.key}::${teamName}`,
@@ -125,24 +168,30 @@ export function useRoster() {
     return Object.entries(org.teams).map(([teamName, team]) => buildTeam(org, teamName, team))
   })
 
+  // accountId is the stable identity when published; displayName can collide
+  // across people and must not be used for matching once accountId exists.
+  function memberIdentity(member) {
+    return member.accountId || member.jiraDisplayName
+  }
+
   const multiTeamMembers = computed(() => {
-    const nameCounts = {}
+    const idCounts = {}
     for (const team of teams.value) {
       for (const member of team.members) {
-        const name = member.jiraDisplayName
-        nameCounts[name] = (nameCounts[name] || 0) + 1
+        const id = memberIdentity(member)
+        idCounts[id] = (idCounts[id] || 0) + 1
       }
     }
     return new Set(
-      Object.entries(nameCounts)
+      Object.entries(idCounts)
         .filter(([, count]) => count > 1)
-        .map(([name]) => name)
+        .map(([id]) => id)
     )
   })
 
-  function getTeamsForPerson(jiraDisplayName) {
+  function getTeamsForPerson(identity) {
     return teams.value.filter(t =>
-      t.members.some(m => m.jiraDisplayName === jiraDisplayName)
+      t.members.some(m => memberIdentity(m) === identity)
     )
   }
 
@@ -162,7 +211,10 @@ export function useRoster() {
 
   return {
     rosterData,
+    isNormalizedModel,
     orgs,
+    people,
+    getPersonByAccountId,
     selectedOrg,
     selectedOrgKey,
     selectOrg,

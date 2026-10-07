@@ -1,9 +1,10 @@
 /**
  * Project-qualified roster reads for People and Teams.
  *
- * Reads one published project roster through the data-backed profile reader.
- * Team members are derived from person.teamIds; an unknown project never
- * falls back to the legacy OSAC roster file.
+ * Canonical person identity is (projectId, accountId); an unknown project
+ * never falls back to the legacy OSAC roster. Optional fields not yet
+ * published (title, manager, geo, identities) are always null, never
+ * fabricated.
  */
 
 const ARTIFACT_KEY = 'sources/roster/registry.json'
@@ -12,36 +13,30 @@ function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-function readProjectRoster(projects, projectId, { readLegacyOsacRoster } = {}) {
+function _loadProjectRosterData(projects, projectId) {
+  if (typeof projectId !== 'string' || !projectId.trim()) {
+    return { kind: 'error', status: 400, error: 'Invalid project id' };
+  }
   if (!projects || typeof projects.get !== 'function' || typeof projects.readArtifact !== 'function') {
-    return { status: 503, error: 'Project publication reader is unavailable' };
+    return { kind: 'error', status: 503, error: 'Project publication reader is unavailable' };
   }
 
   let profile;
   try {
     profile = projects.get(projectId);
   } catch (error) {
-    return { status: 500, error: error.message };
+    return { kind: 'error', status: 500, error: error.message };
   }
-  if (!profile) return { status: 404, error: 'Unknown project' };
+  if (!profile) return { kind: 'error', status: 404, error: 'Unknown project' };
 
   let artifact;
   try {
     artifact = projects.readArtifact(projectId, ARTIFACT_KEY);
   } catch (error) {
-    return { status: 502, error: error.message };
+    return { kind: 'error', status: 502, error: error.message };
   }
   if (!artifact || !isRecord(artifact.value)) {
-    // OSAC's roster still lives in the legacy root publication during migration.
-    // The caller supplies this reader only after project selection resolved to
-    // a registered OSAC profile; never use it for another or unknown project.
-    if (projectId === 'osac' && typeof readLegacyOsacRoster === 'function') {
-      const roster = readLegacyOsacRoster();
-      if (isRecord(roster)) {
-        return { status: 200, roster: { ...roster, projectId: 'osac' } };
-      }
-    }
-    return { status: 404, error: 'Project roster publication is unavailable' };
+    return { kind: 'missing-artifact' };
   }
 
   const envelope = artifact.value;
@@ -51,154 +46,153 @@ function readProjectRoster(projects, projectId, { readLegacyOsacRoster } = {}) {
       || envelope.artifactKey !== ARTIFACT_KEY
       || !isRecord(envelope.data)
       || envelope.data.projectId !== projectId) {
-    return { status: 502, error: 'Project roster publication identity mismatch' };
+    return { kind: 'error', status: 502, error: 'Project roster publication identity mismatch' };
   }
   if (envelope.freshness !== 'fresh') {
-    return {
-      status: 200,
-      roster: _unavailableRoster(projectId, 'publication-not-fresh', envelope.state, generatedAt),
-    };
+    return { kind: 'unavailable', reason: 'publication-not-fresh', publicationState: envelope.state, generatedAt };
   }
   if (envelope.partial === true) {
-    return {
-      status: 200,
-      roster: _unavailableRoster(projectId, 'publication-partial', envelope.state, generatedAt),
-    };
+    return { kind: 'unavailable', reason: 'publication-partial', publicationState: envelope.state, generatedAt };
   }
   if (!['supported', 'empty'].includes(envelope.state)) {
-    return {
-      status: 200,
-      roster: _unavailableRoster(projectId, 'publication-not-supported', envelope.state, generatedAt),
-    };
+    return { kind: 'unavailable', reason: 'publication-not-supported', publicationState: envelope.state, generatedAt };
   }
 
   const { people, teams } = envelope.data;
   if (!Array.isArray(people) || !Array.isArray(teams)) {
-    return { status: 502, error: 'Invalid project roster publication' };
+    return { kind: 'error', status: 502, error: 'Invalid project roster publication' };
   }
 
-  const peopleByAccountId = new Map();
+  const seenAccountIds = new Set();
   for (const person of people) {
     if (!isRecord(person)
         || typeof person.accountId !== 'string' || !person.accountId
         || typeof person.displayName !== 'string' || !person.displayName.trim()
         || typeof person.active !== 'boolean'
         || !Array.isArray(person.teamIds)
-        || person.teamIds.some(id => typeof id !== 'string' || !id)) {
-      return { status: 502, error: 'Invalid project roster publication' };
+        || person.teamIds.some(id => typeof id !== 'string' || !id)
+        || new Set(person.teamIds).size !== person.teamIds.length) {
+      return { kind: 'error', status: 502, error: 'Invalid project roster publication' };
     }
-    if (peopleByAccountId.has(person.accountId)) {
-      return { status: 502, error: 'Invalid project roster publication' };
+    if (seenAccountIds.has(person.accountId)) {
+      return { kind: 'error', status: 502, error: 'Invalid project roster publication' };
     }
-    peopleByAccountId.set(person.accountId, person);
+    seenAccountIds.add(person.accountId);
   }
 
   const seenTeamIds = new Set();
-  const teamMap = Object.create(null);
+  const seenTeamNames = new Set();
   for (const team of teams) {
     if (!isRecord(team)
         || typeof team.id !== 'string' || !team.id
         || typeof team.name !== 'string' || !team.name.trim()) {
-      return { status: 502, error: 'Invalid project roster publication' };
+      return { kind: 'error', status: 502, error: 'Invalid project roster publication' };
     }
-    if (seenTeamIds.has(team.id) || Object.hasOwn(teamMap, team.name)) {
-      return { status: 502, error: 'Invalid project roster publication' };
+    if (seenTeamIds.has(team.id) || seenTeamNames.has(team.name)) {
+      return { kind: 'error', status: 502, error: 'Invalid project roster publication' };
     }
     seenTeamIds.add(team.id);
-    teamMap[team.name] = {
-      displayName: team.name,
-      members: [],
-      metadata: {}
+    seenTeamNames.add(team.name);
+  }
+
+  for (const person of people) {
+    if (person.teamIds.some(teamId => !seenTeamIds.has(teamId))) {
+      return { kind: 'error', status: 502, error: 'Invalid project roster publication' };
+    }
+  }
+
+  return { kind: 'ok', envelope, generatedAt, people, teams };
+}
+
+// `key` follows this repo's orgKey::teamName composite-key convention.
+function readProjectPeopleTeams(projects, projectId) {
+  const loaded = _loadProjectRosterData(projects, projectId);
+  if (loaded.kind === 'error') return { status: loaded.status, error: loaded.error };
+
+  if (loaded.kind === 'missing-artifact') {
+    return { status: 404, error: 'Project roster publication is unavailable' };
+  }
+
+  if (loaded.kind === 'unavailable') {
+    return {
+      status: 200,
+      model: _unavailableReadModel(projectId, loaded.reason, loaded.publicationState, loaded.generatedAt),
     };
   }
 
-  const teamById = new Map(teams.map(team => [team.id, team]));
+  return { status: 200, model: _buildReadModel(projectId, loaded) };
+}
 
-  const membershipsByTeamId = new Map();
-  for (const person of people) {
-    if (new Set(person.teamIds).size !== person.teamIds.length) {
-      return { status: 502, error: 'Invalid project roster publication' };
-    }
-    for (const teamId of person.teamIds) {
-      if (!seenTeamIds.has(teamId)) {
-        return { status: 502, error: 'Invalid project roster publication' };
-      }
-      const members = membershipsByTeamId.get(teamId) || new Map();
-      if (members.has(person.accountId)) {
-        return { status: 502, error: 'Invalid project roster publication' };
-      }
-      members.set(person.accountId, person);
-      membershipsByTeamId.set(teamId, members);
-    }
-  }
-
-  for (const [teamId, members] of membershipsByTeamId) {
-    const team = teams.find(candidate => candidate.id === teamId);
-    for (const person of members.values()) {
-      if (!person.active) continue;
-      teamMap[team.name].members.push({
-        accountId: person.accountId,
-        name: person.displayName.trim(),
-        jiraDisplayName: person.displayName.trim(),
-        customFields: {}
-      });
-    }
-  }
-
-  const projectPeople = people.map(person => ({
-    accountId: person.accountId,
-    name: person.displayName.trim(),
-    status: person.active ? 'active' : 'inactive',
-    orgRoot: projectId,
-    orgDisplayName: profile.displayName || projectId,
-    teamIds: [...person.teamIds],
-    teams: person.teamIds.map(teamId => teamById.get(teamId).name)
-  }));
-
-  const available = Object.values(teamMap).some(team => team.members.length > 0);
+function _normalizeTeam(projectId, team, memberAccountIds) {
   return {
-    status: 200,
-    roster: {
-      projectId,
-      state: 'supported',
-      availability: available ? 'available' : 'empty',
-      reason: available ? null : 'no-active-team-memberships',
-      sourceArtifact: `projects/${projectId}/${ARTIFACT_KEY}`,
-      publication: { state: envelope.state, generatedAt, partial: false },
-      people: projectPeople,
-      vp: null,
-      orgs: [{
-        key: projectId,
-        displayName: profile.displayName || projectId,
-        leader: null,
-        teams: teamMap
-      }],
-      visibleFields: [],
-      primaryDisplayField: null,
-      mergedKeyMap: {},
-      teamDataSource: 'project-publication',
-      managerNames: {}
-    }
+    key: `${projectId}::${team.id}`,
+    projectId,
+    id: team.id,
+    displayName: team.name,
+    description: typeof team.description === 'string' ? team.description : null,
+    state: typeof team.state === 'string' ? team.state : null,
+    teamType: typeof team.teamType === 'string' ? team.teamType : null,
+    memberAccountIds: [...memberAccountIds].sort()
   };
 }
 
-function _unavailableRoster(projectId, reason, publicationState, generatedAt) {
+function _normalizePerson(projectId, person) {
+  return {
+    key: `${projectId}::${person.accountId}`,
+    projectId,
+    accountId: person.accountId,
+    displayName: person.displayName.trim(),
+    active: person.active,
+    email: typeof person.email === 'string' && person.email.trim() ? person.email : null,
+    teamIds: [...person.teamIds],
+    title: null,
+    manager: null,
+    geo: null,
+    identities: {}
+  };
+}
+
+function _buildReadModel(projectId, loaded) {
+  const { envelope, generatedAt, people, teams } = loaded;
+
+  const memberAccountIdsByTeamId = new Map();
+  for (const person of people) {
+    if (!person.active) continue;
+    for (const teamId of person.teamIds) {
+      const members = memberAccountIdsByTeamId.get(teamId) || [];
+      members.push(person.accountId);
+      memberAccountIdsByTeamId.set(teamId, members);
+    }
+  }
+
+  const normalizedTeams = teams.map(team =>
+    _normalizeTeam(projectId, team, memberAccountIdsByTeamId.get(team.id) || [])
+  );
+  const normalizedPeople = people.map(person => _normalizePerson(projectId, person));
+
+  const hasActiveTeamMembership = normalizedTeams.some(team => team.memberAccountIds.length > 0);
+
   return {
     projectId,
-    state: 'unavailable',
-    availability: 'unavailable',
-    reason,
-    sourceArtifact: `projects/${projectId}/${ARTIFACT_KEY}`,
-    publication: { state: publicationState, generatedAt, partial: reason === 'publication-partial' },
-    people: [],
-    vp: null,
-    orgs: [],
-    visibleFields: [],
-    primaryDisplayField: null,
-    mergedKeyMap: {},
-    teamDataSource: 'project-publication',
-    managerNames: {}
+    availability: hasActiveTeamMembership ? 'available' : 'empty',
+    reason: hasActiveTeamMembership ? null : 'no-active-team-memberships',
+    publicationState: envelope.state,
+    generatedAt,
+    teams: normalizedTeams,
+    people: normalizedPeople
   };
 }
 
-module.exports = { ARTIFACT_KEY, readProjectRoster };
+function _unavailableReadModel(projectId, reason, publicationState, generatedAt) {
+  return {
+    projectId,
+    availability: 'unavailable',
+    reason,
+    publicationState,
+    generatedAt,
+    teams: [],
+    people: []
+  };
+}
+
+module.exports = { ARTIFACT_KEY, readProjectPeopleTeams };

@@ -75,6 +75,60 @@ profile contains `schemaVersion`, `profileRevision`, `projectId`, Jira identity,
 source-qualified repositories/sources, team IDs, capability metadata, and
 provenance. Credentials and access grants are not profile fields.
 
+## Project-qualified People & Teams roster (`GET /api/modules/team-tracker/roster`)
+
+For any `projectId` other than `osac`, this endpoint returns the normalized
+`ProjectPeopleTeamsResponse` read model instead of the legacy `RosterResponse`
+shape (`orgs`/`vp`/`managerNames`, derived from [People Registry](#people-registry--datateam-dataregistryjson)
+data); an unset `projectId`, or `projectId=osac`, keeps returning the legacy
+response. The two shapes are never merged — callers branch on
+`Array.isArray(response.teams)` (see `isNormalizedModel` in
+`shared/client/composables/useRoster.js`).
+
+```json
+{
+  "projectId": "flightctl",
+  "availability": "available",
+  "reason": null,
+  "publicationState": "supported",
+  "generatedAt": "2026-09-22T11:00:00.000Z",
+  "teams": [
+    {
+      "key": "flightctl::team-1",
+      "projectId": "flightctl",
+      "id": "team-1",
+      "displayName": "Core",
+      "description": null,
+      "state": null,
+      "teamType": null,
+      "memberAccountIds": ["acct-1"]
+    }
+  ],
+  "people": [
+    {
+      "key": "flightctl::acct-1",
+      "projectId": "flightctl",
+      "accountId": "acct-1",
+      "displayName": "Ada Lovelace",
+      "active": true,
+      "email": null,
+      "teamIds": ["team-1"],
+      "title": null,
+      "manager": null,
+      "geo": null,
+      "identities": {}
+    }
+  ]
+}
+```
+
+**Invariants:**
+- Person identity is `(projectId, accountId)`; team identity is `(projectId, teamId)`. Display name is never an identity key — it can collide across people and must not be used for matching or navigation once `accountId` is present.
+- `availability` is `available`, `empty` (publication read but no active team membership), or `unavailable` (see `reason` and `publicationState`); `empty`/`unavailable` return `teams: []`/`people: []`, never partial data.
+- `title`, `manager`, `geo`, `email`, and `identities` are `null`/`{}` when not yet published by the project's roster source — never fabricated or inferred.
+- The project's roster publication (`sources/roster/registry.json`, see [Project-qualified publication envelope](#project-qualified-publication-envelope)) is the sole source; there is no fallback to the legacy OSAC roster for a known non-OSAC project.
+- The legacy OSAC roster (`orgs`-based `RosterResponse`) remains a separate, parallel path used only for `osac`/unset `projectId` during the People & Teams migration; it is not normalized to this shape.
+
 ## Shared Releases → Execute contract
 
 The Releases Execute page keeps one OSAC-baseline layout for every project:

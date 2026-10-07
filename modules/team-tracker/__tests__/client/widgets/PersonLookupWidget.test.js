@@ -3,36 +3,31 @@ import { mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import PersonLookupWidget from '../../../client/widgets/PersonLookupWidget.vue'
 
-const mockRosterData = ref({
-  orgs: [
-    {
-      key: 'org1',
-      teams: {
-        'Team Alpha': {
-          displayName: 'Team Alpha',
-          members: [
-            { uid: 'jdoe', name: 'Jane Doe', title: 'Senior Engineer' },
-            { uid: 'jsmith', name: 'John Smith', title: 'Manager' }
-          ]
-        },
-        'Team Beta': {
-          displayName: 'Team Beta',
-          members: [
-            { uid: 'abrown', name: 'Alice Brown', title: 'Staff Engineer' },
-            { uid: 'jdoe', name: 'Jane Doe', title: 'Senior Engineer' } // duplicate
-          ]
-        }
-      }
-    }
-  ]
-})
+const mockTeams = ref([
+  {
+    key: 'org1::Team Alpha',
+    displayName: 'Team Alpha',
+    members: [
+      { uid: 'jdoe', name: 'Jane Doe', title: 'Senior Engineer' },
+      { uid: 'jsmith', name: 'John Smith', title: 'Manager' }
+    ]
+  },
+  {
+    key: 'org1::Team Beta',
+    displayName: 'Team Beta',
+    members: [
+      { uid: 'abrown', name: 'Alice Brown', title: 'Staff Engineer' },
+      { uid: 'jdoe', name: 'Jane Doe', title: 'Senior Engineer' } // duplicate
+    ]
+  }
+])
 
 const mockLoadRoster = vi.fn()
 const mockCrossNavigate = vi.fn()
 
 vi.mock('@shared/client/composables/useRoster.js', () => ({
   useRoster: () => ({
-    rosterData: mockRosterData,
+    teams: mockTeams,
     loading: ref(false),
     loadRoster: mockLoadRoster
   })

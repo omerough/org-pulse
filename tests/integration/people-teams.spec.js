@@ -263,3 +263,96 @@ test.describe('People & Teams People Directory @people-teams', () => {
     expect(page.errors).toHaveLength(0);
   });
 });
+
+/**
+ * Project-qualified People & Teams (OSAC-5968)
+ *
+ * Verifies the Flight Control project roster renders through the normalized
+ * read model, and that OSAC legacy behavior is unaffected.
+ */
+test.describe('People & Teams Project-Qualified Roster @people-teams', () => {
+  const FLIGHTCTL = 'flightctl';
+
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  test('Flight Control People Directory renders project-qualified people and navigates by accountId', async ({ page }) => {
+    await page.goto(`/#/team-tracker/people?projectId=${FLIGHTCTL}`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    expect(await mainContentIsVisible(page)).toBe(true);
+    const bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
+    expect(bodyText).toContain('Nadia Osei');
+
+    await page.locator('tbody tr', { hasText: 'Nadia Osei' }).first().click();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    expect(page.url()).toContain('accountId=fc-acc-1');
+    expect(page.url()).not.toContain('uid=');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Flight Control Team Directory navigates to Team Detail', async ({ page }) => {
+    await page.goto(`/#/team-tracker/home?projectId=${FLIGHTCTL}`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const teamCard = page.locator('.cursor-pointer', { hasText: 'Flight Control Core' }).first();
+    await expect(teamCard).toBeVisible();
+    await teamCard.click();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    expect(page.url()).toMatch(/team-detail/);
+    expect(page.url()).toContain(`teamKey=${FLIGHTCTL}`);
+
+    const bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
+    expect(bodyText).toContain('Flight Control Core');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('project-qualified Person Detail resolves without the legacy OSAC registry/name fallback', async ({ page }) => {
+    const registryRequests = [];
+    page.on('request', request => {
+      if (request.url().includes('/registry/people/')) registryRequests.push(request.url());
+    });
+
+    await page.goto(`/#/team-tracker/person-detail?projectId=${FLIGHTCTL}&accountId=fc-acc-1`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    expect(await mainContentIsVisible(page)).toBe(true);
+    const bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
+    expect(bodyText).toContain('Nadia Osei');
+    expect(bodyText).not.toContain('Person not found');
+    expect(registryRequests).toHaveLength(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('OSAC legacy People Directory still resolves people by uid', async ({ page }) => {
+    await page.goto('/#/team-tracker/people');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
+    expect(bodyText.includes('Alice Chen') || bodyText.includes('Bob Smith')).toBe(true);
+
+    await page.locator('tbody tr').first().click();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    expect(page.url()).toMatch(/person-detail/);
+    expect(page.url()).toContain('uid=');
+    expect(page.url()).not.toContain('accountId=');
+  });
+});

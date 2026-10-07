@@ -12,7 +12,9 @@ const projectId = useProjectId()
 const {
   rosterData: projectRosterData,
   error: projectRosterError,
-  loadRoster
+  loadRoster,
+  people: rosterPeople,
+  teams: rosterTeams
 } = useRoster()
 
 const people = ref([])
@@ -38,7 +40,7 @@ const projectRosterStatus = computed(() => {
 })
 const projectRosterUpdatedAt = computed(() => {
   if (projectRosterData.value?.projectId !== projectId.value) return null
-  return projectRosterData.value?.publication?.generatedAt || null
+  return projectRosterData.value?.generatedAt || null
 })
 const ORG_TYPE_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -101,23 +103,26 @@ async function loadData() {
         projectRosterMessage.value = projectRosterError.value || 'Roster response project identity mismatch.'
         return
       }
-      if (roster.availability === 'unavailable' || roster.state === 'unavailable') {
+      if (roster.availability === 'unavailable') {
         projectRosterMessage.value = roster.reason || 'No current roster publication is available for this project.'
         return
       }
-      if (!['available', 'empty'].includes(roster.availability) || !Array.isArray(roster.people)) {
+      if (!['available', 'empty'].includes(roster.availability)) {
         projectRosterMessage.value = 'The project roster does not provide a people directory.'
         return
       }
 
-      people.value = roster.people.map(person => ({
-        rowKey: `${requestedProjectId}:${person.accountId}`,
+      const teamNameById = new Map(rosterTeams.value.map(t => [t.teamId, t.displayName]))
+      people.value = rosterPeople.value.map(person => ({
+        rowKey: person.key,
         accountId: person.accountId,
-        name: person.name,
-        status: person.status,
-        orgRoot: person.orgRoot,
-        orgDisplayName: person.orgDisplayName,
-        teams: Array.isArray(person.teams) ? person.teams : [],
+        name: person.displayName,
+        status: person.active ? 'active' : 'inactive',
+        email: person.email,
+        title: person.title,
+        geo: person.geo,
+        orgDisplayName: requestedProjectId,
+        teams: person.teamIds.map(id => teamNameById.get(id)).filter(Boolean),
         _appFields: {}
       }))
       return
@@ -266,20 +271,24 @@ function sortIcon(field) {
   return sortAsc.value ? ' \u25B2' : ' \u25BC'
 }
 
-function openPerson(uid) {
-  nav.navigateTo('person-detail', { uid })
+function openPerson(p) {
+  if (isProjectRoster.value) {
+    nav.navigateTo('person-detail', { accountId: p.accountId })
+  } else {
+    nav.navigateTo('person-detail', { uid: p.uid })
+  }
 }
 
 
 function exportCsv() {
   const fieldLabels = personFieldDefs.value.map(fd => fd.label)
   const rows = isProjectRoster.value
-    ? [['Project', 'Name', 'Team(s)']]
+    ? [['Project', 'Name', 'Title', 'Geo', 'Team(s)']]
     : [['Org', 'Name', 'UID', 'Email', 'Title', 'Geo', 'Location', 'Team(s)', 'GitHub', 'GitLab', 'Type', ...fieldLabels]]
   for (const p of filtered.value) {
     const fieldValues = personFieldDefs.value.map(fd => personFieldValue(p, fd.id))
     if (isProjectRoster.value) {
-      rows.push([p.orgDisplayName || '', p.name, personTeamDisplay(p)])
+      rows.push([p.orgDisplayName || '', p.name, p.title || '', p.geo || '', personTeamDisplay(p)])
     } else {
       rows.push([
         p.orgDisplayName || '', p.name, p.uid, p.email, p.title, p.geo || '',
@@ -440,8 +449,8 @@ watch(projectId, () => {
               <tr>
                 <th @click="toggleSort('orgDisplayName')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200">{{ isProjectRoster ? 'Project' : 'Org' }}{{ sortIcon('orgDisplayName') }}</th>
                 <th @click="toggleSort('name')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200">Name{{ sortIcon('name') }}</th>
-                <th v-if="!isProjectRoster" @click="toggleSort('title')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden md:table-cell">Title{{ sortIcon('title') }}</th>
-                <th v-if="!isProjectRoster" @click="toggleSort('geo')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden lg:table-cell">Geo{{ sortIcon('geo') }}</th>
+                <th @click="toggleSort('title')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden md:table-cell">Title{{ sortIcon('title') }}</th>
+                <th @click="toggleSort('geo')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden lg:table-cell">Geo{{ sortIcon('geo') }}</th>
                 <th v-if="!isProjectRoster" @click="toggleSort('location')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden lg:table-cell">Location{{ sortIcon('location') }}</th>
                 <th @click="toggleSort('teams')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200" :class="isProjectRoster ? '' : 'hidden md:table-cell'">Team(s){{ sortIcon('teams') }}</th>
                 <th
@@ -456,16 +465,15 @@ watch(projectId, () => {
               <tr
                 v-for="p in filtered"
                 :key="personKey(p)"
-                class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                :class="isProjectRoster ? '' : 'cursor-pointer'"
-                @click="!isProjectRoster && openPerson(p.uid)"
+                class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
+                @click="openPerson(p)"
               >
                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ p.orgDisplayName }}</td>
                 <td class="px-4 py-3">
-                  <span class="text-sm font-medium" :class="isProjectRoster ? 'text-gray-900 dark:text-gray-100' : 'text-primary-600 dark:text-primary-400 hover:underline'">{{ p.name }}</span>
+                  <span class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">{{ p.name }}</span>
                 </td>
-                <td v-if="!isProjectRoster" class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">{{ p.title }}</td>
-                <td v-if="!isProjectRoster" class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden lg:table-cell">{{ p.geo }}</td>
+                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">{{ p.title || '—' }}</td>
+                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden lg:table-cell">{{ p.geo || '—' }}</td>
                 <td v-if="!isProjectRoster" class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden lg:table-cell">{{ p.location }}</td>
                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400" :class="isProjectRoster ? '' : 'hidden md:table-cell'">{{ personTeamDisplay(p) || '\u2014' }}</td>
                 <td

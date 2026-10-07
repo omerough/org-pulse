@@ -1,0 +1,187 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
+import { ref } from 'vue'
+import PeopleDirectoryView from '../../client/views/PeopleDirectoryView.vue'
+
+const projectId = ref('')
+
+vi.mock('@shared/client/composables/useProjectId.js', () => ({
+  useProjectId: () => projectId
+}))
+
+const mockLoadRoster = vi.fn()
+const rosterData = ref(null)
+const rosterError = ref(null)
+const rosterPeople = ref([])
+const rosterTeams = ref([])
+
+vi.mock('@shared/client/composables/useRoster.js', () => ({
+  useRoster: () => ({
+    rosterData,
+    error: rosterError,
+    loadRoster: mockLoadRoster,
+    people: rosterPeople,
+    teams: rosterTeams
+  })
+}))
+
+vi.mock('@shared/client/composables/useFieldDefinitions', () => ({
+  useFieldDefinitions: () => ({
+    definitions: ref({ personFields: [] }),
+    fetchDefinitions: vi.fn().mockResolvedValue({})
+  })
+}))
+
+vi.mock('@shared/client/services/api.js', () => ({
+  apiRequest: vi.fn()
+}))
+
+import { apiRequest } from '@shared/client/services/api.js'
+
+const navigateTo = vi.fn()
+
+function mountView() {
+  return mount(PeopleDirectoryView, {
+    global: {
+      provide: {
+        moduleNav: {
+          params: ref({}),
+          navigateTo,
+          goBack: vi.fn(),
+          updateParams: vi.fn()
+        }
+      }
+    }
+  })
+}
+
+describe('PeopleDirectoryView', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    projectId.value = ''
+    rosterData.value = null
+    rosterError.value = null
+    rosterPeople.value = []
+    rosterTeams.value = []
+  })
+
+  it('renders a project-qualified (Flight Control) person by displayName and navigates by accountId', async () => {
+    projectId.value = 'flightctl'
+    rosterData.value = {
+      projectId: 'flightctl',
+      availability: 'available',
+      reason: null,
+      teams: [],
+      people: []
+    }
+    mockLoadRoster.mockResolvedValue(rosterData.value)
+    rosterTeams.value = [
+      { key: 'flightctl::team-1', displayName: 'Core', teamId: 'team-1', members: [], description: null }
+    ]
+    rosterPeople.value = [
+      {
+        key: 'flightctl::acc-1',
+        projectId: 'flightctl',
+        accountId: 'acc-1',
+        displayName: 'Ada Lovelace',
+        active: true,
+        email: null,
+        teamIds: ['team-1'],
+        title: null,
+        manager: null,
+        geo: null,
+        identities: {}
+      }
+    ]
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Ada Lovelace')
+    expect(wrapper.text()).toContain('Core')
+
+    await wrapper.find('tbody tr').trigger('click')
+
+    expect(navigateTo).toHaveBeenCalledWith('person-detail', { accountId: 'acc-1' })
+  })
+
+  it('leaves OSAC legacy behavior unchanged (navigates by uid)', async () => {
+    projectId.value = ''
+    apiRequest.mockImplementation((url) => {
+      if (url.includes('registry/people')) {
+        return Promise.resolve({
+          people: [
+            {
+              uid: 'u1',
+              name: 'Bob Builder',
+              status: 'active',
+              orgRoot: 'org1',
+              orgDisplayName: 'Org One',
+              teams: ['Team A']
+            }
+          ]
+        })
+      }
+      if (url.includes('registry/stats')) {
+        return Promise.resolve({ orgDisplayNames: { org1: 'Org One' } })
+      }
+      if (url.includes('ipa/sync/status')) {
+        return Promise.resolve({})
+      }
+      return Promise.resolve({})
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Bob Builder')
+    expect(mockLoadRoster).not.toHaveBeenCalled()
+
+    await wrapper.find('tbody tr').trigger('click')
+
+    expect(navigateTo).toHaveBeenCalledWith('person-detail', { uid: 'u1' })
+  })
+
+  it('clears stale people when the project changes', async () => {
+    projectId.value = 'flightctl'
+    rosterTeams.value = []
+    rosterPeople.value = [
+      {
+        key: 'flightctl::acc-1',
+        accountId: 'acc-1',
+        displayName: 'Ada Lovelace',
+        active: true,
+        email: null,
+        teamIds: [],
+        title: null,
+        geo: null
+      }
+    ]
+    rosterData.value = { projectId: 'flightctl', availability: 'available', reason: null, teams: [], people: rosterPeople.value }
+    mockLoadRoster.mockResolvedValue(rosterData.value)
+
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Ada Lovelace')
+
+    rosterPeople.value = [
+      {
+        key: 'other-project::acc-2',
+        accountId: 'acc-2',
+        displayName: 'Grace Hopper',
+        active: true,
+        email: null,
+        teamIds: [],
+        title: null,
+        geo: null
+      }
+    ]
+    rosterData.value = { projectId: 'other-project', availability: 'available', reason: null, teams: [], people: rosterPeople.value }
+    mockLoadRoster.mockResolvedValue(rosterData.value)
+    projectId.value = 'other-project'
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Ada Lovelace')
+    expect(wrapper.text()).toContain('Grace Hopper')
+  })
+})

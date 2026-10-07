@@ -26,6 +26,7 @@ const {
 } = useOrgRoster()
 const {
   rosterData,
+  teams,
   loading: projectRosterLoading,
   error: projectRosterError,
   uniqueMemberCount,
@@ -33,7 +34,6 @@ const {
 } = useRoster()
 const { isAdmin } = usePermissions()
 const unassignedExpanded = ref(false)
-const expandedTeamKeys = ref(new Set())
 const isProjectRoster = computed(() => Boolean(projectId.value) && projectId.value !== 'osac')
 const loading = computed(() => isProjectRoster.value ? projectRosterLoading.value : orgLoading.value)
 const isInAppMode = computed(() => !isProjectRoster.value && rosterData.value?.teamDataSource === 'in-app')
@@ -45,19 +45,17 @@ const projectRosterStatus = computed(() => {
   if (availability === 'unavailable') return 'Unavailable'
   return ''
 })
-const projectRosterUpdatedAt = computed(() => rosterData.value?.publication?.generatedAt || null)
+const projectRosterUpdatedAt = computed(() => rosterData.value?.generatedAt || null)
 const projectTeams = computed(() => {
-  if (!isProjectRoster.value || !Array.isArray(rosterData.value?.orgs)) return []
-  return rosterData.value.orgs.flatMap(org =>
-    Object.entries(org.teams || {}).map(([key, team]) => ({
-      key: `${org.key}::${key}`,
-      name: team.displayName || key,
-      org: org.displayName || projectId.value,
-      memberCount: Array.isArray(team.members) ? team.members.length : 0,
-      members: Array.isArray(team.members) ? team.members : [],
-      metadata: team.metadata || {}
-    }))
-  )
+  if (!isProjectRoster.value) return []
+  return teams.value.map(team => ({
+    key: team.key,
+    name: team.displayName,
+    org: projectId.value,
+    memberCount: team.members.length,
+    members: team.members,
+    metadata: team.metadata || {}
+  }))
 })
 
 const { definitions, fetchDefinitions } = useFieldDefinitions()
@@ -110,14 +108,9 @@ const projectRosterUnavailable = computed(() =>
 )
 
 function openTeam(team) {
-  if (isProjectRoster.value) {
-    const expanded = new Set(expandedTeamKeys.value)
-    if (expanded.has(team.key)) expanded.delete(team.key)
-    else expanded.add(team.key)
-    expandedTeamKeys.value = expanded
-    return
-  }
-  nav.navigateTo('team-detail', { teamKey: `${team.org}::${team.name}` })
+  nav.navigateTo('team-detail', {
+    teamKey: isProjectRoster.value ? team.key : `${team.org}::${team.name}`
+  })
 }
 
 function selectOrg(org) {
@@ -143,7 +136,6 @@ onMounted(loadDirectoryData)
 watch(projectId, () => {
   if (isProjectRoster.value) {
     sortBy.value = 'name'
-    expandedTeamKeys.value = new Set()
   }
   loadDirectoryData()
 })
@@ -266,15 +258,6 @@ watch(projectId, () => {
           :team="team"
           @select="openTeam(team)"
         />
-        <div v-if="isProjectRoster && expandedTeamKeys.has(team.key)" class="mt-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-          <h3 class="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Members</h3>
-          <ul v-if="team.members.length" class="space-y-1">
-            <li v-for="(member, index) in team.members" :key="`${member.jiraDisplayName || member.name}-${index}`" class="text-sm text-gray-600 dark:text-gray-300">
-              {{ member.jiraDisplayName || member.name }}
-            </li>
-          </ul>
-          <p v-else class="text-sm text-gray-500 dark:text-gray-400">No active members are published for this team.</p>
-        </div>
       </div>
     </div>
   </div>
