@@ -1792,7 +1792,7 @@ const projectProfiles = createServerProjectProfiles(storageModule);
  *                                 type: string
  *                                 enum: [unknown]
  *       503:
- *         description: The published project index or one of its profiles is missing or invalid
+ *         description: The published project index is missing or invalid, or no published project passed profile validation. A single invalid or inconsistent project profile is otherwise isolated and excluded while other valid projects are still returned.
  *       500:
  *         description: The published project list could not be read
  */

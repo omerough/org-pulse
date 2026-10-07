@@ -134,6 +134,218 @@ describe('project-profile', () => {
     expect(caught.code).toBe(code)
   })
 
+  it('returns two valid projects', () => {
+    const data = {
+      'projects/index.json': { schemaVersion: 1, projects: [OSAC_INDEX_ENTRY, FLIGHTCTL_INDEX_ENTRY] },
+      'projects/osac/profile.json': {
+        schemaVersion: 1,
+        profileRevision: OSAC_INDEX_ENTRY.profileRevision,
+        projectId: 'osac',
+        displayName: 'OSAC',
+        jiraProjectKey: 'OSAC',
+        jiraProjectName: 'Open Source as a Cloud',
+        repositories: [],
+        capabilities: {}
+      },
+      'projects/flightctl/profile.json': { ...FLIGHTCTL, profileRevision: FLIGHTCTL_INDEX_ENTRY.profileRevision }
+    }
+    const reader = createProjectProfileReader({
+      readFromStorage: key => Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null
+    })
+
+    // Order matters: the selector uses list()[0] as the default project context.
+    expect(reader.list().map(profile => profile.projectId)).toEqual(['osac', 'flightctl'])
+  })
+
+  it('isolates a revision-mismatched project and still returns the valid one', () => {
+    const data = {
+      'projects/index.json': {
+        schemaVersion: 1,
+        projects: [OSAC_INDEX_ENTRY, { ...FLIGHTCTL_INDEX_ENTRY, profileRevision: '0000000000000000' }]
+      },
+      'projects/osac/profile.json': {
+        schemaVersion: 1,
+        profileRevision: OSAC_INDEX_ENTRY.profileRevision,
+        projectId: 'osac',
+        displayName: 'OSAC',
+        jiraProjectKey: 'OSAC',
+        jiraProjectName: 'Open Source as a Cloud',
+        repositories: [],
+        capabilities: {}
+      },
+      'projects/flightctl/profile.json': FLIGHTCTL
+    }
+    const reader = createProjectProfileReader({
+      readFromStorage: key => Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null
+    })
+
+    expect(reader.list().map(profile => profile.projectId)).toEqual(['osac'])
+  })
+
+  it('isolates a project with a missing profile and still returns the valid one', () => {
+    const data = {
+      'projects/index.json': { schemaVersion: 1, projects: [OSAC_INDEX_ENTRY, FLIGHTCTL_INDEX_ENTRY] },
+      'projects/osac/profile.json': {
+        schemaVersion: 1,
+        profileRevision: OSAC_INDEX_ENTRY.profileRevision,
+        projectId: 'osac',
+        displayName: 'OSAC',
+        jiraProjectKey: 'OSAC',
+        jiraProjectName: 'Open Source as a Cloud',
+        repositories: [],
+        capabilities: {}
+      }
+      // flightctl profile is intentionally absent
+    }
+    const reader = createProjectProfileReader({
+      readFromStorage: key => Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null
+    })
+
+    expect(reader.list().map(profile => profile.projectId)).toEqual(['osac'])
+  })
+
+  it('isolates a project with an invalid profile and still returns the valid one', () => {
+    const data = {
+      'projects/index.json': { schemaVersion: 1, projects: [OSAC_INDEX_ENTRY, FLIGHTCTL_INDEX_ENTRY] },
+      'projects/osac/profile.json': {
+        schemaVersion: 1,
+        profileRevision: OSAC_INDEX_ENTRY.profileRevision,
+        projectId: 'osac',
+        displayName: 'OSAC',
+        jiraProjectKey: 'OSAC',
+        jiraProjectName: 'Open Source as a Cloud',
+        repositories: [],
+        capabilities: {}
+      },
+      'projects/flightctl/profile.json': { ...FLIGHTCTL, projectId: 'Bad ID' }
+    }
+    const reader = createProjectProfileReader({
+      readFromStorage: key => Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null
+    })
+
+    expect(reader.list().map(profile => profile.projectId)).toEqual(['osac'])
+  })
+
+  it('isolates malformed published JSON for one project and still returns the valid one', () => {
+    const data = {
+      'projects/index.json': { schemaVersion: 1, projects: [OSAC_INDEX_ENTRY, FLIGHTCTL_INDEX_ENTRY] },
+      'projects/osac/profile.json': {
+        schemaVersion: 1,
+        profileRevision: OSAC_INDEX_ENTRY.profileRevision,
+        projectId: 'osac',
+        displayName: 'OSAC',
+        jiraProjectKey: 'OSAC',
+        jiraProjectName: 'Open Source as a Cloud',
+        repositories: [],
+        capabilities: {}
+      }
+    }
+    const reader = createProjectProfileReader({
+      readFromStorage: key => {
+        if (key === 'projects/flightctl/profile.json') throw new SyntaxError('Unexpected token u in JSON at position 0')
+        return Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null
+      }
+    })
+
+    expect(reader.list().map(profile => profile.projectId)).toEqual(['osac'])
+  })
+
+  it('propagates a genuine storage read failure instead of isolating it as a publication failure', () => {
+    const data = {
+      'projects/index.json': { schemaVersion: 1, projects: [OSAC_INDEX_ENTRY, FLIGHTCTL_INDEX_ENTRY] },
+      'projects/osac/profile.json': {
+        schemaVersion: 1,
+        profileRevision: OSAC_INDEX_ENTRY.profileRevision,
+        projectId: 'osac',
+        displayName: 'OSAC',
+        jiraProjectKey: 'OSAC',
+        jiraProjectName: 'Open Source as a Cloud',
+        repositories: [],
+        capabilities: {}
+      }
+    }
+    const storageFailure = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+    const reader = createProjectProfileReader({
+      readFromStorage: key => {
+        if (key === 'projects/flightctl/profile.json') throw storageFailure
+        return Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null
+      }
+    })
+
+    let caught
+    try {
+      reader.list()
+    } catch (error) {
+      caught = error
+    }
+    expect(caught).toBe(storageFailure)
+  })
+
+  it('still fails hard when every project in a multi-project index is invalid', () => {
+    const data = {
+      'projects/index.json': {
+        schemaVersion: 1,
+        projects: [OSAC_INDEX_ENTRY, { ...FLIGHTCTL_INDEX_ENTRY, profileRevision: '0000000000000000' }]
+      },
+      'projects/flightctl/profile.json': FLIGHTCTL
+      // osac profile is intentionally absent too
+    }
+    const reader = createProjectProfileReader({
+      readFromStorage: key => Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null
+    })
+
+    let caught
+    try {
+      reader.list()
+    } catch (error) {
+      caught = error
+    }
+    expect(caught).toBeInstanceOf(ProjectProfileIndexError)
+    expect(caught.code).toBe('PROJECT_PROFILE_MISSING')
+  })
+
+  it('propagates an unexpected non-publication error instead of swallowing it as a skipped project', () => {
+    let executeRevisionAccessCount = 0
+    const flakyEntry = {
+      projectId: OSAC_INDEX_ENTRY.projectId,
+      displayName: OSAC_INDEX_ENTRY.displayName,
+      profileRevision: OSAC_INDEX_ENTRY.profileRevision,
+      profileKey: OSAC_INDEX_ENTRY.profileKey,
+      get executeRevision() {
+        executeRevisionAccessCount += 1
+        if (executeRevisionAccessCount > 1) throw new TypeError('boom: unexpected failure')
+        return undefined
+      }
+    }
+    const data = {
+      'projects/index.json': { schemaVersion: 1, projects: [FLIGHTCTL_INDEX_ENTRY, flakyEntry] },
+      'projects/flightctl/profile.json': FLIGHTCTL,
+      'projects/osac/profile.json': {
+        schemaVersion: 1,
+        profileRevision: OSAC_INDEX_ENTRY.profileRevision,
+        projectId: 'osac',
+        displayName: 'OSAC',
+        jiraProjectKey: 'OSAC',
+        jiraProjectName: 'Open Source as a Cloud',
+        repositories: [],
+        capabilities: {}
+      }
+    }
+    const reader = createProjectProfileReader({
+      readFromStorage: key => Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null
+    })
+
+    let caught
+    try {
+      reader.list()
+    } catch (error) {
+      caught = error
+    }
+    expect(caught).toBeInstanceOf(TypeError)
+    expect(caught).not.toBeInstanceOf(ProjectProfileIndexError)
+    expect(caught.message).toBe('boom: unexpected failure')
+  })
+
   it('reports an unreadable JSON index as a discovery error', () => {
     const reader = createProjectProfileReader({
       readFromStorage: key => {

@@ -262,16 +262,28 @@ function createProjectProfileReader(storage) {
   }
   const { readFromStorage } = storage
 
+  // Tags genuine storage failures, not malformed JSON, which is a per-project content issue.
+  function readStorage(key) {
+    try {
+      return readFromStorage(key)
+    } catch (error) {
+      if (!(error instanceof SyntaxError) && error && typeof error === 'object') {
+        error.isProjectStorageReadError = true
+      }
+      throw error
+    }
+  }
+
   function resolve(projectId) {
     const normalizedId = normalizeProjectId(projectId)
     const pointerKey = `projects/${normalizedId}/current.json`
-    const pointer = readFromStorage(pointerKey)
+    const pointer = readStorage(pointerKey)
     if (pointer !== null && pointer !== undefined) {
       if (pointer.projectId !== normalizedId) throw new Error(`project pointer identity mismatch: ${normalizedId}`)
       const generationId = normalizeGenerationId(pointer.generationId)
       const rootKey = `projects/${normalizedId}/generations/${generationId}`
       const profileKey = `${rootKey}/profile.json`
-      const profileData = readFromStorage(profileKey)
+      const profileData = readStorage(profileKey)
       if (!profileData) throw new Error(`published profile is missing: ${profileKey}`)
       const profile = normalizeProjectProfile(profileData)
       if (profile.projectId !== normalizedId) throw new Error(`profile identity mismatch: ${normalizedId}`)
@@ -282,7 +294,7 @@ function createProjectProfileReader(storage) {
     // the sidecar has materialized generations. This is still real published
     // data, not an app-owned profile fallback.
     const profileKey = `projects/${normalizedId}/profile.json`
-    const profileData = readFromStorage(profileKey)
+    const profileData = readStorage(profileKey)
     if (!profileData) return null
     const profile = normalizeProjectProfile(profileData)
     if (profile.projectId !== normalizedId) throw new Error(`profile identity mismatch: ${normalizedId}`)
@@ -352,27 +364,45 @@ function createProjectProfileReader(storage) {
       return { entry, projectId }
     })
 
-    return entries.map(({ entry, projectId }) => {
-      let profile
+    // Per-project publication lag is expected under eventually-consistent
+    // sync, so failures here are isolated instead of failing all discovery.
+    const results = entries.map(({ entry, projectId }) => {
       try {
-        profile = get(projectId)
+        let profile
+        try {
+          profile = get(projectId)
+        } catch (error) {
+          if (error && error.isProjectStorageReadError) throw error
+          throw new ProjectProfileIndexError(`Published project profile ${projectId} is invalid: ${error.message}`, 'PROJECT_PROFILE_INVALID')
+        }
+        if (!profile) {
+          throw new ProjectProfileIndexError(`Published project profile is missing: ${projectId}`, 'PROJECT_PROFILE_MISSING')
+        }
+        if (entry.profileRevision !== profile.profileRevision) {
+          throw new ProjectProfileIndexError(`Published project profile revision does not match the index: ${projectId}`, 'PROJECT_PROFILE_REVISION_MISMATCH')
+        }
+        if (entry.displayName !== profile.displayName) {
+          throw new ProjectProfileIndexError(`Published project profile display name does not match the index: ${projectId}`, 'PROJECT_PROFILE_DISPLAY_NAME_MISMATCH')
+        }
+        if ((entry.executeRevision || null) !== (profile.executeRevision || null)) {
+          throw new ProjectProfileIndexError(`Published project Execute revision does not match the index: ${projectId}`, 'PROJECT_EXECUTE_REVISION_MISMATCH')
+        }
+        return { projectId, profile }
       } catch (error) {
-        throw new ProjectProfileIndexError(`Published project profile ${projectId} is invalid: ${error.message}`, 'PROJECT_PROFILE_INVALID')
+        if (!(error instanceof ProjectProfileIndexError)) {
+          throw error
+        }
+        console.warn(`[projects] skipping project with an invalid or inconsistent publication: ${projectId}: ${error.message}`)
+        return { projectId, error }
       }
-      if (!profile) {
-        throw new ProjectProfileIndexError(`Published project profile is missing: ${projectId}`, 'PROJECT_PROFILE_MISSING')
-      }
-      if (entry.profileRevision !== profile.profileRevision) {
-        throw new ProjectProfileIndexError(`Published project profile revision does not match the index: ${projectId}`, 'PROJECT_PROFILE_REVISION_MISMATCH')
-      }
-      if (entry.displayName !== profile.displayName) {
-        throw new ProjectProfileIndexError(`Published project profile display name does not match the index: ${projectId}`, 'PROJECT_PROFILE_DISPLAY_NAME_MISMATCH')
-      }
-      if ((entry.executeRevision || null) !== (profile.executeRevision || null)) {
-        throw new ProjectProfileIndexError(`Published project Execute revision does not match the index: ${projectId}`, 'PROJECT_EXECUTE_REVISION_MISMATCH')
-      }
-      return profile
     })
+
+    const profiles = results.filter(result => result.profile).map(result => result.profile)
+    if (profiles.length === 0) {
+      // Nothing survived: degrade to a hard failure rather than a silent empty list.
+      throw results[0].error
+    }
+    return profiles
   }
 
   function readArtifact(projectId, artifactKey) {
