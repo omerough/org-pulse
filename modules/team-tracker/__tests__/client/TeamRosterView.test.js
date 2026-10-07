@@ -366,6 +366,25 @@ describe('TeamRosterView — project-qualified team (normalized model)', () => {
     expect(memberLink.attributes('href')).not.toContain('person=')
   })
 
+  it('does not collapse two normalized members that share a displayName but have different accountIds', async () => {
+    rosterTeams.value = [{
+      ...projectTeam,
+      members: [
+        { accountId: 'acc-1', name: 'Ada Lovelace', jiraDisplayName: 'Ada Lovelace', customFields: {} },
+        { accountId: 'acc-2', name: 'Ada Lovelace', jiraDisplayName: 'Ada Lovelace', customFields: {} }
+      ]
+    }]
+    const wrapper = mountProjectView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('2 members')
+    const memberLinks = wrapper.findAll('tbody a')
+    expect(memberLinks.map(a => a.attributes('href'))).toEqual([
+      expect.stringContaining('accountId=acc-1'),
+      expect.stringContaining('accountId=acc-2')
+    ])
+  })
+
   it('does not call legacy endpoints while the roster is still resolving mid project-switch', async () => {
     // isNormalizedModel is still false (shape-based, ambiguous) while the roster clears.
     isNormalizedModelValue.value = false

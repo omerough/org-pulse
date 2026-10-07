@@ -12,6 +12,12 @@ vi.mock('@shared/client/composables/useModuleLink', () => ({
   })
 }))
 
+const { mockProjectId } = vi.hoisted(() => ({ mockProjectId: { value: '' } }))
+vi.mock('@shared/client/composables/useProjectId.js', () => ({
+  useProjectId: () => mockProjectId,
+  projectParam: id => (id ? { projectId: id } : {})
+}))
+
 const mockUser = ref({ email: 'jsmith@redhat.com' })
 vi.mock('@shared/client/composables/useAuth', () => ({
   useAuth: () => ({
@@ -68,6 +74,7 @@ beforeEach(() => {
   mockDefinitions.value = { personFields: [], teamFields: [] }
   mockDefsLoading.value = false
   mockNavigateTo.mockClear()
+  mockProjectId.value = ''
 })
 
 describe('MyTeamsWidget', () => {
@@ -116,7 +123,7 @@ describe('MyTeamsWidget', () => {
     expect(wrapper.text()).not.toContain('Team B')
   })
 
-  it('navigates to team-detail with from=sotu on card click', async () => {
+  it('navigates to team-detail with from=sotu on card click (legacy, no projectId)', async () => {
     mockTeams.value = makeTeams([{
       orgKey: 'org',
       teams: {
@@ -128,6 +135,21 @@ describe('MyTeamsWidget', () => {
     const card = wrapper.findAll('button').find(b => b.text().includes('Team A'))
     await card.trigger('click')
     expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'team-detail', { teamKey: 'org::TeamA', from: 'sotu' })
+  })
+
+  it('navigates to team-detail preserving projectId when project-qualified', async () => {
+    mockProjectId.value = 'flightctl'
+    mockTeams.value = makeTeams([{
+      orgKey: 'org',
+      teams: {
+        TeamA: { displayName: 'Team A', members: [{ uid: 'jsmith', email: 'jsmith@redhat.com', name: 'Jane Smith', customFields: {} }], metadata: {} }
+      }
+    }])
+    const wrapper = mount(MyTeamsWidget, { props: { size: 'half' } })
+    await flushPromises()
+    const card = wrapper.findAll('button').find(b => b.text().includes('Team A'))
+    await card.trigger('click')
+    expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'team-detail', { projectId: 'flightctl', teamKey: 'org::TeamA', from: 'sotu' })
   })
 
   it('shows Engineering Speciality from primary display field', async () => {

@@ -132,6 +132,31 @@ describe('useRoster shared Team/Person shape across both response contracts', ()
     })
   })
 
+  it('does not throw and yields no members when a normalized team omits memberAccountIds', async () => {
+    mocks.getRoster.mockResolvedValueOnce({
+      projectId: 'flightctl',
+      availability: 'available',
+      teams: [
+        { key: 'flightctl::team-1', id: 'team-1', displayName: 'RHEM-DEV', description: null }
+      ],
+      people: []
+    })
+    const roster = await createRoster('flightctl')
+    await roster.loadRoster()
+
+    expect(roster.teams.value).toEqual([
+      {
+        key: 'flightctl::team-1',
+        displayKey: null,
+        displayName: 'RHEM-DEV',
+        members: [],
+        teamId: 'team-1',
+        metadata: {},
+        description: null
+      }
+    ])
+  })
+
   it('keeps the legacy orgs-based shape for OSAC, with no normalized-model flag', async () => {
     mocks.getRoster.mockResolvedValueOnce({
       orgs: [{

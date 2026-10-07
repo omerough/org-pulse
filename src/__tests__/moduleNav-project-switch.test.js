@@ -24,6 +24,7 @@ const twoProjects = {
 const teamTrackerManifest = {
   slug: 'team-tracker',
   client: {
+    resetSectionOnProjectSwitch: true,
     navItems: [
       { id: 'home', label: 'Team Directory', default: true },
       { id: 'people', label: 'People' },
@@ -33,10 +34,20 @@ const teamTrackerManifest = {
   }
 }
 
-function mountWithRealNav(initialHash) {
+const releasesManifest = {
+  slug: 'releases',
+  client: {
+    navItems: [
+      { id: 'execute', label: 'Execute', default: true },
+      { id: 'deliver', label: 'Deliver' }
+    ]
+  }
+}
+
+function mountWithRealNav(initialHash, { manifests = [teamTrackerManifest], activeSlug = 'team-tracker' } = {}) {
   window.location.hash = initialHash
-  const activeModuleSlugRef = ref('team-tracker')
-  const builtInManifests = ref([teamTrackerManifest])
+  const activeModuleSlugRef = ref(activeSlug)
+  const builtInManifests = ref(manifests)
   const moduleNav = createModuleNav({ activeModuleSlugRef, builtInManifests })
   apiRequest.mockResolvedValueOnce(twoProjects)
   const wrapper = mount(ProjectSelector, {
@@ -141,6 +152,29 @@ describe('project switch resets to the current section root (central updateParam
 
     expect(window.location.hash).toBe('#/team-tracker/team-detail?teamKey=alpha&projectId=osac')
     expect(moduleNav.routeParams.value).toEqual({ teamKey: 'alpha', projectId: 'osac' })
+  })
+
+  it('does not discard a valid legacy detail route when the selector assigns the default project', async () => {
+    // No projectId on the initial hash is a valid legacy OSAC deep link; the
+    // selector assigning a default project here must not be treated as a
+    // project switch, or this detail route would be reset on every cold load.
+    const { wrapper, moduleNav } = mountWithRealNav('#/team-tracker/team-detail?teamKey=alpha')
+    await flushPromises()
+
+    expect(window.location.hash).toBe('#/team-tracker/team-detail?teamKey=alpha&projectId=osac')
+    expect(moduleNav.routeParams.value).toEqual({ teamKey: 'alpha', projectId: 'osac' })
+    expect(wrapper.find('select#project-selector').exists()).toBe(true)
+  })
+
+  it('does not reset a module that has not opted into resetSectionOnProjectSwitch', async () => {
+    const { wrapper, moduleNav } = mountWithRealNav(
+      '#/releases/feature-detail?featureKey=abc&projectId=osac',
+      { manifests: [releasesManifest, teamTrackerManifest], activeSlug: 'releases' }
+    )
+    await switchProjectTo(wrapper, 'flightctl')
+
+    expect(window.location.hash).toBe('#/releases/feature-detail?featureKey=abc&projectId=flightctl')
+    expect(moduleNav.routeParams.value).toEqual({ featureKey: 'abc', projectId: 'flightctl' })
   })
 })
 

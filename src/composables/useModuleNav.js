@@ -86,7 +86,7 @@ export function createModuleNav({ activeModuleSlugRef, builtInManifests }) {
     if (isProjectSwitch) {
       const [moduleSlug, viewId] = pathPart.split('/')
       const manifest = builtInManifests.value.find(m => m.slug === moduleSlug)
-      if (manifest) {
+      if (manifest?.client?.resetSectionOnProjectSwitch) {
         navigateTo(resolveSectionRootViewId(manifest, viewId, params), { projectId: newParams.projectId })
         return
       }

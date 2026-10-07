@@ -81,18 +81,16 @@ function _loadProjectRosterData(projects, projectId) {
   }
 
   const seenTeamIds = new Set();
-  const seenTeamNames = new Set();
   for (const team of teams) {
     if (!isRecord(team)
         || typeof team.id !== 'string' || !team.id
         || typeof team.name !== 'string' || !team.name.trim()) {
       return { kind: 'error', status: 502, error: 'Invalid project roster publication' };
     }
-    if (seenTeamIds.has(team.id) || seenTeamNames.has(team.name)) {
+    if (seenTeamIds.has(team.id)) {
       return { kind: 'error', status: 502, error: 'Invalid project roster publication' };
     }
     seenTeamIds.add(team.id);
-    seenTeamNames.add(team.name);
   }
 
   for (const person of people) {
@@ -104,7 +102,7 @@ function _loadProjectRosterData(projects, projectId) {
   return { kind: 'ok', envelope, generatedAt, people, teams };
 }
 
-// `key` follows this repo's orgKey::teamName composite-key convention.
+// `key` is the normalized projectId::teamId composite key, not a team name.
 function readProjectPeopleTeams(projects, projectId) {
   const loaded = _loadProjectRosterData(projects, projectId);
   if (loaded.kind === 'error') return { status: loaded.status, error: loaded.error };

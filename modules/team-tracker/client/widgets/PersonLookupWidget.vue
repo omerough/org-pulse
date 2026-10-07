@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoster } from '@shared/client/composables/useRoster.js'
 import { useModuleLink } from '@shared/client/composables/useModuleLink.js'
+import { useProjectId, projectParam } from '@shared/client/composables/useProjectId.js'
 import { Search } from 'lucide-vue-next'
 
 defineProps({
@@ -10,6 +11,7 @@ defineProps({
 
 const { navigateTo: crossNavigate } = useModuleLink()
 const { teams, loading, loadRoster } = useRoster()
+const projectId = useProjectId()
 
 onMounted(() => {
   loadRoster()
@@ -66,7 +68,7 @@ function selectPerson(person) {
   if (person.uid) {
     crossNavigate('team-tracker', 'person-detail', { uid: person.uid, from: 'sotu' })
   } else if (person.accountId) {
-    crossNavigate('team-tracker', 'person-detail', { accountId: person.accountId, from: 'sotu' })
+    crossNavigate('team-tracker', 'person-detail', { ...projectParam(projectId.value), accountId: person.accountId, from: 'sotu' })
   }
 }
 

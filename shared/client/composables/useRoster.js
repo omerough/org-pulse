@@ -130,7 +130,7 @@ export function useRoster() {
         key: team.key,
         displayKey: null,
         displayName: team.displayName,
-        members: team.memberAccountIds
+        members: (team.memberAccountIds || [])
           .map(accountId => peopleByAccountId.get(accountId))
           .filter(person => person?.active)
           .map(_toNormalizedMember),

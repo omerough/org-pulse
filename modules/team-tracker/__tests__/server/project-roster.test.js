@@ -215,6 +215,34 @@ describe('readProjectPeopleTeams', () => {
     expect(result.model.reason).toBe('publication-partial');
   });
 
+  it('accepts two distinct team IDs that share the same team name', () => {
+    publications.flightctl['sources/roster/registry.json'].value = makeRosterEnvelope('flightctl', {
+      teams: [
+        { id: 'team-1', name: 'Platform', orgKey: 'flightctl' },
+        { id: 'team-2', name: 'Platform', orgKey: 'flightctl' }
+      ],
+      people: [
+        { accountId: 'acct-1', displayName: 'Alice', active: true, teamIds: ['team-1'] },
+        { accountId: 'acct-2', displayName: 'Bob', active: true, teamIds: ['team-2'] }
+      ]
+    });
+    const result = readProjectPeopleTeams(mockProjects(publications, profiles), 'flightctl');
+    expect(result.status).toBe(200);
+    expect(result.model.teams.map(t => t.key)).toEqual(['flightctl::team-1', 'flightctl::team-2']);
+    expect(result.model.teams.every(t => t.displayName === 'Platform')).toBe(true);
+  });
+
+  it('rejects duplicate team IDs', () => {
+    publications.flightctl['sources/roster/registry.json'].value = makeRosterEnvelope('flightctl', {
+      teams: [
+        { id: 'team-1', name: 'Platform', orgKey: 'flightctl' },
+        { id: 'team-1', name: 'Platform Again', orgKey: 'flightctl' }
+      ]
+    });
+    const result = readProjectPeopleTeams(mockProjects(publications, profiles), 'flightctl');
+    expect(result.status).toBe(502);
+  });
+
   it('rejects duplicate accounts', () => {
     publications.flightctl['sources/roster/registry.json'].value = makeRosterEnvelope('flightctl', {
       people: [

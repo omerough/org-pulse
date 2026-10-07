@@ -474,8 +474,9 @@ const uniqueMembers = computed(() => {
   if (!team.value) return []
   const seen = new Set()
   return team.value.members.filter(m => {
-    if (seen.has(m.jiraDisplayName)) return false
-    seen.add(m.jiraDisplayName)
+    const identity = m.accountId || m.uid || m.jiraDisplayName || m.name
+    if (seen.has(identity)) return false
+    seen.add(identity)
     return true
   })
 })

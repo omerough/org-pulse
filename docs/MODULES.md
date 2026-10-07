@@ -69,6 +69,7 @@ modules/your-module/
 | `client.navItems` | No | Sidebar navigation items |
 | `client.settingsComponent` | No | Vue component for the Settings page |
 | `client.sotuWidgets` | No | Array of widget declarations for the SOTU dashboard (see below) |
+| `client.resetSectionOnProjectSwitch` | No | If `true`, switching the shell project resets navigation to the current section's root view (see below) |
 | `server.entry` | No | Path to backend entry point |
 
 ### navItem Fields
@@ -97,6 +98,10 @@ In `client`, you can declare `hiddenRoutes` — a map of route IDs to their pare
   }
 }
 ```
+
+### `resetSectionOnProjectSwitch`
+
+In `client`, set `resetSectionOnProjectSwitch: true` to opt a module into resetting its route to the current section's root view whenever the shell project changes. Without this flag, a project switch only updates the `projectId` param in place and leaves the rest of the route untouched — the behavior for every module before this flag existed. Only opt in if stale nested-route params (e.g. a detail view's entity id) would be invalid under the new project.
 
 ### navItems vs routes
 

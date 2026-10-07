@@ -6,6 +6,7 @@
   "order": 0,
   "client": {
     "entry": "./client/index.js",
+    "resetSectionOnProjectSwitch": true,
     "sotuWidgets": [
       {
         "id": "managed-teams",
