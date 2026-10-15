@@ -88,4 +88,69 @@ function getManagerPurview(managerUid, registry, teamsData, options = {}) {
   return result;
 }
 
-module.exports = { getManagerPurview };
+/**
+ * Adapts a project-qualified roster read model into the `{ registry, teamsData }`
+ * shapes getManagerPurview consumes, so projects reuse the OSAC hierarchy engine.
+ *
+ * Identity is `accountId`. Only a `roster` managerRef whose target is present in
+ * the model becomes a `managerUid` edge; `external`/`unresolved`/dangling refs
+ * produce no edge (relationship kept on the record for display, never fabricated).
+ */
+function buildProjectManagerModel(model) {
+  const people = {};
+  const teams = {};
+  if (!model || typeof model !== 'object') {
+    return { registry: { people }, teamsData: { teams } };
+  }
+
+  const accountIds = new Set((model.people || []).map(p => p.accountId));
+  for (const person of model.people || []) {
+    const ref = person.managerRef;
+    const managerUid = ref && ref.kind === 'roster' && accountIds.has(ref.accountId)
+      ? ref.accountId
+      : null;
+    people[person.accountId] = {
+      uid: person.accountId,
+      accountId: person.accountId,
+      projectId: model.projectId,
+      name: person.displayName,
+      email: person.email || null,
+      title: person.title || null,
+      status: person.active ? 'active' : 'inactive',
+      managerUid,
+      managerRef: ref || null,
+      teamIds: Array.isArray(person.teamIds) ? [...person.teamIds] : []
+    };
+  }
+
+  for (const team of model.teams || []) {
+    teams[team.id] = {
+      id: team.id,
+      name: team.displayName,
+      // In a project read model every team belongs to the one project, so the
+      // projectId plays the org-scoping role that orgKey plays for OSAC.
+      orgKey: model.projectId,
+      metadata: {},
+      boards: []
+    };
+  }
+
+  return { registry: { people }, teamsData: { teams } };
+}
+
+/** Resolve the user's accountId by email (active people only); never by display name. */
+function resolveProjectManagerAccountId(model, email) {
+  if (!model || !email || typeof email !== 'string') return null;
+  const target = email.toLowerCase();
+  for (const person of model.people || []) {
+    if (!person.active) continue;
+    if (person.email && person.email.toLowerCase() === target) return person.accountId;
+  }
+  return null;
+}
+
+module.exports = {
+  getManagerPurview,
+  buildProjectManagerModel,
+  resolveProjectManagerAccountId
+};

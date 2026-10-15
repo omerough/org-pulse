@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 
-const { getManagerPurview } = require('../../server/manager-purview')
+const {
+  getManagerPurview,
+  buildProjectManagerModel,
+  resolveProjectManagerAccountId
+} = require('../../server/manager-purview')
 
 function makeRegistry(people) {
   return { people }
@@ -138,5 +142,67 @@ describe('getManagerPurview', () => {
 
     expect(result.directReportUids).toHaveLength(0)
     expect(result.teams).toHaveLength(0)
+  })
+})
+
+describe('buildProjectManagerModel', () => {
+  const model = {
+    projectId: 'flight-control',
+    people: [
+      { accountId: 'm', displayName: 'Mgr', email: 'm@x.io', active: true, managerRef: null, teamIds: [] },
+      { accountId: 'a', displayName: 'Alice', email: 'a@x.io', active: true, managerRef: { kind: 'roster', accountId: 'm' }, teamIds: ['t1'] },
+      { accountId: 'b', displayName: 'Bob', email: 'b@x.io', active: false, managerRef: { kind: 'roster', accountId: 'm' }, teamIds: ['t1'] },
+      { accountId: 'c', displayName: 'Cara', email: 'c@x.io', active: true, managerRef: { kind: 'external', ldapUid: 'boss' }, teamIds: ['t1'] },
+      { accountId: 'd', displayName: 'Dan', email: 'd@x.io', active: true, managerRef: { kind: 'roster', accountId: 'ghost' }, teamIds: ['t1'] }
+    ],
+    teams: [{ id: 't1', displayName: 'Team One' }]
+  }
+
+  it('maps roster managerRef to an in-roster managerUid edge', () => {
+    const { registry } = buildProjectManagerModel(model)
+    expect(registry.people.a.managerUid).toBe('m')
+    expect(registry.people.a.status).toBe('active')
+    expect(registry.people.b.status).toBe('inactive')
+  })
+
+  it('does not fabricate edges for external or dangling roster refs', () => {
+    const { registry } = buildProjectManagerModel(model)
+    // external ref -> no in-roster manager edge
+    expect(registry.people.c.managerUid).toBeNull()
+    // roster ref pointing outside the model -> no edge
+    expect(registry.people.d.managerUid).toBeNull()
+  })
+
+  it('scopes teams to the project with projectId as the org key', () => {
+    const { teamsData } = buildProjectManagerModel(model)
+    expect(teamsData.teams.t1).toMatchObject({ id: 't1', name: 'Team One', orgKey: 'flight-control' })
+  })
+
+  it('feeds getManagerPurview to compute reports without a second engine', () => {
+    const { registry, teamsData } = buildProjectManagerModel(model)
+    const purview = getManagerPurview('m', registry, teamsData)
+    expect(purview.directReportUids).toEqual(['a'])
+    const t1 = purview.teams.find(t => t.id === 't1')
+    // Active members of t1: alice, cara, dan (bob is inactive).
+    expect(t1.totalMemberCount).toBe(3)
+  })
+})
+
+describe('resolveProjectManagerAccountId', () => {
+  const model = {
+    people: [
+      { accountId: 'm', email: 'Mgr@X.io', active: true },
+      { accountId: 'x', email: 'inactive@x.io', active: false }
+    ]
+  }
+
+  it('matches by email case-insensitively', () => {
+    expect(resolveProjectManagerAccountId(model, 'mgr@x.io')).toBe('m')
+  })
+
+  it('ignores inactive people and unknown emails', () => {
+    expect(resolveProjectManagerAccountId(model, 'inactive@x.io')).toBeNull()
+    expect(resolveProjectManagerAccountId(model, 'nobody@x.io')).toBeNull()
+    expect(resolveProjectManagerAccountId(model, null)).toBeNull()
   })
 })
