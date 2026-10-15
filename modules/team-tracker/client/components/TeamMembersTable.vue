@@ -111,7 +111,7 @@
       <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
         <tr
           v-for="(member, idx) in sortedMembers"
-          :key="member.name"
+          :key="memberCanonicalIdentity(member)"
           class="hover:bg-gray-50 dark:hover:bg-gray-700/50"
           :class="{ 'opacity-50': getStatus(member) === 'Not Confirmed' }"
         >
@@ -174,6 +174,7 @@ import {
   resolveMemberRole,
   resolveMemberManager,
   resolveMemberLocation,
+  memberCanonicalIdentity,
   getCustomFieldByLabel,
   UNKNOWN_ROLE
 } from '../utils/member-resolution'
@@ -234,19 +235,29 @@ const isMemberFieldFilterActive = computed(() =>
 )
 
 // One resolver backs both registry (uid) and project-qualified (typed
-// managerRef) identities; names are never joined by display string.
+// managerRef) identities; names are never joined by display string. The
+// accountId lookup is built once so resolution is O(members + people).
 const managerCtx = computed(() => ({
-  people: people?.value || [],
+  peopleByAccountId: new Map((people?.value || []).map(p => [p.accountId, p])),
   auxiliaryManagers: auxiliaryManagers?.value || {},
   managerNames: managerNames?.value || {}
 }))
 
+const resolvedManagers = computed(() => {
+  const ctx = managerCtx.value
+  const map = new Map()
+  for (const member of props.members) {
+    map.set(member, resolveMemberManager(member, ctx))
+  }
+  return map
+})
+
 function getManagerName(member) {
-  return resolveMemberManager(member, managerCtx.value)?.name || '—'
+  return resolvedManagers.value.get(member)?.name || '—'
 }
 
 function managerLink(member) {
-  const resolved = resolveMemberManager(member, managerCtx.value)
+  const resolved = resolvedManagers.value.get(member)
   if (!resolved?.link) return null
   return linkTo('team-tracker', 'person-detail', { ...projectParam(projectId.value), ...resolved.link })
 }

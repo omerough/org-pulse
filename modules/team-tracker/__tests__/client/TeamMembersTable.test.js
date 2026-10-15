@@ -162,3 +162,25 @@ describe('TeamMembersTable direct manager resolution', () => {
     expect(cell.find('a').attributes('href')).toContain('uid=osac-mgr')
   })
 })
+
+describe('TeamMembersTable display-name collisions', () => {
+  beforeEach(resetRoster)
+
+  it('renders both people who share a display name but have distinct accountIds', () => {
+    mockRoster.people.value = [
+      { accountId: 'mgr-a', displayName: 'Manager A' },
+      { accountId: 'mgr-b', displayName: 'Manager B' }
+    ]
+    const members = [
+      { name: 'Alex Kim', accountId: 'acc-1', title: 'QE', managerRef: { kind: 'roster', accountId: 'mgr-a' } },
+      { name: 'Alex Kim', accountId: 'acc-2', title: 'SWE', managerRef: { kind: 'roster', accountId: 'mgr-b' } }
+    ]
+    const wrapper = mount(TeamMembersTable, { props: { members } })
+
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows).toHaveLength(2)
+    // Each row keeps its own manager/role — rows are not collapsed by name.
+    expect(rows[0].findAll('td')[1].text()).toBe('Manager A')
+    expect(rows[1].findAll('td')[1].text()).toBe('Manager B')
+  })
+})

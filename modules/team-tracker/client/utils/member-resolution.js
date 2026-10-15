@@ -41,13 +41,16 @@ export function memberCanonicalIdentity(member) {
  * external/legacy-uid names are not linkable. Returns null when unavailable.
  */
 export function resolveMemberManager(member, ctx = {}) {
-  const { people = [], auxiliaryManagers = {}, managerNames = {} } = ctx
+  const { people = [], peopleByAccountId = null, auxiliaryManagers = {}, managerNames = {} } = ctx
 
   // Typed project-qualified reference takes precedence over the legacy uid.
   const ref = member?.managerRef
   if (ref && typeof ref === 'object') {
     if (ref.kind === 'roster' && ref.accountId) {
-      const person = people.find(p => p.accountId === ref.accountId)
+      // Prefer the prebuilt lookup when the caller supplies one (O(1) per row).
+      const person = peopleByAccountId
+        ? peopleByAccountId.get(ref.accountId)
+        : people.find(p => p.accountId === ref.accountId)
       const name = person?.displayName || person?.name
       return name ? { name, link: { accountId: ref.accountId } } : null
     }
@@ -70,7 +73,8 @@ export function resolveMemberLocation(member) {
   const city = member?.city
   const country = member?.country
   if (city && country) return `${city}, ${country}`
-  return city || country || member?.location || null
+  // A richer published location string beats a lone city/country fragment.
+  return member?.location || city || country || null
 }
 
 // Headcount by Role derived from loaded members: deduplicated by canonical

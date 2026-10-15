@@ -48,6 +48,12 @@ describe('resolveMemberManager', () => {
   it('returns null when no manager reference exists', () => {
     expect(resolveMemberManager({ name: 'Nobody' }, ctx)).toBeNull()
   })
+
+  it('resolves a roster managerRef through a prebuilt accountId lookup', () => {
+    const peopleByAccountId = new Map(people.map(p => [p.accountId, p]))
+    const m = resolveMemberManager({ managerRef: { kind: 'roster', accountId: 'mgr-1' } }, { peopleByAccountId, auxiliaryManagers, managerNames })
+    expect(m).toEqual({ name: 'Manager One', link: { accountId: 'mgr-1' } })
+  })
 })
 
 describe('resolveMemberLocation', () => {
@@ -58,6 +64,11 @@ describe('resolveMemberLocation', () => {
   it('falls back to a published location string, never to geo', () => {
     expect(resolveMemberLocation({ location: 'Remote', geo: 'EMEA' })).toBe('Remote')
     expect(resolveMemberLocation({ geo: 'EMEA' })).toBeNull()
+  })
+
+  it('prefers a richer location string over a lone city when country is missing', () => {
+    expect(resolveMemberLocation({ city: 'Cork', location: 'Cork, Ireland' })).toBe('Cork, Ireland')
+    expect(resolveMemberLocation({ city: 'Cork' })).toBe('Cork')
   })
 })
 
