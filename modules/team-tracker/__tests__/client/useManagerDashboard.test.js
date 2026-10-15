@@ -27,7 +27,6 @@ describe('useManagerDashboard', () => {
 
     expect(apiRequest).toHaveBeenCalledWith('/modules/team-tracker/manager/dashboard')
     expect(dash.isProjectMode.value).toBe(false)
-    expect(dash.mode.value).toBe('osac')
   })
 
   it('qualifies the request by project and carries includeIndirect', async () => {
@@ -45,7 +44,6 @@ describe('useManagerDashboard', () => {
 
     expect(apiRequest).toHaveBeenCalledWith('/modules/team-tracker/manager/dashboard?projectId=flight-control&includeIndirect=true')
     expect(dash.isProjectMode.value).toBe(true)
-    expect(dash.mode.value).toBe('project')
     expect(dash.availability.value).toBe('available')
     expect(dash.directReports.value).toHaveLength(1)
   })

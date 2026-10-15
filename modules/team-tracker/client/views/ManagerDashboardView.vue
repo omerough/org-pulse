@@ -25,7 +25,8 @@
     <!-- Empty state: no registry identity -->
     <div v-else-if="reason === 'no-registry-identity'" class="text-center py-12 text-gray-500 dark:text-gray-400">
       <p class="text-lg font-medium mb-2">No Registry Identity</p>
-      <p>Your account is not linked to the people registry. In local dev, this typically means your email address does not match any person in the registry.</p>
+      <p v-if="isProjectMode">Your account could not be matched to a person in this project's published roster, so no manager purview is available.</p>
+      <p v-else>Your account is not linked to the people registry. In local dev, this typically means your email address does not match any person in the registry.</p>
     </div>
 
     <!-- Empty state: project roster publication unavailable -->
@@ -44,7 +45,7 @@
     <template v-else>
       <p v-if="isProjectMode" class="mb-4 text-xs text-gray-500 dark:text-gray-400" role="status">
         {{ projectStatusLabel }}
-        <span v-if="generatedAt"> · Updated {{ new Date(generatedAt).toLocaleString() }}</span>
+        <span v-if="generatedAtLabel"> · Updated {{ generatedAtLabel }}</span>
         <span v-if="enrichmentStatusNote"> · {{ enrichmentStatusNote }}</span>
       </p>
 
@@ -752,6 +753,13 @@ const enrichmentStatusNote = computed(() => {
   if (enrichment.value.state === 'stale') return 'Profiles: stale'
   if (enrichment.value.partial) return 'Profiles: partial'
   return null
+})
+
+// Guard against a malformed published timestamp rendering as "Invalid Date".
+const generatedAtLabel = computed(() => {
+  if (!generatedAt.value) return null
+  const parsed = new Date(generatedAt.value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toLocaleString()
 })
 
 function matchesReport(report, q) {

@@ -19,7 +19,6 @@ const mockLoading = ref(false)
 const mockError = ref(null)
 const mockReason = ref(null)
 const mockIncludeIndirect = ref(false)
-const mockMode = ref('osac')
 const mockAvailability = ref(null)
 const mockGeneratedAt = ref(null)
 const mockEnrichment = ref(null)
@@ -42,7 +41,6 @@ vi.mock('../../client/composables/useManagerDashboard', () => ({
     error: mockError,
     reason: mockReason,
     includeIndirect: mockIncludeIndirect,
-    mode: mockMode,
     availability: mockAvailability,
     generatedAt: mockGeneratedAt,
     enrichment: mockEnrichment,
@@ -120,7 +118,6 @@ beforeEach(() => {
   mockError.value = null
   mockReason.value = null
   mockIncludeIndirect.value = false
-  mockMode.value = 'osac'
   mockAvailability.value = null
   mockGeneratedAt.value = null
   mockEnrichment.value = null
@@ -536,7 +533,6 @@ describe('ManagerDashboardView', () => {
     function enterProjectMode() {
       mockIsProjectMode.value = true
       mockProjectId.value = 'flight-control'
-      mockMode.value = 'project'
       mockAvailability.value = 'available'
       mockDirectReports.value = [
         { accountId: 'acc_eng1', name: 'Erin Eng', title: 'Engineer', teamIds: ['t_core'], managerRef: { kind: 'roster', accountId: 'acc_mgr' } }
@@ -592,7 +588,6 @@ describe('ManagerDashboardView', () => {
     it('represents an unavailable publication without a zeroed dashboard', async () => {
       mockIsProjectMode.value = true
       mockProjectId.value = 'flight-control'
-      mockMode.value = 'project'
       mockAvailability.value = 'unavailable'
       mockReason.value = 'publication-not-fresh'
       const wrapper = mountView()

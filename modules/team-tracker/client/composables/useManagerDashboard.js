@@ -15,7 +15,6 @@ const loading = ref(false)
 const error = ref(null)
 const reason = ref(null)
 const includeIndirect = ref(false)
-const mode = ref('osac')
 const availability = ref(null)
 const generatedAt = ref(null)
 const enrichment = ref(null)
@@ -66,7 +65,6 @@ export function useManagerDashboard() {
       fieldDefinitions.value = data.fieldDefinitions || { person: [], team: [] }
       fieldExceptions.value = data.fieldExceptions || []
       reason.value = data.reason || null
-      mode.value = data.mode === 'project' ? 'project' : 'osac'
       availability.value = data.availability || null
       generatedAt.value = data.generatedAt || null
       enrichment.value = data.enrichment || null
@@ -97,7 +95,6 @@ export function useManagerDashboard() {
     error,
     reason,
     includeIndirect,
-    mode,
     availability,
     generatedAt,
     enrichment,
