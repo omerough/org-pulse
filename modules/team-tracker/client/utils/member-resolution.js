@@ -30,9 +30,26 @@ export function resolveMemberRole(member, fieldDefinitions = []) {
   )
 }
 
-// Stable dedup identity; display name is a last resort, never used when an id exists.
+// Stable dedup identity (accountId/uid); null when absent, since a display name
+// never identifies a person.
 export function memberCanonicalIdentity(member) {
-  return member?.accountId || member?.uid || member?.jiraDisplayName || member?.name || null
+  return member?.accountId || member?.uid || null
+}
+
+// Collapse members sharing a stable identity; id-less members are kept distinct
+// so same-named legacy entries are never merged.
+export function dedupeMembersByIdentity(members = []) {
+  const seen = new Set()
+  const result = []
+  for (const member of members) {
+    const identity = memberCanonicalIdentity(member)
+    if (identity != null) {
+      if (seen.has(identity)) continue
+      seen.add(identity)
+    }
+    result.push(member)
+  }
+  return result
 }
 
 /**
@@ -77,22 +94,14 @@ export function resolveMemberLocation(member) {
   return member?.location || city || country || null
 }
 
-// Headcount by Role derived from loaded members: deduplicated by canonical
+// Headcount by Role derived from loaded members: deduplicated by stable
 // identity, missing roles bucketed as Unknown, total == unique membership.
 export function deriveHeadcountByRole(members = [], fieldDefinitions = []) {
-  const seen = new Set()
+  const unique = dedupeMembersByIdentity(members)
   const byRole = {}
-  let total = 0
-  for (const member of members) {
-    const identity = memberCanonicalIdentity(member)
-    // Identity-less members can't be deduplicated, so each is counted once.
-    if (identity != null) {
-      if (seen.has(identity)) continue
-      seen.add(identity)
-    }
+  for (const member of unique) {
     const role = resolveMemberRole(member, fieldDefinitions) || UNKNOWN_ROLE
     byRole[role] = (byRole[role] || 0) + 1
-    total += 1
   }
-  return { byRole, totalHeadcount: total }
+  return { byRole, totalHeadcount: unique.length }
 }

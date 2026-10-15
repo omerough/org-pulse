@@ -355,6 +355,7 @@ import { useOrgRoster } from '../composables/useOrgRoster'
 import { refreshMetrics, getTeamMetrics, apiRequest } from '@shared/client/services/api'
 import { useManagerTutorial } from '../composables/useManagerTutorial'
 import { useAllocationStrategy } from '../composables/useAllocationStrategy'
+import { dedupeMembersByIdentity } from '../utils/member-resolution'
 import { Marked } from 'marked'
 import DOMPurify from 'dompurify'
 
@@ -469,16 +470,9 @@ const hasVisibleTeamFields = computed(() =>
   (definitions.value.teamFields || []).some(f => f.visible && !f.deleted)
 )
 
-const uniqueMembers = computed(() => {
-  if (!team.value) return []
-  const seen = new Set()
-  return team.value.members.filter(m => {
-    const identity = m.accountId || m.uid || m.jiraDisplayName || m.name
-    if (seen.has(identity)) return false
-    seen.add(identity)
-    return true
-  })
-})
+const uniqueMembers = computed(() =>
+  team.value ? dedupeMembersByIdentity(team.value.members) : []
+)
 
 const uniqueCount = computed(() => uniqueMembers.value.length)
 

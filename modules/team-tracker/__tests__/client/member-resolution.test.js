@@ -4,6 +4,7 @@ import {
   resolveMemberManager,
   resolveMemberLocation,
   memberCanonicalIdentity,
+  dedupeMembersByIdentity,
   deriveHeadcountByRole,
   UNKNOWN_ROLE
 } from '../../client/utils/member-resolution'
@@ -82,10 +83,26 @@ describe('resolveMemberRole', () => {
 })
 
 describe('memberCanonicalIdentity', () => {
-  it('prefers accountId, then uid, then display name', () => {
+  it('prefers accountId, then uid, and never falls back to display name', () => {
     expect(memberCanonicalIdentity({ accountId: 'a', uid: 'u', name: 'N' })).toBe('a')
     expect(memberCanonicalIdentity({ uid: 'u', name: 'N' })).toBe('u')
-    expect(memberCanonicalIdentity({ name: 'N' })).toBe('N')
+    expect(memberCanonicalIdentity({ name: 'N', jiraDisplayName: 'N' })).toBeNull()
+  })
+})
+
+describe('dedupeMembersByIdentity', () => {
+  it('merges members sharing a stable id but keeps same-named id-less members distinct', () => {
+    const members = [
+      { accountId: 'a', name: 'Pat Lee' },
+      { accountId: 'a', name: 'Pat Lee' },
+      { uid: 'u1', name: 'Jamie Fox' },
+      { uid: 'u1', name: 'Jamie Fox' },
+      { name: 'Alex Kim' },
+      { name: 'Alex Kim' }
+    ]
+    const unique = dedupeMembersByIdentity(members)
+    expect(unique).toHaveLength(4)
+    expect(unique.filter(m => m.name === 'Alex Kim')).toHaveLength(2)
   })
 })
 
@@ -102,11 +119,22 @@ describe('deriveHeadcountByRole', () => {
     })
   })
 
-  it('deduplicates by canonical identity', () => {
+  it('deduplicates by stable identity', () => {
     const members = [
       { accountId: 'a', title: 'Engineer' },
       { accountId: 'a', title: 'Engineer' }
     ]
     expect(deriveHeadcountByRole(members).totalHeadcount).toBe(1)
+  })
+
+  it('counts same-named id-less members separately (no display-name collapse)', () => {
+    const members = [
+      { name: 'Alex Kim', title: 'Engineer' },
+      { name: 'Alex Kim', title: 'Engineer' }
+    ]
+    expect(deriveHeadcountByRole(members)).toEqual({
+      byRole: { Engineer: 2 },
+      totalHeadcount: 2
+    })
   })
 })

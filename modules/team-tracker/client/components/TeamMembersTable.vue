@@ -111,7 +111,7 @@
       <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
         <tr
           v-for="(member, idx) in sortedMembers"
-          :key="memberCanonicalIdentity(member)"
+          :key="rowKey(member)"
           class="hover:bg-gray-50 dark:hover:bg-gray-700/50"
           :class="{ 'opacity-50': getStatus(member) === 'Not Confirmed' }"
         >
@@ -270,6 +270,16 @@ const columns = [
   { key: 'geo', label: 'Region' },
   { key: 'location', label: 'Location' },
 ]
+
+// Id-less members get a stable per-object key so same-name legacy rows stay distinct.
+const syntheticRowKeys = new WeakMap()
+let syntheticRowKeySeq = 0
+function rowKey(member) {
+  const identity = memberCanonicalIdentity(member)
+  if (identity != null) return identity
+  if (!syntheticRowKeys.has(member)) syntheticRowKeys.set(member, `row-${++syntheticRowKeySeq}`)
+  return syntheticRowKeys.get(member)
+}
 
 function personLink(member) {
   const params = { ...projectParam(projectId.value), ...(props.teamKey && { teamKey: props.teamKey }) }

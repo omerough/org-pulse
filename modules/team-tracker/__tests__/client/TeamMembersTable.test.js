@@ -183,4 +183,17 @@ describe('TeamMembersTable display-name collisions', () => {
     expect(rows[0].findAll('td')[1].text()).toBe('Manager A')
     expect(rows[1].findAll('td')[1].text()).toBe('Manager B')
   })
+
+  it('renders distinct rows for id-less members sharing a display name', () => {
+    const members = [
+      { name: 'Alex Kim', title: 'QE' },
+      { name: 'Alex Kim', title: 'SWE' }
+    ]
+    const wrapper = mount(TeamMembersTable, { props: { members } })
+
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows).toHaveLength(2)
+    const roles = rows.map(r => r.findAll('td')[2].text()).sort()
+    expect(roles).toEqual(['QE', 'SWE'])
+  })
 })
