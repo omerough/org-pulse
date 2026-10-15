@@ -170,9 +170,16 @@ import { useModuleLink } from '@shared/client/composables/useModuleLink'
 import { useProjectId, projectParam } from '@shared/client/composables/useProjectId'
 import { useRoster } from '@shared/client/composables/useRoster'
 import { useFieldFilters } from '../composables/useFieldFilters'
+import {
+  resolveMemberRole,
+  resolveMemberManager,
+  resolveMemberLocation,
+  getCustomFieldByLabel,
+  UNKNOWN_ROLE
+} from '../utils/member-resolution'
 
 const { linkTo } = useModuleLink()
-const { managerNames } = useRoster()
+const { managerNames, people, auxiliaryManagers } = useRoster()
 const projectId = useProjectId()
 
 const props = defineProps({
@@ -226,17 +233,22 @@ const isMemberFieldFilterActive = computed(() =>
   Object.values(memberFieldFilters.value).some(v => v && v.length > 0)
 )
 
+// One resolver backs both registry (uid) and project-qualified (typed
+// managerRef) identities; names are never joined by display string.
+const managerCtx = computed(() => ({
+  people: people?.value || [],
+  auxiliaryManagers: auxiliaryManagers?.value || {},
+  managerNames: managerNames?.value || {}
+}))
+
 function getManagerName(member) {
-  const uid = member.managerUid || member.manager
-  if (!uid) return '—'
-  return managerNames.value[uid] || uid
+  return resolveMemberManager(member, managerCtx.value)?.name || '—'
 }
 
 function managerLink(member) {
-  const uid = member.managerUid || member.manager
-  if (!uid) return null
-  if (managerNames.value[uid]) return linkTo('team-tracker', 'person-detail', { uid })
-  return null
+  const resolved = resolveMemberManager(member, managerCtx.value)
+  if (!resolved?.link) return null
+  return linkTo('team-tracker', 'person-detail', { ...projectParam(projectId.value), ...resolved.link })
 }
 
 const columns = [
@@ -259,24 +271,8 @@ function personLink(member) {
   return linkTo('team-tracker', 'person-detail', { ...params, person: member.name })
 }
 
-function getCustomFieldByLabel(member, label) {
-  const cf = member.customFields
-  if (!cf) return null
-  // Try direct key match first (sheets mode uses key names like 'component')
-  let val = cf[label]
-  if (!val) {
-    // In-app mode: customFields keys are field IDs — find the matching definition
-    const def = props.fieldDefinitions.find(f => f.label.toLowerCase() === label.toLowerCase())
-    if (def) val = cf[def.id]
-  }
-  if (val == null) return null
-  // Format arrays as comma-separated for display
-  return Array.isArray(val) ? val.join(', ') : val
-}
-
 function getSpecialty(member) {
-  return getCustomFieldByLabel(member, 'Engineering Speciality')
-    || member.engineeringSpeciality || member.specialty || member.title || '—'
+  return resolveMemberRole(member, props.fieldDefinitions) || '—'
 }
 
 function getStatus(member) {
@@ -285,15 +281,12 @@ function getStatus(member) {
 }
 
 function getComponent(member) {
-  return getCustomFieldByLabel(member, 'Component')
+  return getCustomFieldByLabel(member, 'Component', props.fieldDefinitions)
     || member.customFields?.component || member.customFields?.jiraComponent || member.component || '—'
 }
 
 function getLocation(member) {
-  const city = member.city
-  const country = member.country
-  if (city && country) return `${city}, ${country}`
-  return city || country || '—'
+  return resolveMemberLocation(member) || '—'
 }
 
 const sortKey = ref('name')
@@ -351,7 +344,8 @@ const sortedMembers = computed(() => {
     )
   }
   if (props.roleFilter) {
-    result = result.filter(m => getSpecialty(m) === props.roleFilter)
+    // Missing roles map to Unknown so the Headcount chart's Unknown bucket filters correctly.
+    result = result.filter(m => (resolveMemberRole(m, props.fieldDefinitions) || UNKNOWN_ROLE) === props.roleFilter)
   }
   if (regionFilter.value) {
     result = result.filter(m => (m.geo || m.region) === regionFilter.value)

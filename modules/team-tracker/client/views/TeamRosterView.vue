@@ -264,7 +264,6 @@
       <!-- Overview Tab -->
       <div v-if="tabActivated.overview" v-show="activeTab === 'overview'">
         <TeamOverviewTab
-          :headcount="teamDetail?.headcount"
           :members="uniqueMembers"
           :teamKey="team?.key"
           :fieldDefinitions="definitions?.personFields || []"

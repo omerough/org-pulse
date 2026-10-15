@@ -20,6 +20,17 @@ vi.mock('@shared/client/composables/useProjectId', () => ({
   projectParam: (id) => (id ? { projectId: id } : {})
 }))
 
+const { mockRoster } = vi.hoisted(() => ({
+  mockRoster: { managerNames: { value: {} }, people: { value: [] }, auxiliaryManagers: { value: {} } }
+}))
+vi.mock('@shared/client/composables/useRoster', () => ({ useRoster: () => mockRoster }))
+
+function resetRoster() {
+  mockRoster.managerNames.value = {}
+  mockRoster.people.value = []
+  mockRoster.auxiliaryManagers.value = {}
+}
+
 const sampleMembers = [
   { name: 'Alice Smith', title: 'Senior Software Engineer', geo: 'NA', country: 'USA' },
   { name: 'Bob Jones', title: 'Senior Software Engineer', geo: 'NA', country: 'CAN' },
@@ -103,5 +114,51 @@ describe('TeamMembersTable project context preservation (OSAC-5968)', () => {
     const href = wrapper.find('a').attributes('href')
     expect(href).toContain('uid=asmith')
     expect(href).not.toContain('projectId=')
+  })
+})
+
+describe('TeamMembersTable direct manager resolution', () => {
+  beforeEach(resetRoster)
+
+  function managerCell(wrapper) {
+    // Second cell in the first data row is the Manager column.
+    return wrapper.findAll('tbody tr')[0].findAll('td')[1]
+  }
+
+  it('resolves a roster managerRef to a linked person within the project', () => {
+    mockProjectId.value = 'flightctl'
+    mockRoster.people.value = [{ accountId: 'mgr-1', displayName: 'Manager One' }]
+    const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'roster', accountId: 'mgr-1' } }
+    const cell = managerCell(mount(TeamMembersTable, { props: { members: [member] } }))
+
+    expect(cell.text()).toBe('Manager One')
+    const link = cell.find('a')
+    expect(link.exists()).toBe(true)
+    expect(link.attributes('href')).toContain('accountId=mgr-1')
+  })
+
+  it('shows an external managerRef name without a link', () => {
+    mockRoster.auxiliaryManagers.value = { 'ext-uid': { ldapUid: 'ext-uid', displayName: 'External Manager' } }
+    const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'external', ldapUid: 'ext-uid' } }
+    const cell = managerCell(mount(TeamMembersTable, { props: { members: [member] } }))
+
+    expect(cell.text()).toBe('External Manager')
+    expect(cell.find('a').exists()).toBe(false)
+  })
+
+  it('shows an unresolved managerRef as unavailable', () => {
+    const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'unresolved', reason: 'no-match' } }
+    const cell = managerCell(mount(TeamMembersTable, { props: { members: [member] } }))
+
+    expect(cell.text()).toBe('—')
+  })
+
+  it('resolves a legacy OSAC uid via managerNames with a link', () => {
+    mockRoster.managerNames.value = { 'osac-mgr': 'Legacy Manager' }
+    const member = { name: 'Alice', uid: 'asmith', managerUid: 'osac-mgr' }
+    const cell = managerCell(mount(TeamMembersTable, { props: { members: [member] } }))
+
+    expect(cell.text()).toBe('Legacy Manager')
+    expect(cell.find('a').attributes('href')).toContain('uid=osac-mgr')
   })
 })
