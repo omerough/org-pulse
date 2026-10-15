@@ -377,16 +377,24 @@ const cycleTimeDatasets = computed(() => {
   }))
 })
 
+let trendsRequestVersion = 0
+
 async function loadTrends() {
+  const version = ++trendsRequestVersion
+  const requestProjectId = projectId.value
   loading.value = true
   error.value = null
   try {
-    trendsData.value = await getTrends(projectId.value)
+    const data = await getTrends(requestProjectId)
+    // A newer request or project switch has superseded this one; don't commit stale results.
+    if (version !== trendsRequestVersion) return
+    trendsData.value = data
   } catch (err) {
+    if (version !== trendsRequestVersion) return
     console.error('Failed to load trends:', err)
     error.value = 'Failed to load trend data. Please try again later.'
   } finally {
-    loading.value = false
+    if (version === trendsRequestVersion) loading.value = false
   }
 }
 

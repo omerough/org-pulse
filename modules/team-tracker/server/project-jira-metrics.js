@@ -25,12 +25,13 @@ function _avgCycleTime(times) {
 }
 
 // The producer always writes freshness:"fresh" on the main artifact, even for
-// inapplicable/disabled/unavailable states (non-fresh values are only ever
-// written to the separate _publication status sidecar, which this reader
-// does not consult -- the same known gap documented for roster-enrichment).
-// `state` is therefore the authoritative availability signal; `freshness` is
-// a defensive secondary check in case a future producer version diverges.
-function _loadProjectJiraMetricsData(projects, projectId) {
+// inapplicable/disabled/unavailable states; `state` is therefore the
+// authoritative availability signal and `freshness` a defensive secondary
+// check. On collection failure with a prior good artifact, it leaves that
+// artifact untouched (still "fresh") and records the failure in the
+// `_publication` status sidecar instead -- consulted below so a preserved
+// snapshot from a failed attempt is reported partial, not silently fresh.
+function _loadProjectJiraMetricsData(projects, projectId, readFromStorage) {
   if (typeof projectId !== 'string' || !projectId.trim()) {
     return { kind: 'error', status: 400, error: 'Invalid project id' };
   }
@@ -87,6 +88,8 @@ function _loadProjectJiraMetricsData(projects, projectId) {
     if (!isRecord(person)
         || typeof person.accountId !== 'string' || !person.accountId
         || !Array.isArray(person.teamIds)
+        || person.teamIds.some(teamId => typeof teamId !== 'string' || !teamId)
+        || new Set(person.teamIds).size !== person.teamIds.length
         || !isRecord(person.resolved) || !isRecord(person.inProgress) || !isRecord(person.cycleTime)) {
       return { kind: 'error', status: 502, error: 'Invalid project Jira metrics publication' };
     }
@@ -107,11 +110,28 @@ function _loadProjectJiraMetricsData(projects, projectId) {
     seenTeamIds.add(team.id);
   }
 
+  let partial = envelope.partial === true;
+  if (typeof readFromStorage === 'function') {
+    let status;
+    try {
+      status = readFromStorage(`projects/${projectId}/_publication/${encodeURIComponent(ARTIFACT_KEY)}.status.json`);
+    } catch (error) {
+      return { kind: 'error', status: 502, error: error.message };
+    }
+    if (isRecord(status)
+        && status.projectId === projectId
+        && status.profileRevision === profile.profileRevision
+        && status.artifactKey === ARTIFACT_KEY
+        && status.state === 'error') {
+      partial = true;
+    }
+  }
+
   return {
     kind: 'ok',
     publicationState: envelope.state,
     freshness: envelope.freshness,
-    partial: envelope.partial === true,
+    partial,
     generatedAt,
     people: data.people,
     teams: data.teams
@@ -193,14 +213,14 @@ function _unavailableTrendsModel(projectId, loaded) {
   };
 }
 
-function readProjectTrends(projects, projectId) {
-  const loaded = _loadProjectJiraMetricsData(projects, projectId);
+function readProjectTrends(projects, projectId, readFromStorage) {
+  const loaded = _loadProjectJiraMetricsData(projects, projectId, readFromStorage);
   if (loaded.kind === 'error') return { status: loaded.status, error: loaded.error };
   if (loaded.kind === 'unavailable') return { status: 200, model: _unavailableTrendsModel(projectId, loaded) };
   return { status: 200, model: _buildTrendsModel(projectId, loaded) };
 }
 
-function _buildTeamMetricsModel(projectId, team) {
+function _buildTeamMetricsModel(projectId, team, publicationPartial) {
   return {
     teamKey: `${projectId}::${team.id}`,
     available: true,
@@ -211,7 +231,7 @@ function _buildTeamMetricsModel(projectId, team) {
       inProgressCount: team.inProgress?.count ?? 0,
       avgCycleTimeDays: team.cycleTime?.avgDays ?? null
     },
-    partial: team.partial === true
+    partial: team.partial === true || publicationPartial === true
   };
 }
 
@@ -226,14 +246,14 @@ function _unavailableTeamMetricsModel(projectId, teamId, loaded) {
   };
 }
 
-function readProjectTeamMetrics(projects, projectId, teamId) {
-  const loaded = _loadProjectJiraMetricsData(projects, projectId);
+function readProjectTeamMetrics(projects, projectId, teamId, readFromStorage) {
+  const loaded = _loadProjectJiraMetricsData(projects, projectId, readFromStorage);
   if (loaded.kind === 'error') return { status: loaded.status, error: loaded.error };
   if (loaded.kind === 'unavailable') return { status: 200, model: _unavailableTeamMetricsModel(projectId, teamId, loaded) };
 
   const team = loaded.teams.find(t => t.id === teamId);
   if (!team) return { status: 404, error: `Team "${teamId}" not found in project Jira metrics publication` };
-  return { status: 200, model: _buildTeamMetricsModel(projectId, team) };
+  return { status: 200, model: _buildTeamMetricsModel(projectId, team, loaded.partial) };
 }
 
 module.exports = { ARTIFACT_KEY, readProjectTrends, readProjectTeamMetrics };

@@ -2977,7 +2977,7 @@ module.exports = function registerRoutes(router, context) {
           return res.status(404).json({ error: `Team "${teamKey}" not found in project "${selection.projectId}"` });
         }
         const teamId = sepIdx !== -1 ? teamKey.substring(sepIdx + 2) : teamKey;
-        const result = readProjectTeamMetrics(context.projects, selection.projectId, teamId);
+        const result = readProjectTeamMetrics(context.projects, selection.projectId, teamId, readFromStorage);
         if (result.status !== 200) return res.status(result.status).json({ error: result.error });
         return res.json(result.model);
       }
@@ -3242,7 +3242,7 @@ module.exports = function registerRoutes(router, context) {
       const selection = resolveProjectSelection(context.projects, req.query);
       if (selection.status) return res.status(selection.status).json({ error: selection.error });
       if (selection.provided && selection.projectId !== 'osac') {
-        const result = readProjectTrends(context.projects, selection.projectId);
+        const result = readProjectTrends(context.projects, selection.projectId, readFromStorage);
         if (result.status !== 200) return res.status(result.status).json({ error: result.error });
         return res.json(result.model);
       }

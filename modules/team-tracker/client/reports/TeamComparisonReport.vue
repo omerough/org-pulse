@@ -179,7 +179,11 @@ const METRIC_DEFS = {
   gitlabPerMember: { label: 'Avg GitLab Contributions per Member (1yr)', unit: '', extract: null },
 }
 
+let runVersion = 0
+
 async function run() {
+  const version = ++runVersion
+  const runProjectId = projectId.value
   loading.value = true
   metricsUnavailable.value = false
   try {
@@ -191,7 +195,7 @@ async function run() {
     const results = await Promise.all(
       keysToFetch.map(async (key) => {
         try {
-          const data = await getTeamMetrics(key, projectId.value)
+          const data = await getTeamMetrics(key, runProjectId)
           return { key, data }
         } catch (err) {
           console.error(`Failed to fetch metrics for ${key}:`, err)
@@ -199,6 +203,8 @@ async function run() {
         }
       })
     )
+    // A newer run or project switch has superseded this one; don't commit stale results.
+    if (version !== runVersion) return
     for (const { key, data } of results) {
       if (data) {
         metricsData.value[key] = data
@@ -310,12 +316,13 @@ async function run() {
 
     charts.value = newCharts
   } finally {
-    loading.value = false
+    if (version === runVersion) loading.value = false
   }
 }
 
 // Clear stale rendered output on project switch rather than waiting for Run.
 watch(projectId, () => {
+  runVersion++
   charts.value = []
   metricsData.value = {}
   metricsUnavailable.value = false

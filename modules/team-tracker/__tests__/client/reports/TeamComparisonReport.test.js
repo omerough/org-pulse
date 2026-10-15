@@ -200,5 +200,26 @@ describe('TeamComparisonReport', () => {
       await nextTick()
       expect(wrapper.text()).not.toContain('Jira metrics are not available for this project')
     })
+
+    it('ignores a stale run result that resolves after a project switch', async () => {
+      const { getTeamMetrics } = await import('@shared/client/services/api')
+      let resolveStale
+      getTeamMetrics.mockImplementationOnce(() => new Promise(resolve => { resolveStale = resolve }))
+
+      const wrapper = createWrapper()
+      await wrapper.find('input[value="teamSize"]').setValue(true)
+      await wrapper.findAll('button').find(b => b.text() === 'Run').trigger('click')
+      await nextTick()
+
+      mockProjectId.value = 'osac'
+      await nextTick()
+
+      resolveStale({ teamKey: 'flightctl::team-1', available: true, memberCount: 5, aggregate: { resolvedCount: 20, avgCycleTimeDays: 3.5 } })
+      await nextTick()
+      await nextTick()
+
+      expect(wrapper.text()).toContain('Select teams and metrics, then click Run')
+      expect(wrapper.find('[data-testid="report-chart"]').exists()).toBe(false)
+    })
   })
 })

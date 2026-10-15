@@ -162,5 +162,32 @@ describe('TrendsReport', () => {
       await nextTick()
       expect(getTrends).toHaveBeenCalledWith('osac')
     })
+
+    it('ignores a stale response that resolves after a newer project request', async () => {
+      const { getTrends } = await import('@shared/client/services/api')
+      let resolveStale
+      getTrends.mockImplementationOnce(() => new Promise(resolve => { resolveStale = resolve }))
+
+      const wrapper = createWrapper()
+      await nextTick()
+
+      getTrends.mockImplementationOnce(async () => ({
+        jira: { '2025-03': { resolved: 7, avgCycleTimeDays: 1, byTeam: {} } },
+        github: null,
+        gitlab: null,
+      }))
+      mockProjectId.value = 'osac'
+      await nextTick()
+      await nextTick()
+      await nextTick()
+      expect(wrapper.findAll('[data-testid="trend-chart"]').length).toBe(4)
+
+      resolveStale({ jira: null, github: null, gitlab: null })
+      await nextTick()
+      await nextTick()
+
+      expect(wrapper.findAll('[data-testid="trend-chart"]').length).toBe(4)
+      expect(wrapper.text()).not.toContain('No trend data available')
+    })
   })
 })

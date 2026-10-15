@@ -12,6 +12,14 @@ function mockProjects(publications = {}, profiles = {}) {
   }
 }
 
+function statusSidecarKey(projectId) {
+  return `projects/${projectId}/_publication/${encodeURIComponent(ARTIFACT_KEY)}.status.json`
+}
+
+function mockReadFromStorage(files = {}) {
+  return key => (key in files ? files[key] : null)
+}
+
 function makeProfile(projectId) {
   return { projectId, displayName: projectId === 'flightctl' ? 'Flight Control' : 'OSAC', profileRevision: 'rev' }
 }
@@ -143,6 +151,64 @@ describe('readProjectTrends', () => {
     expect(model.partial).toBe(true)
   })
 
+  it('marks the result partial when the status sidecar confirms the current profile\'s latest collection failed', () => {
+    const envelope = makeEnvelope('flightctl')
+    const projects = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: envelope } } }, { flightctl: makeProfile('flightctl') })
+    const readFromStorage = mockReadFromStorage({
+      [statusSidecarKey('flightctl')]: { projectId: 'flightctl', profileRevision: 'rev', artifactKey: ARTIFACT_KEY, state: 'error' }
+    })
+
+    const { status, model } = readProjectTrends(projects, 'flightctl', readFromStorage)
+
+    expect(status).toBe(200)
+    expect(model.availability).toBe('available')
+    expect(model.partial).toBe(true)
+  })
+
+  it('ignores a status sidecar for a different profile revision', () => {
+    const envelope = makeEnvelope('flightctl')
+    const projects = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: envelope } } }, { flightctl: makeProfile('flightctl') })
+    const readFromStorage = mockReadFromStorage({
+      [statusSidecarKey('flightctl')]: { projectId: 'flightctl', profileRevision: 'stale-rev', artifactKey: ARTIFACT_KEY, state: 'error' }
+    })
+
+    const { model } = readProjectTrends(projects, 'flightctl', readFromStorage)
+
+    expect(model.partial).toBe(false)
+  })
+
+  it('ignores a status sidecar that does not report a collection error', () => {
+    const envelope = makeEnvelope('flightctl')
+    const projects = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: envelope } } }, { flightctl: makeProfile('flightctl') })
+    const readFromStorage = mockReadFromStorage({
+      [statusSidecarKey('flightctl')]: { projectId: 'flightctl', profileRevision: 'rev', artifactKey: ARTIFACT_KEY, state: 'supported' }
+    })
+
+    const { model } = readProjectTrends(projects, 'flightctl', readFromStorage)
+
+    expect(model.partial).toBe(false)
+  })
+
+  it('does not require a status sidecar reader (backward compatible)', () => {
+    const envelope = makeEnvelope('flightctl')
+    const projects = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: envelope } } }, { flightctl: makeProfile('flightctl') })
+
+    const { model } = readProjectTrends(projects, 'flightctl')
+
+    expect(model.partial).toBe(false)
+  })
+
+  it('surfaces a status sidecar read failure as an error rather than ignoring it', () => {
+    const envelope = makeEnvelope('flightctl')
+    const projects = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: envelope } } }, { flightctl: makeProfile('flightctl') })
+    const readFromStorage = () => { throw new Error('storage unavailable') }
+
+    const { status, error } = readProjectTrends(projects, 'flightctl', readFromStorage)
+
+    expect(status).toBe(502)
+    expect(error).toMatch(/storage unavailable/)
+  })
+
   it.each(['missing-publication'])('degrades to unavailable when the publication is absent', (expectedReason) => {
     const projects = mockProjects({}, { flightctl: makeProfile('flightctl') })
 
@@ -226,6 +292,9 @@ describe('readProjectTrends', () => {
   it.each([
     ['missing accountId', { accountId: undefined }],
     ['non-array teamIds', { teamIds: 'team-1' }],
+    ['non-string teamIds entry', { teamIds: ['team-1', null] }],
+    ['empty-string teamIds entry', { teamIds: ['team-1', ''] }],
+    ['duplicate teamIds entries', { teamIds: ['team-1', 'team-1'] }],
     ['missing resolved', { resolved: undefined }],
     ['missing inProgress', { inProgress: undefined }],
     ['missing cycleTime', { cycleTime: undefined }]
@@ -386,6 +455,27 @@ describe('readProjectTeamMetrics', () => {
       aggregate: { resolvedCount: 5, resolvedPoints: 13, inProgressCount: 2, avgCycleTimeDays: 2.5 },
       partial: true
     })
+  })
+
+  it('marks the team result partial when the status sidecar confirms the current profile\'s latest collection failed', () => {
+    const envelope = makeEnvelope('flightctl', {
+      data: {
+        projectId: 'flightctl',
+        personCount: 1,
+        people: [makePerson()],
+        teams: [makeTeam({ partial: false })],
+        diagnostics: { missingPeople: [], staleCarryForward: [], freshSuccessCount: 1 }
+      }
+    })
+    const projects = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: envelope } } }, { flightctl: makeProfile('flightctl') })
+    const readFromStorage = mockReadFromStorage({
+      [statusSidecarKey('flightctl')]: { projectId: 'flightctl', profileRevision: 'rev', artifactKey: ARTIFACT_KEY, state: 'error' }
+    })
+
+    const { model } = readProjectTeamMetrics(projects, 'flightctl', 'team-1', readFromStorage)
+
+    expect(model.available).toBe(true)
+    expect(model.partial).toBe(true)
   })
 
   it('returns 404 when the team is not present in the publication', () => {
