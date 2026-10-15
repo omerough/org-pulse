@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { ref, readonly } from 'vue'
+import { ref, readonly, nextTick } from 'vue'
 import TeamComparisonReport from '../../../client/reports/TeamComparisonReport.vue'
+import { useReportFilters } from '../../../client/composables/useReportFilters'
+
+const mockIsNormalizedModel = ref(false)
+const mockRosterTeams = ref([])
 
 vi.mock('@shared/client/composables/useRoster', () => ({
   useRoster: () => ({
@@ -17,11 +21,17 @@ vi.mock('@shared/client/composables/useRoster', () => ({
         }
       }
     ]),
-    teams: ref([]),
+    teams: mockRosterTeams,
+    isNormalizedModel: mockIsNormalizedModel,
     selectedOrgKey: ref(null),
     selectOrg: vi.fn(),
     loadRoster: vi.fn(),
   })
+}))
+
+const mockProjectId = ref('')
+vi.mock('@shared/client/composables/useProjectId.js', () => ({
+  useProjectId: () => mockProjectId,
 }))
 
 vi.mock('@shared/client/composables/useGithubStats', () => ({
@@ -48,6 +58,11 @@ vi.mock('@shared/client/services/api', () => ({
 describe('TeamComparisonReport', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockProjectId.value = ''
+    mockIsNormalizedModel.value = false
+    mockRosterTeams.value = []
+    useReportFilters().selectedTeamKeys.value = []
+    useReportFilters().selectedOrgKeys.value = []
   })
 
   function createWrapper() {
@@ -100,5 +115,66 @@ describe('TeamComparisonReport', () => {
     const buttons = wrapper.findAll('button')
     const runButton = buttons.find(b => b.text().includes('Run'))
     expect(runButton.attributes('disabled')).toBeDefined()
+  })
+
+  describe('project mode', () => {
+    beforeEach(() => {
+      mockProjectId.value = 'flightctl'
+      mockIsNormalizedModel.value = true
+      mockRosterTeams.value = [
+        { key: 'flightctl::team-1', displayName: 'Flight Team', members: [{ name: 'Bob', githubUsername: null, gitlabUsername: null }] }
+      ]
+      useReportFilters().selectedTeamKeys.value = ['flightctl::team-1']
+    })
+
+    it('keeps GitHub/GitLab checkboxes visible but disabled, with an inline reason', () => {
+      const wrapper = createWrapper()
+      const checkbox = wrapper.find('input[value="githubContributions"]')
+      expect(checkbox.exists()).toBe(true)
+      expect(checkbox.attributes('disabled')).toBeDefined()
+      expect(wrapper.text()).toContain('GitHub Contributions (1yr)')
+      expect(wrapper.text()).toContain('(not published for this project)')
+    })
+
+    it('calls getTeamMetrics with the project id', async () => {
+      const { getTeamMetrics } = await import('@shared/client/services/api')
+      const wrapper = createWrapper()
+      await wrapper.find('input[value="teamSize"]').setValue(true)
+      await wrapper.findAll('button').find(b => b.text() === 'Run').trigger('click')
+      await nextTick()
+      await nextTick()
+      expect(getTeamMetrics).toHaveBeenCalledWith('flightctl::team-1', 'flightctl')
+    })
+
+    it('shows the unavailable banner instead of a fabricated zero when Jira metrics are unpublished', async () => {
+      const { getTeamMetrics } = await import('@shared/client/services/api')
+      getTeamMetrics.mockImplementationOnce(async () => ({
+        teamKey: 'flightctl::team-1', available: false, reason: 'missing-publication'
+      }))
+      const wrapper = createWrapper()
+      await wrapper.find('input[value="teamSize"]').setValue(true)
+      await wrapper.findAll('button').find(b => b.text() === 'Run').trigger('click')
+      await nextTick()
+      await nextTick()
+      expect(wrapper.text()).toContain('Jira metrics are not available for this project')
+      expect(wrapper.text()).toContain('Jira metrics have not been published for this project yet.')
+    })
+
+    it('clears stale charts and the unavailable banner on project switch', async () => {
+      const { getTeamMetrics } = await import('@shared/client/services/api')
+      getTeamMetrics.mockImplementationOnce(async () => ({
+        teamKey: 'flightctl::team-1', available: false, reason: 'missing-publication'
+      }))
+      const wrapper = createWrapper()
+      await wrapper.find('input[value="teamSize"]').setValue(true)
+      await wrapper.findAll('button').find(b => b.text() === 'Run').trigger('click')
+      await nextTick()
+      await nextTick()
+      expect(wrapper.text()).toContain('Jira metrics are not available for this project')
+
+      mockProjectId.value = 'osac'
+      await nextTick()
+      expect(wrapper.text()).not.toContain('Jira metrics are not available for this project')
+    })
   })
 })

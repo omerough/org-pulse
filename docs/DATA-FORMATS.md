@@ -245,6 +245,64 @@ closing the gap means either the producer marking the main artifact stale on
 failure, or a future reader change to also consult the status file — neither
 is in scope here.
 
+## Project-qualified Jira Trends and Team Comparison (`GET /trends`, `GET /team/:teamKey/metrics`)
+
+For any `projectId` other than `osac`, these endpoints read the project's
+`sources/jira-person-metrics/registry.json` publication (see
+[Project-qualified publication envelope](#project-qualified-publication-envelope))
+instead of the legacy global computation (`buildJiraTrends()` /
+`deriveRoster()`-backed team metrics); an unset `projectId`, or
+`projectId=osac`, keeps returning the legacy response unchanged. As with
+`/roster`, there is no fallback to OSAC data for a known non-OSAC project.
+
+`GET /trends?projectId=<id>` (`ProjectTrendsResponse`):
+
+```json
+{
+  "projectId": "flightctl",
+  "availability": "available",
+  "reason": null,
+  "publicationState": "supported",
+  "partial": false,
+  "generatedAt": "2026-10-14T00:00:00Z",
+  "jira": {
+    "2026-09": {
+      "resolved": 3,
+      "points": 10,
+      "avgCycleTimeDays": 3,
+      "byTeam": {
+        "flightctl::team-1": { "resolved": 2, "points": 8, "avgCycleTimeDays": 2 }
+      }
+    }
+  },
+  "github": null,
+  "gitlab": null
+}
+```
+
+`GET /team/:teamKey/metrics?projectId=<id>` (`ProjectTeamMetricsResponse`),
+`teamKey` being `<projectId>::<teamId>`:
+
+```json
+{
+  "teamKey": "flightctl::team-1",
+  "available": true,
+  "memberCount": 3,
+  "aggregate": { "resolvedCount": 5, "resolvedPoints": 13, "inProgressCount": 2, "avgCycleTimeDays": 2.5 },
+  "partial": true
+}
+```
+
+**Invariants:**
+- `jira` buckets are keyed by `YYYY-MM` (the issue's `resolutionDate` month) and built entirely from the publication's `people[].resolved.issues`; `byTeam` keys are project-qualified team keys, matching `team.key` in the roster response.
+- `github`/`gitlab` are always `null` in project mode: no project-qualified contribution publication exists yet. This is a genuine Data-side gap, not an App omission — the client keeps the GitHub/GitLab panels and metric options visible (disabled, with an inline reason) rather than removing them.
+- `availability`/`available` is `false`/`unavailable` whenever the publication's `state` is not `supported`/`empty`, or its `freshness` is not `fresh`/`stale` — never a fabricated zero. `reason` carries the publication `state` (e.g. `inapplicable`, `disabled`, `unavailable`, `error`) or `missing-publication` / `publication-not-fresh` / `no-published-people`.
+- A publication whose top-level `projectId`, `artifactKey`, `schemaVersion`, or nested `data.projectId` does not match the request is rejected outright (never partially joined), so project isolation holds the same way it does for roster/enrichment.
+- `partial` on `ProjectTrendsResponse` mirrors the publication's own `partial` flag (some people's metrics are stale carry-forward or missing); `partial` on `ProjectTeamMetricsResponse` is per-team (`team.partial`), set when any of that team's members are missing or stale.
+- `availability: "available"` reflects whether the publication has any person records at all, not whether any of them have resolved issues in the requested window — a project with people but zero resolved issues this period still reports `"available"` with an empty `jira` object, same as MR !175's own `state: "empty"` meaning no roster people at all.
+
+**Known gap:** like roster-enrichment, the producer (`fetch_project_jira_person_metrics.py`) always writes `freshness:"fresh"` on its main artifact; `stale`/`unknown` are only ever written to the separate `_publication/<key>.status.json` diagnostic, which this reader does not consult. So a total collection failure with no prior good data publishes `state:"error"`/`freshness:"unknown"` (correctly surfaced as unavailable), but a failure that preserves a last-known-good artifact keeps reporting `freshness:"fresh"` on data that may be stale. Not closed in this slice.
+
 ## Shared Releases → Execute contract
 
 The Releases Execute page keeps one OSAC-baseline layout for every project:

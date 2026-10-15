@@ -2,6 +2,7 @@ module.exports = function registerRoutes(router, context) {
   const { storage, requireAdmin, requireTeamAdmin, requireScope } = context;
   const { readFromStorage, writeToStorage, listStorageFiles, deleteStorageDirectory } = storage;
   const { readProjectPeopleTeams } = require('./project-roster');
+  const { readProjectTrends, readProjectTeamMetrics } = require('./project-jira-metrics');
   const { resolveProjectSelection } = require('../../../shared/server/project-profile');
 
   // Register module scopes
@@ -2947,18 +2948,36 @@ module.exports = function registerRoutes(router, context) {
    *         required: true
    *         schema:
    *           type: string
-   *         description: Team key (format orgKey::teamName)
+   *         description: Team key (format orgKey::teamName for OSAC, projectId::teamId for a project)
+   *       - in: query
+   *         name: projectId
+   *         required: false
+   *         schema: { type: string }
+   *         description: OSAC and an unset projectId return legacy team metrics; any other project returns its project-qualified Jira team metrics.
    *     responses:
    *       200:
    *         description: Team metrics data
    *         content:
    *           application/json:
    *             schema:
-   *               $ref: '#/components/schemas/TeamMetrics'
+   *               oneOf:
+   *                 - $ref: '#/components/schemas/TeamMetrics'
+   *                 - $ref: '#/components/schemas/ProjectTeamMetricsResponse'
    */
   router.get('/team/:teamKey/metrics', requireScope('metrics:read'), function(req, res) {
     try {
       const teamKey = decodeURIComponent(req.params.teamKey);
+
+      const selection = resolveProjectSelection(context.projects, req.query);
+      if (selection.status) return res.status(selection.status).json({ error: selection.error });
+      if (selection.provided && selection.projectId !== 'osac') {
+        const prefix = `${selection.projectId}::`;
+        const teamId = teamKey.startsWith(prefix) ? teamKey.slice(prefix.length) : teamKey;
+        const result = readProjectTeamMetrics(context.projects, selection.projectId, teamId);
+        if (result.status !== 200) return res.status(result.status).json({ error: result.error });
+        return res.json(result.model);
+      }
+
       const roster = deriveRoster();
 
       const sepIdx = teamKey.indexOf('::');
@@ -3198,12 +3217,31 @@ module.exports = function registerRoutes(router, context) {
    *   get:
    *     tags: ['TT: Trends']
    *     summary: Get Jira, GitHub, and GitLab trend data
+   *     parameters:
+   *       - in: query
+   *         name: projectId
+   *         required: false
+   *         schema: { type: string }
+   *         description: OSAC and an unset projectId return the legacy global trends; any other project returns its project-qualified Jira trends. GitHub/GitLab are always null for project mode (no project-qualified publication exists yet).
    *     responses:
    *       200:
    *         description: Combined trend data from all sources
+   *         content:
+   *           application/json:
+   *             schema:
+   *               oneOf:
+   *                 - $ref: '#/components/schemas/TrendsResponse'
+   *                 - $ref: '#/components/schemas/ProjectTrendsResponse'
    */
   router.get('/trends', requireScope('metrics:read'), function(req, res) {
     try {
+      const selection = resolveProjectSelection(context.projects, req.query);
+      if (selection.status) return res.status(selection.status).json({ error: selection.error });
+      if (selection.provided && selection.projectId !== 'osac') {
+        const result = readProjectTrends(context.projects, selection.projectId);
+        if (result.status !== 200) return res.status(result.status).json({ error: result.error });
+        return res.json(result.model);
+      }
       const jira = buildJiraTrends();
       const github = readGithubHistoryCache();
       const gitlab = readGitlabHistoryCache();
