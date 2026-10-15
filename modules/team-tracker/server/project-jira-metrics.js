@@ -4,6 +4,13 @@
  * (projectId, teamId), matching project-roster.js. GitHub/GitLab
  * contributions have no project-qualified publication yet, so trends always
  * report them as absent (`null`), never a fabricated zero.
+ *
+ * This is a source-specific reader, not the converged aggregation layer:
+ * the legacy OSAC team-metrics path (index.js) dedupes members by
+ * jiraDisplayName before aggregating, while this reader relies on the
+ * publication's accountId uniqueness (enforced at validation) and performs
+ * no additional dedup. Long-term, team/person aggregation should be shared
+ * across sources rather than reimplemented per reader.
  */
 
 const ARTIFACT_KEY = 'sources/jira-person-metrics/registry.json'

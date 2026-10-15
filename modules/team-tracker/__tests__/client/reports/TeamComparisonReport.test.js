@@ -160,6 +160,30 @@ describe('TeamComparisonReport', () => {
       expect(wrapper.text()).toContain('Jira metrics have not been published for this project yet.')
     })
 
+    it('retries fetching on a subsequent Run after an unavailable result, instead of treating it as cached', async () => {
+      const { getTeamMetrics } = await import('@shared/client/services/api')
+      getTeamMetrics.mockImplementationOnce(async () => ({
+        teamKey: 'flightctl::team-1', available: false, reason: 'missing-publication'
+      }))
+      const wrapper = createWrapper()
+      await wrapper.find('input[value="teamSize"]').setValue(true)
+      await wrapper.findAll('button').find(b => b.text() === 'Run').trigger('click')
+      await nextTick()
+      await nextTick()
+      expect(wrapper.text()).toContain('Jira metrics are not available for this project')
+
+      getTeamMetrics.mockImplementationOnce(async () => ({
+        teamKey: 'flightctl::team-1', available: true, memberCount: 5, aggregate: { resolvedCount: 20, avgCycleTimeDays: 3.5 }
+      }))
+      await wrapper.findAll('button').find(b => b.text() === 'Run').trigger('click')
+      await nextTick()
+      await nextTick()
+
+      expect(getTeamMetrics).toHaveBeenCalledTimes(2)
+      expect(wrapper.text()).not.toContain('Jira metrics are not available for this project')
+      expect(wrapper.find('[data-testid="report-chart"]').exists()).toBe(true)
+    })
+
     it('clears stale charts and the unavailable banner on project switch', async () => {
       const { getTeamMetrics } = await import('@shared/client/services/api')
       getTeamMetrics.mockImplementationOnce(async () => ({

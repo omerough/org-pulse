@@ -183,8 +183,11 @@ async function run() {
   loading.value = true
   metricsUnavailable.value = false
   try {
-    // Only fetch teams not already cached
-    const keysToFetch = selectedTeamKeys.value.filter(k => !metricsData.value[k])
+    // An unavailable placeholder isn't valid cached data; retry it every run.
+    const keysToFetch = selectedTeamKeys.value.filter(k => {
+      const cached = metricsData.value[k]
+      return !cached || cached.available === false
+    })
     const results = await Promise.all(
       keysToFetch.map(async (key) => {
         try {

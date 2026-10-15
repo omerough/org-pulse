@@ -2971,8 +2971,12 @@ module.exports = function registerRoutes(router, context) {
       const selection = resolveProjectSelection(context.projects, req.query);
       if (selection.status) return res.status(selection.status).json({ error: selection.error });
       if (selection.provided && selection.projectId !== 'osac') {
-        const prefix = `${selection.projectId}::`;
-        const teamId = teamKey.startsWith(prefix) ? teamKey.slice(prefix.length) : teamKey;
+        const sepIdx = teamKey.indexOf('::');
+        const keyProjectId = sepIdx !== -1 ? teamKey.substring(0, sepIdx) : null;
+        if (keyProjectId !== null && keyProjectId !== selection.projectId) {
+          return res.status(404).json({ error: `Team "${teamKey}" not found in project "${selection.projectId}"` });
+        }
+        const teamId = sepIdx !== -1 ? teamKey.substring(sepIdx + 2) : teamKey;
         const result = readProjectTeamMetrics(context.projects, selection.projectId, teamId);
         if (result.status !== 200) return res.status(result.status).json({ error: result.error });
         return res.json(result.model);

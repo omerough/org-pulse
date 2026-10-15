@@ -299,6 +299,38 @@ describe('readProjectTrends', () => {
     expect(JSON.stringify(model)).not.toContain('osac-secret')
   })
 
+  it('attributes a multi-team person to each of their teams without duplicating the overall total', () => {
+    const envelope = makeEnvelope('flightctl', {
+      data: {
+        projectId: 'flightctl',
+        personCount: 1,
+        people: [
+          makePerson({
+            accountId: 'acct-1',
+            teamIds: ['team-1', 'team-2'],
+            resolved: {
+              count: 1,
+              storyPoints: 5,
+              issues: [{ key: 'RHEM-1', resolutionDate: '2026-09-15T00:00:00Z', storyPoints: 5, cycleTimeDays: 4 }]
+            }
+          })
+        ],
+        teams: [makeTeam(), makeTeam({ id: 'team-2', name: 'RHEM-QE' })],
+        diagnostics: { missingPeople: [], staleCarryForward: [], freshSuccessCount: 1 }
+      }
+    })
+    const projects = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: envelope } } }, { flightctl: makeProfile('flightctl') })
+
+    const { model } = readProjectTrends(projects, 'flightctl')
+
+    expect(model.jira['2026-09'].resolved).toBe(1);
+    expect(model.jira['2026-09'].points).toBe(5);
+    expect(model.jira['2026-09'].byTeam).toEqual({
+      'flightctl::team-1': { resolved: 1, points: 5, avgCycleTimeDays: 4 },
+      'flightctl::team-2': { resolved: 1, points: 5, avgCycleTimeDays: 4 }
+    })
+  })
+
   it('returns 404 for an unknown project', () => {
     const projects = mockProjects({}, {})
 
@@ -394,5 +426,47 @@ describe('readProjectTeamMetrics', () => {
     expect(status).toBe(200)
     expect(model.available).toBe(false)
     expect(model.reason).toBe('missing-publication')
+  })
+
+  it('rejects a publication whose top-level projectId does not match the request', () => {
+    const envelope = makeEnvelope('flightctl')
+    const projects = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: { ...envelope, projectId: 'osac' } } } }, { flightctl: makeProfile('flightctl') })
+
+    const { status, error } = readProjectTeamMetrics(projects, 'flightctl', 'team-1')
+
+    expect(status).toBe(502)
+    expect(error).toMatch(/identity mismatch/)
+  })
+
+  it('rejects a publication whose nested data.projectId does not match the request', () => {
+    const envelope = makeEnvelope('flightctl')
+    envelope.data.projectId = 'osac'
+    const projects = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: envelope } } }, { flightctl: makeProfile('flightctl') })
+
+    const { status, error } = readProjectTeamMetrics(projects, 'flightctl', 'team-1')
+
+    expect(status).toBe(502)
+    expect(error).toMatch(/identity mismatch/)
+  })
+
+  it('never joins a team from one project into a response for another (isolation)', () => {
+    const flightctlEnvelope = makeEnvelope('flightctl')
+    const osacEnvelope = makeEnvelope('osac', {
+      data: {
+        projectId: 'osac',
+        personCount: 1,
+        people: [makePerson({ accountId: 'osac-secret-acct' })],
+        teams: [makeTeam({ id: 'team-1', name: 'osac-secret-team' })],
+        diagnostics: { missingPeople: [], staleCarryForward: [], freshSuccessCount: 1 }
+      }
+    })
+    const projects = mockProjects(
+      { flightctl: { [ARTIFACT_KEY]: { value: flightctlEnvelope } }, osac: { [ARTIFACT_KEY]: { value: osacEnvelope } } },
+      { flightctl: makeProfile('flightctl'), osac: makeProfile('osac') }
+    )
+
+    const { model } = readProjectTeamMetrics(projects, 'flightctl', 'team-1')
+
+    expect(JSON.stringify(model)).not.toContain('osac-secret')
   })
 })

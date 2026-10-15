@@ -263,4 +263,18 @@ describe('GET /team/:teamKey/metrics project-selection dispatch', () => {
     expect(status).toBe(404)
     expect(body.error).toBe('Unknown project')
   })
+
+  it('rejects a teamKey qualified for a different project instead of reinterpreting it', async () => {
+    const projects = makeProjectsReader({
+      knownProjectIds: ['osac', 'flightctl', 'other'],
+      jiraMetricsProjectIds: ['flightctl', 'other']
+    })
+    const app = createTestServer(makeRegistryStorageData(), projects)
+
+    const { status, body } = await requestGet(app, '/team/other%3A%3Ateam-1/metrics?projectId=flightctl')
+
+    expect(status).toBe(404)
+    expect(body.error).toContain('other::team-1')
+    expect(body.error).toContain('flightctl')
+  })
 })
