@@ -60,7 +60,10 @@ const mockManagedTeams = ref([])
 const mockManagerLoading = ref(false)
 const mockManagerError = ref(null)
 const mockIncludeIndirect = ref(false)
+const mockProjectId = ref(null)
+const mockIsProjectMode = computed(() => Boolean(mockProjectId.value) && mockProjectId.value !== 'osac')
 const mockLoadManagerDashboard = vi.fn(() => Promise.resolve())
+const mockResetState = vi.fn()
 
 vi.mock('../../client/composables/useManagerDashboard', () => ({
   useManagerDashboard: () => ({
@@ -68,7 +71,10 @@ vi.mock('../../client/composables/useManagerDashboard', () => ({
     loading: mockManagerLoading,
     error: mockManagerError,
     includeIndirect: mockIncludeIndirect,
-    load: mockLoadManagerDashboard
+    projectId: mockProjectId,
+    isProjectMode: mockIsProjectMode,
+    load: mockLoadManagerDashboard,
+    resetState: mockResetState
   })
 }))
 
@@ -98,9 +104,11 @@ beforeEach(() => {
   mockManagerLoading.value = false
   mockManagerError.value = null
   mockIncludeIndirect.value = false
+  mockProjectId.value = null
   mockNavigateTo.mockClear()
   mockLoadManagerDashboard.mockClear()
   mockLoadManagerDashboard.mockImplementation(() => Promise.resolve())
+  mockResetState.mockClear()
 })
 
 describe('ManagedTeamsWidget', () => {
