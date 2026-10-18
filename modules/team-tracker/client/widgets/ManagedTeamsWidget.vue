@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '@shared/client/composables/useAuth.js'
 import { useFieldDefinitions } from '@shared/client/composables/useFieldDefinitions.js'
 import { useModuleLink } from '@shared/client/composables/useModuleLink.js'
@@ -16,7 +16,10 @@ const {
   teams: managedTeams,
   loading: managerLoading,
   includeIndirect,
-  load: loadManagerDashboard
+  isProjectMode,
+  projectId,
+  load: loadManagerDashboard,
+  resetState: resetManagerDashboard
 } = useManagerDashboard()
 
 const managerLoadFailed = ref(false)
@@ -35,23 +38,47 @@ function getTeamComponents(metadata) {
   return []
 }
 
+function loadForCurrentProject() {
+  managerLoadFailed.value = false
+  includeIndirect.value = false
+  loadManagerDashboard().catch(() => {
+    managerLoadFailed.value = true
+  })
+}
+
 onMounted(() => {
   fetchDefinitions()
   if (isManager.value) {
-    includeIndirect.value = false
-    loadManagerDashboard().catch(() => {
-      managerLoadFailed.value = true
-    })
+    loadForCurrentProject()
   }
 })
+
+// Clear stale manager data before reloading for the newly selected project.
+watch(projectId, () => {
+  resetManagerDashboard()
+  if (isManager.value) {
+    loadForCurrentProject()
+  }
+}, { flush: 'sync' })
 
 const loading = computed(() => {
   if (!isManager.value) return false
   return managerLoading.value && !managerLoadFailed.value
 })
 
-function handleTeamClick(teamKey) {
-  crossNavigate('team-tracker', 'team-detail', { teamKey, from: 'sotu' })
+function teamKeyFor(team) {
+  return isProjectMode.value ? `${projectId.value}::${team.id}` : `${team.orgKey}::${team.name}`
+}
+
+function teamDirectReportCount(team) {
+  if (isProjectMode.value) {
+    return team.directReportCount ?? team.directReportAccountIds?.length ?? 0
+  }
+  return team.directReportUids?.length || 0
+}
+
+function handleTeamClick(team) {
+  crossNavigate('team-tracker', 'team-detail', { teamKey: teamKeyFor(team), from: 'sotu' })
 }
 
 function handleMyTeamsClick() {
@@ -83,14 +110,14 @@ function handleMyTeamsClick() {
       <button
         v-for="team in managedTeams"
         :key="team.id"
-        @click="handleTeamClick(`${team.orgKey}::${team.name}`)"
+        @click="handleTeamClick(team)"
         class="bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 p-4 text-left cursor-pointer hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-primary-500"
       >
         <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">{{ team.name }}</h4>
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
-          {{ team.directReportUids?.length || 0 }} direct reports · {{ team.totalMemberCount || 0 }} total
+          {{ teamDirectReportCount(team) }} direct reports · {{ team.totalMemberCount || 0 }} total
         </p>
-        <div v-if="getTeamComponents(team.metadata).length > 0" class="flex flex-wrap gap-1">
+        <div v-if="!isProjectMode && getTeamComponents(team.metadata).length > 0" class="flex flex-wrap gap-1">
           <span
             v-for="comp in getTeamComponents(team.metadata)"
             :key="comp"

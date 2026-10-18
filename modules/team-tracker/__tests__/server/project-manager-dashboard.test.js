@@ -161,6 +161,23 @@ describe('buildProjectManagerDashboard', () => {
     expect(body.reason).toBe('hierarchy-unavailable')
   })
 
+  it('reports hierarchy-unavailable instead of a false 403 when enrichment is partial', () => {
+    const model = flightControlModel()
+    // Freshness is fine, but some records are missing from the join.
+    model.enrichment = { state: 'partial', partial: true, generatedAt: '2026-10-15T00:00:00.000Z' }
+    const { status, body } = buildProjectManagerDashboard(model, { email: 'erin@redhat.com' })
+    expect(status).toBe(200)
+    expect(body.reason).toBe('hierarchy-unavailable')
+  })
+
+  it('still returns 403 for a confirmed non-manager when enrichment is complete and fresh', () => {
+    const model = flightControlModel()
+    model.enrichment = { state: 'fresh', partial: false, generatedAt: '2026-10-15T00:00:00.000Z' }
+    const { status, body } = buildProjectManagerDashboard(model, { email: 'erin@redhat.com' })
+    expect(status).toBe(403)
+    expect(body.error).toBe('You are not a manager')
+  })
+
   it('returns no-direct-reports (200) for a privileged non-manager', () => {
     const { status, body } = buildProjectManagerDashboard(flightControlModel(), { email: 'erin@redhat.com', isPrivileged: true })
     expect(status).toBe(200)

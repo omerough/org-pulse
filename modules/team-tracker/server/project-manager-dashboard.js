@@ -90,8 +90,10 @@ function buildProjectManagerDashboard(model, options = {}) {
   const purview = getManagerPurview(accountId, registry, teamsData, { includeIndirect });
 
   if (purview.directReportUids.length === 0) {
-    // Without a trusted hierarchy join, every managerRef is null — zero reports means "unknown", not "verified non-manager".
-    const hierarchyAvailable = Boolean(model.enrichment) && model.enrichment.state !== 'absent';
+    // A partial join can be missing managerRefs too — zero reports isn't trustworthy.
+    const hierarchyAvailable = Boolean(model.enrichment)
+      && model.enrichment.state !== 'absent'
+      && model.enrichment.partial !== true;
     if (!hierarchyAvailable) {
       return {
         status: 200,

@@ -1,7 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount as vtuMount, flushPromises } from '@vue/test-utils'
 import { ref, computed } from 'vue'
 import ManagedTeamsWidget from '../../../client/widgets/ManagedTeamsWidget.vue'
+
+// mockProjectId is shared module state, so a leftover mounted wrapper's watcher
+// would keep firing in later tests — track and unmount in afterEach.
+let mountedWrappers = []
+function mount(...args) {
+  const wrapper = vtuMount(...args)
+  mountedWrappers.push(wrapper)
+  return wrapper
+}
 
 const mockNavigateTo = vi.fn()
 
@@ -35,7 +44,12 @@ vi.mock('@shared/client/composables/useFieldDefinitions', () => ({
 const mockManagedTeams = ref([])
 const mockManagerLoading = ref(false)
 const mockIncludeIndirect = ref(false)
+const mockProjectId = ref(null)
+const mockIsProjectMode = computed(() => Boolean(mockProjectId.value) && mockProjectId.value !== 'osac')
 const mockLoadManagerDashboard = vi.fn(() => Promise.resolve())
+const mockResetState = vi.fn(() => {
+  mockManagedTeams.value = []
+})
 
 vi.mock('../../../client/composables/useManagerDashboard', () => ({
   useManagerDashboard: () => ({
@@ -43,7 +57,10 @@ vi.mock('../../../client/composables/useManagerDashboard', () => ({
     loading: mockManagerLoading,
     error: ref(null),
     includeIndirect: mockIncludeIndirect,
-    load: mockLoadManagerDashboard
+    projectId: mockProjectId,
+    isProjectMode: mockIsProjectMode,
+    load: mockLoadManagerDashboard,
+    resetState: mockResetState
   })
 }))
 
@@ -53,9 +70,16 @@ beforeEach(() => {
   mockManagedTeams.value = []
   mockManagerLoading.value = false
   mockIncludeIndirect.value = false
+  mockProjectId.value = null
   mockNavigateTo.mockClear()
   mockLoadManagerDashboard.mockClear()
   mockLoadManagerDashboard.mockImplementation(() => Promise.resolve())
+  mockResetState.mockClear()
+})
+
+afterEach(() => {
+  mountedWrappers.forEach(w => w.unmount())
+  mountedWrappers = []
 })
 
 describe('ManagedTeamsWidget', () => {
@@ -137,6 +161,73 @@ describe('ManagedTeamsWidget', () => {
       await flushPromises()
       expect(wrapper.text()).toContain('API')
       expect(wrapper.text()).toContain('Auth')
+    })
+
+    describe('project mode', () => {
+      beforeEach(() => {
+        mockProjectId.value = 'flight-control'
+      })
+
+      it('renders project-mode team cards using directReportCount and no component badges', async () => {
+        mockDefinitions.value = {
+          personFields: [],
+          teamFields: [{ id: 'field_comp', label: 'Component', optionsRef: 'component', deleted: false }]
+        }
+        mockManagedTeams.value = [
+          { id: 't_core', name: 'Core', orgKey: 'flight-control', directReportCount: 2, directReportAccountIds: ['a', 'b'], totalMemberCount: 5, metadata: { field_comp: ['API'] } }
+        ]
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        expect(wrapper.text()).toContain('2 direct reports')
+        expect(wrapper.text()).toContain('5 total')
+        expect(wrapper.text()).not.toContain('API')
+      })
+
+      it('falls back to directReportAccountIds length when directReportCount is absent', async () => {
+        mockManagedTeams.value = [
+          { id: 't_core', name: 'Core', orgKey: 'flight-control', directReportAccountIds: ['a', 'b', 'c'], totalMemberCount: 5, metadata: {} }
+        ]
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        expect(wrapper.text()).toContain('3 direct reports')
+      })
+
+      it('navigates using a projectId::teamId key on card click', async () => {
+        mockManagedTeams.value = [
+          { id: 't_core', name: 'Core', orgKey: 'flight-control', directReportCount: 1, totalMemberCount: 3, metadata: {} }
+        ]
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        const card = wrapper.findAll('button').find(b => b.text().includes('Core'))
+        await card.trigger('click')
+        expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'team-detail', { teamKey: 'flight-control::t_core', from: 'sotu' })
+      })
+
+      it('reloads against the new project when the selected project changes', async () => {
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        expect(mockLoadManagerDashboard).toHaveBeenCalledTimes(1)
+
+        mockProjectId.value = 'other-project'
+        await wrapper.vm.$nextTick()
+        await flushPromises()
+
+        expect(mockResetState).toHaveBeenCalled()
+        expect(mockLoadManagerDashboard).toHaveBeenCalledTimes(2)
+      })
+
+      it('does not reload on project change for a non-manager', async () => {
+        mockUser.value = { email: 'ic@redhat.com', isManager: false }
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        expect(mockLoadManagerDashboard).not.toHaveBeenCalled()
+
+        mockProjectId.value = 'other-project'
+        await wrapper.vm.$nextTick()
+        await flushPromises()
+
+        expect(mockLoadManagerDashboard).not.toHaveBeenCalled()
+      })
     })
   })
 })
