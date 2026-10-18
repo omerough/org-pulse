@@ -635,6 +635,17 @@ describe('readProjectPersonMetrics', () => {
     expect(model.metrics).toBeNull()
   })
 
+  it('propagates publication-level partial onto a missing-person result, never implying confirmed-complete coverage', () => {
+    const envelope = makeEnvelope('flightctl', { partial: true, data: envelopeWithPeople([makePerson({ accountId: 'acct-1' })]).data })
+    const projects = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: envelope } } }, { flightctl: makeProfile('flightctl') })
+
+    const { model } = readProjectPersonMetrics(projects, 'flightctl', 'nonexistent-acct')
+
+    expect(model.availability).toBe('unavailable')
+    expect(model.reason).toBe('missing-person')
+    expect(model.partial).toBe(true)
+  })
+
   it.each(['inapplicable', 'disabled', 'unavailable', 'error'])(
     'degrades to unavailable with the publication state as the reason: %s',
     (state) => {

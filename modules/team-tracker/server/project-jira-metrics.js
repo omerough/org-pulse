@@ -259,6 +259,8 @@ function readProjectTeamMetrics(projects, projectId, teamId, readFromStorage) {
 function _buildPersonMetricsModel(projectId, accountId, loaded) {
   const person = loaded.people.find(p => p.accountId === accountId);
   if (!person) {
+    // loaded.partial, not false: a partial publication's absent person may
+    // just be missing from an incomplete collection, not a confirmed zero.
     return {
       projectId,
       accountId,
@@ -266,7 +268,7 @@ function _buildPersonMetricsModel(projectId, accountId, loaded) {
       reason: 'missing-person',
       publicationState: loaded.publicationState,
       generatedAt: loaded.generatedAt,
-      partial: false,
+      partial: loaded.partial,
       metrics: null
     };
   }
