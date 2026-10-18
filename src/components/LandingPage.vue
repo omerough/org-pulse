@@ -144,15 +144,12 @@ const props = defineProps({
 defineEmits(['navigate'])
 
 const { isManager: isOsacManager, isTeamAdmin } = useAuth()
-const { isManager: isProjectManager, loading: permissionsLoading } = usePermissions()
+const { isManager: isProjectManager } = usePermissions()
 const projectId = useProjectId()
 const isProjectMode = computed(() => Boolean(projectId.value) && projectId.value !== 'osac')
 // A project-only manager has no legacy OSAC manager flag, so OSAC and project
 // mode each need their own source of truth here.
 const isManager = computed(() => isProjectMode.value ? isProjectManager.value : isOsacManager.value)
-// Gates pruning only — stale layout entries must survive the project-mode
-// permissions fetch, not get wiped by a transient "not a manager" reading.
-const managerStatusLoading = computed(() => isProjectMode.value && permissionsLoading.value)
 const showWidgetPicker = ref(false)
 const gridRef = ref(null)
 const topSectionRef = ref(null)
@@ -234,14 +231,28 @@ const allWidgets = computed(() => {
   return widgets
 })
 
-// Seed first-time layout with default widgets, then prune stale widgets when manifests change
+// Unfiltered by role — only a widget missing from every manifest is "stale".
+const allManifestWidgetIds = computed(() => {
+  const ids = []
+  for (const mod of props.builtInManifests) {
+    const sotuWidgets = mod.client?.sotuWidgets
+    if (!sotuWidgets || !Array.isArray(sotuWidgets)) continue
+    for (const w of sotuWidgets) {
+      ids.push(`${mod.slug}:${w.id}`)
+    }
+  }
+  return ids
+})
+
+// Seed first-time layout with default widgets, then prune stale widgets when manifests change.
+// Guards on the unfiltered id list, not role-filtered `widgets` — a role that
+// currently hides every widget must not be mistaken for manifests not loaded yet.
 watch(allWidgets, (widgets) => {
-  if (widgets.length === 0) return
+  if (allManifestWidgetIds.value.length === 0) return
   if (isFirstVisit.value) {
     initWithDefaults(widgets.filter(w => w.default))
   }
-  if (managerStatusLoading.value) return
-  pruneStaleWidgets(widgets.map(w => w.qualifiedId))
+  pruneStaleWidgets(allManifestWidgetIds.value)
 }, { immediate: true })
 
 // Widget component cache

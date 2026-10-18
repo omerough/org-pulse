@@ -265,5 +265,47 @@ describe('LandingPage', () => {
 
       expect(wrapper.findAll('.sotu-widget')).toHaveLength(1)
     })
+
+    it('preserves a saved manager-only widget in storage for a resolved non-manager', async () => {
+      localStorage.setItem('orgpulse_sotu_layout', JSON.stringify([{ widgetId: 'team-tracker:managed-teams', size: 'full' }]))
+      const wrapper = await mountLandingPage({ builtInManifests: [TEAM_TRACKER_MANIFEST], isAdmin: false })
+      await flushPromises()
+
+      expect(wrapper.findAll('.sotu-widget')).toHaveLength(0)
+      expect(JSON.parse(localStorage.getItem('orgpulse_sotu_layout'))).toEqual([
+        { widgetId: 'team-tracker:managed-teams', size: 'full' }
+      ])
+    })
+
+    it('keeps a saved manager-only widget in storage across a permission change', async () => {
+      localStorage.setItem('orgpulse_sotu_layout', JSON.stringify([{ widgetId: 'team-tracker:managed-teams', size: 'full' }]))
+      mockProjectId.value = 'flight-control'
+      mockProjectIsManager.value = true
+      const wrapper = await mountLandingPage({ builtInManifests: [TEAM_TRACKER_MANIFEST], isAdmin: false })
+      await flushPromises()
+      expect(wrapper.findAll('.sotu-widget')).toHaveLength(1)
+
+      mockProjectIsManager.value = false
+      await nextTick()
+      await flushPromises()
+
+      expect(wrapper.findAll('.sotu-widget')).toHaveLength(0)
+      expect(JSON.parse(localStorage.getItem('orgpulse_sotu_layout'))).toEqual([
+        { widgetId: 'team-tracker:managed-teams', size: 'full' }
+      ])
+    })
+
+    it('prunes a widget id absent from every manifest while keeping a role-hidden but still-declared one', async () => {
+      localStorage.setItem('orgpulse_sotu_layout', JSON.stringify([
+        { widgetId: 'team-tracker:managed-teams', size: 'full' },
+        { widgetId: 'team-tracker:removed-widget', size: 'half' }
+      ]))
+      await mountLandingPage({ builtInManifests: [TEAM_TRACKER_MANIFEST], isAdmin: false })
+      await flushPromises()
+
+      expect(JSON.parse(localStorage.getItem('orgpulse_sotu_layout'))).toEqual([
+        { widgetId: 'team-tracker:managed-teams', size: 'full' }
+      ])
+    })
   })
 })
