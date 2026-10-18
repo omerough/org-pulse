@@ -30,6 +30,37 @@ function emptyPurviewPayload(extra = {}) {
   };
 }
 
+/**
+ * Identity-independent view of whether this project's published manager/report
+ * hierarchy can be trusted, derived purely from the roster read model's
+ * enrichment join. Mirrors the enrichment semantics used to resolve direct-report
+ * purview, so a read-only UI can explain an absent/partial/expired hierarchy
+ * without ever being granted a manager privilege. Expired/unknown enrichment
+ * freshness is collapsed to 'absent' upstream (project-roster 'distrust'); a
+ * missing enrichment publication has no `model.enrichment` and is also 'absent'.
+ *
+ * @param {object} model - Normalized project read model from readProjectPeopleTeams
+ * @returns {'available'|'stale'|'partial'|'absent'|'unavailable'}
+ */
+function projectHierarchyStatus(model) {
+  if (!model || !['available', 'empty'].includes(model.availability)) return 'unavailable';
+  const enrichment = model.enrichment;
+  if (!enrichment || enrichment.state === 'absent') return 'absent';
+  if (enrichment.partial === true) return 'partial';
+  if (enrichment.state === 'stale') return 'stale';
+  return 'available';
+}
+
+/**
+ * Whether the hierarchy is trustworthy enough that a zero-direct-reports result
+ * is a real signal. 'stale' is a complete join that is merely not fresh, so it
+ * still counts; 'partial'/'absent'/'unavailable' do not.
+ */
+function isProjectHierarchyAvailable(model) {
+  const status = projectHierarchyStatus(model);
+  return status === 'available' || status === 'stale';
+}
+
 function toReport(person, { indirect = false } = {}) {
   return {
     accountId: person.accountId,
@@ -91,9 +122,7 @@ function buildProjectManagerDashboard(model, options = {}) {
 
   if (purview.directReportUids.length === 0) {
     // A partial join can be missing managerRefs too — zero reports isn't trustworthy.
-    const hierarchyAvailable = Boolean(model.enrichment)
-      && model.enrichment.state !== 'absent'
-      && model.enrichment.partial !== true;
+    const hierarchyAvailable = isProjectHierarchyAvailable(model);
     if (!hierarchyAvailable) {
       return {
         status: 200,
@@ -150,4 +179,4 @@ function buildProjectManagerDashboard(model, options = {}) {
   return { status: 200, body };
 }
 
-module.exports = { buildProjectManagerDashboard };
+module.exports = { buildProjectManagerDashboard, projectHierarchyStatus, isProjectHierarchyAvailable };

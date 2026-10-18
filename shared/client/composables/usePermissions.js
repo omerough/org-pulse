@@ -46,6 +46,16 @@ export function usePermissions() {
   const isManager = computed(() =>
     permissionData.value?.isManager || roles.value.includes('admin')
   )
+  // Project-mode hierarchy availability signal (absent/partial/expired/unavailable
+  // vs available/stale). Separate from isManager: it never grants privileges, it
+  // only lets read-only UI explain why a manager view is empty. Legacy OSAC
+  // responses omit it, so it reads as null/available (no degraded UI).
+  const hierarchyStatus = computed(() => permissionData.value?.hierarchy || null)
+  const hierarchyAvailable = computed(() => {
+    const status = hierarchyStatus.value
+    if (!status) return true
+    return status === 'available' || status === 'stale'
+  })
 
   function canEdit(uid) {
     if (isAdmin.value) return true
@@ -65,6 +75,8 @@ export function usePermissions() {
     isAdmin,
     isTeamAdmin,
     isManager,
+    hierarchyStatus,
+    hierarchyAvailable,
     canEdit,
     canEditTeam,
     refresh: fetchPermissions

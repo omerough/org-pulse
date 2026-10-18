@@ -57,14 +57,14 @@ function makeRosterEnvelope(projectId, { teams, people }) {
   }
 }
 
-function makeEnrichmentEnvelope(projectId, people, { freshness = 'fresh' } = {}) {
+function makeEnrichmentEnvelope(projectId, people, { freshness = 'fresh', partial = false } = {}) {
   return {
     schemaVersion: 1,
     projectId,
     artifactKey: 'sources/roster-enrichment/registry.json',
     state: 'supported',
     freshness,
-    partial: false,
+    partial,
     generatedAt: '2026-10-01T00:00:00Z',
     data: { projectId, people }
   }
@@ -102,7 +102,8 @@ function makeProjectsReader({ knownProjectIds = [], rosters = {}, enrichments = 
     publications[projectId] = publications[projectId] || {}
     const people = Array.isArray(enrichmentSpec) ? enrichmentSpec : enrichmentSpec.people
     const freshness = Array.isArray(enrichmentSpec) ? undefined : enrichmentSpec.freshness
-    publications[projectId]['sources/roster-enrichment/registry.json'] = { value: makeEnrichmentEnvelope(projectId, people, { freshness }) }
+    const partial = Array.isArray(enrichmentSpec) ? undefined : enrichmentSpec.partial
+    publications[projectId]['sources/roster-enrichment/registry.json'] = { value: makeEnrichmentEnvelope(projectId, people, { freshness, partial }) }
   }
 
   return {
@@ -452,5 +453,103 @@ describe('GET /permissions/me project-selection dispatch', () => {
 
     expect(status).toBe(404)
     expect(body.error).toBe('Unknown project')
+  })
+
+  describe('hierarchy availability signal', () => {
+    it('reports hierarchy:available for a complete manager without granting anything extra', async () => {
+      const { teams, people, enrichmentPeople } = flightctlFixture()
+      const projects = makeProjectsReader({
+        knownProjectIds: ['flightctl'],
+        rosters: { flightctl: { teams, people } },
+        enrichments: { flightctl: enrichmentPeople }
+      })
+      const app = createTestServer({}, projects, { userEmail: 'mallory@example.com', userRoles: [] })
+
+      const { status, body } = await requestGet(app, '/permissions/me?projectId=flightctl')
+
+      expect(status).toBe(200)
+      expect(body.isManager).toBe(true)
+      expect(body.hierarchy).toBe('available')
+    })
+
+    it('reports hierarchy:available with isManager:false for a complete non-manager', async () => {
+      const { teams, people, enrichmentPeople } = flightctlFixture()
+      const projects = makeProjectsReader({
+        knownProjectIds: ['flightctl'],
+        rosters: { flightctl: { teams, people } },
+        enrichments: { flightctl: enrichmentPeople }
+      })
+      const app = createTestServer({}, projects, { userEmail: 'enzo@example.com', userRoles: [] })
+
+      const { body } = await requestGet(app, '/permissions/me?projectId=flightctl')
+
+      expect(body.isManager).toBe(false)
+      expect(body.hierarchy).toBe('available')
+    })
+
+    it('reports hierarchy:absent (isManager fail-closed) when no enrichment is published', async () => {
+      const { teams, people } = flightctlFixture()
+      const projects = makeProjectsReader({
+        knownProjectIds: ['flightctl'],
+        rosters: { flightctl: { teams, people } }
+      })
+      const app = createTestServer({}, projects, { userEmail: 'mallory@example.com', userRoles: [] })
+
+      const { body } = await requestGet(app, '/permissions/me?projectId=flightctl')
+
+      expect(body.isManager).toBe(false)
+      expect(body.uid).toBe('mgr-1')
+      expect(body.hierarchy).toBe('absent')
+    })
+
+    it('reports hierarchy:absent (isManager fail-closed) when enrichment is expired', async () => {
+      const { teams, people, enrichmentPeople } = flightctlFixture()
+      const projects = makeProjectsReader({
+        knownProjectIds: ['flightctl'],
+        rosters: { flightctl: { teams, people } },
+        enrichments: { flightctl: { people: enrichmentPeople, freshness: 'expired' } }
+      })
+      const app = createTestServer({}, projects, { userEmail: 'mallory@example.com', userRoles: [] })
+
+      const { body } = await requestGet(app, '/permissions/me?projectId=flightctl')
+
+      expect(body.isManager).toBe(false)
+      expect(body.hierarchy).toBe('absent')
+    })
+
+    it('reports hierarchy:partial (isManager fail-closed) when enrichment is a partial join with no resolvable edges', async () => {
+      const teams = [{ id: 'team-core', name: 'Core', orgKey: 'flightctl' }]
+      const people = [
+        { accountId: 'mgr-1', displayName: 'Mallory Manager', active: true, teamIds: ['team-core'], email: 'mallory@example.com' },
+        { accountId: 'eng-1', displayName: 'Erin Eng', active: true, teamIds: ['team-core'], email: 'erin@example.com' }
+      ]
+      // Matched records but managerRefs dropped in this incomplete republish.
+      const enrichmentPeople = [
+        { accountId: 'mgr-1', matchStatus: 'matched', email: 'mallory@example.com', title: 'Eng Manager' },
+        { accountId: 'eng-1', matchStatus: 'matched', email: 'erin@example.com', title: 'Engineer' }
+      ]
+      const projects = makeProjectsReader({
+        knownProjectIds: ['flightctl'],
+        rosters: { flightctl: { teams, people } },
+        enrichments: { flightctl: { people: enrichmentPeople, partial: true } }
+      })
+      const app = createTestServer({}, projects, { userEmail: 'mallory@example.com', userRoles: [] })
+
+      const { body } = await requestGet(app, '/permissions/me?projectId=flightctl')
+
+      expect(body.isManager).toBe(false)
+      expect(body.hierarchy).toBe('partial')
+    })
+
+    it('omits the hierarchy signal entirely on the legacy OSAC/unset path', async () => {
+      const projects = makeProjectsReader({ knownProjectIds: ['osac', 'flightctl'] })
+      const app = createTestServer(makeRegistryStorageData(), projects, { userUid: 'osacmgr', userEmail: 'osacmgr@example.com', isManager: true, userRoles: ['user'] })
+
+      const unset = await requestGet(app, '/permissions/me')
+      const osac = await requestGet(app, '/permissions/me?projectId=osac')
+
+      expect(unset.body).not.toHaveProperty('hierarchy')
+      expect(osac.body).not.toHaveProperty('hierarchy')
+    })
   })
 })

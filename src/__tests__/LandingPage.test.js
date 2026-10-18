@@ -16,11 +16,13 @@ vi.mock('@shared/client/composables/useAuth.js', () => ({
 
 const mockProjectIsManager = ref(false)
 const mockPermissionsLoading = ref(false)
+const mockHierarchyAvailable = ref(true)
 
 vi.mock('@shared/client/composables/usePermissions.js', () => ({
   usePermissions: () => ({
     isManager: mockProjectIsManager,
-    loading: mockPermissionsLoading
+    loading: mockPermissionsLoading,
+    hierarchyAvailable: mockHierarchyAvailable
   })
 }))
 
@@ -83,6 +85,7 @@ describe('LandingPage', () => {
     mockIsTeamAdmin.value = false
     mockProjectIsManager.value = false
     mockPermissionsLoading.value = false
+    mockHierarchyAvailable.value = true
     mockProjectId.value = ''
   })
 
@@ -293,6 +296,42 @@ describe('LandingPage', () => {
       expect(JSON.parse(localStorage.getItem('orgpulse_sotu_layout'))).toEqual([
         { widgetId: 'team-tracker:managed-teams', size: 'full' }
       ])
+    })
+
+    it('keeps a saved manager-only widget visible in project mode when the hierarchy is unavailable, so it can explain itself', async () => {
+      // Non-manager (fail-closed isManager:false) but the project hierarchy can't be
+      // determined — keep the widget rendered so it shows a read-only explanation
+      // rather than silently vanishing.
+      localStorage.setItem('orgpulse_sotu_layout', JSON.stringify([{ widgetId: 'team-tracker:managed-teams', size: 'full' }]))
+      mockIsManager.value = false
+      mockProjectId.value = 'flight-control'
+      mockProjectIsManager.value = false
+      mockHierarchyAvailable.value = false
+      const wrapper = await mountLandingPage({ builtInManifests: [TEAM_TRACKER_MANIFEST], isAdmin: false })
+      await flushPromises()
+      expect(wrapper.findAll('.sotu-widget')).toHaveLength(1)
+    })
+
+    it('still hides a manager-only widget in project mode for a verified non-manager when the hierarchy is available', async () => {
+      localStorage.setItem('orgpulse_sotu_layout', JSON.stringify([{ widgetId: 'team-tracker:managed-teams', size: 'full' }]))
+      mockIsManager.value = false
+      mockProjectId.value = 'flight-control'
+      mockProjectIsManager.value = false
+      mockHierarchyAvailable.value = true
+      const wrapper = await mountLandingPage({ builtInManifests: [TEAM_TRACKER_MANIFEST], isAdmin: false })
+      await flushPromises()
+      expect(wrapper.findAll('.sotu-widget')).toHaveLength(0)
+    })
+
+    it('does not reveal a manager-only widget in OSAC mode even when the project hierarchy flag is unavailable', async () => {
+      // OSAC/legacy mode must be unaffected by the project hierarchy signal.
+      localStorage.setItem('orgpulse_sotu_layout', JSON.stringify([{ widgetId: 'team-tracker:managed-teams', size: 'full' }]))
+      mockIsManager.value = false
+      mockProjectId.value = ''
+      mockHierarchyAvailable.value = false
+      const wrapper = await mountLandingPage({ builtInManifests: [TEAM_TRACKER_MANIFEST], isAdmin: false })
+      await flushPromises()
+      expect(wrapper.findAll('.sotu-widget')).toHaveLength(0)
     })
 
     it('prunes a widget id absent from every manifest while keeping a role-hidden but still-declared one', async () => {

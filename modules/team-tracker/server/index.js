@@ -580,6 +580,7 @@ module.exports = function registerRoutes(router, context) {
       if (result.status !== 200 || !result.model) {
         return res.status(result.status).json({ error: result.error });
       }
+      const { projectHierarchyStatus } = require('./project-manager-dashboard');
       const accountId = resolveProjectManagerAccountId(result.model, req.userEmail);
       let isManager = false;
       let managedAccountIds = [];
@@ -593,8 +594,14 @@ module.exports = function registerRoutes(router, context) {
         email: req.userEmail,
         uid: accountId,
         roles: req.userRoles || [],
+        // Fail closed: true only when a verified downward edge exists. An
+        // absent/partial/expired hierarchy yields false (unknown), never true.
         isManager,
-        managedUids: managedAccountIds
+        managedUids: managedAccountIds,
+        // Separate, identity-independent availability signal so read-only UI can
+        // explain an absent/partial/expired hierarchy without mistaking a
+        // fail-closed isManager:false for a verified non-manager. Never affects authz.
+        hierarchy: projectHierarchyStatus(result.model)
       });
     }
 

@@ -12,7 +12,7 @@ defineProps({
 
 const { navigateTo: crossNavigate } = useModuleLink()
 const { isManager: isOsacManager } = useAuth()
-const { isManager: isProjectManager, loading: permissionsLoading } = usePermissions()
+const { isManager: isProjectManager, loading: permissionsLoading, hierarchyAvailable } = usePermissions()
 const { definitions, fetchDefinitions } = useFieldDefinitions()
 const {
   teams: managedTeams,
@@ -29,6 +29,14 @@ const managerLoadFailed = ref(false)
 // A project-only manager has no legacy OSAC manager flag.
 const isManager = computed(() => isProjectMode.value ? isProjectManager.value : isOsacManager.value)
 const managerStatusLoading = computed(() => isProjectMode.value && permissionsLoading.value)
+
+// When a project's manager hierarchy isn't published (absent/partial/expired),
+// isManager fails closed to false. Distinguish that "unknown" case from a
+// verified non-manager so this read-only widget can explain it instead of
+// claiming the viewer simply isn't a manager. No data is loaded in this state.
+const hierarchyUnavailable = computed(() =>
+  isProjectMode.value && !managerStatusLoading.value && !hierarchyAvailable.value
+)
 
 const componentTeamFieldId = computed(() => {
   const tf = definitions.value?.teamFields || []
@@ -104,7 +112,11 @@ function handleMyTeamsClick() {
   <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
     <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">Managed Teams</h3>
 
-    <div v-if="!isManager && !loading" class="text-sm text-gray-500 dark:text-gray-400">
+    <div v-if="hierarchyUnavailable && !loading" class="text-sm text-gray-500 dark:text-gray-400">
+      This project's manager hierarchy isn't published yet, so managed teams can't be shown. Visit <button class="text-primary-600 hover:underline" @click="handleMyTeamsClick">My Teams</button> for details.
+    </div>
+
+    <div v-else-if="!isManager && !loading" class="text-sm text-gray-500 dark:text-gray-400">
       This widget is for managers. Visit <button class="text-primary-600 hover:underline" @click="handleMyTeamsClick">My Teams</button> for your team memberships.
     </div>
 

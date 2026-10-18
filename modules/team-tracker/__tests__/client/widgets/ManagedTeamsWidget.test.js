@@ -34,11 +34,13 @@ vi.mock('@shared/client/composables/useAuth', () => ({
 
 const mockProjectIsManager = ref(false)
 const mockPermissionsLoading = ref(false)
+const mockHierarchyAvailable = ref(true)
 
 vi.mock('@shared/client/composables/usePermissions', () => ({
   usePermissions: () => ({
     isManager: mockProjectIsManager,
-    loading: mockPermissionsLoading
+    loading: mockPermissionsLoading,
+    hierarchyAvailable: mockHierarchyAvailable
   })
 }))
 
@@ -83,6 +85,7 @@ beforeEach(() => {
   mockProjectId.value = null
   mockProjectIsManager.value = false
   mockPermissionsLoading.value = false
+  mockHierarchyAvailable.value = true
   mockNavigateTo.mockClear()
   mockLoadManagerDashboard.mockClear()
   mockLoadManagerDashboard.mockImplementation(() => Promise.resolve())
@@ -278,6 +281,18 @@ describe('ManagedTeamsWidget', () => {
         expect(mockLoadManagerDashboard).not.toHaveBeenCalled()
         expect(wrapper.text()).not.toContain('This widget is for managers')
         expect(wrapper.findAll('.animate-pulse').length).toBeGreaterThan(0)
+      })
+
+      it('explains an unavailable project hierarchy instead of claiming the viewer is not a manager', async () => {
+        mockUser.value = { email: 'pm@redhat.com', isManager: false }
+        mockProjectId.value = 'flight-control'
+        mockProjectIsManager.value = false
+        mockHierarchyAvailable.value = false
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        expect(wrapper.text()).toContain("manager hierarchy isn't published")
+        expect(wrapper.text()).not.toContain('This widget is for managers')
+        expect(mockLoadManagerDashboard).not.toHaveBeenCalled()
       })
 
       it('loads once project permission resolves after mounting mid-load', async () => {

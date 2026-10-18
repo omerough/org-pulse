@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-const { buildProjectManagerDashboard } = require('../../server/project-manager-dashboard')
+const { buildProjectManagerDashboard, projectHierarchyStatus, isProjectHierarchyAvailable } = require('../../server/project-manager-dashboard')
 
 function person(accountId, overrides = {}) {
   return {
@@ -200,5 +200,45 @@ describe('buildProjectManagerDashboard', () => {
     model.people.find(p => p.accountId === 'acc_eng1').active = false
     const { body } = buildProjectManagerDashboard(model, { email: 'morgan@redhat.com' })
     expect(body.directReports.map(r => r.accountId)).toEqual(['acc_eng2'])
+  })
+})
+
+describe('projectHierarchyStatus', () => {
+  const base = { projectId: 'proj', availability: 'available' }
+
+  it('is "available" for a fresh, complete enrichment join', () => {
+    const model = { ...base, enrichment: { state: 'fresh', partial: false } }
+    expect(projectHierarchyStatus(model)).toBe('available')
+    expect(isProjectHierarchyAvailable(model)).toBe(true)
+  })
+
+  it('is "stale" (still available) for a stale join', () => {
+    const model = { ...base, enrichment: { state: 'stale', partial: false } }
+    expect(projectHierarchyStatus(model)).toBe('stale')
+    expect(isProjectHierarchyAvailable(model)).toBe(true)
+  })
+
+  it('is "partial" (not available) for a partial join', () => {
+    const model = { ...base, enrichment: { state: 'partial', partial: true } }
+    expect(projectHierarchyStatus(model)).toBe('partial')
+    expect(isProjectHierarchyAvailable(model)).toBe(false)
+  })
+
+  it('is "absent" (not available) when enrichment is distrusted (expired/unknown)', () => {
+    const model = { ...base, enrichment: { state: 'absent' } }
+    expect(projectHierarchyStatus(model)).toBe('absent')
+    expect(isProjectHierarchyAvailable(model)).toBe(false)
+  })
+
+  it('is "absent" when no enrichment was published at all', () => {
+    const model = { ...base }
+    expect(projectHierarchyStatus(model)).toBe('absent')
+    expect(isProjectHierarchyAvailable(model)).toBe(false)
+  })
+
+  it('is "unavailable" when the roster publication itself is unavailable', () => {
+    expect(projectHierarchyStatus({ projectId: 'proj', availability: 'unavailable' })).toBe('unavailable')
+    expect(projectHierarchyStatus(null)).toBe('unavailable')
+    expect(isProjectHierarchyAvailable({ projectId: 'proj', availability: 'unavailable' })).toBe(false)
   })
 })

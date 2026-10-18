@@ -144,7 +144,7 @@ const props = defineProps({
 defineEmits(['navigate'])
 
 const { isManager: isOsacManager, isTeamAdmin } = useAuth()
-const { isManager: isProjectManager } = usePermissions()
+const { isManager: isProjectManager, hierarchyAvailable: isProjectHierarchyAvailable } = usePermissions()
 const projectId = useProjectId()
 const isProjectMode = computed(() => Boolean(projectId.value) && projectId.value !== 'osac')
 // A project-only manager has no legacy OSAC manager flag, so OSAC and project
@@ -212,7 +212,14 @@ const allWidgets = computed(() => {
     const sotuWidgets = mod.client?.sotuWidgets
     if (!sotuWidgets || !Array.isArray(sotuWidgets)) continue
     for (const w of sotuWidgets) {
-      if (w.requireRole === 'manager' && !isManager.value) continue
+      if (w.requireRole === 'manager' && !isManager.value) {
+        // In project mode, keep a manager widget visible when the project's manager
+        // hierarchy can't be determined (absent/partial/expired), so it can render a
+        // read-only explanation instead of silently vanishing. The widget self-gates
+        // data loading on isManager, so this grants no manager data or privilege.
+        const keepForUnknownHierarchy = isProjectMode.value && !isProjectHierarchyAvailable.value
+        if (!keepForUnknownHierarchy) continue
+      }
       if (w.requireRole === 'team-admin' && !isTeamAdmin.value) continue
       widgets.push({
         qualifiedId: `${mod.slug}:${w.id}`,
