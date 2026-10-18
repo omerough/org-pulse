@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '@shared/client/composables/useAuth.js'
+import { usePermissions } from '@shared/client/composables/usePermissions.js'
 import { useFieldDefinitions } from '@shared/client/composables/useFieldDefinitions.js'
 import { useModuleLink } from '@shared/client/composables/useModuleLink.js'
 import { useManagerDashboard } from '../composables/useManagerDashboard.js'
@@ -10,7 +11,8 @@ defineProps({
 })
 
 const { navigateTo: crossNavigate } = useModuleLink()
-const { isManager } = useAuth()
+const { isManager: isOsacManager } = useAuth()
+const { isManager: isProjectManager, loading: permissionsLoading } = usePermissions()
 const { definitions, fetchDefinitions } = useFieldDefinitions()
 const {
   teams: managedTeams,
@@ -23,6 +25,10 @@ const {
 } = useManagerDashboard()
 
 const managerLoadFailed = ref(false)
+
+// A project-only manager has no legacy OSAC manager flag.
+const isManager = computed(() => isProjectMode.value ? isProjectManager.value : isOsacManager.value)
+const managerStatusLoading = computed(() => isProjectMode.value && permissionsLoading.value)
 
 const componentTeamFieldId = computed(() => {
   const tf = definitions.value?.teamFields || []
@@ -46,22 +52,30 @@ function loadForCurrentProject() {
   })
 }
 
+function maybeLoad() {
+  if (managerStatusLoading.value) return
+  if (isManager.value) loadForCurrentProject()
+}
+
 onMounted(() => {
   fetchDefinitions()
-  if (isManager.value) {
-    loadForCurrentProject()
-  }
+  maybeLoad()
 })
 
 // Clear stale manager data before reloading for the newly selected project.
 watch(projectId, () => {
   resetManagerDashboard()
-  if (isManager.value) {
-    loadForCurrentProject()
-  }
+  maybeLoad()
 }, { flush: 'sync' })
 
+// Project-mode manager status resolves asynchronously via usePermissions;
+// load once it settles instead of only at mount/project-switch time.
+watch(managerStatusLoading, (isLoading, wasLoading) => {
+  if (wasLoading && !isLoading) maybeLoad()
+})
+
 const loading = computed(() => {
+  if (managerStatusLoading.value) return true
   if (!isManager.value) return false
   return managerLoading.value && !managerLoadFailed.value
 })
@@ -90,7 +104,7 @@ function handleMyTeamsClick() {
   <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
     <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">Managed Teams</h3>
 
-    <div v-if="!isManager" class="text-sm text-gray-500 dark:text-gray-400">
+    <div v-if="!isManager && !loading" class="text-sm text-gray-500 dark:text-gray-400">
       This widget is for managers. Visit <button class="text-primary-600 hover:underline" @click="handleMyTeamsClick">My Teams</button> for your team memberships.
     </div>
 

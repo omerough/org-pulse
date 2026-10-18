@@ -26,11 +26,14 @@ vi.mock('@shared/client/composables/useAuth', () => ({
 }))
 
 const mockUserUid = ref('jsmith')
+const mockProjectIsManager = ref(false)
+const mockPermissionsLoading = ref(false)
 
 vi.mock('@shared/client/composables/usePermissions', () => ({
   usePermissions: () => ({
     userUid: mockUserUid,
-    loading: ref(false)
+    isManager: mockProjectIsManager,
+    loading: mockPermissionsLoading
   })
 }))
 
@@ -96,6 +99,8 @@ function makeFieldDefs({ personFields = [], teamFields = [] } = {}) {
 beforeEach(() => {
   mockUser.value = { email: 'jsmith@redhat.com', isManager: false }
   mockUserUid.value = 'jsmith'
+  mockProjectIsManager.value = false
+  mockPermissionsLoading.value = false
   mockTeams.value = []
   mockRosterLoading.value = false
   mockDefinitions.value = { personFields: [], teamFields: [] }

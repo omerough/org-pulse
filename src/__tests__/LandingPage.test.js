@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { nextTick, ref } from 'vue'
 import LandingPage from '../components/LandingPage.vue'
 import { _resetForTesting } from '../composables/useSotuLayout.js'
 
@@ -12,6 +12,22 @@ vi.mock('@shared/client/composables/useAuth.js', () => ({
     isManager: mockIsManager,
     isTeamAdmin: mockIsTeamAdmin
   })
+}))
+
+const mockProjectIsManager = ref(false)
+const mockPermissionsLoading = ref(false)
+
+vi.mock('@shared/client/composables/usePermissions.js', () => ({
+  usePermissions: () => ({
+    isManager: mockProjectIsManager,
+    loading: mockPermissionsLoading
+  })
+}))
+
+const mockProjectId = ref('')
+
+vi.mock('@shared/client/composables/useProjectId.js', () => ({
+  useProjectId: () => mockProjectId
 }))
 
 vi.mock('../module-loader', () => ({
@@ -38,6 +54,22 @@ const AI_IMPACT_MANIFEST = {
   }
 }
 
+const TEAM_TRACKER_MANIFEST = {
+  slug: 'team-tracker',
+  name: 'People & Teams',
+  client: {
+    sotuWidgets: [
+      {
+        id: 'managed-teams',
+        name: 'Managed Teams',
+        component: 'ManagedTeamsWidget.vue',
+        defaultSize: 'full',
+        requireRole: 'manager'
+      }
+    ]
+  }
+}
+
 // useSotuLayout's layout ref is a module-level singleton; reset it from localStorage before each mount.
 function mountLandingPage(props) {
   _resetForTesting()
@@ -49,6 +81,9 @@ describe('LandingPage', () => {
     localStorage.clear()
     mockIsManager.value = false
     mockIsTeamAdmin.value = false
+    mockProjectIsManager.value = false
+    mockPermissionsLoading.value = false
+    mockProjectId.value = ''
   })
 
   it('seeds Feature Planning Board as the default first-visit widget when AI Impact is enabled', async () => {
@@ -183,5 +218,52 @@ describe('LandingPage', () => {
       vi.useRealTimers()
       dispatchSpy.mockRestore()
     }
+  })
+
+  describe('manager-only widget visibility', () => {
+    it('hides a manager-only widget for a non-manager in OSAC mode', async () => {
+      const wrapper = await mountLandingPage({ builtInManifests: [TEAM_TRACKER_MANIFEST], isAdmin: false })
+      await flushPromises()
+      expect(wrapper.findAll('.sotu-widget')).toHaveLength(0)
+    })
+
+    it('shows a manager-only widget for a legacy OSAC manager', async () => {
+      // "managed-teams" has no `default: true`, so it only renders from a saved layout.
+      localStorage.setItem('orgpulse_sotu_layout', JSON.stringify([{ widgetId: 'team-tracker:managed-teams', size: 'full' }]))
+      mockIsManager.value = true
+      const wrapper = await mountLandingPage({ builtInManifests: [TEAM_TRACKER_MANIFEST], isAdmin: false })
+      await flushPromises()
+      expect(wrapper.findAll('.sotu-widget')).toHaveLength(1)
+    })
+
+    it('shows a manager-only widget for a project-only manager with no legacy OSAC flag', async () => {
+      localStorage.setItem('orgpulse_sotu_layout', JSON.stringify([{ widgetId: 'team-tracker:managed-teams', size: 'full' }]))
+      mockIsManager.value = false
+      mockProjectId.value = 'flight-control'
+      mockProjectIsManager.value = true
+      const wrapper = await mountLandingPage({ builtInManifests: [TEAM_TRACKER_MANIFEST], isAdmin: false })
+      await flushPromises()
+      expect(wrapper.findAll('.sotu-widget')).toHaveLength(1)
+    })
+
+    it('does not prune a saved manager-only widget while project permission is still resolving', async () => {
+      localStorage.setItem('orgpulse_sotu_layout', JSON.stringify([{ widgetId: 'team-tracker:managed-teams', size: 'full' }]))
+      mockProjectId.value = 'flight-control'
+      mockPermissionsLoading.value = true
+      const wrapper = await mountLandingPage({ builtInManifests: [TEAM_TRACKER_MANIFEST], isAdmin: false })
+      await flushPromises()
+
+      expect(wrapper.findAll('.sotu-widget')).toHaveLength(0)
+      expect(JSON.parse(localStorage.getItem('orgpulse_sotu_layout'))).toEqual([
+        { widgetId: 'team-tracker:managed-teams', size: 'full' }
+      ])
+
+      mockProjectIsManager.value = true
+      mockPermissionsLoading.value = false
+      await nextTick()
+      await flushPromises()
+
+      expect(wrapper.findAll('.sotu-widget')).toHaveLength(1)
+    })
   })
 })

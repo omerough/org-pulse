@@ -129,6 +129,8 @@ import {
 } from 'lucide-vue-next'
 import Sortable from 'sortablejs'
 import { useAuth } from '@shared/client/composables/useAuth.js'
+import { usePermissions } from '@shared/client/composables/usePermissions.js'
+import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import { loadModuleWidget } from '../module-loader'
 import { useSotuLayout } from '../composables/useSotuLayout.js'
 import SotuWidget from './SotuWidget.vue'
@@ -141,7 +143,16 @@ const props = defineProps({
 
 defineEmits(['navigate'])
 
-const { isManager, isTeamAdmin } = useAuth()
+const { isManager: isOsacManager, isTeamAdmin } = useAuth()
+const { isManager: isProjectManager, loading: permissionsLoading } = usePermissions()
+const projectId = useProjectId()
+const isProjectMode = computed(() => Boolean(projectId.value) && projectId.value !== 'osac')
+// A project-only manager has no legacy OSAC manager flag, so OSAC and project
+// mode each need their own source of truth here.
+const isManager = computed(() => isProjectMode.value ? isProjectManager.value : isOsacManager.value)
+// Gates pruning only — stale layout entries must survive the project-mode
+// permissions fetch, not get wiped by a transient "not a manager" reading.
+const managerStatusLoading = computed(() => isProjectMode.value && permissionsLoading.value)
 const showWidgetPicker = ref(false)
 const gridRef = ref(null)
 const topSectionRef = ref(null)
@@ -229,6 +240,7 @@ watch(allWidgets, (widgets) => {
   if (isFirstVisit.value) {
     initWithDefaults(widgets.filter(w => w.default))
   }
+  if (managerStatusLoading.value) return
   pruneStaleWidgets(widgets.map(w => w.qualifiedId))
 }, { immediate: true })
 

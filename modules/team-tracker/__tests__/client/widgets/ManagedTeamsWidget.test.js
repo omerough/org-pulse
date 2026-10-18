@@ -32,6 +32,16 @@ vi.mock('@shared/client/composables/useAuth', () => ({
   })
 }))
 
+const mockProjectIsManager = ref(false)
+const mockPermissionsLoading = ref(false)
+
+vi.mock('@shared/client/composables/usePermissions', () => ({
+  usePermissions: () => ({
+    isManager: mockProjectIsManager,
+    loading: mockPermissionsLoading
+  })
+}))
+
 const mockDefinitions = ref({ personFields: [], teamFields: [] })
 vi.mock('@shared/client/composables/useFieldDefinitions', () => ({
   useFieldDefinitions: () => ({
@@ -71,6 +81,8 @@ beforeEach(() => {
   mockManagerLoading.value = false
   mockIncludeIndirect.value = false
   mockProjectId.value = null
+  mockProjectIsManager.value = false
+  mockPermissionsLoading.value = false
   mockNavigateTo.mockClear()
   mockLoadManagerDashboard.mockClear()
   mockLoadManagerDashboard.mockImplementation(() => Promise.resolve())
@@ -104,6 +116,7 @@ describe('ManagedTeamsWidget', () => {
   describe('manager view', () => {
     beforeEach(() => {
       mockUser.value = { email: 'manager@redhat.com', isManager: true }
+      mockProjectIsManager.value = true
     })
 
     it('renders managed team cards', async () => {
@@ -218,6 +231,7 @@ describe('ManagedTeamsWidget', () => {
 
       it('does not reload on project change for a non-manager', async () => {
         mockUser.value = { email: 'ic@redhat.com', isManager: false }
+        mockProjectIsManager.value = false
         const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
         await flushPromises()
         expect(mockLoadManagerDashboard).not.toHaveBeenCalled()
@@ -227,6 +241,60 @@ describe('ManagedTeamsWidget', () => {
         await flushPromises()
 
         expect(mockLoadManagerDashboard).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('project-scoped manager permission', () => {
+      it('loads for a project-only manager with no legacy OSAC manager flag', async () => {
+        mockUser.value = { email: 'pm@redhat.com', isManager: false }
+        mockProjectId.value = 'flight-control'
+        mockProjectIsManager.value = true
+        mockManagedTeams.value = [
+          { id: 't_core', name: 'Core', orgKey: 'flight-control', directReportCount: 1, totalMemberCount: 2, metadata: {} }
+        ]
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        expect(mockLoadManagerDashboard).toHaveBeenCalledTimes(1)
+        expect(wrapper.text()).toContain('Core')
+      })
+
+      it('does not grant project access from a legacy OSAC manager flag alone', async () => {
+        mockUser.value = { email: 'osac-mgr@redhat.com', isManager: true }
+        mockProjectId.value = 'flight-control'
+        mockProjectIsManager.value = false
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        expect(mockLoadManagerDashboard).not.toHaveBeenCalled()
+        expect(wrapper.text()).toContain('This widget is for managers')
+      })
+
+      it('shows the loading skeleton, not the non-manager message, while project permission is resolving', async () => {
+        mockUser.value = { email: 'pm@redhat.com', isManager: false }
+        mockProjectId.value = 'flight-control'
+        mockProjectIsManager.value = false
+        mockPermissionsLoading.value = true
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        expect(mockLoadManagerDashboard).not.toHaveBeenCalled()
+        expect(wrapper.text()).not.toContain('This widget is for managers')
+        expect(wrapper.findAll('.animate-pulse').length).toBeGreaterThan(0)
+      })
+
+      it('loads once project permission resolves after mounting mid-load', async () => {
+        mockUser.value = { email: 'pm@redhat.com', isManager: false }
+        mockProjectId.value = 'flight-control'
+        mockProjectIsManager.value = false
+        mockPermissionsLoading.value = true
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        expect(mockLoadManagerDashboard).not.toHaveBeenCalled()
+
+        mockProjectIsManager.value = true
+        mockPermissionsLoading.value = false
+        await wrapper.vm.$nextTick()
+        await flushPromises()
+
+        expect(mockLoadManagerDashboard).toHaveBeenCalledTimes(1)
       })
     })
   })
