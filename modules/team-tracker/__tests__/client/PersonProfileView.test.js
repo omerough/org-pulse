@@ -397,6 +397,38 @@ describe('PersonProfileView', () => {
       }
     }
 
+    it('ignores a stale legacy response after navigating to a project-qualified person (cross-mode race)', async () => {
+      setRoster([rosterPersonFixture('acc-1', 'Ada Lovelace')])
+      getProjectPersonMetrics.mockResolvedValue(availableJiraMetrics())
+
+      let resolveLegacy
+      apiRequest.mockImplementation((url) => {
+        if (url.includes('/registry/people/u1')) {
+          return new Promise(resolve => { resolveLegacy = resolve })
+        }
+        return Promise.resolve({})
+      })
+
+      const wrapper = mountView({ uid: 'u1' })
+      await flushPromises()
+
+      // Navigate to a project-qualified person before the legacy lookup resolves.
+      wrapper.navParams.value = { accountId: 'acc-1' }
+      await flushPromises()
+      expect(wrapper.text()).toContain('Ada Lovelace')
+
+      resolveLegacy({
+        person: { uid: 'u1', name: 'Bob Builder', status: 'active', email: 'bob@example.com', orgType: 'engineering' },
+        managerChain: [],
+        directReports: [],
+        associatedTeams: []
+      })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Ada Lovelace')
+      expect(wrapper.text()).not.toContain('Bob Builder')
+    })
+
     it('fetches metrics for the correct accountId and renders resolved/in-progress issues with working sort/links', async () => {
       setRoster([rosterPersonFixture('acc-1', 'Ada Lovelace')])
       getProjectPersonMetrics.mockResolvedValue(availableJiraMetrics({

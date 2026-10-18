@@ -235,9 +235,7 @@ function loadProjectPerson() {
     lastSeenAt: null,
     inactiveSince: null
   }
-  if (person.value.orgType !== 'auxiliary') {
-    loadProjectJiraMetrics(expectedProjectId, expectedAccountId)
-  }
+  loadProjectJiraMetrics(expectedProjectId, expectedAccountId)
   loading.value = false
 }
 
@@ -269,7 +267,13 @@ function loadProjectJiraMetrics(expectedProjectId, expectedAccountId) {
   })
 }
 
+let personRequestSeq = 0
+
+// Guards a legacy fetch that resolves after a newer loadPerson() call from overwriting its state.
 async function loadPerson() {
+  const requestId = ++personRequestSeq
+  const stillCurrent = () => requestId === personRequestSeq
+
   if (isProjectPerson.value) {
     loadProjectPerson()
     return
@@ -281,6 +285,7 @@ async function loadPerson() {
   error.value = null
   try {
     const data = await apiRequest('/modules/team-tracker/registry/people/' + encodeURIComponent(lookupId))
+    if (!stillCurrent()) return
     person.value = data.person
     managerChain.value = data.managerChain || []
     directReports.value = data.directReports || []
@@ -289,20 +294,24 @@ async function loadPerson() {
     // Suppress Jira/GitHub/GitLab API calls for auxiliary people
     if (person.value?.name && person.value?.orgType !== 'auxiliary') {
       try {
-        jiraMetrics.value = await apiRequest(
+        const metrics = await apiRequest(
           '/modules/team-tracker/person/' + encodeURIComponent(person.value.name) + '/metrics'
         )
+        if (!stillCurrent()) return
+        jiraMetrics.value = metrics
       } catch {
+        if (!stillCurrent()) return
         jiraMetrics.value = null
       }
     } else {
       jiraMetrics.value = null
     }
   } catch (e) {
+    if (!stillCurrent()) return
     error.value = e.message || 'Person not found'
     person.value = null
   } finally {
-    loading.value = false
+    if (stillCurrent()) loading.value = false
   }
 }
 

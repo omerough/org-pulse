@@ -261,16 +261,10 @@ function _buildPersonMetricsModel(projectId, accountId, loaded) {
   if (!person) {
     // loaded.partial, not false: a partial publication's absent person may
     // just be missing from an incomplete collection, not a confirmed zero.
-    return {
-      projectId,
-      accountId,
-      availability: 'unavailable',
+    return _unavailablePersonMetricsModel(projectId, accountId, loaded, {
       reason: 'missing-person',
-      publicationState: loaded.publicationState,
-      generatedAt: loaded.generatedAt,
-      partial: loaded.partial,
-      metrics: null
-    };
+      partial: loaded.partial
+    });
   }
 
   return {
@@ -290,7 +284,7 @@ function _buildPersonMetricsModel(projectId, accountId, loaded) {
   };
 }
 
-function _unavailablePersonMetricsModel(projectId, accountId, loaded) {
+function _unavailablePersonMetricsModel(projectId, accountId, loaded, overrides = {}) {
   return {
     projectId,
     accountId,
@@ -299,7 +293,8 @@ function _unavailablePersonMetricsModel(projectId, accountId, loaded) {
     publicationState: loaded.publicationState,
     generatedAt: loaded.generatedAt,
     partial: false,
-    metrics: null
+    metrics: null,
+    ...overrides
   };
 }
 

@@ -110,7 +110,7 @@ export async function getTeamMetrics(teamKey, projectId) {
 }
 
 export async function getProjectPersonMetrics(projectId, accountId) {
-  return apiRequest(`/project-person-metrics?projectId=${encodeURIComponent(projectId)}&accountId=${encodeURIComponent(accountId)}`)
+  return apiRequest(`/modules/team-tracker/project-person-metrics?projectId=${encodeURIComponent(projectId)}&accountId=${encodeURIComponent(accountId)}`)
 }
 
 // ─── Unified Refresh ───
