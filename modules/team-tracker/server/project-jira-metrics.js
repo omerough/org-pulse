@@ -301,10 +301,8 @@ function _unavailablePersonMetricsModel(projectId, accountId, loaded) {
   };
 }
 
-// Mirrors readProjectTeamMetrics, but a person absent from the publication is
-// an honest availability state ("missing-person"), not a 404: unlike a team
-// key sourced from the roster, an accountId may legitimately have no
-// published Jira activity yet.
+// A person absent from the publication is "missing-person", not a 404: an
+// accountId may legitimately have no published Jira activity yet.
 function readProjectPersonMetrics(projects, projectId, accountId, readFromStorage) {
   if (typeof accountId !== 'string' || !accountId.trim()) {
     return { status: 400, error: 'Invalid account id' };
