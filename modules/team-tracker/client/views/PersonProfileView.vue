@@ -562,7 +562,7 @@ onBeforeUnmount(() => {
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               <template v-if="jiraMetrics && !jiraMetrics.nameNotFound">
                 <div>
-                  <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ jiraMetrics.resolved?.issues?.length || 0 }}</div>
+                  <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ jiraMetrics.resolved?.count || 0 }}</div>
                   <div class="text-xs text-gray-500 dark:text-gray-400">Resolved Issues</div>
                   <div class="text-[10px] text-gray-400 dark:text-gray-500">{{ jiraLookbackLabel }}</div>
                 </div>

@@ -93,6 +93,13 @@ function availableJiraMetrics(overrides = {}) {
   }
 }
 
+// Reads a tile's value by label; wrapper.text() digit matches can be
+// satisfied incidentally by unrelated tiles (e.g. "365 days").
+function metricTileValue(wrapper, label) {
+  const labelEl = wrapper.findAll('div').find(d => d.text() === label)
+  return labelEl ? labelEl.element.previousElementSibling.textContent.trim() : null
+}
+
 const mountedWrappers = []
 
 function mountView(params) {
@@ -467,9 +474,20 @@ describe('PersonProfileView', () => {
       const wrapper = mountView({ accountId: 'acc-1' })
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Resolved Issues')
-      expect(wrapper.text()).toContain('3')
+      expect(metricTileValue(wrapper, 'Resolved Issues')).toBe('3')
       expect(wrapper.text()).toContain('GitHub Contributions')
+    })
+
+    it('shows resolved.count in the Resolved Issues tile when resolved.issues is empty (partial/truncated issues list)', async () => {
+      setRoster([rosterPersonFixture('acc-1', 'Ada Lovelace')])
+      getProjectPersonMetrics.mockResolvedValue(availableJiraMetrics({
+        metrics: { lookbackDays: 365, resolved: { count: 7, storyPoints: 0, issues: [] }, inProgress: { count: 0, storyPoints: 0, issues: [] }, cycleTime: { avgDays: null, medianDays: null } }
+      }))
+
+      const wrapper = mountView({ accountId: 'acc-1' })
+      await flushPromises()
+
+      expect(metricTileValue(wrapper, 'Resolved Issues')).toBe('7')
     })
 
     it('resolves distinct metrics for two people sharing a display name', async () => {
@@ -491,8 +509,13 @@ describe('PersonProfileView', () => {
 
       expect(getProjectPersonMetrics).toHaveBeenCalledWith('flightctl', 'acc-1')
       expect(getProjectPersonMetrics).not.toHaveBeenCalledWith('flightctl', 'acc-2')
-      expect(wrapper.text()).toContain('1')
-      expect(wrapper.text()).not.toContain('9')
+      expect(metricTileValue(wrapper, 'Resolved Issues')).toBe('1')
+
+      wrapper.navParams.value = { accountId: 'acc-2' }
+      await flushPromises()
+
+      expect(getProjectPersonMetrics).toHaveBeenCalledWith('flightctl', 'acc-2')
+      expect(metricTileValue(wrapper, 'Resolved Issues')).toBe('9')
     })
 
     it('shows no Jira metrics tile for a missing publication or a missing person, without a fabricated zero', async () => {
