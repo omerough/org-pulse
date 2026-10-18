@@ -1,4 +1,4 @@
-# OSAC-6322 — Manager Dashboard integration patch
+# OSAC-6322 — Manager Dashboard integration patch (APPLIED)
 
 Owner session: **OSAC-6322 | App | Manager Dashboard**.
 
@@ -8,10 +8,11 @@ All business logic for project-qualified manager dashboards lives in owned files
 `modules/team-tracker/client/composables/useManagerDashboard.js`,
 `modules/team-tracker/client/views/ManagerDashboardView.vue`).
 
-The only change required in an **integration-reserved** file is wiring the
-existing `GET /manager/dashboard` route to the project path. Apply this after
-PR #187 and ownership reconciliation. No change is needed in
-`shared/client/services/api.js` (the composable builds the query string itself).
+The route wiring and the nav-visibility follow-up below have both been applied
+on this branch (`modules/team-tracker/server/index.js`,
+`shared/client/composables/usePermissions.js`, `src/components/AppSidebar.vue`).
+This file is kept as a record of what changed and why. No change was needed in
+`shared/client/services/api.js` (the composables build their own query strings).
 
 ## `modules/team-tracker/server/index.js`
 
@@ -79,43 +80,28 @@ dashboard builder import and the route branch are new.
 - Unavailable/stale/partial publications return an honest `availability`/`reason`,
   not a zeroed dashboard.
 
-## Follow-up integration item: nav visibility is not project-aware (separate from the route wiring above)
+## Nav visibility: `/permissions/me` and `usePermissions.js` (applied)
 
-Verified against current `main` (post-#187/#188): the `manager-dashboard` nav item's
-`requireRole: "manager"` and `requireCondition: "in-app-mode"` gates in
-`src/components/AppSidebar.vue` (lines ~337-343) are driven entirely by
-`usePermissions()` (`shared/client/composables/usePermissions.js`), which fetches
-`GET /manager/dashboard`'s sibling route `GET /permissions/me` **once, with no
-`projectId`**, and caches it in a module-level singleton that is never refetched
-on project switch. Two concrete consequences, neither a security or data-leak
-issue (the route above already returns an honest 403/unavailable state), both a
-visibility bug:
+`GET /permissions/me` now takes the same `resolveProjectSelection`/
+`readProjectPeopleTeams` branch as `/manager/dashboard`. For a non-OSAC project
+it resolves the caller's `accountId` via `resolveProjectManagerAccountId` and
+derives `isManager` from `getManagerPurview(...).directReportUids.length > 0`
+against that project's read model — never from the OSAC registry. OSAC and an
+unset `projectId` fall through to the original code path unchanged.
 
-1. `isManager`/`isTeamAdmin` reflect OSAC's legacy registry only. A Flight
-   Control manager who isn't an OSAC manager never sees "My Teams"; an OSAC
-   manager who isn't a Flight Control manager sees it anyway (and then correctly
-   gets `reason: 'no-registry-identity'` or a 403 on load).
-2. `requireCondition: "in-app-mode"` checks `rosterData?.teamDataSource === 'in-app'`.
-   The project-qualified `/roster` read model (`_buildReadModel` in
-   `project-roster.js`) never sets a `teamDataSource` field, so this condition is
-   **always false for every non-OSAC project** — the nav item is unconditionally
-   hidden for Flight Control today, independent of the route wiring above.
+`usePermissions.js` mirrors `useRoster.js`'s pattern: it watches `useProjectId()`
+(`flush: 'sync'`), resets `permissionData` to `null` immediately on switch, and
+guards in-flight requests with a sequence counter so a slow stale-project
+response can't overwrite a newer one. `isAdmin`/`isTeamAdmin`/`roles` are
+untouched — they come from `useAuth()`'s global role assignment, which is not
+project-scoped by design.
 
-Neither fix belongs to this worktree: both require changes to files this session
-must not touch unilaterally (`modules/team-tracker/server/index.js` for a
-project-aware `/permissions/me`; `shared/client/composables/usePermissions.js`
-and `src/components/AppSidebar.vue` are shared chrome, not Manager-Dashboard-owned).
-Minimal shape for the follow-up:
+`AppSidebar.vue`'s `in-app-mode` gate (`props.teamDataSource !== 'in-app'`) now
+also passes when `props.projectId` is a selected non-OSAC project, since
+project rosters have no `teamDataSource` concept. `requireRole: "manager"`
+needed no change: it already reads `props.isManager`, which is now
+project-aware end to end.
 
-- `/permissions/me` accepts an optional `projectId` and, when present and not
-  `osac`, computes `isManager` via `resolveProjectManagerAccountId` +
-  `getManagerPurview(...).directReportUids.length > 0` against that project's
-  read model instead of the OSAC registry/managerMap.
-- `usePermissions()` becomes project-aware (watch `useProjectId()` and refetch,
-  mirroring the pattern already used in `shared/client/composables/useRoster.js`).
-- `requireCondition: "in-app-mode"` in `module.json` either gains a project-mode
-  equivalent (e.g. "in-app-mode-or-project") or `AppSidebar.vue`'s condition
-  evaluation treats a resolved project-qualified roster as satisfying it.
-
-Until this lands, the dashboard is reachable only via direct hash navigation in
-project mode, not via the sidebar — a safe, fail-closed gap, not a regression.
+Sidebar visibility is navigation convenience only; `/manager/dashboard` and
+`/permissions/me` independently re-verify identity and manager status per
+request, so a nav-visibility bug can never grant unauthorized data access.

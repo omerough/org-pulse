@@ -334,7 +334,9 @@ const navSections = computed(() => {
       headerIcon: resolveIcon(manifest.icon),
       items: navItems
         .filter(item => {
-          if (item.requireCondition === 'in-app-mode' && props.teamDataSource !== 'in-app') return false
+          // Project rosters have no teamDataSource; a selected non-OSAC project satisfies this gate instead.
+          const inProjectContext = Boolean(props.projectId) && props.projectId !== 'osac'
+          if (item.requireCondition === 'in-app-mode' && props.teamDataSource !== 'in-app' && !inProjectContext) return false
           if (!item.requireRole) return true
           if (props.isAdmin) return true
           if (props.roles.includes(item.requireRole)) return true
