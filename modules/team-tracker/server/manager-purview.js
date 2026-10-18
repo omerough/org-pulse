@@ -140,15 +140,16 @@ function buildProjectManagerModel(model) {
   return { registry: { people }, teamsData: { teams } };
 }
 
-/** Resolve the user's accountId by email (active people only); never by display name. */
+/** Resolve the user's accountId by email (active people only, never by name); fails closed on an ambiguous match. */
 function resolveProjectManagerAccountId(model, email) {
   if (!model || !email || typeof email !== 'string') return null;
   const target = email.toLowerCase();
+  const matches = new Set();
   for (const person of model.people || []) {
     if (!person.active) continue;
-    if (person.email && person.email.toLowerCase() === target) return person.accountId;
+    if (person.email && person.email.toLowerCase() === target) matches.add(person.accountId);
   }
-  return null;
+  return matches.size === 1 ? [...matches][0] : null;
 }
 
 module.exports = {

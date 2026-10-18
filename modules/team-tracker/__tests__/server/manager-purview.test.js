@@ -241,4 +241,24 @@ describe('resolveProjectManagerAccountId', () => {
     expect(resolveProjectManagerAccountId(model, 'nobody@x.io')).toBeNull()
     expect(resolveProjectManagerAccountId(model, null)).toBeNull()
   })
+
+  it('fails closed when the email matches more than one distinct accountId', () => {
+    const ambiguous = {
+      people: [
+        { accountId: 'dup-1', email: 'shared@x.io', active: true },
+        { accountId: 'dup-2', email: 'shared@x.io', active: true }
+      ]
+    }
+    expect(resolveProjectManagerAccountId(ambiguous, 'shared@x.io')).toBeNull()
+  })
+
+  it('resolves when duplicate active records share the same accountId', () => {
+    const sameAccount = {
+      people: [
+        { accountId: 'm', email: 'same@x.io', active: true },
+        { accountId: 'm', email: 'same@x.io', active: true }
+      ]
+    }
+    expect(resolveProjectManagerAccountId(sameAccount, 'same@x.io')).toBe('m')
+  })
 })

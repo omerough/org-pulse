@@ -57,13 +57,13 @@ function makeRosterEnvelope(projectId, { teams, people }) {
   }
 }
 
-function makeEnrichmentEnvelope(projectId, people) {
+function makeEnrichmentEnvelope(projectId, people, { freshness = 'fresh' } = {}) {
   return {
     schemaVersion: 1,
     projectId,
     artifactKey: 'sources/roster-enrichment/registry.json',
     state: 'supported',
-    freshness: 'fresh',
+    freshness,
     partial: false,
     generatedAt: '2026-10-01T00:00:00Z',
     data: { projectId, people }
@@ -98,9 +98,11 @@ function makeProjectsReader({ knownProjectIds = [], rosters = {}, enrichments = 
     publications[projectId] = publications[projectId] || {}
     publications[projectId]['sources/roster/registry.json'] = { value: makeRosterEnvelope(projectId, fixture) }
   }
-  for (const [projectId, enrichmentPeople] of Object.entries(enrichments)) {
+  for (const [projectId, enrichmentSpec] of Object.entries(enrichments)) {
     publications[projectId] = publications[projectId] || {}
-    publications[projectId]['sources/roster-enrichment/registry.json'] = { value: makeEnrichmentEnvelope(projectId, enrichmentPeople) }
+    const people = Array.isArray(enrichmentSpec) ? enrichmentSpec : enrichmentSpec.people
+    const freshness = Array.isArray(enrichmentSpec) ? undefined : enrichmentSpec.freshness
+    publications[projectId]['sources/roster-enrichment/registry.json'] = { value: makeEnrichmentEnvelope(projectId, people, { freshness }) }
   }
 
   return {
@@ -222,6 +224,58 @@ describe('GET /manager/dashboard project-selection dispatch', () => {
     expect(body.error).toBe('You are not a manager')
   })
 
+  it('reports hierarchy-unavailable instead of a false 403 when no enrichment is published', async () => {
+    const { teams, people } = flightctlFixture()
+    // No `enrichments` entry: every managerRef is null, so a real manager would
+    // otherwise show zero reports and be wrongly denied as "not a manager".
+    const projects = makeProjectsReader({
+      knownProjectIds: ['flightctl'],
+      rosters: { flightctl: { teams, people } }
+    })
+    const app = createTestServer({}, projects, { userEmail: 'mallory@example.com' })
+
+    const { status, body } = await requestGet(app, '/manager/dashboard?projectId=flightctl')
+
+    expect(status).toBe(200)
+    expect(body.reason).toBe('hierarchy-unavailable')
+    expect(body.manager.accountId).toBe('mgr-1')
+    expect(body.directReports).toEqual([])
+  })
+
+  it('reports hierarchy-unavailable instead of a false 403 when enrichment is expired', async () => {
+    const { teams, people, enrichmentPeople } = flightctlFixture()
+    const projects = makeProjectsReader({
+      knownProjectIds: ['flightctl'],
+      rosters: { flightctl: { teams, people } },
+      enrichments: { flightctl: { people: enrichmentPeople, freshness: 'expired' } }
+    })
+    const app = createTestServer({}, projects, { userEmail: 'mallory@example.com' })
+
+    const { status, body } = await requestGet(app, '/manager/dashboard?projectId=flightctl')
+
+    expect(status).toBe(200)
+    expect(body.reason).toBe('hierarchy-unavailable')
+  })
+
+  it('fails closed on an ambiguous email match instead of picking an arbitrary identity', async () => {
+    const teams = [{ id: 'team-core', name: 'Core', orgKey: 'flightctl' }]
+    const people = [
+      { accountId: 'dup-1', displayName: 'Dup One', active: true, teamIds: ['team-core'], email: 'shared@example.com' },
+      { accountId: 'dup-2', displayName: 'Dup Two', active: true, teamIds: ['team-core'], email: 'shared@example.com' }
+    ]
+    const projects = makeProjectsReader({
+      knownProjectIds: ['flightctl'],
+      rosters: { flightctl: { teams, people } }
+    })
+    const app = createTestServer({}, projects, { userEmail: 'shared@example.com' })
+
+    const { status, body } = await requestGet(app, '/manager/dashboard?projectId=flightctl')
+
+    expect(status).toBe(200)
+    expect(body.reason).toBe('no-registry-identity')
+    expect(body.manager).toBeNull()
+  })
+
   it('reports no-registry-identity when the email matches no active Flight Control person', async () => {
     const { teams, people, enrichmentPeople } = flightctlFixture()
     const projects = makeProjectsReader({
@@ -310,6 +364,40 @@ describe('GET /permissions/me project-selection dispatch', () => {
     expect(status).toBe(200)
     expect(body.isManager).toBe(false)
     expect(body.uid).toBe('eng-3')
+  })
+
+  it('reports isManager:false (not true) for a real manager when no enrichment is published', async () => {
+    const { teams, people } = flightctlFixture()
+    const projects = makeProjectsReader({
+      knownProjectIds: ['flightctl'],
+      rosters: { flightctl: { teams, people } }
+    })
+    const app = createTestServer({}, projects, { userEmail: 'mallory@example.com', userRoles: [] })
+
+    const { status, body } = await requestGet(app, '/permissions/me?projectId=flightctl')
+
+    expect(status).toBe(200)
+    expect(body.isManager).toBe(false)
+    expect(body.uid).toBe('mgr-1')
+  })
+
+  it('fails closed on an ambiguous email match instead of picking an arbitrary identity', async () => {
+    const teams = [{ id: 'team-core', name: 'Core', orgKey: 'flightctl' }]
+    const people = [
+      { accountId: 'dup-1', displayName: 'Dup One', active: true, teamIds: ['team-core'], email: 'shared@example.com' },
+      { accountId: 'dup-2', displayName: 'Dup Two', active: true, teamIds: ['team-core'], email: 'shared@example.com' }
+    ]
+    const projects = makeProjectsReader({
+      knownProjectIds: ['flightctl'],
+      rosters: { flightctl: { teams, people } }
+    })
+    const app = createTestServer({}, projects, { userEmail: 'shared@example.com', userRoles: [] })
+
+    const { status, body } = await requestGet(app, '/permissions/me?projectId=flightctl')
+
+    expect(status).toBe(200)
+    expect(body.isManager).toBe(false)
+    expect(body.uid).toBeNull()
   })
 
   it('reports isManager:false and uid:null for an unresolved identity', async () => {

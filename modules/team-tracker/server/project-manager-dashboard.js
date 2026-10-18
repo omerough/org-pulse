@@ -90,6 +90,14 @@ function buildProjectManagerDashboard(model, options = {}) {
   const purview = getManagerPurview(accountId, registry, teamsData, { includeIndirect });
 
   if (purview.directReportUids.length === 0) {
+    // Without a trusted hierarchy join, every managerRef is null — zero reports means "unknown", not "verified non-manager".
+    const hierarchyAvailable = Boolean(model.enrichment) && model.enrichment.state !== 'absent';
+    if (!hierarchyAvailable) {
+      return {
+        status: 200,
+        body: emptyPurviewPayload({ ...base, manager, availability: model.availability, reason: 'hierarchy-unavailable' })
+      };
+    }
     if (isPrivileged) {
       return {
         status: 200,

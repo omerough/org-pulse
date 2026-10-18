@@ -144,6 +144,23 @@ describe('buildProjectManagerDashboard', () => {
     expect(body.error).toBe('You are not a manager')
   })
 
+  it('reports hierarchy-unavailable instead of a false 403 when enrichment was never published', () => {
+    const model = flightControlModel()
+    delete model.enrichment
+    const { status, body } = buildProjectManagerDashboard(model, { email: 'erin@redhat.com' })
+    expect(status).toBe(200)
+    expect(body.reason).toBe('hierarchy-unavailable')
+    expect(body.manager.accountId).toBe('acc_eng1')
+  })
+
+  it('reports hierarchy-unavailable instead of a false 403 when enrichment is untrusted', () => {
+    const model = flightControlModel()
+    model.enrichment = { state: 'absent', generatedAt: null }
+    const { status, body } = buildProjectManagerDashboard(model, { email: 'erin@redhat.com' })
+    expect(status).toBe(200)
+    expect(body.reason).toBe('hierarchy-unavailable')
+  })
+
   it('returns no-direct-reports (200) for a privileged non-manager', () => {
     const { status, body } = buildProjectManagerDashboard(flightControlModel(), { email: 'erin@redhat.com', isPrivileged: true })
     expect(status).toBe(200)

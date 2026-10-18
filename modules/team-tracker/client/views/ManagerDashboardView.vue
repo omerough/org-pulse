@@ -41,6 +41,12 @@
       <p>You have no direct reports in the system.</p>
     </div>
 
+    <!-- Empty state: hierarchy enrichment missing or untrusted -->
+    <div v-else-if="reason === 'hierarchy-unavailable'" class="text-center py-12 text-gray-500 dark:text-gray-400">
+      <p class="text-lg font-medium mb-2">Manager Hierarchy Unavailable</p>
+      <p>This project's manager/report data isn't currently published, so we can't tell whether you have direct reports.</p>
+    </div>
+
     <!-- Dashboard content -->
     <template v-else>
       <p v-if="isProjectMode" class="mb-4 text-xs text-gray-500 dark:text-gray-400" role="status">

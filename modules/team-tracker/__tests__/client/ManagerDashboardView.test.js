@@ -201,6 +201,16 @@ describe('ManagerDashboardView', () => {
     expect(wrapper.text()).toContain('no direct reports in the system')
   })
 
+  it('handles reason "hierarchy-unavailable" empty state', async () => {
+    mockReason.value = 'hierarchy-unavailable'
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Manager Hierarchy Unavailable')
+    expect(wrapper.text()).not.toContain('No Direct Reports')
+  })
+
   it('navigates to person detail on name click', async () => {
     const navMock = { navigateTo: vi.fn(), goBack: vi.fn(), params: ref({}) }
     mockDirectReports.value = [
