@@ -103,8 +103,10 @@ function buildProjectManagerModel(model) {
     return { registry: { people }, teamsData: { teams } };
   }
 
-  const accountIds = new Set((model.people || []).map(p => p.accountId));
-  for (const person of model.people || []) {
+  // A missing/blank accountId can't be a registry key without colliding across records.
+  const validPeople = (model.people || []).filter(p => p && typeof p.accountId === 'string' && p.accountId);
+  const accountIds = new Set(validPeople.map(p => p.accountId));
+  for (const person of validPeople) {
     const ref = person.managerRef;
     const managerUid = ref && ref.kind === 'roster' && accountIds.has(ref.accountId)
       ? ref.accountId

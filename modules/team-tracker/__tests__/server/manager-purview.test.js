@@ -186,6 +186,42 @@ describe('buildProjectManagerModel', () => {
     // Active members of t1: alice, cara, dan (bob is inactive).
     expect(t1.totalMemberCount).toBe(3)
   })
+
+  it('excludes people with a missing or blank accountId instead of collapsing them into one entry', () => {
+    const malformed = {
+      projectId: 'flight-control',
+      people: [
+        { accountId: 'm', displayName: 'Mgr', email: 'm@x.io', active: true, managerRef: null, teamIds: [] },
+        { accountId: undefined, displayName: 'Ghost One', email: 'g1@x.io', active: true, managerRef: null, teamIds: [] },
+        { accountId: undefined, displayName: 'Ghost Two', email: 'g2@x.io', active: true, managerRef: null, teamIds: [] },
+        { accountId: '', displayName: 'Ghost Three', email: 'g3@x.io', active: true, managerRef: null, teamIds: [] },
+        { accountId: 'a', displayName: 'Alice', email: 'a@x.io', active: true, managerRef: { kind: 'roster', accountId: 'm' }, teamIds: [] }
+      ],
+      teams: []
+    }
+
+    const { registry } = buildProjectManagerModel(malformed)
+
+    expect(Object.keys(registry.people).sort()).toEqual(['a', 'm'])
+    expect(registry.people.undefined).toBeUndefined()
+  })
+
+  it('never resolves a managerRef with a missing or blank accountId into an edge', () => {
+    const malformed = {
+      projectId: 'flight-control',
+      people: [
+        { accountId: undefined, displayName: 'Ghost Manager', email: 'ghost@x.io', active: true, managerRef: null, teamIds: [] },
+        { accountId: 'a', displayName: 'Alice', email: 'a@x.io', active: true, managerRef: { kind: 'roster', accountId: undefined }, teamIds: [] },
+        { accountId: 'b', displayName: 'Bob', email: 'b@x.io', active: true, managerRef: { kind: 'roster', accountId: '' }, teamIds: [] }
+      ],
+      teams: []
+    }
+
+    const { registry } = buildProjectManagerModel(malformed)
+
+    expect(registry.people.a.managerUid).toBeNull()
+    expect(registry.people.b.managerUid).toBeNull()
+  })
 })
 
 describe('resolveProjectManagerAccountId', () => {
