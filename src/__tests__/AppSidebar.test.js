@@ -74,4 +74,19 @@ describe('AppSidebar manager-dashboard nav visibility', () => {
     const wrapper = mountSidebar({ projectId: 'flightctl', isManager: false, isTeamAdmin: true, teamDataSource: '' })
     expect(hasMyTeamsItem(wrapper)).toBe(true)
   })
+
+  it('shows My Teams (read-only Hierarchy Unavailable) for a non-manager in Flight Control when hierarchy is unknown', () => {
+    const wrapper = mountSidebar({ projectId: 'flightctl', isManager: false, hierarchyAvailable: false, teamDataSource: '' })
+    expect(hasMyTeamsItem(wrapper)).toBe(true)
+  })
+
+  it('still hides My Teams for a verified non-manager in Flight Control when hierarchy is available', () => {
+    const wrapper = mountSidebar({ projectId: 'flightctl', isManager: false, hierarchyAvailable: true, teamDataSource: '' })
+    expect(hasMyTeamsItem(wrapper)).toBe(false)
+  })
+
+  it('does not use the hierarchy-unavailable bypass for legacy OSAC (no project selected)', () => {
+    const wrapper = mountSidebar({ projectId: '', isManager: false, hierarchyAvailable: false, teamDataSource: 'in-app' })
+    expect(hasMyTeamsItem(wrapper)).toBe(false)
+  })
 })
