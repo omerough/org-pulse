@@ -30,12 +30,14 @@ const managerLoadFailed = ref(false)
 const isManager = computed(() => isProjectMode.value ? isProjectManager.value : isOsacManager.value)
 const managerStatusLoading = computed(() => isProjectMode.value && permissionsLoading.value)
 
-// When a project's manager hierarchy isn't published (absent/partial/expired),
-// isManager fails closed to false. Distinguish that "unknown" case from a
-// verified non-manager so this read-only widget can explain it instead of
-// claiming the viewer simply isn't a manager. No data is loaded in this state.
+// A partial/absent/expired hierarchy only forces isManager to false when this
+// account has no resolved direct-report edge; an edge that did resolve still
+// yields isManager:true (see projectHierarchyStatus server-side), and those
+// verified managers should see their real team list, not this message. Only
+// show the "hierarchy isn't published" explanation to an unverified viewer, so
+// it isn't mistaken for a plain "you're not a manager" message.
 const hierarchyUnavailable = computed(() =>
-  isProjectMode.value && !managerStatusLoading.value && !hierarchyAvailable.value
+  isProjectMode.value && !managerStatusLoading.value && !hierarchyAvailable.value && !isManager.value
 )
 
 const componentTeamFieldId = computed(() => {

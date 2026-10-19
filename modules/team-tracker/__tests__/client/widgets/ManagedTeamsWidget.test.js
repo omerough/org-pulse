@@ -295,6 +295,21 @@ describe('ManagedTeamsWidget', () => {
         expect(mockLoadManagerDashboard).not.toHaveBeenCalled()
       })
 
+      it('shows managed team cards for a verified manager even when the project hierarchy is only partially available', async () => {
+        mockUser.value = { email: 'pm@redhat.com', isManager: false }
+        mockProjectId.value = 'flight-control'
+        mockProjectIsManager.value = true
+        mockHierarchyAvailable.value = false
+        mockManagedTeams.value = [
+          { id: 't_core', name: 'Core', orgKey: 'flight-control', directReportCount: 1, totalMemberCount: 2, metadata: {} }
+        ]
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        expect(mockLoadManagerDashboard).toHaveBeenCalledTimes(1)
+        expect(wrapper.text()).toContain('Core')
+        expect(wrapper.text()).not.toContain("manager hierarchy isn't published")
+      })
+
       it('loads once project permission resolves after mounting mid-load', async () => {
         mockUser.value = { email: 'pm@redhat.com', isManager: false }
         mockProjectId.value = 'flight-control'
