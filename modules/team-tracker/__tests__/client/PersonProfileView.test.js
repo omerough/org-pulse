@@ -9,7 +9,13 @@ const rosterDataValue = ref(null)
 const rosterLoadingValue = ref(false)
 const isAdminValue = ref(false)
 const mockLoadGitlabStats = vi.fn()
-const projectIdValue = ref('flightctl')
+
+// useProjectContributions calls useProjectId() at import time, so this ref must be
+// hoisted to exist before that eager call runs.
+const { projectIdValue } = vi.hoisted(() => {
+  const { ref } = require('vue')
+  return { projectIdValue: ref('flightctl') }
+})
 
 vi.mock('@shared/client/composables/useRoster.js', () => ({
   useRoster: () => ({
@@ -69,10 +75,11 @@ const UNAVAILABLE_JIRA_METRICS = {
 
 vi.mock('@shared/client/services/api.js', () => ({
   apiRequest: vi.fn(),
-  getProjectPersonMetrics: vi.fn()
+  getProjectPersonMetrics: vi.fn(),
+  getProjectContributions: vi.fn()
 }))
 
-import { apiRequest, getProjectPersonMetrics } from '@shared/client/services/api.js'
+import { apiRequest, getProjectPersonMetrics, getProjectContributions } from '@shared/client/services/api.js'
 
 function availableJiraMetrics(overrides = {}) {
   return {
@@ -124,6 +131,7 @@ function mountView(params) {
 describe('PersonProfileView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getProjectContributions.mockReset()
     projectIdValue.value = 'flightctl'
     rosterPeople.value = []
     rosterTeamsValue.value = []
@@ -351,6 +359,160 @@ describe('PersonProfileView', () => {
     expect(notSet.length).toBe(2)
   })
 
+  it('shows the GitHub Contributions tile from the canonical artifact even when roster enrichment has no GitHub identity', async () => {
+    rosterPeople.value = [
+      {
+        key: 'flightctl::acc-5',
+        projectId: 'flightctl',
+        accountId: 'acc-5',
+        displayName: 'Katherine Johnson',
+        active: true,
+        email: null,
+        teamIds: [],
+        title: null,
+        manager: null,
+        geo: null,
+        identities: {}
+      }
+    ]
+    rosterDataValue.value = { projectId: 'flightctl', teams: [], people: rosterPeople.value }
+    getProjectContributions.mockResolvedValue({
+      projectId: 'flightctl',
+      availability: 'available',
+      people: [
+        { accountId: 'acc-5', github: { username: 'kjohnson-gh', totalContributions: 42, months: {}, fetchedAt: null }, gitlab: null }
+      ]
+    })
+
+    const wrapper = mountView({ accountId: 'acc-5' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('GitHub Contributions')
+    expect(wrapper.text()).toContain('42')
+  })
+
+  it('badges a carried-forward GitHub count instead of presenting it as current', async () => {
+    // A distinct projectId forces a fresh fetch instead of reusing another test's cached response.
+    projectIdValue.value = 'flightctl-carried-forward'
+    rosterPeople.value = [
+      {
+        key: 'flightctl::acc-6',
+        projectId: 'flightctl',
+        accountId: 'acc-6',
+        displayName: 'Ada Carry',
+        active: true,
+        email: null,
+        teamIds: [],
+        title: null,
+        manager: null,
+        geo: null,
+        identities: {}
+      }
+    ]
+    rosterDataValue.value = { projectId: 'flightctl-carried-forward', teams: [], people: rosterPeople.value }
+    getProjectContributions.mockResolvedValue({
+      projectId: 'flightctl-carried-forward',
+      availability: 'available',
+      freshness: 'stale',
+      partial: true,
+      people: [
+        {
+          accountId: 'acc-6',
+          github: { username: 'acarry-gh', totalContributions: 10, months: {}, fetchedAt: null },
+          gitlab: null,
+          contributionStatus: 'carried-forward'
+        }
+      ]
+    })
+
+    const wrapper = mountView({ accountId: 'acc-6' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('10')
+    expect(wrapper.text()).toContain('Carried forward')
+  })
+
+  it('badges a stale publication even when this person\'s own GitHub record was collected cleanly', async () => {
+    projectIdValue.value = 'flightctl-stale-publication'
+    rosterPeople.value = [
+      {
+        key: 'flightctl::acc-7',
+        projectId: 'flightctl',
+        accountId: 'acc-7',
+        displayName: 'Stale Publication',
+        active: true,
+        email: null,
+        teamIds: [],
+        title: null,
+        manager: null,
+        geo: null,
+        identities: {}
+      }
+    ]
+    rosterDataValue.value = { projectId: 'flightctl-stale-publication', teams: [], people: rosterPeople.value }
+    getProjectContributions.mockResolvedValue({
+      projectId: 'flightctl-stale-publication',
+      availability: 'available',
+      freshness: 'stale',
+      partial: true,
+      people: [
+        {
+          accountId: 'acc-7',
+          github: { username: 'sp-gh', totalContributions: 25, months: {}, fetchedAt: null },
+          gitlab: null,
+          contributionStatus: 'collected'
+        }
+      ]
+    })
+
+    const wrapper = mountView({ accountId: 'acc-7' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('25')
+    expect(wrapper.text()).toContain('Stale')
+  })
+
+  it('shows no freshness badge for a fresh, non-partial project publication', async () => {
+    projectIdValue.value = 'flightctl-fresh'
+    rosterPeople.value = [
+      {
+        key: 'flightctl::acc-8',
+        projectId: 'flightctl',
+        accountId: 'acc-8',
+        displayName: 'Fresh Person',
+        active: true,
+        email: null,
+        teamIds: [],
+        title: null,
+        manager: null,
+        geo: null,
+        identities: {}
+      }
+    ]
+    rosterDataValue.value = { projectId: 'flightctl-fresh', teams: [], people: rosterPeople.value }
+    getProjectContributions.mockResolvedValue({
+      projectId: 'flightctl-fresh',
+      availability: 'available',
+      freshness: 'fresh',
+      partial: false,
+      people: [
+        {
+          accountId: 'acc-8',
+          github: { username: 'fresh-gh', totalContributions: 5, months: {}, fetchedAt: null },
+          gitlab: null,
+          contributionStatus: 'collected'
+        }
+      ]
+    })
+
+    const wrapper = mountView({ accountId: 'acc-8' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('5')
+    expect(wrapper.text()).not.toContain('Carried forward')
+    expect(wrapper.text()).not.toContain('Stale')
+  })
+
   it('leaves OSAC legacy behavior unchanged (resolves by uid via the registry endpoint)', async () => {
     apiRequest.mockImplementation((url) => {
       if (url.includes('/registry/people/u1')) {
@@ -463,19 +625,25 @@ describe('PersonProfileView', () => {
     })
 
     it('renders the Jira metrics and GitHub contributions tiles together when both are configured', async () => {
-      // useGithubStats is mocked module-wide to return null contributions (see
-      // top-of-file mock); this proves both tiles render side by side, not
-      // that PR #189's actual contribution counts are wired up yet.
+      // Jira metrics and contributions are fetched independently; both tiles render once each resolves.
       setRoster([{ ...rosterPersonFixture('acc-1', 'Ada Lovelace'), identities: { github: { username: 'ada' } } }])
       getProjectPersonMetrics.mockResolvedValue(availableJiraMetrics({
         metrics: { lookbackDays: 365, resolved: { count: 3, storyPoints: 8, issues: [] }, inProgress: { count: 0, storyPoints: 0, issues: [] }, cycleTime: { avgDays: 2, medianDays: 2 } }
       }))
+      getProjectContributions.mockResolvedValue({
+        projectId: 'flightctl',
+        availability: 'available',
+        people: [
+          { accountId: 'acc-1', github: { username: 'ada', totalContributions: 42, months: {}, fetchedAt: null }, gitlab: null }
+        ]
+      })
 
       const wrapper = mountView({ accountId: 'acc-1' })
       await flushPromises()
 
       expect(metricTileValue(wrapper, 'Resolved Issues')).toBe('3')
       expect(wrapper.text()).toContain('GitHub Contributions')
+      expect(wrapper.text()).toContain('42')
     })
 
     it('shows resolved.count in the Resolved Issues tile when resolved.issues is empty (partial/truncated issues list)', async () => {
