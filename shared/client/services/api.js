@@ -109,6 +109,10 @@ export async function getTeamMetrics(teamKey, projectId) {
   return apiRequest(`/team/${encodeURIComponent(teamKey)}/metrics${suffix}`)
 }
 
+export async function getProjectPersonMetrics(projectId, accountId) {
+  return apiRequest(`/modules/team-tracker/project-person-metrics?projectId=${encodeURIComponent(projectId)}&accountId=${encodeURIComponent(accountId)}`)
+}
+
 // ─── Unified Refresh ───
 
 export async function refreshMetrics({ scope, name, teamKey, orgKey, force, sources } = {}) {
@@ -123,6 +127,12 @@ export async function refreshMetrics({ scope, name, teamKey, orgKey, force, sour
 
 export async function getGithubContributions() {
   return apiRequest('/github/contributions')
+}
+
+// Project-qualified contributions (canonical artifact); legacy endpoint above is unchanged.
+export async function getProjectContributions(projectId) {
+  const suffix = projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''
+  return apiRequest(`/modules/team-tracker/project-contributions${suffix}`)
 }
 
 // ─── GitLab Contributions ───

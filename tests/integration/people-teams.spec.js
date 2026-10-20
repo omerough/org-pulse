@@ -370,3 +370,207 @@ test.describe('People & Teams Project-Qualified Roster @people-teams', () => {
     expect(page.url()).not.toContain('accountId=');
   });
 });
+
+/**
+ * Project-Qualified Manager Dashboard (OSAC-6322)
+ *
+ * Demo mode's local-dev user is a privileged (admin) identity, not a verified
+ * manager, so these tests exercise the admin nav bypass and the honest
+ * no-registry-identity empty state rather than a populated purview.
+ */
+test.describe('People & Teams Manager Dashboard @people-teams', () => {
+  const FLIGHTCTL = 'flightctl';
+
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  test('My Teams nav item appears for a privileged user once a Flight Control project is selected', async ({ page }) => {
+    await page.goto(`/#/team-tracker/home?projectId=${FLIGHTCTL}`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const myTeamsItem = page.locator('aside nav button').filter({ hasText: 'My Teams' });
+    await expect(myTeamsItem.first()).toBeVisible();
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Manager Dashboard honestly reports no registry identity for Flight Control', async ({ page }) => {
+    await page.goto(`/#/team-tracker/manager-dashboard?projectId=${FLIGHTCTL}`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    expect(await mainContentIsVisible(page)).toBe(true);
+    expect(await pageLoadComplete(page)).toBe(true);
+
+    const bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
+    expect(bodyText).toContain('No Registry Identity');
+
+    expect(page.errors).toHaveLength(0);
+  });
+});
+
+/**
+ * Project-Qualified Jira Person Metrics (OSAC-6322)
+ * Verifies the endpoint is wired end to end and never falls back to legacy OSAC metrics.
+ */
+test.describe('People & Teams Project-Qualified Jira Person Metrics @people-teams', () => {
+  const FLIGHTCTL = 'flightctl';
+
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  test('fetches metrics with the correct projectId/accountId and renders the published Jira panels', async ({ page }) => {
+    const metricsRequests = [];
+    page.on('request', request => {
+      if (request.url().includes('/api/modules/team-tracker/project-person-metrics')) {
+        metricsRequests.push(request.url());
+      }
+    });
+
+    await page.goto(`/#/team-tracker/person-detail?projectId=${FLIGHTCTL}&accountId=fc-acc-1`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    expect(metricsRequests).toHaveLength(1);
+    const requestUrl = new URL(metricsRequests[0]);
+    expect(requestUrl.searchParams.get('projectId')).toBe(FLIGHTCTL);
+    expect(requestUrl.searchParams.get('accountId')).toBe('fc-acc-1');
+
+    // Fixture: fc-acc-1 (Nadia Osei) has 2 resolved issues, 1 in-progress.
+    const bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
+    expect(bodyText).toContain('Resolved Issues');
+    expect(bodyText).toContain('FLPATH-101');
+    expect(bodyText).toContain('FLPATH-110');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('renders safely when the Jira publication is unavailable, without fabricated counts or console errors', async ({ page }) => {
+    await page.route('**/api/modules/team-tracker/project-person-metrics**', route => route.fulfill({
+      json: {
+        projectId: FLIGHTCTL,
+        accountId: 'fc-acc-2',
+        availability: 'unavailable',
+        reason: 'missing-publication',
+        publicationState: null,
+        generatedAt: null,
+        partial: false,
+        metrics: null
+      }
+    }));
+
+    await page.goto(`/#/team-tracker/person-detail?projectId=${FLIGHTCTL}&accountId=fc-acc-2`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    expect(await mainContentIsVisible(page)).toBe(true);
+    const bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
+    expect(bodyText).toContain('Marco Liu');
+    expect(bodyText).not.toContain('Resolved Issues');
+    expect(bodyText).not.toContain('Story Points');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('never falls back to the legacy OSAC per-person Jira metrics endpoint', async ({ page }) => {
+    const legacyMetricsRequests = [];
+    page.on('request', request => {
+      if (/\/api\/modules\/team-tracker\/person\/[^/]+\/metrics/.test(request.url())) {
+        legacyMetricsRequests.push(request.url());
+      }
+    });
+
+    await page.goto(`/#/team-tracker/person-detail?projectId=${FLIGHTCTL}&accountId=fc-acc-1`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    expect(legacyMetricsRequests).toHaveLength(0);
+    expect(page.errors).toHaveLength(0);
+  });
+});
+
+test.describe('People & Teams Project-Qualified Contributions @people-teams', () => {
+  const FLIGHTCTL = 'flightctl';
+
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  test('project-qualified Person Profile loads GitHub contributions from the canonical artifact, attributed by (projectId, accountId)', async ({ page }) => {
+    // Fixture: fixtures/projects/flightctl/sources/contributions/registry.json.
+    // 214/97 don't appear in the legacy github-contributions.json fixture.
+    await page.goto(`/#/team-tracker/person-detail?projectId=${FLIGHTCTL}&accountId=fc-acc-1`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    let bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
+    expect(bodyText).toContain('Nadia Osei');
+    expect(bodyText).toContain('GitHub Contributions');
+    expect(bodyText).toContain('214');
+
+    // A different accountId in the same project attributes its own count, not fc-acc-1's.
+    await page.goto(`/#/team-tracker/person-detail?projectId=${FLIGHTCTL}&accountId=fc-acc-2`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
+    expect(bodyText).toContain('Marco Liu');
+    expect(bodyText).toContain('97');
+    expect(bodyText).not.toContain('214');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('does not fabricate a contribution count for a person with no resolved GitHub identity', async ({ page }) => {
+    // Fixture: fc-acc-3 (Priya Shah) has no identities.github entry, so the
+    // publication reports her unresolved (github: null), never a zero.
+    await page.goto(`/#/team-tracker/person-detail?projectId=${FLIGHTCTL}&accountId=fc-acc-3`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
+    expect(bodyText).toContain('Priya Shah');
+    expect(bodyText).not.toContain('214');
+    expect(bodyText).not.toContain('97');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('switching the project context resets contributions instead of retaining the prior project\'s data', async ({ page }) => {
+    await page.goto(`/#/team-tracker/person-detail?projectId=${FLIGHTCTL}&accountId=fc-acc-1`);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    let bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
+    expect(bodyText).toContain('214');
+
+    // Switch projects via the shell's in-app selector: no full page reload.
+    const projectSelector = page.locator('#project-selector');
+    await expect(projectSelector).toBeVisible();
+    await projectSelector.selectOption('osac');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    expect(page.url()).toContain('projectId=osac');
+    bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
+    expect(bodyText).not.toContain('214');
+    expect(bodyText).not.toContain('Nadia Osei');
+
+    expect(page.errors).toHaveLength(0);
+  });
+});

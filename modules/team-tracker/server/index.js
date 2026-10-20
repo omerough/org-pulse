@@ -2,7 +2,8 @@ module.exports = function registerRoutes(router, context) {
   const { storage, requireAdmin, requireTeamAdmin, requireScope } = context;
   const { readFromStorage, writeToStorage, listStorageFiles, deleteStorageDirectory } = storage;
   const { readProjectPeopleTeams } = require('./project-roster');
-  const { readProjectTrends, readProjectTeamMetrics } = require('./project-jira-metrics');
+  const { readProjectContributions } = require('./project-contributions');
+  const { readProjectTrends, readProjectTeamMetrics, readProjectPersonMetrics } = require('./project-jira-metrics');
   const { resolveProjectSelection } = require('../../../shared/server/project-profile');
 
   // Register module scopes
@@ -548,17 +549,63 @@ module.exports = function registerRoutes(router, context) {
     };
   }
 
+  const {
+    getManagerPurview,
+    buildProjectManagerModel,
+    resolveProjectManagerAccountId
+  } = require('./manager-purview');
+
   /**
    * @openapi
    * /api/modules/team-tracker/permissions/me:
    *   get:
    *     tags: ['TT: Permissions']
    *     summary: Get current user's permission tier and managed UIDs
+   *     parameters:
+   *       - in: query
+   *         name: projectId
+   *         schema: { type: string }
+   *         description: OSAC/unset returns the legacy registry-based permission tier; any other project returns its project-qualified manager status.
    *     responses:
    *       200:
    *         description: Permission info
    */
   router.get('/permissions/me', requireScope('roster:read'), function(req, res) {
+    // Manager status comes from the published read model, not the OSAC registry.
+    const permSelection = resolveProjectSelection(context.projects, req.query);
+    if (permSelection.provided && permSelection.status) {
+      return res.status(permSelection.status).json({ error: permSelection.error });
+    }
+    if (permSelection.provided && permSelection.projectId !== 'osac') {
+      const result = readProjectPeopleTeams(context.projects, permSelection.projectId);
+      if (result.status !== 200 || !result.model) {
+        return res.status(result.status).json({ error: result.error });
+      }
+      const { projectHierarchyStatus } = require('./project-manager-dashboard');
+      const accountId = resolveProjectManagerAccountId(result.model, req.userEmail);
+      let isManager = false;
+      let managedAccountIds = [];
+      if (accountId) {
+        const { registry, teamsData } = buildProjectManagerModel(result.model);
+        const purview = getManagerPurview(accountId, registry, teamsData, {});
+        isManager = purview.directReportUids.length > 0;
+        managedAccountIds = purview.directReportUids;
+      }
+      return res.json({
+        email: req.userEmail,
+        uid: accountId,
+        roles: req.userRoles || [],
+        // Fail closed: true only when a verified downward edge exists. An
+        // absent/partial/expired hierarchy yields false (unknown), never true.
+        isManager,
+        managedUids: managedAccountIds,
+        // Separate, identity-independent availability signal so read-only UI can
+        // explain an absent/partial/expired hierarchy without mistaking a
+        // fail-closed isManager:false for a verified non-manager. Never affects authz.
+        hierarchy: projectHierarchyStatus(result.model)
+      });
+    }
+
     const managed = req.userUid
       ? [...permissions.getManagedUids(req.userUid, managerMap)]
       : [];
@@ -573,14 +620,21 @@ module.exports = function registerRoutes(router, context) {
 
   // ─── Manager Dashboard ───
 
-  const { getManagerPurview } = require('./manager-purview');
-
   /**
    * @openapi
    * /api/modules/team-tracker/manager/dashboard:
    *   get:
    *     tags: ['TT: Manager']
    *     summary: Get manager dashboard data (purview, reports, teams, field definitions)
+   *     parameters:
+   *       - in: query
+   *         name: projectId
+   *         schema: { type: string }
+   *         description: OSAC/unset returns the legacy registry dashboard; any other project returns its read-only project-qualified purview.
+   *       - in: query
+   *         name: includeIndirect
+   *         schema: { type: boolean }
+   *         description: Include transitive (indirect) reports.
    *     responses:
    *       200:
    *         description: Manager purview data
@@ -588,6 +642,26 @@ module.exports = function registerRoutes(router, context) {
    *         description: User is not a manager
    */
   router.get('/manager/dashboard', requireScope('roster:read'), function(req, res) {
+    // Project-qualified roster: compute purview from the published read model.
+    // OSAC and an unset projectId fall through to the legacy registry path.
+    const selection = resolveProjectSelection(context.projects, req.query);
+    if (selection.provided && selection.status) {
+      return res.status(selection.status).json({ error: selection.error });
+    }
+    if (selection.provided && selection.projectId !== 'osac') {
+      const result = readProjectPeopleTeams(context.projects, selection.projectId);
+      if (result.status !== 200 || !result.model) {
+        return res.status(result.status).json({ error: result.error });
+      }
+      const { buildProjectManagerDashboard } = require('./project-manager-dashboard');
+      const { status, body } = buildProjectManagerDashboard(result.model, {
+        email: req.userEmail,
+        includeIndirect: req.query?.includeIndirect === 'true',
+        isPrivileged: Boolean(req.isAdmin || req.isTeamAdmin)
+      });
+      return res.status(status).json(body);
+    }
+
     // Handle null userUid (e.g. local dev where email isn't in registry)
     if (!req.userUid) {
       return res.json({
@@ -2857,6 +2931,59 @@ module.exports = function registerRoutes(router, context) {
 
   /**
    * @openapi
+   * /api/modules/team-tracker/project-contributions:
+   *   get:
+   *     tags: ['TT: Roster']
+   *     summary: Get project-qualified GitHub contributions
+   *     description: >-
+   *       Canonical GitHub-wide contribution-calendar metrics for a project,
+   *       joined to people by (projectId, accountId). The legacy
+   *       `/github/contributions` cache endpoint is unaffected.
+   *     parameters:
+   *       - in: query
+   *         name: projectId
+   *         required: true
+   *         schema: { type: string }
+   *         description: Canonical project id (e.g. `osac`, `flightctl`); surrounding whitespace is rejected.
+   *     responses:
+   *       200:
+   *         description: >-
+   *           Project contributions read model (availability
+   *           available/empty/unavailable). A known project that has never
+   *           published contributions is reported as unavailable here, not as
+   *           a 404.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ProjectContributionsResponse'
+   *       400:
+   *         description: projectId is missing, malformed, or has surrounding whitespace.
+   *       404:
+   *         description: Unknown project.
+   *       500:
+   *         description: Unexpected error while reading the publication.
+   *       502:
+   *         description: Publication present but malformed or project identity mismatch.
+   *       503:
+   *         description: The project publication reader is unavailable.
+   */
+  // Legacy /github/contributions cache endpoints are intentionally untouched.
+  router.get('/project-contributions', requireScope('github:read'), function(req, res) {
+    try {
+      const selection = resolveProjectSelection(context.projects, req.query);
+      if (selection.status) return res.status(selection.status).json({ error: selection.error });
+      if (!selection.provided) return res.status(400).json({ error: 'projectId is required' });
+      const result = readProjectContributions(context.projects, selection.projectId);
+      if (result.status !== 200) return res.status(result.status).json({ error: result.error });
+      return res.json(result.model);
+    } catch (error) {
+      console.error('Read project contributions error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * @openapi
    * /api/modules/team-tracker/people/metrics:
    *   get:
    *     tags: ['TT: Metrics']
@@ -2932,6 +3059,64 @@ module.exports = function registerRoutes(router, context) {
       return res.status(404).json({ error: `No cached data for ${name}. Trigger a refresh to fetch data.` });
     } catch (error) {
       console.error(`Person metrics error (${req.params.jiraDisplayName}):`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * @openapi
+   * /api/modules/team-tracker/project-person-metrics:
+   *   get:
+   *     tags: ['TT: Metrics']
+   *     summary: Get project-qualified Jira person metrics
+   *     description: >-
+   *       Canonical per-person Jira metrics for a project, sourced from the
+   *       jira-person-metrics publication and joined by (projectId, accountId).
+   *       Never falls back to the legacy OSAC display-name-keyed metrics cache.
+   *     parameters:
+   *       - in: query
+   *         name: projectId
+   *         required: true
+   *         schema: { type: string }
+   *         description: Canonical project id (e.g. `flightctl`); surrounding whitespace is rejected.
+   *       - in: query
+   *         name: accountId
+   *         required: true
+   *         schema: { type: string }
+   *         description: Jira account id of the person.
+   *     responses:
+   *       200:
+   *         description: >-
+   *           Project person metrics read model (availability
+   *           available/unavailable). A person with no published Jira
+   *           activity, or a project that has not published this source, is
+   *           reported as unavailable here, not as a 404.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ProjectPersonMetricsResponse'
+   *       400:
+   *         description: projectId or accountId is missing or malformed.
+   *       404:
+   *         description: Unknown project.
+   *       500:
+   *         description: Unexpected error while reading the publication.
+   *       502:
+   *         description: Publication present but malformed or project identity mismatch.
+   *       503:
+   *         description: The project publication reader is unavailable.
+   */
+  router.get('/project-person-metrics', requireScope('metrics:read'), function(req, res) {
+    try {
+      const selection = resolveProjectSelection(context.projects, req.query);
+      if (selection.status) return res.status(selection.status).json({ error: selection.error });
+      if (!selection.provided) return res.status(400).json({ error: 'projectId is required' });
+      const accountId = typeof req.query.accountId === 'string' ? req.query.accountId : '';
+      const result = readProjectPersonMetrics(context.projects, selection.projectId, accountId, readFromStorage);
+      if (result.status !== 200) return res.status(result.status).json({ error: result.error });
+      return res.json(result.model);
+    } catch (error) {
+      console.error('Read project person metrics error:', error);
       res.status(500).json({ error: error.message });
     }
   });
