@@ -877,7 +877,7 @@ describe('PersonProfileView', () => {
 
       expect(wrapper.text()).toContain('Manager hierarchy unavailable')
       expect(wrapper.text()).toContain('Direct reports unavailable')
-      expect(wrapper.text()).not.toContain('No managers found')
+      expect(wrapper.text()).not.toContain('No manager on record')
     })
 
     it('flags an unresolved chain as incomplete and surfaces a stale indicator, without claiming the org has no managers', async () => {
@@ -896,7 +896,40 @@ describe('PersonProfileView', () => {
 
       expect(wrapper.text()).toContain('stale')
       expect(wrapper.text()).toContain('Chain incomplete beyond this point')
-      expect(wrapper.text()).not.toContain('No managers found')
+      expect(wrapper.text()).not.toContain('No manager on record')
+    })
+
+    it('hedges a null managerRef as "no manager on record" rather than a verified empty org', async () => {
+      rosterPeople.value = [person('ic-1', { displayName: 'IC One', managerRef: null })]
+      rosterDataValue.value = {
+        projectId: 'flightctl',
+        teams: [],
+        people: rosterPeople.value,
+        enrichment: { state: 'fresh', partial: false, generatedAt: '2026-01-01T00:00:00Z' }
+      }
+
+      const wrapper = mountView({ accountId: 'ic-1' })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('No manager on record')
+    })
+
+    it('surfaces both the stale and partial enrichment signals together', async () => {
+      rosterPeople.value = [
+        person('ic-1', { displayName: 'IC One', managerRef: { kind: 'roster', accountId: 'mgr-1' } }),
+        person('mgr-1', { displayName: 'Manager One' })
+      ]
+      rosterDataValue.value = {
+        projectId: 'flightctl',
+        teams: [],
+        people: rosterPeople.value,
+        enrichment: { state: 'stale', partial: true, generatedAt: '2026-01-01T00:00:00Z' }
+      }
+
+      const wrapper = mountView({ accountId: 'ic-1' })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('stale, partial')
     })
 
     it('isolates hierarchy data per project: the same accountId in two projects does not leak managers', async () => {

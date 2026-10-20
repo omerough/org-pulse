@@ -823,7 +823,7 @@ onBeforeUnmount(() => {
               <span v-if="hierarchyIndicator" class="font-normal normal-case tracking-normal text-gray-400"> · {{ hierarchyIndicator }}</span>
             </h3>
             <div v-if="isProjectPerson && !hierarchyAvailable" class="text-sm text-gray-400 dark:text-gray-500">Manager hierarchy unavailable</div>
-            <div v-else-if="managerChainDisplay.length === 0 && !managerChainIncomplete" class="text-sm text-gray-400 dark:text-gray-500">No managers found</div>
+            <div v-else-if="managerChainDisplay.length === 0 && !managerChainIncomplete" class="text-sm text-gray-400 dark:text-gray-500">No manager on record</div>
             <div v-else class="space-y-1">
               <div v-for="(mgr, i) in managerChainReversed" :key="mgr.uid || mgr.accountId || mgr.ldapUid" class="flex items-center gap-2">
                 <div class="flex flex-col items-center" style="width: 16px">

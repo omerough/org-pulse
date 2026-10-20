@@ -175,4 +175,11 @@ describe('getHierarchyAvailability', () => {
   it('preserves usable partial enrichment with a partial indicator', () => {
     expect(getHierarchyAvailability({ state: 'partial' })).toEqual({ available: true, indicator: 'partial' })
   })
+
+  it('preserves both signals when a stale republish is also missing records', () => {
+    expect(getHierarchyAvailability({ state: 'stale', partial: true })).toEqual({
+      available: true,
+      indicator: 'stale, partial'
+    })
+  })
 })

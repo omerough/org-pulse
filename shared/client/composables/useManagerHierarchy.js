@@ -95,6 +95,9 @@ export function getDirectReports(accountId, { people } = {}) {
 export function getHierarchyAvailability(enrichment) {
   if (!enrichment || typeof enrichment !== 'object') return { available: false, indicator: null }
   if (enrichment.state === 'fresh') return { available: true, indicator: null }
-  if (enrichment.state === 'stale' || enrichment.state === 'partial') return { available: true, indicator: enrichment.state }
+  if (enrichment.state === 'stale' || enrichment.state === 'partial') {
+    const indicator = enrichment.state === 'stale' && enrichment.partial ? 'stale, partial' : enrichment.state
+    return { available: true, indicator }
+  }
   return { available: false, indicator: null }
 }
