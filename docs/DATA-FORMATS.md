@@ -196,7 +196,9 @@ response. The two shapes are never merged — callers branch on
 `sources/roster-enrichment/registry.json` publication (produced by IPA/LDAP
 enrichment), when available. The roster stays the sole source of `displayName`
 and canonical identity — `ldapUid` is a verified, matched-person's own LDAP
-uid, carried through for display only, never used for joining or navigation.
+uid, carried through for display and for linking out to the person's external
+Rover directory profile. It is never a canonical Org Pulse identity key and is
+never used for joining or internal Org Pulse navigation/routing.
 Only a `matched` record populates these enriched fields; `unmatched`/`ambiguous`
 records (and a missing join) leave them `null`/`{}`, identical to no enrichment
 at all.
