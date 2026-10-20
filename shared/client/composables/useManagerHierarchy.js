@@ -21,20 +21,14 @@ function rosterNode(person) {
   return { kind: 'roster', accountId: person.accountId, name: person.displayName, title: person.title ?? null, navigable: true }
 }
 
+// Navigable: resolves to a (projectId, ldapUid) external-manager profile.
 function externalNode(ldapUid, record) {
-  return { kind: 'external', ldapUid, name: record.displayName, title: record.title ?? null, navigable: false }
+  return { kind: 'external', ldapUid, name: record.displayName, title: record.title ?? null, navigable: true }
 }
 
-/** Ordered chain from accountId's direct manager upward; last entry is always `end` or `unresolved`. */
-export function getManagerChain(accountId, { people, auxiliaryManagers } = {}) {
-  const peopleByAccountId = indexByAccountId(people)
-  const start = peopleByAccountId.get(accountId)
-  if (!start) return []
-
+function walkManagerChain(startRef, { peopleByAccountId, auxiliaryManagers, visitedRoster, visitedExternal }) {
   const chain = []
-  const visitedRoster = new Set([accountId])
-  const visitedExternal = new Set()
-  let ref = start.managerRef ?? null
+  let ref = startRef
 
   while (true) {
     if (ref == null || typeof ref !== 'object') {
@@ -92,10 +86,44 @@ export function getManagerChain(accountId, { people, auxiliaryManagers } = {}) {
   }
 }
 
+/** Ordered chain from accountId's direct manager upward; last entry is always `end` or `unresolved`. */
+export function getManagerChain(accountId, { people, auxiliaryManagers } = {}) {
+  const peopleByAccountId = indexByAccountId(people)
+  const start = peopleByAccountId.get(accountId)
+  if (!start) return []
+
+  return walkManagerChain(start.managerRef ?? null, {
+    peopleByAccountId,
+    auxiliaryManagers,
+    visitedRoster: new Set([accountId]),
+    visitedExternal: new Set()
+  })
+}
+
+/** Same as `getManagerChain`, starting from a verified external manager's own auxiliaryManagers record. */
+export function getManagerChainFromExternal(ldapUid, { people, auxiliaryManagers } = {}) {
+  const start = (auxiliaryManagers || {})[ldapUid]
+  if (!start) return []
+
+  return walkManagerChain(start.managerRef ?? null, {
+    peopleByAccountId: indexByAccountId(people),
+    auxiliaryManagers,
+    visitedRoster: new Set(),
+    visitedExternal: new Set([ldapUid])
+  })
+}
+
 /** Active roster people whose managerRef points at accountId; no transitive closure. */
 export function getDirectReports(accountId, { people } = {}) {
   return (people || [])
     .filter(p => p?.active && p.managerRef?.kind === 'roster' && p.managerRef.accountId === accountId)
+    .map(p => ({ accountId: p.accountId, name: p.displayName, title: p.title ?? null, navigable: true }))
+}
+
+/** Active roster people whose managerRef points at an external manager's ldapUid; no transitive closure. */
+export function getDirectReportsOfExternal(ldapUid, { people } = {}) {
+  return (people || [])
+    .filter(p => p?.active && p.managerRef?.kind === 'external' && p.managerRef.ldapUid === ldapUid)
     .map(p => ({ accountId: p.accountId, name: p.displayName, title: p.title ?? null, navigable: true }))
 }
 
