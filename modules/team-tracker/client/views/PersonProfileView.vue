@@ -235,10 +235,16 @@ const managerChainIncomplete = computed(() => managerChain.value[managerChain.va
 // Physical location, distinct from Geo/Region (person.geo).
 const personLocation = computed(() => resolveMemberLocation(person.value))
 
-// A project person's accountId is a Jira join key, not a verified LDAP UID — label it so.
+// Unlabeled uid is only shown when it's a verified LDAP match; otherwise accountId is labeled.
 const identityBadge = computed(() => {
   if (!person.value) return null
-  if (person.value.uid) return { label: null, value: person.value.uid }
+  if (person.value.uid) {
+    return {
+      label: null,
+      value: person.value.uid,
+      title: isProjectPerson.value && person.value.accountId ? `Jira Account ID: ${person.value.accountId}` : undefined
+    }
+  }
   if (person.value.accountId) return { label: 'Jira ID', value: person.value.accountId }
   return null
 })
@@ -282,7 +288,7 @@ function loadProjectPerson() {
   }
   person.value = {
     accountId: projectPerson.accountId,
-    uid: null,
+    uid: projectPerson.ldapUid,
     name: projectPerson.displayName,
     status: projectPerson.active ? 'active' : 'inactive',
     email: projectPerson.email,

@@ -639,6 +639,18 @@ describe('PersonProfileView', () => {
       expect(wrapper.text()).toContain('acc-id-1')
     })
 
+    it('shows the verified LDAP uid, unlabeled, for a project person matched by enrichment', async () => {
+      rosterPeople.value = [rosterPersonFixture('acc-id-2', { displayName: 'Matched Person', ldapUid: 'mpers' })]
+      rosterDataValue.value = { projectId: 'flightctl', teams: [], people: rosterPeople.value }
+
+      const wrapper = mountView({ accountId: 'acc-id-2' })
+      await flushPromises()
+
+      expect(wrapper.text()).not.toContain('Jira ID')
+      expect(wrapper.text()).toContain('mpers')
+      expect(wrapper.find('a[href="https://rover.redhat.com/people/profile/mpers"]').exists()).toBe(true)
+    })
+
     it('does not retain the previous person\'s location or identity badge across a project/person switch', async () => {
       rosterPeople.value = [
         rosterPersonFixture('acc-switch-1', { displayName: 'First Person', city: 'Cork', country: 'IE' })

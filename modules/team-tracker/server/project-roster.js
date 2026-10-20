@@ -11,9 +11,9 @@
 
 const ARTIFACT_KEY = 'sources/roster/registry.json'
 
-// Person records carry `matchStatus` and no displayName/ldapUid (roster stays
-// the sole identity/display-name source); auxiliaryManagers is a map keyed by
-// ldapUid, not an array.
+// Person records carry `matchStatus` and no displayName (roster stays the
+// sole display-name source); auxiliaryManagers is a map keyed by ldapUid,
+// not an array.
 const ENRICHMENT_ARTIFACT_KEY = 'sources/roster-enrichment/registry.json'
 
 function isRecord(value) {
@@ -252,7 +252,7 @@ function _trimmedOrNull(value) {
 // is distinct from Geo/Region and is passed through verbatim when published.
 function _enrichedFields(enrichmentRecord) {
   if (!enrichmentRecord || enrichmentRecord.matchStatus !== 'matched') {
-    return { title: null, geo: null, city: null, country: null, location: null, identities: {}, managerRef: null };
+    return { title: null, geo: null, city: null, country: null, location: null, identities: {}, managerRef: null, ldapUid: null };
   }
   return {
     title: _trimmedOrNull(enrichmentRecord.title),
@@ -262,7 +262,9 @@ function _enrichedFields(enrichmentRecord) {
     location: _trimmedOrNull(enrichmentRecord.location),
     identities: isRecord(enrichmentRecord.identities) ? enrichmentRecord.identities : {},
     // Opaque typed passthrough — never interpreted or resolved here.
-    managerRef: _validManagerRef(enrichmentRecord.managerRef) ? enrichmentRecord.managerRef : null
+    managerRef: _validManagerRef(enrichmentRecord.managerRef) ? enrichmentRecord.managerRef : null,
+    // Verified IPA/LDAP uid for this matched person; never a guess from name/email/Jira id.
+    ldapUid: _trimmedOrNull(enrichmentRecord.ldapUid)
   };
 }
 
