@@ -680,6 +680,7 @@ describe('PersonProfileView', () => {
       expect(wrapper.text()).not.toContain('Jira ID')
       expect(wrapper.text()).toContain('mpers')
       expect(wrapper.find('a[href="https://rover.redhat.com/people/profile/mpers"]').exists()).toBe(true)
+      expect(wrapper.find('span[title]').attributes('title')).toBe('Jira Account ID: acc-id-2')
     })
 
     it('does not retain the previous person\'s location or identity badge across a project/person switch', async () => {

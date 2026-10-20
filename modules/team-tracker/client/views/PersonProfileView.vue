@@ -568,7 +568,7 @@ onBeforeUnmount(() => {
                 <svg class="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0" />
                 </svg>
-                <span v-if="identityBadge" class="text-gray-900 dark:text-gray-100 font-mono text-xs">
+                <span v-if="identityBadge" :title="identityBadge.title" class="text-gray-900 dark:text-gray-100 font-mono text-xs">
                   <span v-if="identityBadge.label" class="text-gray-400 dark:text-gray-500 font-sans not-italic mr-1">{{ identityBadge.label }}</span>{{ identityBadge.value }}
                 </span>
                 <span v-else class="text-gray-400 dark:text-gray-500">—</span>
