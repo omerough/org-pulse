@@ -548,6 +548,121 @@ describe('PersonProfileView', () => {
     expect(getProjectPersonMetrics).not.toHaveBeenCalled()
   })
 
+  it('leaves the legacy OSAC identity badge unchanged: shows the registry uid, unlabeled', async () => {
+    apiRequest.mockImplementation((url) => {
+      if (url.includes('/registry/people/u1')) {
+        return Promise.resolve({
+          person: {
+            uid: 'u1',
+            name: 'Eran Cohen',
+            status: 'active',
+            email: 'ecohen@example.com',
+            city: "Ra'anana",
+            country: 'ISR',
+            geo: 'EMEA',
+            orgType: 'engineering'
+          },
+          managerChain: [],
+          directReports: [],
+          associatedTeams: []
+        })
+      }
+      return Promise.resolve({ resolved: { issues: [] }, inProgress: { issues: [] } })
+    })
+
+    const wrapper = mountView({ uid: 'u1' })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('u1')
+    expect(wrapper.text()).not.toContain('Jira ID')
+    expect(wrapper.text()).toContain("Ra'anana, ISR")
+    expect(wrapper.text()).toContain('EMEA')
+  })
+
+  describe('project-qualified physical location and identity', () => {
+    function rosterPersonFixture(accountId, overrides = {}) {
+      return {
+        key: `flightctl::${accountId}`,
+        projectId: 'flightctl',
+        accountId,
+        displayName: overrides.displayName || accountId,
+        active: true,
+        email: null,
+        teamIds: [],
+        title: null,
+        manager: null,
+        geo: null,
+        city: null,
+        country: null,
+        location: null,
+        identities: {},
+        ...overrides
+      }
+    }
+
+    it('renders a published physical location, kept distinct from Geo/Region', async () => {
+      rosterPeople.value = [
+        rosterPersonFixture('acc-loc-1', { displayName: 'Asumi Hasan', city: 'Westford', country: 'US', geo: 'NA' })
+      ]
+      rosterDataValue.value = { projectId: 'flightctl', teams: [], people: rosterPeople.value }
+
+      const wrapper = mountView({ accountId: 'acc-loc-1' })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Westford, US')
+      expect(wrapper.text()).toContain('NA')
+    })
+
+    it('shows an unknown physical location, not Geo/Region, when enrichment has not published city/country', async () => {
+      rosterPeople.value = [
+        rosterPersonFixture('acc-loc-2', { displayName: 'No Location', geo: 'NA' })
+      ]
+      rosterDataValue.value = { projectId: 'flightctl', teams: [], people: rosterPeople.value }
+
+      const wrapper = mountView({ accountId: 'acc-loc-2' })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('NA')
+      // The location field renders '—'; Geo/Region ('NA') must not be substituted into it.
+      const dashes = wrapper.findAll('span').filter(s => s.text() === '—')
+      expect(dashes.length).toBeGreaterThan(0)
+    })
+
+    it('labels a project-qualified identity as a Jira Account ID, never as a corporate UID', async () => {
+      rosterPeople.value = [rosterPersonFixture('acc-id-1', { displayName: 'Project Person' })]
+      rosterDataValue.value = { projectId: 'flightctl', teams: [], people: rosterPeople.value }
+
+      const wrapper = mountView({ accountId: 'acc-id-1' })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Jira ID')
+      expect(wrapper.text()).toContain('acc-id-1')
+    })
+
+    it('does not retain the previous person\'s location or identity badge across a project/person switch', async () => {
+      rosterPeople.value = [
+        rosterPersonFixture('acc-switch-1', { displayName: 'First Person', city: 'Cork', country: 'IE' })
+      ]
+      rosterDataValue.value = { projectId: 'flightctl', teams: [], people: rosterPeople.value }
+
+      const wrapper = mountView({ accountId: 'acc-switch-1' })
+      await flushPromises()
+      expect(wrapper.text()).toContain('Cork, IE')
+      expect(wrapper.text()).toContain('acc-switch-1')
+
+      rosterPeople.value = [
+        rosterPersonFixture('acc-switch-2', { displayName: 'Second Person' })
+      ]
+      rosterDataValue.value = { projectId: 'flightctl', teams: [], people: rosterPeople.value }
+      wrapper.navParams.value = { accountId: 'acc-switch-2' }
+      await flushPromises()
+
+      expect(wrapper.text()).not.toContain('Cork, IE')
+      expect(wrapper.text()).not.toContain('acc-switch-1')
+      expect(wrapper.text()).toContain('acc-switch-2')
+    })
+  })
+
   describe('project-qualified Jira metrics', () => {
     function setRoster(people) {
       rosterPeople.value = people
