@@ -247,6 +247,12 @@ function _trimmedOrNull(value) {
   return typeof value === 'string' && value.trim() ? value : null;
 }
 
+function _trim(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
 // Only a 'matched' record has usable LDAP data; 'unmatched'/'ambiguous'
 // degrade the same as no join at all. Physical location (city/country/location)
 // is distinct from Geo/Region and is passed through verbatim when published.
@@ -264,7 +270,7 @@ function _enrichedFields(enrichmentRecord) {
     // Opaque typed passthrough — never interpreted or resolved here.
     managerRef: _validManagerRef(enrichmentRecord.managerRef) ? enrichmentRecord.managerRef : null,
     // Verified IPA/LDAP uid for this matched person; never a guess from name/email/Jira id.
-    ldapUid: _trimmedOrNull(enrichmentRecord.ldapUid)
+    ldapUid: _trim(enrichmentRecord.ldapUid)
   };
 }
 

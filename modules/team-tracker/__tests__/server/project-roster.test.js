@@ -391,6 +391,37 @@ describe('readProjectPeopleTeams enrichment join', () => {
     expect(bob).toMatchObject({ title: null, geo: null, city: null, country: null, location: null, ldapUid: null, identities: {}, managerRef: null });
   });
 
+  it('trims surrounding whitespace from a matched ldapUid, and nulls a whitespace-only one', () => {
+    publications.flightctl[ENRICHMENT_ARTIFACT_KEY].value = makeEnrichmentEnvelope('flightctl', {
+      people: [
+        {
+          accountId: 'acct-1',
+          matchStatus: 'matched',
+          ldapUid: '  alice  ',
+          title: null, city: null, country: null, geo: null, location: null,
+          officeLocation: null, costCenter: null,
+          identities: { github: null, gitlab: null },
+          managerRef: null
+        },
+        {
+          accountId: 'acct-2',
+          matchStatus: 'matched',
+          ldapUid: '   ',
+          title: null, city: null, country: null, geo: null, location: null,
+          officeLocation: null, costCenter: null,
+          identities: { github: null, gitlab: null },
+          managerRef: null
+        }
+      ],
+      auxiliaryManagers: {}
+    });
+    const result = readProjectPeopleTeams(mockProjects(publications, profiles), 'flightctl');
+    const alice = result.model.people.find(p => p.accountId === 'acct-1');
+    const bob = result.model.people.find(p => p.accountId === 'acct-2');
+    expect(alice.ldapUid).toBe('alice');
+    expect(bob.ldapUid).toBeNull();
+  });
+
   it('gives a matched root person managerRef:null while still populating other fields', () => {
     publications.flightctl[ENRICHMENT_ARTIFACT_KEY].value = makeEnrichmentEnvelope('flightctl', {
       people: [
