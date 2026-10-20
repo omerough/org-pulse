@@ -1262,5 +1262,34 @@ describe('PersonProfileView', () => {
       expect(wrapper.text()).toContain('Person not found')
       expect(wrapper.text()).not.toContain('FlightCtl Director')
     })
+
+    it('does not refetch legacy GitLab stats when navigating from a legacy auxiliary profile to an external-manager profile', async () => {
+      apiRequest.mockImplementation((url) => {
+        if (url.includes('/registry/people/aux1')) {
+          return Promise.resolve({
+            person: { uid: 'aux1', name: 'Aux Person', status: 'active', orgType: 'auxiliary' },
+            managerChain: [],
+            directReports: [],
+            associatedTeams: []
+          })
+        }
+        return Promise.resolve({})
+      })
+      auxiliaryManagersValue.value = {
+        director1: { ldapUid: 'director1', displayName: 'Director One', managerRef: null }
+      }
+      rosterDataValue.value = { projectId: 'flightctl', teams: [], people: [] }
+
+      const wrapper = mountView({ uid: 'aux1' })
+      await flushPromises()
+      expect(wrapper.text()).toContain('Aux Person')
+      mockLoadGitlabStats.mockClear()
+
+      wrapper.navParams.value = { ldapUid: 'director1' }
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Director One')
+      expect(mockLoadGitlabStats).not.toHaveBeenCalled()
+    })
   })
 })

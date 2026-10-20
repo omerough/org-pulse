@@ -561,7 +561,7 @@ function handleImpersonate() {
 
 watch([uid, personName, accountId, ldapUidParam, projectId], loadPerson)
 watch(isAuxiliary, (val) => {
-  if (!val) loadGitlabStats()
+  if (!val && isLegacyPerson.value) loadGitlabStats()
 })
 // Re-resolve on every roster change: handles the deep-link case where the
 // roster is still loading, and avoids a stale person after a project switch.
