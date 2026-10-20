@@ -4,7 +4,7 @@
  * a verified root — unmatched/ambiguous people publish null too.
  */
 
-// Just a sanity cap; the visited-sets below are the actual cycle guard.
+// Depth safety net for very long acyclic chains; cycles are caught separately by the visited sets.
 const MAX_CHAIN_WALK = 64
 
 function indexByAccountId(people) {
@@ -43,8 +43,12 @@ export function getManagerChain(accountId, { people, auxiliaryManagers } = {}) {
     }
 
     if (ref.kind === 'roster') {
-      if (chain.length >= MAX_CHAIN_WALK || visitedRoster.has(ref.accountId)) {
+      if (visitedRoster.has(ref.accountId)) {
         chain.push({ kind: 'unresolved', reason: 'cycle' })
+        return chain
+      }
+      if (chain.length >= MAX_CHAIN_WALK) {
+        chain.push({ kind: 'unresolved', reason: 'depth-exceeded' })
         return chain
       }
       const manager = peopleByAccountId.get(ref.accountId)
@@ -60,8 +64,12 @@ export function getManagerChain(accountId, { people, auxiliaryManagers } = {}) {
 
     if (ref.kind === 'external') {
       const record = (auxiliaryManagers || {})[ref.ldapUid]
-      if (chain.length >= MAX_CHAIN_WALK || visitedExternal.has(ref.ldapUid)) {
+      if (visitedExternal.has(ref.ldapUid)) {
         chain.push({ kind: 'unresolved', reason: 'cycle' })
+        return chain
+      }
+      if (chain.length >= MAX_CHAIN_WALK) {
+        chain.push({ kind: 'unresolved', reason: 'depth-exceeded' })
         return chain
       }
       if (!record) {

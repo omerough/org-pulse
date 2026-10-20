@@ -90,6 +90,35 @@ describe('getManagerChain', () => {
     expect(chain[chain.length - 1]).toEqual({ kind: 'unresolved', reason: 'cycle' })
   })
 
+  it('reports depth-exceeded, not cycle, for a long acyclic roster chain', () => {
+    const people = []
+    for (let i = 0; i < 100; i++) {
+      people.push(rosterPerson(`p${i}`, { managerRef: { kind: 'roster', accountId: `p${i + 1}` } }))
+    }
+    people.push(rosterPerson('p100', { managerRef: null }))
+
+    const chain = getManagerChain('p0', { people, auxiliaryManagers: {} })
+    expect(chain[chain.length - 1]).toEqual({ kind: 'unresolved', reason: 'depth-exceeded' })
+    expect(chain.some(node => node.reason === 'cycle')).toBe(false)
+  })
+
+  it('reports depth-exceeded, not cycle, for a long acyclic external chain', () => {
+    const auxiliaryManagers = {}
+    for (let i = 0; i < 100; i++) {
+      auxiliaryManagers[`e${i}`] = {
+        ldapUid: `e${i}`,
+        displayName: `E${i}`,
+        managerRef: { kind: 'external', ldapUid: `e${i + 1}` }
+      }
+    }
+    auxiliaryManagers['e100'] = { ldapUid: 'e100', displayName: 'E100', managerRef: null }
+    const people = [rosterPerson('ic', { managerRef: { kind: 'external', ldapUid: 'e0' } })]
+
+    const chain = getManagerChain('ic', { people, auxiliaryManagers })
+    expect(chain[chain.length - 1]).toEqual({ kind: 'unresolved', reason: 'depth-exceeded' })
+    expect(chain.some(node => node.reason === 'cycle')).toBe(false)
+  })
+
   it('reports a dangling roster ref instead of throwing', () => {
     const people = [rosterPerson('ic', { managerRef: { kind: 'roster', accountId: 'ghost' } })]
     expect(getManagerChain('ic', { people, auxiliaryManagers: {} })).toEqual([
