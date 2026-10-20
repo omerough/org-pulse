@@ -32,7 +32,7 @@ const { startImpersonating } = useImpersonation()
 const { definitions, fetchDefinitions } = useFieldDefinitions()
 const { resumeTourIfActive, destroyTour } = useManagerTutorial()
 
-const isInAppMode = computed(() => rosterData.value?.teamDataSource === 'in-app')
+const isInAppMode = computed(() => !isProjectPerson.value && rosterData.value?.teamDataSource === 'in-app')
 const visiblePersonFields = computed(() =>
   (definitions.value.personFields || []).filter(f => f.visible && !f.deleted)
 )
@@ -235,7 +235,7 @@ const managerChainIncomplete = computed(() => managerChain.value[managerChain.va
 // Physical location, distinct from Geo/Region (person.geo).
 const personLocation = computed(() => resolveMemberLocation(person.value))
 
-// Unlabeled uid is only shown when it's a verified LDAP match; otherwise accountId is labeled.
+// Unlabeled uid requires a verified LDAP match; otherwise no badge (never accountId).
 const identityBadge = computed(() => {
   if (!person.value) return null
   if (person.value.uid) {
@@ -245,6 +245,7 @@ const identityBadge = computed(() => {
       title: isProjectPerson.value && person.value.accountId ? `Jira Account ID: ${person.value.accountId}` : undefined
     }
   }
+  if (isProjectPerson.value) return null
   if (person.value.accountId) return { label: 'Jira ID', value: person.value.accountId }
   return null
 })
