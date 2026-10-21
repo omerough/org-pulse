@@ -17,6 +17,15 @@ function indexByAccountId(people) {
   return map
 }
 
+// Own-property only: auxiliaryManagers is keyed by externally-supplied ldapUid
+// (e.g. a deep-link param), so a key like "constructor" or "toString" must not
+// resolve to an inherited Object.prototype member.
+export function getAuxiliaryManager(auxiliaryManagers, ldapUid) {
+  return auxiliaryManagers && Object.prototype.hasOwnProperty.call(auxiliaryManagers, ldapUid)
+    ? auxiliaryManagers[ldapUid]
+    : undefined
+}
+
 function rosterNode(person) {
   return { kind: 'roster', accountId: person.accountId, name: person.displayName, title: person.title ?? null, navigable: true }
 }
@@ -57,7 +66,7 @@ function walkManagerChain(startRef, { peopleByAccountId, auxiliaryManagers, visi
     }
 
     if (ref.kind === 'external') {
-      const record = (auxiliaryManagers || {})[ref.ldapUid]
+      const record = getAuxiliaryManager(auxiliaryManagers, ref.ldapUid)
       if (visitedExternal.has(ref.ldapUid)) {
         chain.push({ kind: 'unresolved', reason: 'cycle' })
         return chain
@@ -102,7 +111,7 @@ export function getManagerChain(accountId, { people, auxiliaryManagers } = {}) {
 
 /** Same as `getManagerChain`, starting from a verified external manager's own auxiliaryManagers record. */
 export function getManagerChainFromExternal(ldapUid, { people, auxiliaryManagers } = {}) {
-  const start = (auxiliaryManagers || {})[ldapUid]
+  const start = getAuxiliaryManager(auxiliaryManagers, ldapUid)
   if (!start) return []
 
   return walkManagerChain(start.managerRef ?? null, {

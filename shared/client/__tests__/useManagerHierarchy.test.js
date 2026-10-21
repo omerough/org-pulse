@@ -4,7 +4,8 @@ import {
   getManagerChainFromExternal,
   getDirectReports,
   getDirectReportsOfExternal,
-  getHierarchyAvailability
+  getHierarchyAvailability,
+  getAuxiliaryManager
 } from '../composables/useManagerHierarchy.js'
 
 function rosterPerson(accountId, { displayName, title = null, managerRef = null, active = true } = {}) {
@@ -139,6 +140,13 @@ describe('getManagerChain', () => {
     ])
   })
 
+  it('reports a dangling external ref, not Object.prototype, for a published managerRef pointing at a poisoned ldapUid', () => {
+    const people = [rosterPerson('ic', { managerRef: { kind: 'external', ldapUid: 'constructor' } })]
+    expect(getManagerChain('ic', { people, auxiliaryManagers: {} })).toEqual([
+      { kind: 'unresolved', reason: 'dangling-external-ref' }
+    ])
+  })
+
   it('returns an empty chain for an unknown accountId instead of fabricating one', () => {
     expect(getManagerChain('nobody', { people: [], auxiliaryManagers: {} })).toEqual([])
   })
@@ -195,6 +203,38 @@ describe('getManagerChainFromExternal', () => {
     }
     const chain = getManagerChainFromExternal('x', { people: [], auxiliaryManagers })
     expect(chain[chain.length - 1]).toEqual({ kind: 'unresolved', reason: 'cycle' })
+  })
+
+  it('does not resolve an inherited Object.prototype member for a poisoned ldapUid', () => {
+    for (const poisonedUid of ['constructor', 'toString', '__proto__']) {
+      expect(getManagerChainFromExternal(poisonedUid, { people: [], auxiliaryManagers: {} })).toEqual([])
+    }
+  })
+
+  it('reports a dangling ref, not Object.prototype, when a published managerRef points at a poisoned ldapUid', () => {
+    const auxiliaryManagers = {
+      director1: { ldapUid: 'director1', displayName: 'Director One', managerRef: { kind: 'external', ldapUid: 'constructor' } }
+    }
+    const chain = getManagerChainFromExternal('director1', { people: [], auxiliaryManagers })
+    expect(chain).toEqual([{ kind: 'unresolved', reason: 'dangling-external-ref' }])
+  })
+})
+
+describe('getAuxiliaryManager', () => {
+  it('returns the own-keyed record', () => {
+    const auxiliaryManagers = { director1: { ldapUid: 'director1', displayName: 'Director One' } }
+    expect(getAuxiliaryManager(auxiliaryManagers, 'director1')).toEqual(auxiliaryManagers.director1)
+  })
+
+  it('returns undefined instead of an inherited Object.prototype member', () => {
+    expect(getAuxiliaryManager({}, 'constructor')).toBeUndefined()
+    expect(getAuxiliaryManager({}, 'toString')).toBeUndefined()
+    expect(getAuxiliaryManager({}, '__proto__')).toBeUndefined()
+  })
+
+  it('returns undefined for a nullish dictionary instead of throwing', () => {
+    expect(getAuxiliaryManager(null, 'director1')).toBeUndefined()
+    expect(getAuxiliaryManager(undefined, 'director1')).toBeUndefined()
   })
 })
 

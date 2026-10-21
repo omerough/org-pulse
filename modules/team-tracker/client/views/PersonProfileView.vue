@@ -15,7 +15,8 @@ import {
   getManagerChainFromExternal,
   getDirectReports,
   getDirectReportsOfExternal,
-  getHierarchyAvailability
+  getHierarchyAvailability,
+  getAuxiliaryManager
 } from '@shared/client/composables/useManagerHierarchy.js'
 import { resolveMemberLocation } from '../utils/member-resolution.js'
 import PersonFieldEditor from '../components/PersonFieldEditor.vue'
@@ -353,7 +354,7 @@ function loadExternalManagerPerson() {
     return
   }
 
-  const record = auxiliaryManagers.value[expectedLdapUid]
+  const record = getAuxiliaryManager(auxiliaryManagers.value, expectedLdapUid)
   if (!record) {
     error.value = 'Person not found'
     loading.value = false
@@ -420,6 +421,11 @@ let personRequestSeq = 0
 async function loadPerson() {
   const requestId = ++personRequestSeq
   const stillCurrent = () => requestId === personRequestSeq
+
+  // A stale legacy edit-in-progress must not survive a navigation to a
+  // different profile, where its Save action would target the wrong person.
+  editField.value = null
+  editValue.value = ''
 
   if (isProjectPerson.value) {
     loadProjectPerson()
@@ -501,6 +507,9 @@ function startEdit(field) {
 }
 
 async function saveEdit() {
+  // Defense in depth: the registry mutation endpoint is legacy-only, even if
+  // a stale editField somehow survives a navigation to a non-legacy profile.
+  if (!isLegacyPerson.value) return
   if (!editValue.value.trim() || !editField.value) return
   editSaving.value = true
   try {

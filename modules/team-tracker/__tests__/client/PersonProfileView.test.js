@@ -1291,5 +1291,52 @@ describe('PersonProfileView', () => {
       expect(wrapper.text()).toContain('Director One')
       expect(mockLoadGitlabStats).not.toHaveBeenCalled()
     })
+
+    it('clears a stale legacy identity edit when navigating to an external-manager profile, so Save cannot hit the legacy endpoint', async () => {
+      isAdminValue.value = true
+      apiRequest.mockImplementation((url) => {
+        if (url.includes('/registry/people/legacy1')) {
+          return Promise.resolve({
+            person: { uid: 'legacy1', name: 'Legacy Person', status: 'active', orgType: 'engineering', github: null, gitlab: null },
+            managerChain: [],
+            directReports: [],
+            associatedTeams: []
+          })
+        }
+        return Promise.resolve({ resolved: { issues: [] }, inProgress: { issues: [] } })
+      })
+      auxiliaryManagersValue.value = {
+        director1: { ldapUid: 'director1', displayName: 'Director One', managerRef: null }
+      }
+      rosterDataValue.value = { projectId: 'flightctl', teams: [], people: [] }
+
+      const wrapper = mountView({ uid: 'legacy1' })
+      await flushPromises()
+
+      await wrapper.findAll('button').find(b => b.attributes('title') === 'Set').trigger('click')
+      expect(wrapper.find('input[placeholder="username"]').exists()).toBe(true)
+
+      apiRequest.mockClear()
+      wrapper.navParams.value = { ldapUid: 'director1' }
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Director One')
+      expect(wrapper.find('input[placeholder="username"]').exists()).toBe(false)
+      expect(wrapper.findAll('button').find(b => b.text() === 'Save')).toBeUndefined()
+      for (const call of apiRequest.mock.calls) {
+        expect(call[0]).not.toContain('/registry/people/')
+      }
+    })
+
+    it('resolves to "Person not found" instead of an inherited Object.prototype member for a poisoned ldapUid deep link', async () => {
+      auxiliaryManagersValue.value = {}
+      rosterDataValue.value = { projectId: 'flightctl', teams: [], people: [] }
+
+      for (const poisonedUid of ['constructor', 'toString', '__proto__']) {
+        const wrapper = mountView({ ldapUid: poisonedUid })
+        await flushPromises()
+        expect(wrapper.text()).toContain('Person not found')
+      }
+    })
   })
 })
