@@ -47,6 +47,15 @@ const mockTrendsData = {
   gitlab: { users: {} },
 }
 
+// The chart only displays months within its rolling 12-month window, so
+// fixtures that assert a specific month's value must use a month guaranteed
+// to fall inside that window -- the current month always does.
+function currentMonthKey() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+const MONTH = currentMonthKey()
+
 vi.mock('@shared/client/services/api', () => ({
   getTrends: vi.fn(async () => mockTrendsData),
 }))
@@ -144,12 +153,12 @@ describe('TrendsReport', () => {
     it('charts the connected GitHub contributions publication by its own monthly series, keyed by team not username', async () => {
       const { getTrends } = await import('@shared/client/services/api')
       getTrends.mockImplementationOnce(async () => ({
-        jira: { '2026-09': { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
+        jira: { [MONTH]: { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
         github: {
           availability: 'available',
           partial: false,
-          overall: { '2026-09': 50 },
-          byTeam: { 'flightctl::team-1': { '2026-09': 30 } }
+          overall: { [MONTH]: 50 },
+          byTeam: { 'flightctl::team-1': { [MONTH]: 30 } }
         },
         gitlab: null,
       }))
@@ -182,7 +191,7 @@ describe('TrendsReport', () => {
       getTrends.mockImplementationOnce(async () => ({
         projectId: 'flightctl', availability: 'unavailable', reason: 'missing-publication',
         jira: null,
-        github: { availability: 'available', partial: false, overall: { '2026-09': 20 }, byTeam: {} },
+        github: { availability: 'available', partial: false, overall: { [MONTH]: 20 }, byTeam: {} },
         gitlab: null,
       }))
       const wrapper = createWrapper()
@@ -202,9 +211,9 @@ describe('TrendsReport', () => {
       useReportFilters().selectedTeamKeys.value = ['flightctl::team-1', 'flightctl::team-2']
       const { getTrends } = await import('@shared/client/services/api')
       getTrends.mockImplementationOnce(async () => ({
-        jira: { '2026-09': { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
+        jira: { [MONTH]: { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
         // Only team-1 has a published GitHub measurement; team-2 never appears.
-        github: { availability: 'available', partial: true, overall: { '2026-09': 10 }, byTeam: { 'flightctl::team-1': { '2026-09': 10 } } },
+        github: { availability: 'available', partial: true, overall: { [MONTH]: 10 }, byTeam: { 'flightctl::team-1': { [MONTH]: 10 } } },
         gitlab: null,
       }))
       const wrapper = createWrapper()
@@ -220,8 +229,8 @@ describe('TrendsReport', () => {
       useReportFilters().selectedTeamKeys.value = ['flightctl::team-1']
       const { getTrends } = await import('@shared/client/services/api')
       getTrends.mockImplementationOnce(async () => ({
-        jira: { '2026-09': { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
-        github: { availability: 'available', partial: false, overall: { '2026-09': 0 }, byTeam: { 'flightctl::team-1': { '2026-09': 0 } } },
+        jira: { [MONTH]: { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
+        github: { availability: 'available', partial: false, overall: { [MONTH]: 0 }, byTeam: { 'flightctl::team-1': { [MONTH]: 0 } } },
         gitlab: null,
       }))
       const wrapper = createWrapper()
@@ -239,9 +248,9 @@ describe('TrendsReport', () => {
       useReportFilters().selectedTeamKeys.value = ['flightctl::team-1', 'flightctl::team-2']
       const { getTrends } = await import('@shared/client/services/api')
       getTrends.mockImplementationOnce(async () => ({
-        jira: { '2026-09': { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
+        jira: { [MONTH]: { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
         // Only team-1 has a published GitHub measurement; team-2 never appears.
-        github: { availability: 'available', partial: true, overall: { '2026-09': 10 }, byTeam: { 'flightctl::team-1': { '2026-09': 10 } } },
+        github: { availability: 'available', partial: true, overall: { [MONTH]: 10 }, byTeam: { 'flightctl::team-1': { [MONTH]: 10 } } },
         gitlab: null,
       }))
       const wrapper = createWrapper()
@@ -261,8 +270,8 @@ describe('TrendsReport', () => {
       useReportFilters().selectedOrgKeys.value = ['org1']
       const { getTrends } = await import('@shared/client/services/api')
       getTrends.mockImplementationOnce(async () => ({
-        jira: { '2026-09': { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
-        github: { availability: 'available', partial: false, overall: { '2026-09': 20 }, byTeam: {} },
+        jira: { [MONTH]: { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
+        github: { availability: 'available', partial: false, overall: { [MONTH]: 20 }, byTeam: {} },
         gitlab: null,
       }))
       const wrapper = createWrapper()
