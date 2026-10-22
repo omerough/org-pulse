@@ -334,7 +334,7 @@ describe('TeamRosterView — project-qualified team (normalized model)', () => {
     })
   }
 
-  it('renders the project team and its members without calling legacy team detail/RFE/metrics endpoints', async () => {
+  it('renders the project team and its members without calling legacy team detail/RFE endpoints', async () => {
     const wrapper = mountProjectView()
     await flushPromises()
 
@@ -343,18 +343,25 @@ describe('TeamRosterView — project-qualified team (normalized model)', () => {
 
     expect(mockLoadTeamDetail).not.toHaveBeenCalled()
     expect(mockLoadRfeConfig).not.toHaveBeenCalled()
-    expect(getTeamMetrics).not.toHaveBeenCalled()
+    // Delivery metrics are canonical here, not legacy: fetched via the same
+    // endpoint, scoped by projectId rather than skipped.
+    expect(getTeamMetrics).toHaveBeenCalledWith('flightctl::team-1', 'flightctl')
   })
 
-  it('renders the Delivery tab unavailable state instead of fetching legacy metrics', async () => {
+  it('renders canonical delivery metrics via the project-qualified endpoint', async () => {
+    getTeamMetrics.mockResolvedValue({
+      available: true,
+      memberCount: 1,
+      aggregate: { resolvedCount: 5, resolvedPoints: 13, inProgressCount: 2, avgCycleTimeDays: 2.5 }
+    })
     const wrapper = mountProjectView()
     await flushPromises()
 
     const deliveryTab = wrapper.findAll('nav button').find(b => b.text() === 'Delivery')
     await deliveryTab.trigger('click')
 
-    expect(wrapper.text()).toContain('--')
-    expect(getTeamMetrics).not.toHaveBeenCalled()
+    expect(getTeamMetrics).toHaveBeenCalledWith('flightctl::team-1', 'flightctl')
+    expect(wrapper.text()).toContain('5')
   })
 
   it('links a project-qualified member by accountId, not by display name', async () => {
@@ -409,6 +416,7 @@ describe('TeamRosterView — project-qualified team (normalized model)', () => {
     expect(wrapper.text()).toContain('Core')
     expect(mockLoadTeamDetail).not.toHaveBeenCalled()
     expect(mockLoadRfeConfig).not.toHaveBeenCalled()
-    expect(getTeamMetrics).not.toHaveBeenCalled()
+    // Canonical delivery metrics are now fetched, scoped to the resolved project.
+    expect(getTeamMetrics).toHaveBeenCalledWith('flightctl::team-1', 'flightctl')
   })
 })

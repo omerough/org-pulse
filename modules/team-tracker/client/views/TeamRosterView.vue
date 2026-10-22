@@ -525,11 +525,11 @@ const isRefreshing = ref(false)
 const showRefreshModal = ref(false)
 
 async function fetchTeamMetrics() {
-  // No project-qualified source exists yet for delivery metrics; the
-  // Delivery tab renders its shared unavailable state when this stays null.
-  if (rosterLoading.value || !team.value || isNormalizedModel.value) return
+  if (rosterLoading.value || !team.value) return
   try {
-    teamMetrics.value = await getTeamMetrics(team.value.key)
+    // Use the roster's own resolved project, not the shell's hash state (which may be mid-switch).
+    const projectId = isNormalizedModel.value ? rosterData.value?.projectId : undefined
+    teamMetrics.value = await getTeamMetrics(team.value.key, projectId)
   } catch (error) {
     console.error('Failed to fetch team metrics:', error)
   }
