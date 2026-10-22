@@ -420,3 +420,112 @@ describe('TeamRosterView — project-qualified team (normalized model)', () => {
     expect(getTeamMetrics).toHaveBeenCalledWith('flightctl::team-1', 'flightctl')
   })
 })
+
+// An older in-flight request can resolve after a newer one; the stale
+// response must never overwrite the newer, already-committed result.
+describe('TeamRosterView — stale team metrics requests (OSAC-6322)', () => {
+  function deferred() {
+    let resolve
+    const promise = new Promise(r => { resolve = r })
+    return { promise, resolve }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('drops a stale response from the previously selected team when a newer team-switch request resolves first', async () => {
+    const teamA = { key: 'org::TeamA', displayKey: 'ORG::TeamA', displayName: 'Team A', members: [{ name: 'P1', jiraDisplayName: 'P1' }] }
+    const teamB = { key: 'org::TeamB', displayKey: 'ORG::TeamB', displayName: 'Team B', members: [{ name: 'P2', jiraDisplayName: 'P2' }] }
+    rosterTeams.value = [teamA, teamB]
+    isNormalizedModelValue.value = false
+    rosterLoadingValue.value = false
+    rosterDataValue.value = { teamDataSource: 'sheets' }
+
+    const deferredA = deferred()
+    const deferredB = deferred()
+    getTeamMetrics.mockImplementationOnce(() => deferredA.promise)
+    getTeamMetrics.mockImplementationOnce(() => deferredB.promise)
+
+    const params = ref({ teamKey: 'ORG::TeamA' })
+    const wrapper = mount(TeamRosterView, {
+      global: { provide: { moduleNav: { params, goBack: vi.fn(), navigateTo: vi.fn(), updateParams: vi.fn() } } }
+    })
+    await flushPromises()
+
+    // Switch to Team B before Team A's (older) request has resolved.
+    params.value = { teamKey: 'ORG::TeamB' }
+    await flushPromises()
+    expect(getTeamMetrics).toHaveBeenCalledTimes(2)
+
+    // The newer (Team B) request resolves first.
+    deferredB.resolve({ available: true, memberCount: 1, aggregate: { resolvedCount: 20, resolvedPoints: 0, inProgressCount: 0, avgCycleTimeDays: null } })
+    await flushPromises()
+
+    // The older (Team A) request resolves after -- must be dropped, not applied.
+    deferredA.resolve({ available: true, memberCount: 1, aggregate: { resolvedCount: 999, resolvedPoints: 0, inProgressCount: 0, avgCycleTimeDays: null } })
+    await flushPromises()
+
+    const deliveryTab = wrapper.findAll('nav button').find(b => b.text() === 'Delivery')
+    await deliveryTab.trigger('click')
+
+    expect(wrapper.text()).toContain('20')
+    expect(wrapper.text()).not.toContain('999')
+  })
+
+  it('drops a stale response from the previously selected project when a newer project-switch request resolves first', async () => {
+    const projectTeam = {
+      key: 'projswitch::core',
+      displayKey: null,
+      displayName: 'Core',
+      members: [{ accountId: 'acc-1', name: 'Ada Lovelace', jiraDisplayName: 'Ada Lovelace', customFields: {} }],
+      teamId: 'team-1',
+      metadata: {},
+      description: null
+    }
+    rosterTeams.value = [projectTeam]
+    isNormalizedModelValue.value = true
+    rosterLoadingValue.value = false
+    rosterDataValue.value = { projectId: 'flightctl', teams: [], people: [] }
+
+    const deferredFlightctl = deferred()
+    const deferredSippy = deferred()
+    getTeamMetrics.mockImplementationOnce(() => deferredFlightctl.promise)
+    getTeamMetrics.mockImplementationOnce(() => deferredSippy.promise)
+
+    const params = ref({ teamKey: 'projswitch::core' })
+    const wrapper = mount(TeamRosterView, {
+      global: { provide: { moduleNav: { params, goBack: vi.fn(), navigateTo: vi.fn(), updateParams: vi.fn() } } }
+    })
+    await flushPromises()
+    expect(getTeamMetrics).toHaveBeenCalledWith('projswitch::core', 'flightctl')
+
+    // Mirror useRoster's project-switch sequence while the old request is
+    // still in flight; same team key, different projectId.
+    rosterTeams.value = []
+    rosterLoadingValue.value = true
+    rosterDataValue.value = null
+    await flushPromises()
+
+    rosterDataValue.value = { projectId: 'sippy', teams: [], people: [] }
+    rosterTeams.value = [{ ...projectTeam }]
+    rosterLoadingValue.value = false
+    await flushPromises()
+    expect(getTeamMetrics).toHaveBeenCalledTimes(2)
+    expect(getTeamMetrics).toHaveBeenLastCalledWith('projswitch::core', 'sippy')
+
+    // The newer (sippy) request resolves first.
+    deferredSippy.resolve({ available: true, memberCount: 1, aggregate: { resolvedCount: 20, resolvedPoints: 0, inProgressCount: 0, avgCycleTimeDays: null } })
+    await flushPromises()
+
+    // The older (flightctl) request resolves after -- must be dropped, not applied.
+    deferredFlightctl.resolve({ available: true, memberCount: 1, aggregate: { resolvedCount: 999, resolvedPoints: 0, inProgressCount: 0, avgCycleTimeDays: null } })
+    await flushPromises()
+
+    const deliveryTab = wrapper.findAll('nav button').find(b => b.text() === 'Delivery')
+    await deliveryTab.trigger('click')
+
+    expect(wrapper.text()).toContain('20')
+    expect(wrapper.text()).not.toContain('999')
+  })
+})

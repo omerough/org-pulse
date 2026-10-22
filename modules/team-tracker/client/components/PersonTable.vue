@@ -117,6 +117,26 @@ function personLink(member) {
   return linkTo('team-tracker', 'person-detail', { ...params, person: member.name })
 }
 
+// The lookback window shared by every displayed member, or null when
+// unknown/mixed -- never assert a window the data can't back up.
+const commonLookbackDays = computed(() => {
+  const values = []
+  for (const metrics of props.memberMetrics.values()) {
+    if (!metrics) continue
+    if (typeof metrics.lookbackDays !== 'number') return null
+    values.push(metrics.lookbackDays)
+  }
+  if (values.length === 0) return null
+  return values.every(v => v === values[0]) ? values[0] : null
+})
+
+const resolvedColumnLabel = computed(() =>
+  commonLookbackDays.value != null ? `Resolved (${commonLookbackDays.value}d)` : 'Resolved'
+)
+const pointsColumnLabel = computed(() =>
+  commonLookbackDays.value != null ? `Points (${commonLookbackDays.value}d)` : 'Points'
+)
+
 const columns = computed(() => {
   const cols = [{ key: 'name', label: 'Name' }]
   if (primaryDisplayField.value) {
@@ -124,8 +144,8 @@ const columns = computed(() => {
     cols.push({ key: primaryDisplayField.value, label: pf?.label || primaryDisplayField.value })
   }
   cols.push(
-    { key: 'resolved', label: 'Resolved (90d)' },
-    { key: 'points', label: 'Points (90d)' },
+    { key: 'resolved', label: resolvedColumnLabel.value },
+    { key: 'points', label: pointsColumnLabel.value },
     { key: 'cycleTime', label: 'Cycle Time' },
     { key: 'github', label: 'GitHub (1yr)' },
     { key: 'gitlab', label: 'GitLab (1yr)' },
