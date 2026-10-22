@@ -151,8 +151,10 @@ const seriesConfig = computed(() => {
     })
   }
 
-  // Orgs selected
-  if (selectedOrgKeys.value.length > 0) {
+  // Orgs selected (legacy-OSAC concept only -- a stale selection must not
+  // leak into project mode, which has no org concept and would otherwise
+  // produce a fabricated-zero series for it).
+  if (!isProjectMode.value && selectedOrgKeys.value.length > 0) {
     if (compareMode.value === 'aggregate' && selectedOrgKeys.value.length > 1) {
       return [{ key: selectedOrgKeys.value, label: 'Selected Orgs', type: 'orgs-aggregate' }]
     }
@@ -291,11 +293,14 @@ const githubUserLookup = computed(() => {
 // Project mode's github is pre-bucketed server-side by (projectId, accountId)
 // team membership -- no roster username join, and no org concept (teams only).
 // A team absent from `byTeam` has no published measurement; a present team
-// with all-zero months is a real zero, not an absence.
+// with all-zero months is a real zero, not an absence. A "Selected Teams"
+// aggregate requires every selected team to have a measurement -- summing
+// only the subset that does would silently relabel a partial total as the
+// full selection.
 function hasProjectGithubData(series, github) {
   if (series.type === 'overall') return !!github.overall
   if (series.type === 'team') return Object.hasOwn(github.byTeam || {}, series.key)
-  if (series.type === 'teams-aggregate') return series.key.some(k => Object.hasOwn(github.byTeam || {}, k))
+  if (series.type === 'teams-aggregate') return series.key.every(k => Object.hasOwn(github.byTeam || {}, k))
   return true
 }
 

@@ -231,6 +231,50 @@ describe('TrendsReport', () => {
       expect(githubChart.props('datasets')).toEqual([{ label: 'Team One', data: [0] }])
     })
 
+    it('omits the "Selected Teams" aggregate rather than labeling a partial sum as the full selection', async () => {
+      mockRosterTeams.value = [
+        { key: 'flightctl::team-1', displayName: 'Team One', members: [] },
+        { key: 'flightctl::team-2', displayName: 'Team Two', members: [] },
+      ]
+      useReportFilters().selectedTeamKeys.value = ['flightctl::team-1', 'flightctl::team-2']
+      const { getTrends } = await import('@shared/client/services/api')
+      getTrends.mockImplementationOnce(async () => ({
+        jira: { '2026-09': { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
+        // Only team-1 has a published GitHub measurement; team-2 never appears.
+        github: { availability: 'available', partial: true, overall: { '2026-09': 10 }, byTeam: { 'flightctl::team-1': { '2026-09': 10 } } },
+        gitlab: null,
+      }))
+      const wrapper = createWrapper()
+      await nextTick()
+      await nextTick()
+      const aggregateButton = wrapper.findAll('button').find(b => b.text() === 'Aggregate')
+      await aggregateButton.trigger('click')
+      await nextTick()
+      await nextTick()
+      const githubChart = wrapper.findAllComponents(TrendChart).find(c => c.props('title') === 'GitHub Contributions')
+      // team-2 has no published measurement, so the "Selected Teams" total
+      // must be omitted rather than summing only team-1 under the full label.
+      expect(githubChart.props('datasets')).toEqual([])
+    })
+
+    it('ignores a stale organization-filter selection left over from legacy OSAC mode, instead of charting a fabricated-zero org series', async () => {
+      useReportFilters().selectedOrgKeys.value = ['org1']
+      const { getTrends } = await import('@shared/client/services/api')
+      getTrends.mockImplementationOnce(async () => ({
+        jira: { '2026-09': { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
+        github: { availability: 'available', partial: false, overall: { '2026-09': 20 }, byTeam: {} },
+        gitlab: null,
+      }))
+      const wrapper = createWrapper()
+      await nextTick()
+      await nextTick()
+      // Project mode has no org concept; the stale selection must not route
+      // the series into the (non-existent) org bucket, which would silently
+      // produce a fabricated zero instead of the real overall total.
+      const githubChart = wrapper.findAllComponents(TrendChart).find(c => c.props('title') === 'GitHub Contributions')
+      expect(githubChart.props('datasets')).toEqual([{ label: 'Overall', data: [20] }])
+    })
+
     it('reloads when the project changes', async () => {
       const { getTrends } = await import('@shared/client/services/api')
       createWrapper()
