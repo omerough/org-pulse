@@ -552,6 +552,7 @@ async function fetchTeamMetrics() {
     teamMetrics.value = result
   } catch (error) {
     if (requestId !== teamMetricsRequestId) return // superseded; a stale failure must not clobber newer state
+    teamMetricsRequestIdentityKey = null // allow a later trigger for this identity to retry
     console.error('Failed to fetch team metrics:', error)
   }
 }

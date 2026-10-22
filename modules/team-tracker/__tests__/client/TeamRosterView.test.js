@@ -528,4 +528,38 @@ describe('TeamRosterView — stale team metrics requests (OSAC-6322)', () => {
     expect(wrapper.text()).toContain('20')
     expect(wrapper.text()).not.toContain('999')
   })
+
+  it('retries after a failed fetch once a later trigger fires for the same team/project', async () => {
+    const team = { key: 'org::TeamA', displayKey: 'ORG::TeamA', displayName: 'Team A', members: [{ name: 'P1', jiraDisplayName: 'P1' }] }
+    rosterTeams.value = [team]
+    isNormalizedModelValue.value = false
+    rosterLoadingValue.value = false
+    rosterDataValue.value = { teamDataSource: 'sheets' }
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    getTeamMetrics.mockRejectedValueOnce(new Error('network error'))
+    getTeamMetrics.mockResolvedValueOnce({ available: true, memberCount: 1, aggregate: { resolvedCount: 42, resolvedPoints: 0, inProgressCount: 0, avgCycleTimeDays: null } })
+
+    const params = ref({ teamKey: 'ORG::TeamA' })
+    const wrapper = mount(TeamRosterView, {
+      global: { provide: { moduleNav: { params, goBack: vi.fn(), navigateTo: vi.fn(), updateParams: vi.fn() } } }
+    })
+    await flushPromises()
+    expect(getTeamMetrics).toHaveBeenCalledTimes(1)
+
+    // Simulate a later roster reload for the same team/project (e.g. an explicit
+    // refresh) -- the earlier failure must not block this retry.
+    rosterLoadingValue.value = true
+    await flushPromises()
+    rosterLoadingValue.value = false
+    await flushPromises()
+
+    expect(getTeamMetrics).toHaveBeenCalledTimes(2)
+
+    const deliveryTab = wrapper.findAll('nav button').find(b => b.text() === 'Delivery')
+    await deliveryTab.trigger('click')
+    expect(wrapper.text()).toContain('42')
+
+    consoleErrorSpy.mockRestore()
+  })
 })
