@@ -140,7 +140,7 @@ describe('OverviewView (Feature List)', () => {
         state: 'supported',
         partial: false,
         features: [{
-          key: 'EDM-100', summary: 'Jira inventory item', status: 'Closed', statusCategory: 'Done',
+          key: 'EDM-100', summary: 'Jira inventory item', status: 'Resolved', statusCategory: 'Done',
           fixVersions: ['0.10.0'], components: ['FlightCtl-Core'], labels: [], epicCount: 2,
           issueCount: null, blockerCount: null, completionPct: null, health: null,
           executionIssueCount: null, doneExecutionIssueCount: null, executionState: 'unavailable',
@@ -890,6 +890,237 @@ describe('OverviewView (Feature List)', () => {
       const wrapper2 = await mountWithAssigneeFeatures()
       expect(wrapper2.findAll('tbody tr')).toHaveLength(1)
       expect(wrapper2.text()).toContain('ASG-ALICE')
+    })
+  })
+
+  describe('Labels filter', () => {
+    const UIUX_FEATURES = [
+      { key: 'UX-1', summary: 'Feature with UI/UX evidence', status: 'In Progress', statusCategory: 'In Progress',
+        fixVersions: ['0.3'], components: ['Dashboard'], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
+        executionIssueCount: 2, doneExecutionIssueCount: 1, executionState: 'in-progress', executionCoverage: 'available',
+        executionCoverageReason: null, preparationReadiness: 'unknown',
+        uiEvidence: {
+          status: 'in-progress', conflict: false,
+          scopes: [
+            { fixVersions: ['0.3'], components: ['Dashboard'], status: 'completed', conflict: false, sourceKeys: ['UIX-1'] },
+            { fixVersions: ['0.4'], components: ['Dashboard'], status: 'not-started', conflict: false, sourceKeys: ['BOOT-1'] }
+          ],
+          sources: [
+            { epicKey: 'UIX-1', epicType: 'uix', fixVersions: ['0.3'], components: ['Dashboard'], localStatus: 'completed', stageLabels: ['ui-completed'], routingLabels: [] },
+            { epicKey: 'BOOT-1', epicType: 'bootstrap', fixVersions: ['0.4'], components: ['Dashboard'], localStatus: 'not-started', stageLabels: [], routingLabels: [] }
+          ]
+        },
+        uxEvidence: { status: 'unknown', conflict: false, scopes: [], sources: [] },
+        workflowLabelSources: [
+          { epicKey: 'BOOT-1', labels: ['design-approved'], fixVersions: ['0.4'], components: ['Dashboard'] }
+        ] },
+      { key: 'UX-2', summary: 'Feature with no UI/UX evidence', status: 'In Progress', statusCategory: 'In Progress',
+        fixVersions: ['0.3'], components: ['Dashboard'], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
+        executionIssueCount: 2, doneExecutionIssueCount: 1, executionState: 'in-progress', executionCoverage: 'available',
+        executionCoverageReason: null, preparationReadiness: 'unknown' }
+    ]
+
+    async function mountWithUiUxFeatures(features = UIUX_FEATURES) {
+      mockApiRequest.mockImplementation((url) => {
+        if (url.indexOf('/versions') !== -1) return Promise.resolve({ versions: ['0.3', '0.4'] })
+        return Promise.resolve({ features, fetchedAt: '2026-09-10T00:00:00Z', featureCount: features.length })
+      })
+      const wrapper = mount(OverviewView, { global: { provide: { moduleNav: mockNav() } } })
+      await flushPromises()
+      await wrapper.findAll('button').find(b => b.text() === 'List').trigger('click')
+      return wrapper
+    }
+
+    async function selectLabel(wrapper, label) {
+      const button = wrapper.findAll('button').find(b => b.text().includes('All labels'))
+      await button.trigger('click')
+      const option = wrapper.findAll('label').find(l => l.text() === label)
+      await option.find('input[type="checkbox"]').setValue(true)
+    }
+
+    it('renders one unified Labels dropdown; the old UI/UX status dropdowns and status columns are gone', async () => {
+      const wrapper = await mountWithUiUxFeatures()
+      expect(wrapper.findAll('button').some(b => b.text().includes('All labels'))).toBe(true)
+      expect(wrapper.findAll('button').some(b => b.text().includes('All UI statuses'))).toBe(false)
+      expect(wrapper.findAll('button').some(b => b.text().includes('All UX statuses'))).toBe(false)
+      expect(wrapper.findAll('th').map(h => h.text())).not.toContain('UI')
+      expect(wrapper.findAll('th').map(h => h.text())).not.toContain('UX')
+    })
+
+    it('hides the Labels dropdown for a dataset with no labels/evidence at all (backward compat)', async () => {
+      const wrapper = await mountWithUiUxFeatures([{ ...UIUX_FEATURES[1] }])
+      expect(wrapper.findAll('button').some(b => b.text().includes('All labels'))).toBe(false)
+    })
+
+    it('filters to Features carrying an Epic stage label when no Release is selected', async () => {
+      const wrapper = await mountWithUiUxFeatures()
+      await selectLabel(wrapper, 'ui-completed')
+
+      expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+      expect(wrapper.text()).toContain('UX-1')
+    })
+
+    // ui-completed lives only on UIX-1, scoped to 0.3 — the single-source-Epic safeguard.
+    it('honors the single-source-Epic safeguard once a Release is also selected', async () => {
+      const wrapper = await mountWithUiUxFeatures()
+
+      const versionButton = wrapper.findAll('button').find(b => b.text().includes('All Versions'))
+      await versionButton.trigger('click')
+      const versionOption = wrapper.findAll('label').find(l => l.text() === '0.3')
+      await versionOption.find('input[type="checkbox"]').setValue(true)
+
+      await selectLabel(wrapper, 'ui-completed')
+      expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+      expect(wrapper.text()).toContain('UX-1')
+    })
+
+    it('filters by an Epic workflow label (design-approved) via workflowLabelSources', async () => {
+      const wrapper = await mountWithUiUxFeatures()
+      await selectLabel(wrapper, 'design-approved')
+
+      expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+      expect(wrapper.text()).toContain('UX-1')
+    })
+
+    it('clears the Labels filter via Clear filters', async () => {
+      const wrapper = await mountWithUiUxFeatures()
+      await selectLabel(wrapper, 'ui-completed')
+      expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+
+      const clearButton = wrapper.findAll('button').find(b => b.text() === 'Clear filters')
+      await clearButton.trigger('click')
+      expect(wrapper.findAll('tbody tr')).toHaveLength(2)
+    })
+
+    it('shows one compact, scope-aware Labels row on the Board card, prioritizing workflow/UI-UX labels', async () => {
+      mockApiRequest.mockImplementation((url) => {
+        if (url.indexOf('/versions') !== -1) return Promise.resolve({ versions: ['0.3', '0.4'] })
+        return Promise.resolve({ features: UIUX_FEATURES, fetchedAt: '2026-09-10T00:00:00Z', featureCount: UIUX_FEATURES.length })
+      })
+      const wrapper = mount(OverviewView, { global: { provide: { moduleNav: mockNav() } } })
+      await flushPromises()
+
+      const card = wrapper.findAll('[class*="border-gray-200/80"]').find(el => el.text().includes('UX-1'))
+      expect(card.text()).toContain('ui-completed')
+
+      // design-approved is scoped to 0.4 on BOOT-1 — not visible when 0.3 is selected.
+      const versionButton = wrapper.findAll('button').find(b => b.text().includes('All Versions'))
+      await versionButton.trigger('click')
+      const versionOption = wrapper.findAll('label').find(l => l.text() === '0.3')
+      await versionOption.find('input[type="checkbox"]').setValue(true)
+
+      const cardAfter = wrapper.findAll('[class*="border-gray-200/80"]').find(el => el.text().includes('UX-1'))
+      expect(cardAfter.text()).not.toContain('design-approved')
+    })
+
+    it('collapses Customer and Other label groups by default, independently expandable via their heading', async () => {
+      const features = [{ ...UIUX_FEATURES[0], labels: ['customer:acme', 'random-tag'] }, UIUX_FEATURES[1]]
+      const wrapper = await mountWithUiUxFeatures(features)
+      const button = wrapper.findAll('button').find(b => b.text().includes('All labels'))
+      await button.trigger('click')
+
+      // UI/UX Workflow is never collapsed.
+      expect(wrapper.findAll('label').some(l => l.text() === 'ui-completed')).toBe(true)
+      expect(wrapper.findAll('label').some(l => l.text() === 'customer:acme')).toBe(false)
+      expect(wrapper.findAll('label').some(l => l.text() === 'random-tag')).toBe(false)
+
+      const customerHeading = wrapper.findAll('button').find(b => b.text() === 'Customer')
+      await customerHeading.trigger('click')
+      expect(wrapper.findAll('label').some(l => l.text() === 'customer:acme')).toBe(true)
+      expect(wrapper.findAll('label').some(l => l.text() === 'random-tag')).toBe(false)
+    })
+
+    it('search reveals matches inside collapsed Customer/Other groups without requiring them to be expanded', async () => {
+      const features = [{ ...UIUX_FEATURES[0], labels: ['customer:acme'] }, UIUX_FEATURES[1]]
+      const wrapper = await mountWithUiUxFeatures(features)
+      const button = wrapper.findAll('button').find(b => b.text().includes('All labels'))
+      await button.trigger('click')
+
+      const search = wrapper.find('input[placeholder="Search labels..."]')
+      await search.setValue('acme')
+
+      expect(wrapper.findAll('label').some(l => l.text() === 'customer:acme')).toBe(true)
+    })
+  })
+
+  describe('Closed Feature visibility', () => {
+    const CLOSED_FEATURES = [
+      { key: 'OPEN-1', summary: 'Open feature', status: 'In Progress', statusCategory: 'In Progress',
+        fixVersions: ['0.3'], components: [], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
+        executionState: 'in-progress', executionCoverage: 'available', preparationReadiness: 'unknown' },
+      { key: 'CLOSED-FV', summary: 'Closed feature matching via fixVersions', status: 'Closed', statusCategory: 'Done',
+        fixVersions: ['0.3'], components: [], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
+        executionState: 'complete', executionCoverage: 'available', preparationReadiness: 'unknown' },
+      { key: 'CLOSED-EPIC', summary: 'Closed feature matching via epicReleaseVersions only', status: 'Closed', statusCategory: 'Done',
+        fixVersions: ['0.2'], epicReleaseVersions: ['0.3'], components: [], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
+        executionState: 'complete', executionCoverage: 'available', preparationReadiness: 'unknown' },
+      { key: 'CLOSED-UNRELATED', summary: 'Closed feature matching neither', status: 'Closed', statusCategory: 'Done',
+        fixVersions: ['0.1'], epicReleaseVersions: ['0.15'], components: [], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
+        executionState: 'complete', executionCoverage: 'available', preparationReadiness: 'unknown' },
+      { key: 'CLOSED-UIUX', summary: 'Closed feature with UI/UX evidence', status: 'Closed', statusCategory: 'Done',
+        fixVersions: ['0.3'], components: [], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
+        executionState: 'complete', executionCoverage: 'available', preparationReadiness: 'unknown',
+        uiEvidence: { status: 'completed', conflict: false,
+          scopes: [{ fixVersions: ['0.3'], components: [], status: 'completed', conflict: false, sourceKeys: ['UI-1'] }],
+          sources: [
+            { epicKey: 'UI-1', epicType: 'ui-impl', fixVersions: ['0.3'], components: [], localStatus: 'completed', stageLabels: ['ui-completed'], routingLabels: [] }
+          ] } }
+    ]
+
+    async function mountWithClosedFeatures(features = CLOSED_FEATURES) {
+      mockApiRequest.mockImplementation((url) => {
+        if (url.indexOf('/versions') !== -1) return Promise.resolve({ versions: ['0.2', '0.3'] })
+        return Promise.resolve({ features, fetchedAt: '2026-09-10T00:00:00Z', featureCount: features.length })
+      })
+      const wrapper = mount(OverviewView, { global: { provide: { moduleNav: mockNav() } } })
+      await flushPromises()
+      await wrapper.findAll('button').find(b => b.text() === 'List').trigger('click')
+      return wrapper
+    }
+
+    async function selectVersion(wrapper, version) {
+      const versionButton = wrapper.findAll('button').find(b => b.text().includes('Version'))
+      await versionButton.trigger('click')
+      const versionOption = wrapper.findAll('label').find(l => l.text() === version)
+      await versionOption.find('input[type="checkbox"]').setValue(true)
+    }
+
+    it('hides Closed features by default and keeps non-Closed features visible', async () => {
+      const wrapper = await mountWithClosedFeatures()
+      expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+      expect(wrapper.text()).toContain('OPEN-1')
+    })
+
+    it('reveals a Closed feature matching the selected Release via fixVersions', async () => {
+      const wrapper = await mountWithClosedFeatures()
+      await selectVersion(wrapper, '0.3')
+      const keys = wrapper.findAll('tbody tr').map(r => r.text())
+      expect(keys.some(t => t.includes('OPEN-1'))).toBe(true)
+      expect(keys.some(t => t.includes('CLOSED-FV'))).toBe(true)
+      expect(keys.some(t => t.includes('CLOSED-EPIC'))).toBe(true)
+      expect(keys.some(t => t.includes('CLOSED-UIUX'))).toBe(true)
+      expect(keys.some(t => t.includes('CLOSED-UNRELATED'))).toBe(false)
+    })
+
+    it('still hides a Closed feature under an active Labels query when no Release is selected', async () => {
+      const wrapper = await mountWithClosedFeatures()
+      const labelButton = wrapper.findAll('button').find(b => b.text().includes('All labels'))
+      await labelButton.trigger('click')
+      const option = wrapper.findAll('label').find(l => l.text() === 'ui-completed')
+      await option.find('input[type="checkbox"]').setValue(true)
+
+      expect(wrapper.text()).not.toContain('CLOSED-UIUX')
+    })
+
+    it('reveals a Closed feature under an active Labels query once its Release is also selected', async () => {
+      const wrapper = await mountWithClosedFeatures()
+      await selectVersion(wrapper, '0.3')
+      const labelButton = wrapper.findAll('button').find(b => b.text().includes('All labels'))
+      await labelButton.trigger('click')
+      const option = wrapper.findAll('label').find(l => l.text() === 'ui-completed')
+      await option.find('input[type="checkbox"]').setValue(true)
+
+      expect(wrapper.text()).toContain('CLOSED-UIUX')
     })
   })
 })
