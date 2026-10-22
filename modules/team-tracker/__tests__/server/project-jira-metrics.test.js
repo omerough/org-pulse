@@ -452,9 +452,41 @@ describe('readProjectTeamMetrics', () => {
       teamKey: 'flightctl::team-1',
       available: true,
       memberCount: 3,
-      aggregate: { resolvedCount: 5, resolvedPoints: 13, inProgressCount: 2, avgCycleTimeDays: 2.5 },
+      aggregate: { resolvedCount: 5, resolvedPoints: 13, inProgressCount: 2, avgCycleTimeDays: 2.5, lookbackDays: null },
       partial: true
     })
+  })
+
+  it('reports the common lookbackDays across the team\'s people, and null when they disagree', () => {
+    const agreeing = makeEnvelope('flightctl', {
+      data: {
+        projectId: 'flightctl',
+        personCount: 2,
+        people: [
+          makePerson({ accountId: 'acct-1', teamIds: ['team-1'], lookbackDays: 365 }),
+          makePerson({ accountId: 'acct-2', teamIds: ['team-1'], lookbackDays: 365 })
+        ],
+        teams: [makeTeam()],
+        diagnostics: { missingPeople: [], staleCarryForward: [], freshSuccessCount: 2 }
+      }
+    })
+    const projectsAgree = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: agreeing } } }, { flightctl: makeProfile('flightctl') })
+    expect(readProjectTeamMetrics(projectsAgree, 'flightctl', 'team-1').model.aggregate.lookbackDays).toBe(365)
+
+    const mixed = makeEnvelope('flightctl', {
+      data: {
+        projectId: 'flightctl',
+        personCount: 2,
+        people: [
+          makePerson({ accountId: 'acct-1', teamIds: ['team-1'], lookbackDays: 365 }),
+          makePerson({ accountId: 'acct-2', teamIds: ['team-1'], lookbackDays: 90 })
+        ],
+        teams: [makeTeam()],
+        diagnostics: { missingPeople: [], staleCarryForward: [], freshSuccessCount: 2 }
+      }
+    })
+    const projectsMixed = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: mixed } } }, { flightctl: makeProfile('flightctl') })
+    expect(readProjectTeamMetrics(projectsMixed, 'flightctl', 'team-1').model.aggregate.lookbackDays).toBeNull()
   })
 
   it('marks the team result partial when the status sidecar confirms the current profile\'s latest collection failed', () => {

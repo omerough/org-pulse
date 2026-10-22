@@ -79,7 +79,7 @@
         />
       </div>
       <div v-else-if="isProjectMode" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-400 dark:text-gray-500">
-        GitLab Contributions: not published for this project.
+        GitLab Contributions: Unsupported for this project.
       </div>
 
       <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
@@ -205,6 +205,13 @@ const monthLabels = computed(() => {
       }
     }
   }
+  // Project mode: github is already bucketed server-side (byTeam/overall), not
+  // username-keyed -- see getGithubValue().
+  if (trendsData.value.github?.overall) {
+    for (const month of Object.keys(trendsData.value.github.overall)) {
+      allMonths.add(month)
+    }
+  }
 
   if (trendsData.value.gitlab?.users) {
     for (const userData of Object.values(trendsData.value.gitlab.users)) {
@@ -273,9 +280,25 @@ const githubUserLookup = computed(() => {
   return lookup
 })
 
+// Project mode's github is pre-bucketed server-side by (projectId, accountId)
+// team membership -- no roster username join, and no org concept (teams only).
+function getProjectGithubValue(monthKey, series, github) {
+  if (series.type === 'overall') return github.overall?.[monthKey] || 0
+  if (series.type === 'team') return github.byTeam?.[series.key]?.[monthKey] || 0
+  if (series.type === 'teams-aggregate') {
+    let total = 0
+    for (const teamKey of series.key) total += github.byTeam?.[teamKey]?.[monthKey] || 0
+    return total
+  }
+  return 0
+}
+
 function getGithubValue(monthKey, series) {
   const github = trendsData.value?.github
-  if (!github?.users) return 0
+  if (!github) return 0
+  if (isProjectMode.value) return getProjectGithubValue(monthKey, series, github)
+
+  if (!github.users) return 0
   const lookup = githubUserLookup.value
 
   let total = 0

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { ref, readonly, nextTick } from 'vue'
 import TrendsReport from '../../../client/reports/TrendsReport.vue'
+import TrendChart from '../../../client/components/TrendChart.vue'
 
 const mockOrgs = ref([
   {
@@ -70,6 +71,7 @@ describe('TrendsReport', () => {
         },
         stubs: {
           TrendChart: {
+            name: 'TrendChart',
             template: '<div data-testid="trend-chart">{{ title }}</div>',
             props: ['labels', 'datasets', 'title', 'unit'],
           }
@@ -132,8 +134,30 @@ describe('TrendsReport', () => {
       await nextTick()
       await nextTick()
       expect(wrapper.text()).toContain('GitHub Contributions: not published for this project.')
-      expect(wrapper.text()).toContain('GitLab Contributions: not published for this project.')
+      expect(wrapper.text()).toContain('GitLab Contributions: Unsupported for this project.')
       expect(wrapper.findAll('[data-testid="trend-chart"]').map(c => c.text())).not.toContain('GitHub Contributions')
+    })
+
+    it('charts the connected GitHub contributions publication by its own monthly series, keyed by team not username', async () => {
+      const { getTrends } = await import('@shared/client/services/api')
+      getTrends.mockImplementationOnce(async () => ({
+        jira: { '2026-09': { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
+        github: {
+          availability: 'available',
+          partial: false,
+          overall: { '2026-09': 50 },
+          byTeam: { 'flightctl::team-1': { '2026-09': 30 } }
+        },
+        gitlab: null,
+      }))
+      const wrapper = createWrapper()
+      await nextTick()
+      await nextTick()
+      expect(wrapper.text()).not.toContain('GitHub Contributions: not published for this project.')
+      const githubChart = wrapper.findAllComponents(TrendChart).find(c => c.props('title') === 'GitHub Contributions')
+      expect(githubChart).toBeTruthy()
+      // No team/org selected -> overall series, not the per-team bucket.
+      expect(githubChart.props('datasets')).toEqual([{ label: 'Overall', data: [50] }])
     })
 
     it.each([

@@ -1,9 +1,9 @@
 /**
  * Project-qualified Jira person/team metrics reads, for Trends and Team
  * Comparison. Canonical identity is (projectId, accountId) /
- * (projectId, teamId), matching project-roster.js. GitHub/GitLab
- * contributions have no project-qualified publication yet, so trends always
- * report them as absent (`null`), never a fabricated zero.
+ * (projectId, teamId), matching project-roster.js. This reader only knows
+ * about Jira; the route handler merges in GitHub from `project-contributions.js`.
+ * GitLab has no project-qualified publication, so it's always `null`.
  *
  * This is a source-specific reader, not the converged aggregation layer:
  * the legacy OSAC team-metrics path (index.js) dedupes members by
@@ -194,7 +194,7 @@ function _buildTrendsModel(projectId, loaded) {
     partial: loaded.partial,
     generatedAt: loaded.generatedAt,
     jira,
-    // No project-qualified GitHub/GitLab contribution publication exists yet.
+    // Route handler merges in GitHub from project-contributions.js when available.
     github: null,
     gitlab: null
   };
@@ -220,7 +220,14 @@ function readProjectTrends(projects, projectId, readFromStorage) {
   return { status: 200, model: _buildTrendsModel(projectId, loaded) };
 }
 
-function _buildTeamMetricsModel(projectId, team, publicationPartial) {
+// A single common lookbackDays across the team's people, or null when mixed/
+// absent -- the client must never assert a specific window it can't back up.
+function _resolveLookbackDays(people) {
+  const values = new Set(people.map(p => p.lookbackDays).filter(v => typeof v === 'number'));
+  return values.size === 1 ? [...values][0] : null;
+}
+
+function _buildTeamMetricsModel(projectId, team, publicationPartial, lookbackDays) {
   return {
     teamKey: `${projectId}::${team.id}`,
     available: true,
@@ -229,7 +236,8 @@ function _buildTeamMetricsModel(projectId, team, publicationPartial) {
       resolvedCount: team.resolved?.count ?? 0,
       resolvedPoints: team.resolved?.storyPoints ?? 0,
       inProgressCount: team.inProgress?.count ?? 0,
-      avgCycleTimeDays: team.cycleTime?.avgDays ?? null
+      avgCycleTimeDays: team.cycleTime?.avgDays ?? null,
+      lookbackDays
     },
     partial: team.partial === true || publicationPartial === true
   };
@@ -253,7 +261,8 @@ function readProjectTeamMetrics(projects, projectId, teamId, readFromStorage) {
 
   const team = loaded.teams.find(t => t.id === teamId);
   if (!team) return { status: 404, error: `Team "${teamId}" not found in project Jira metrics publication` };
-  return { status: 200, model: _buildTeamMetricsModel(projectId, team, loaded.partial) };
+  const lookbackDays = _resolveLookbackDays(loaded.people.filter(p => p.teamIds.includes(teamId)));
+  return { status: 200, model: _buildTeamMetricsModel(projectId, team, loaded.partial, lookbackDays) };
 }
 
 function _buildPersonMetricsModel(projectId, accountId, loaded) {
