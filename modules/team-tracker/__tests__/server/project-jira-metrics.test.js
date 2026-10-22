@@ -489,6 +489,25 @@ describe('readProjectTeamMetrics', () => {
     expect(readProjectTeamMetrics(projectsMixed, 'flightctl', 'team-1').model.aggregate.lookbackDays).toBeNull()
   })
 
+  it('reports null lookbackDays when any team member\'s window is unknown, even if the known values agree', () => {
+    const envelope = makeEnvelope('flightctl', {
+      data: {
+        projectId: 'flightctl',
+        personCount: 2,
+        people: [
+          makePerson({ accountId: 'acct-1', teamIds: ['team-1'], lookbackDays: 365 }),
+          // No lookbackDays published for this member -- must not be silently
+          // dropped from the agreement check.
+          makePerson({ accountId: 'acct-2', teamIds: ['team-1'] })
+        ],
+        teams: [makeTeam()],
+        diagnostics: { missingPeople: [], staleCarryForward: [], freshSuccessCount: 2 }
+      }
+    })
+    const projects = mockProjects({ flightctl: { [ARTIFACT_KEY]: { value: envelope } } }, { flightctl: makeProfile('flightctl') })
+    expect(readProjectTeamMetrics(projects, 'flightctl', 'team-1').model.aggregate.lookbackDays).toBeNull()
+  })
+
   it('marks the team result partial when the status sidecar confirms the current profile\'s latest collection failed', () => {
     const envelope = makeEnvelope('flightctl', {
       data: {

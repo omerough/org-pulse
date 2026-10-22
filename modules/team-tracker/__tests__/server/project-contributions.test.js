@@ -450,4 +450,36 @@ describe('readProjectTeamContributions', () => {
     expect(result.status).toBe(200)
     expect(result.model).toBeNull()
   })
+
+  it('reports null, not a fabricated zero, when the team has no members in this publication', () => {
+    const result = readProjectTeamContributions(mockProjects(publications, profiles), 'flightctl', 'nonexistent-team')
+    expect(result.status).toBe(200)
+    expect(result.model).toBeNull()
+  })
+
+  it('reports null, not a fabricated zero, when no team member has a resolved GitHub identity', () => {
+    publications.flightctl[ARTIFACT_KEY].value = makeEnvelope('flightctl', {
+      data: {
+        people: [
+          { accountId: 'acc-3', displayName: 'No Identity', active: true, teamIds: ['t1'], github: null, gitlab: null }
+        ]
+      }
+    })
+    const result = readProjectTeamContributions(mockProjects(publications, profiles), 'flightctl', 't1')
+    expect(result.status).toBe(200)
+    expect(result.model).toBeNull()
+  })
+
+  it('preserves a genuine zero contribution count instead of treating it as missing', () => {
+    publications.flightctl[ARTIFACT_KEY].value = makeEnvelope('flightctl', {
+      data: {
+        people: [
+          { accountId: 'acc-1', displayName: 'Ada', active: true, teamIds: ['t1'], github: githubRecord('ada-gh', 0), gitlab: null }
+        ]
+      }
+    })
+    const result = readProjectTeamContributions(mockProjects(publications, profiles), 'flightctl', 't1')
+    expect(result.status).toBe(200)
+    expect(result.model).toMatchObject({ total: 0, memberCount: 1, contributorCount: 1 })
+  })
 })

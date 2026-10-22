@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { ref, readonly, nextTick } from 'vue'
 import TrendsReport from '../../../client/reports/TrendsReport.vue'
 import TrendChart from '../../../client/components/TrendChart.vue'
+import { useReportFilters } from '../../../client/composables/useReportFilters'
 
 const mockOrgs = ref([
   {
@@ -56,6 +57,8 @@ describe('TrendsReport', () => {
     mockProjectId.value = ''
     mockIsNormalizedModel.value = false
     mockRosterTeams.value = []
+    useReportFilters().selectedTeamKeys.value = []
+    useReportFilters().selectedOrgKeys.value = []
   })
 
   function createWrapper() {
@@ -172,6 +175,60 @@ describe('TrendsReport', () => {
       await nextTick()
       await nextTick()
       expect(wrapper.text()).toContain(message)
+    })
+
+    it('charts the GitHub chart even when Jira is unavailable, instead of suppressing it entirely', async () => {
+      const { getTrends } = await import('@shared/client/services/api')
+      getTrends.mockImplementationOnce(async () => ({
+        projectId: 'flightctl', availability: 'unavailable', reason: 'missing-publication',
+        jira: null,
+        github: { availability: 'available', partial: false, overall: { '2026-09': 20 }, byTeam: {} },
+        gitlab: null,
+      }))
+      const wrapper = createWrapper()
+      await nextTick()
+      await nextTick()
+      expect(wrapper.text()).not.toContain('No trend data available')
+      const githubChart = wrapper.findAllComponents(TrendChart).find(c => c.props('title') === 'GitHub Contributions')
+      expect(githubChart).toBeTruthy()
+      expect(githubChart.props('datasets')).toEqual([{ label: 'Overall', data: [20] }])
+    })
+
+    it('omits a selected team\'s GitHub series rather than charting a fabricated zero, even while another selected team has real data', async () => {
+      mockRosterTeams.value = [
+        { key: 'flightctl::team-1', displayName: 'Team One', members: [] },
+        { key: 'flightctl::team-2', displayName: 'Team Two', members: [] },
+      ]
+      useReportFilters().selectedTeamKeys.value = ['flightctl::team-1', 'flightctl::team-2']
+      const { getTrends } = await import('@shared/client/services/api')
+      getTrends.mockImplementationOnce(async () => ({
+        jira: { '2026-09': { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
+        // Only team-1 has a published GitHub measurement; team-2 never appears.
+        github: { availability: 'available', partial: true, overall: { '2026-09': 10 }, byTeam: { 'flightctl::team-1': { '2026-09': 10 } } },
+        gitlab: null,
+      }))
+      const wrapper = createWrapper()
+      await nextTick()
+      await nextTick()
+      const githubChart = wrapper.findAllComponents(TrendChart).find(c => c.props('title') === 'GitHub Contributions')
+      const labels = githubChart.props('datasets').map(d => d.label)
+      expect(labels).toEqual(['Team One'])
+    })
+
+    it('preserves a genuine zero-valued month in a team\'s GitHub series, instead of treating it as missing', async () => {
+      mockRosterTeams.value = [{ key: 'flightctl::team-1', displayName: 'Team One', members: [] }]
+      useReportFilters().selectedTeamKeys.value = ['flightctl::team-1']
+      const { getTrends } = await import('@shared/client/services/api')
+      getTrends.mockImplementationOnce(async () => ({
+        jira: { '2026-09': { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
+        github: { availability: 'available', partial: false, overall: { '2026-09': 0 }, byTeam: { 'flightctl::team-1': { '2026-09': 0 } } },
+        gitlab: null,
+      }))
+      const wrapper = createWrapper()
+      await nextTick()
+      await nextTick()
+      const githubChart = wrapper.findAllComponents(TrendChart).find(c => c.props('title') === 'GitHub Contributions')
+      expect(githubChart.props('datasets')).toEqual([{ label: 'Team One', data: [0] }])
     })
 
     it('reloads when the project changes', async () => {

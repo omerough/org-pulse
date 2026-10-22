@@ -231,6 +231,26 @@ describe('TeamComparisonReport', () => {
       expect(wrapper.find('[data-testid="report-chart"]').text()).toBe('Issues Resolved')
     })
 
+    it('omits the lookback suffix when one of several active teams has an unknown window, even though the rest agree', async () => {
+      mockRosterTeams.value = [
+        { key: 'flightctl::team-1', displayName: 'Flight Team', members: [{ name: 'Bob', githubUsername: null, gitlabUsername: null }] },
+        { key: 'flightctl::team-2', displayName: 'Flight Team 2', members: [{ name: 'Carol', githubUsername: null, gitlabUsername: null }] }
+      ]
+      useReportFilters().selectedTeamKeys.value = ['flightctl::team-1', 'flightctl::team-2']
+      const { getTeamMetrics } = await import('@shared/client/services/api')
+      getTeamMetrics.mockImplementation(async teamKey => (
+        teamKey === 'flightctl::team-1'
+          ? { teamKey, available: true, memberCount: 2, aggregate: { resolvedCount: 5, avgCycleTimeDays: 2, lookbackDays: 365 } }
+          : { teamKey, available: true, memberCount: 2, aggregate: { resolvedCount: 3, avgCycleTimeDays: 1, lookbackDays: null } }
+      ))
+      const wrapper = createWrapper()
+      await wrapper.find('input[value="resolvedCount"]').setValue(true)
+      await wrapper.findAll('button').find(b => b.text() === 'Run').trigger('click')
+      await nextTick()
+      await nextTick()
+      expect(wrapper.find('[data-testid="report-chart"]').text()).toBe('Issues Resolved')
+    })
+
     it('shows the unavailable banner instead of a fabricated zero when Jira metrics are unpublished', async () => {
       const { getTeamMetrics } = await import('@shared/client/services/api')
       getTeamMetrics.mockImplementationOnce(async () => ({

@@ -276,6 +276,10 @@ function readProjectTeamContributions(projects, projectId, teamId) {
     }
   }
 
+  // No resolved contributors -- unavailable, never a fabricated zero.
+  // `contributorCount < memberCount` still signals partial coverage.
+  if (contributorCount === 0) return { status: 200, model: null }
+
   return {
     status: 200,
     model: { total, memberCount: members.length, contributorCount, partial: model.partial, generatedAt: model.generatedAt }

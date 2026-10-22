@@ -220,10 +220,14 @@ function readProjectTrends(projects, projectId, readFromStorage) {
   return { status: 200, model: _buildTrendsModel(projectId, loaded) };
 }
 
-// A single common lookbackDays across the team's people, or null when mixed/
-// absent -- the client must never assert a specific window it can't back up.
+// A single common lookbackDays across the team's people, or null when mixed,
+// absent, or any person's window is unknown.
 function _resolveLookbackDays(people) {
-  const values = new Set(people.map(p => p.lookbackDays).filter(v => typeof v === 'number'));
+  const values = new Set();
+  for (const person of people) {
+    if (typeof person.lookbackDays !== 'number') return null;
+    values.add(person.lookbackDays);
+  }
   return values.size === 1 ? [...values][0] : null;
 }
 

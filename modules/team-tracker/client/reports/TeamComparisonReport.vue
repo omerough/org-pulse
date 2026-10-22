@@ -156,9 +156,15 @@ const CHART_TYPES = [
   { value: 'doughnut', label: 'Doughnut' },
 ]
 
-// Appends the publication's real lookback window, only when every active team agrees on one.
+// Appends the real lookback window, only when every active team has a known,
+// agreeing lookbackDays -- an unknown window is disagreement, not absence.
 function lookbackSuffix(keys) {
-  const values = new Set(keys.map(k => metricsData.value[k]?.aggregate?.lookbackDays).filter(v => typeof v === 'number'))
+  const values = new Set()
+  for (const k of keys) {
+    const lookbackDays = metricsData.value[k]?.aggregate?.lookbackDays
+    if (typeof lookbackDays !== 'number') return ''
+    values.add(lookbackDays)
+  }
   return values.size === 1 ? ` (${[...values][0]}d)` : ''
 }
 

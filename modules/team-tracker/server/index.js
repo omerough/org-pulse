@@ -3214,6 +3214,7 @@ module.exports = function registerRoutes(router, context) {
       const resolvedIssues = [];
       const inProgressIssues = [];
       const lookbackDaysSeen = new Set();
+      let lookbackUnknown = false;
 
       for (const member of uniqueMembers) {
         const key = sanitizeFilename(member.jiraDisplayName);
@@ -3250,7 +3251,13 @@ module.exports = function registerRoutes(router, context) {
             cycleTimesSum += cached.cycleTime.avgDays;
             cycleTimesCount++;
           }
-          if (typeof cached.lookbackDays === 'number') lookbackDaysSeen.add(cached.lookbackDays);
+          if (typeof cached.lookbackDays === 'number') {
+            lookbackDaysSeen.add(cached.lookbackDays);
+          } else {
+            lookbackUnknown = true;
+          }
+        } else {
+          lookbackUnknown = true;
         }
 
         members.push(memberData);
@@ -3265,9 +3272,9 @@ module.exports = function registerRoutes(router, context) {
           resolvedPoints,
           inProgressCount,
           avgCycleTimeDays: cycleTimesCount > 0 ? +(cycleTimesSum / cycleTimesCount).toFixed(1) : null,
-          // null when mixed/absent across members -- never assert a specific
-          // window the data can't back up.
-          lookbackDays: lookbackDaysSeen.size === 1 ? [...lookbackDaysSeen][0] : null
+          // null when mixed, absent, or any member's window is unknown --
+          // never assert a window some of the team's members can't back up.
+          lookbackDays: !lookbackUnknown && lookbackDaysSeen.size === 1 ? [...lookbackDaysSeen][0] : null
         },
         members,
         resolvedIssues,
