@@ -416,8 +416,8 @@ test.describe('People & Teams Project-Qualified Roster @people-teams', () => {
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
     const bodyText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
-    expect(bodyText).toContain('Cork, Ireland');
-    expect(bodyText).toContain('Raleigh, NC');
+    expect(bodyText).toContain('Cork, IE');
+    expect(bodyText).toContain('Raleigh, US');
     expect(bodyText).toContain('EMEA');
     expect(bodyText).toContain('AMER');
 
