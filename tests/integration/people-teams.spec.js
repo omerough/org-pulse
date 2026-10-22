@@ -421,7 +421,7 @@ test.describe('People & Teams Project-Qualified Roster @people-teams', () => {
     expect(bodyText).toContain('EMEA');
     expect(bodyText).toContain('AMER');
 
-    await page.getByText('EMEA', { exact: true }).click();
+    await page.getByRole('checkbox', { name: 'EMEA', exact: true }).check();
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
     const filteredText = await page.locator('main, [role="main"], .min-h-screen').first().textContent();
