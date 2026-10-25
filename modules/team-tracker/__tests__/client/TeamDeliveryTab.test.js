@@ -368,6 +368,70 @@ describe('TeamDeliveryTab — canonical (project-qualified) mode', () => {
     expect(wrapper.findComponent({ name: 'PersonTable' }).props('memberMetrics').has('acc-3')).toBe(false)
   })
 
+  // --- Published lookback window ---
+  describe('Issues Resolved / Story Points window subtitle', () => {
+    const fullTeam = {
+      ...canonicalTeam,
+      members: canonicalTeam.members.slice(0, 2)
+    }
+    const metricsWithWindows = (windows, extra = {}) => ({
+      ...canonicalTeamMetrics,
+      memberCount: 2,
+      members: windows.map((lookbackDays, i) => ({
+        accountId: `acc-${i + 1}`,
+        metrics: { lookbackDays, resolvedCount: 1, resolvedPoints: 1, avgCycleTimeDays: 1, inProgressCount: 0 }
+      })),
+      ...extra
+    })
+    const windowSubtitles = (wrapper) => ['Issues Resolved', 'Story Points'].map(label =>
+      wrapper.findAllComponents({ name: 'MetricCard' }).find(c => c.props('label') === label).props('subtitle')
+    )
+
+    it('labels a consistent 365-day window as "Last year"', () => {
+      const wrapper = mountCanonicalTab({ team: fullTeam, teamMetrics: metricsWithWindows([365, 365]) })
+      expect(windowSubtitles(wrapper)).toEqual(['Last year', 'Last year'])
+    })
+
+    it('labels a consistent non-365 window with the published day count', () => {
+      const wrapper = mountCanonicalTab({ team: fullTeam, teamMetrics: metricsWithWindows([90, 90]) })
+      expect(windowSubtitles(wrapper)).toEqual(['Last 90 days', 'Last 90 days'])
+    })
+
+    it('omits the subtitle when members report mixed windows', () => {
+      const wrapper = mountCanonicalTab({ team: fullTeam, teamMetrics: metricsWithWindows([90, 365]) })
+      expect(windowSubtitles(wrapper)).toEqual(['', ''])
+    })
+
+    it('omits the subtitle when any member window is unknown', () => {
+      const wrapper = mountCanonicalTab({ team: fullTeam, teamMetrics: metricsWithWindows([90, null]) })
+      expect(windowSubtitles(wrapper)).toEqual(['', ''])
+    })
+
+    it('omits the subtitle when a roster member has no published record', () => {
+      const wrapper = mountCanonicalTab({ teamMetrics: metricsWithWindows([365, 365]) })
+      expect(windowSubtitles(wrapper)).toEqual(['', ''])
+    })
+
+    it('omits the subtitle when the publication counts more members than it carries records for', () => {
+      const wrapper = mountCanonicalTab({ team: fullTeam, teamMetrics: metricsWithWindows([365, 365], { memberCount: 3 }) })
+      expect(windowSubtitles(wrapper)).toEqual(['', ''])
+    })
+
+    it('omits the subtitle when team metrics are unavailable', () => {
+      const wrapper = mountCanonicalTab({ team: fullTeam, teamMetrics: null })
+      expect(windowSubtitles(wrapper)).toEqual(['', ''])
+    })
+  })
+
+  it('keeps the legacy "Last year" subtitle for non-canonical teams', () => {
+    mockIsNormalizedModel.value = false
+    const wrapper = mountTab()
+    const subtitles = ['Issues Resolved', 'Story Points'].map(label =>
+      wrapper.findAllComponents({ name: 'MetricCard' }).find(c => c.props('label') === label).props('subtitle')
+    )
+    expect(subtitles).toEqual(['Last year', 'Last year'])
+  })
+
   it('reports GitHub contributions as unavailable (--), not zero, when no member resolved an identity', () => {
     const wrapper = mountCanonicalTab()
     const ghCard = wrapper.findAllComponents({ name: 'MetricCard' }).find(c => c.props('label') === 'GitHub Contributions')

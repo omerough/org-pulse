@@ -5,7 +5,7 @@
       <MetricCard
         label="Issues Resolved"
         :value="teamMetrics?.aggregate?.resolvedCount"
-        subtitle="Last year"
+        :subtitle="deliveryWindowSubtitle"
         clickable
         @click="showResolvedIssues = true"
       />
@@ -13,7 +13,7 @@
         label="Story Points"
         :value="teamMetrics?.aggregate?.resolvedPoints"
         unit="pts"
-        subtitle="Last year"
+        :subtitle="deliveryWindowSubtitle"
       />
       <MetricCard
         label="In Progress"
@@ -227,6 +227,33 @@ const teamGithubTotal = computed(() => {
     }
   }
   return any ? sum : null
+})
+
+// The aggregate spans the whole team, so a window is only asserted when every
+// roster member has a published record reporting the same known lookback.
+const canonicalLookbackDays = computed(() => {
+  const metrics = props.teamMetrics
+  if (!metrics?.members) return null
+  const published = new Map()
+  for (const m of metrics.members) {
+    if (m.metrics) published.set(m.accountId, m.metrics.lookbackDays)
+  }
+  if (typeof metrics.memberCount === 'number' && metrics.memberCount > published.size) return null
+  let window = null
+  for (const member of uniqueMembers.value) {
+    const days = published.get(member.accountId)
+    if (typeof days !== 'number') return null
+    if (window !== null && days !== window) return null
+    window = days
+  }
+  return window
+})
+
+const deliveryWindowSubtitle = computed(() => {
+  if (!isNormalizedModel.value) return 'Last year'
+  const days = canonicalLookbackDays.value
+  if (days == null) return ''
+  return days === 365 ? 'Last year' : `Last ${days} days`
 })
 
 const githubSubtitle = computed(() => {
