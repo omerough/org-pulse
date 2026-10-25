@@ -349,8 +349,8 @@ function createOpenApiSpec() {
                 properties: {
                   availability: { type: 'string', enum: ['available', 'empty'] },
                   partial: { type: 'boolean' },
-                  overall: { type: 'object', description: 'Monthly contribution counts keyed by YYYY-MM' },
-                  byTeam: { type: 'object', description: 'Monthly contribution counts keyed by projectId::teamId, then YYYY-MM' }
+                  overall: { type: 'object', description: 'Monthly contribution counts keyed by YYYY-MM. Empty when no monthly measurements were published; absence is not zero.' },
+                  byTeam: { type: 'object', description: 'Monthly contribution counts keyed by projectId::teamId, then YYYY-MM. A team with no published measurement has no key; absence is not zero.' }
                 }
               },
               gitlab: { type: 'object', nullable: true, description: 'Always null: no project-qualified GitLab publication exists' }
@@ -382,9 +382,49 @@ function createOpenApiSpec() {
                     properties: {
                       total: { type: 'integer' },
                       memberCount: { type: 'integer', description: 'Members in the contributions publication for this team (its own membership, not the Jira roster’s)' },
-                      contributorCount: { type: 'integer', description: 'Members with a resolved GitHub identity and contribution data' }
+                      contributorCount: { type: 'integer', description: 'Members with a resolved GitHub identity and contribution data. Below memberCount means partial coverage; total covers measured members only.' }
                     }
                   }
+                }
+              },
+              members: {
+                type: 'array',
+                description: 'Published members of the team, keyed by accountId. A roster member with no record is absent, not zero. Omitted when available is false.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    accountId: { type: 'string' },
+                    metrics: {
+                      type: 'object',
+                      properties: {
+                        lookbackDays: { type: 'integer', nullable: true, description: 'Null when the publication does not state the window' },
+                        resolvedCount: { type: 'integer' },
+                        resolvedPoints: { type: 'integer' },
+                        inProgressCount: { type: 'integer' },
+                        avgCycleTimeDays: { type: 'number', nullable: true }
+                      }
+                    }
+                  }
+                }
+              },
+              resolvedIssues: {
+                type: 'array',
+                description: 'Resolved issues across the team\'s published members, attributed by accountId. Omitted when available is false.',
+                items: {
+                  allOf: [
+                    { $ref: '#/components/schemas/JiraIssue' },
+                    { type: 'object', properties: { accountId: { type: 'string', description: 'Assignee, as published' } } }
+                  ]
+                }
+              },
+              inProgressIssues: {
+                type: 'array',
+                description: 'In-progress issues across the team\'s published members, attributed by accountId. Omitted when available is false.',
+                items: {
+                  allOf: [
+                    { $ref: '#/components/schemas/JiraIssue' },
+                    { type: 'object', properties: { accountId: { type: 'string', description: 'Assignee, as published' } } }
+                  ]
                 }
               }
             }
