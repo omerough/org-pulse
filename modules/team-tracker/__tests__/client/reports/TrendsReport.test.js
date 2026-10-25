@@ -314,10 +314,30 @@ describe('TrendsReport', () => {
       await aggregateButton.trigger('click')
       await nextTick()
       await nextTick()
-      const githubChart = wrapper.findAllComponents(TrendChart).find(c => c.props('title') === 'GitHub Contributions')
       // team-2 has no published measurement, so the "Selected Teams" total
       // must be omitted rather than summing only team-1 under the full label.
-      expect(githubChart.props('datasets')).toEqual([])
+      expect(wrapper.findAllComponents(TrendChart).find(c => c.props('title') === 'GitHub Contributions')).toBeUndefined()
+      expect(wrapper.text()).toContain('GitHub Contributions: not published for the selected team(s).')
+    })
+
+    it('shows the team-level unavailable message when the only selected team has no GitHub measurement', async () => {
+      mockRosterTeams.value = [
+        { key: 'flightctl::team-1', displayName: 'Team One', members: [] },
+        { key: 'flightctl::team-2', displayName: 'Team Two', members: [] },
+      ]
+      useReportFilters().selectedTeamKeys.value = ['flightctl::team-2']
+      const { getTrends } = await import('@shared/client/services/api')
+      getTrends.mockImplementationOnce(async () => ({
+        jira: { [MONTH]: { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
+        github: { availability: 'available', partial: true, overall: { [MONTH]: 10 }, byTeam: { 'flightctl::team-1': { [MONTH]: 10 } } },
+        gitlab: null,
+      }))
+      const wrapper = createWrapper()
+      await nextTick()
+      await nextTick()
+      expect(wrapper.findAllComponents(TrendChart).find(c => c.props('title') === 'GitHub Contributions')).toBeUndefined()
+      expect(wrapper.text()).toContain('GitHub Contributions: not published for the selected team(s).')
+      expect(wrapper.text()).not.toContain('not published for this project.')
     })
 
     it('ignores a stale organization-filter selection left over from legacy OSAC mode, instead of charting a fabricated-zero org series', async () => {

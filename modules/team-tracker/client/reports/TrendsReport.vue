@@ -63,7 +63,7 @@
         Issues Resolved: {{ projectUnavailableMessage }}
       </div>
 
-      <div v-if="githubAvailable" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <div v-if="githubChartVisible" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <TrendChart
           :labels="displayLabels"
           :datasets="githubDatasets"
@@ -71,7 +71,7 @@
         />
       </div>
       <div v-else-if="isProjectMode" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-400 dark:text-gray-500">
-        GitHub Contributions: not published for this project.
+        GitHub Contributions: {{ githubAvailable ? 'not published for the selected team(s).' : 'not published for this project.' }}
       </div>
 
       <div v-if="gitlabAvailable" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
@@ -121,6 +121,9 @@ const githubAvailable = computed(() => {
   if (github == null) return false
   return isProjectMode.value ? hasProjectMonthlyGithub(github) : true
 })
+// In project mode every selected series can be omitted for lack of a published
+// measurement; an empty chart is shown as unavailable instead.
+const githubChartVisible = computed(() => githubAvailable.value && (!isProjectMode.value || githubDatasets.value.length > 0))
 const gitlabAvailable = computed(() => trendsData.value?.gitlab != null)
 const noDataAvailable = computed(() => !jiraAvailable.value && !githubAvailable.value && !gitlabAvailable.value)
 
