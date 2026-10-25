@@ -172,20 +172,78 @@ describe('TeamComparisonReport', () => {
       expect(chart.props('data')).toEqual([88])
     })
 
-    it('computes per-member GitHub average using the contributions publication\'s own member count', async () => {
-      const { getTeamMetrics } = await import('@shared/client/services/api')
-      getTeamMetrics.mockImplementationOnce(async () => ({
+    describe('GitHub coverage', () => {
+      const github = (total, memberCount, contributorCount) => ({
         teamKey: 'flightctl::team-1', available: true, memberCount: 5,
-        aggregate: { resolvedCount: 5, avgCycleTimeDays: 2, github: { total: 90, memberCount: 2, contributorCount: 2 } }
-      }))
-      const wrapper = createWrapper()
-      await wrapper.find('input[value="githubPerMember"]').setValue(true)
-      await wrapper.findAll('button').find(b => b.text() === 'Run').trigger('click')
-      await nextTick()
-      await nextTick()
-      // 90 / 2 (the contributions publication's own memberCount, not the Jira
-      // roster's memberCount of 5) = 45.
-      expect(wrapper.findComponent(ReportChart).props('data')).toEqual([45])
+        aggregate: { resolvedCount: 5, avgCycleTimeDays: 2, github: { total, memberCount, contributorCount } }
+      })
+
+      async function runMetric(metric, data) {
+        const { getTeamMetrics } = await import('@shared/client/services/api')
+        getTeamMetrics.mockImplementationOnce(async () => data)
+        const wrapper = createWrapper()
+        await wrapper.find(`input[value="${metric}"]`).setValue(true)
+        await wrapper.findAll('button').find(b => b.text() === 'Run').trigger('click')
+        await nextTick()
+        await nextTick()
+        return wrapper
+      }
+
+      it('averages over the contributions publication\'s contributors, not the Jira roster size', async () => {
+        const wrapper = await runMetric('githubPerMember', github(90, 2, 2))
+        expect(wrapper.findComponent(ReportChart).props('data')).toEqual([45])
+        expect(wrapper.text()).not.toContain('Partial coverage')
+      })
+
+      it('averages over measured contributors only, and labels the partial coverage', async () => {
+        // 90 contributions from 2 of 5 members: 45 per measured member, never 18.
+        const wrapper = await runMetric('githubPerMember', github(90, 5, 2))
+        expect(wrapper.findComponent(ReportChart).props('data')).toEqual([45])
+        expect(wrapper.text()).toContain('Partial coverage, averaged over measured members only: Flight Team (2 of 5 members)')
+      })
+
+      it('labels a partial total without altering its value', async () => {
+        const wrapper = await runMetric('githubContributions', github(90, 5, 2))
+        expect(wrapper.findComponent(ReportChart).props('data')).toEqual([90])
+        expect(wrapper.text()).toContain('Partial coverage, totals cover measured members only: Flight Team (2 of 5 members)')
+      })
+
+      it('does not flag a complete total as partial', async () => {
+        const wrapper = await runMetric('githubContributions', github(90, 5, 5))
+        expect(wrapper.findComponent(ReportChart).props('data')).toEqual([90])
+        expect(wrapper.text()).not.toContain('Partial coverage')
+      })
+
+      it('keeps a genuine measured zero, flagging it as partial only when members are unmeasured', async () => {
+        const complete = await runMetric('githubPerMember', github(0, 2, 2))
+        expect(complete.findComponent(ReportChart).props('data')).toEqual([0])
+        expect(complete.text()).not.toContain('Partial coverage')
+
+        const partial = await runMetric('githubPerMember', github(0, 3, 1))
+        expect(partial.findComponent(ReportChart).props('data')).toEqual([0])
+        expect(partial.text()).toContain('Flight Team (1 of 3 members)')
+      })
+
+      it('flags only the partial team when several teams are compared', async () => {
+        mockRosterTeams.value = [
+          { key: 'flightctl::team-1', displayName: 'Flight Team', members: [] },
+          { key: 'flightctl::team-2', displayName: 'Flight Team 2', members: [] }
+        ]
+        useReportFilters().selectedTeamKeys.value = ['flightctl::team-1', 'flightctl::team-2']
+        const { getTeamMetrics } = await import('@shared/client/services/api')
+        getTeamMetrics.mockImplementation(async teamKey => ({
+          ...github(teamKey === 'flightctl::team-1' ? 90 : 40, 5, teamKey === 'flightctl::team-1' ? 2 : 5),
+          teamKey
+        }))
+        const wrapper = createWrapper()
+        await wrapper.find('input[value="githubPerMember"]').setValue(true)
+        await wrapper.findAll('button').find(b => b.text() === 'Run').trigger('click')
+        await nextTick()
+        await nextTick()
+        expect(wrapper.findComponent(ReportChart).props('data')).toEqual([45, 8])
+        expect(wrapper.text()).toContain('Flight Team (2 of 5 members)')
+        expect(wrapper.text()).not.toContain('Flight Team 2 (')
+      })
     })
 
     it('shows the team as unavailable, not a fabricated zero, when the contributions publication has nothing for it', async () => {

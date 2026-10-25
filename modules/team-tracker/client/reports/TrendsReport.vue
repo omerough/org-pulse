@@ -116,7 +116,11 @@ const compareMode = ref('compare')
 
 const isProjectMode = computed(() => !!projectId.value && projectId.value !== 'osac')
 const jiraAvailable = computed(() => trendsData.value?.jira != null)
-const githubAvailable = computed(() => trendsData.value?.github != null)
+const githubAvailable = computed(() => {
+  const github = trendsData.value?.github
+  if (github == null) return false
+  return isProjectMode.value ? hasProjectMonthlyGithub(github) : true
+})
 const gitlabAvailable = computed(() => trendsData.value?.gitlab != null)
 const noDataAvailable = computed(() => !jiraAvailable.value && !githubAvailable.value && !gitlabAvailable.value)
 
@@ -297,8 +301,13 @@ const githubUserLookup = computed(() => {
 // aggregate requires every selected team to have a measurement -- summing
 // only the subset that does would silently relabel a partial total as the
 // full selection.
+// `{}` means no monthly measurements were published; a month with count 0 is a real zero.
+function hasProjectMonthlyGithub(github) {
+  return Object.keys(github.overall || {}).length > 0
+}
+
 function hasProjectGithubData(series, github) {
-  if (series.type === 'overall') return !!github.overall
+  if (series.type === 'overall') return hasProjectMonthlyGithub(github)
   if (series.type === 'team') return Object.hasOwn(github.byTeam || {}, series.key)
   if (series.type === 'teams-aggregate') return series.key.every(k => Object.hasOwn(github.byTeam || {}, k))
   return true

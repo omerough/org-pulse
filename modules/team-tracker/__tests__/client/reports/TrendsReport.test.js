@@ -240,6 +240,60 @@ describe('TrendsReport', () => {
       expect(githubChart.props('datasets')).toEqual([{ label: 'Team One', data: [0] }])
     })
 
+    describe('publication with people but no monthly GitHub measurements ({ overall: {}, byTeam: {} })', () => {
+      const emptyGithub = { availability: 'available', partial: false, overall: {}, byTeam: {} }
+
+      async function mountWithEmptyGithub(trends = {}) {
+        const { getTrends } = await import('@shared/client/services/api')
+        getTrends.mockImplementationOnce(async () => ({
+          jira: { [MONTH]: { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
+          github: emptyGithub,
+          gitlab: null,
+          ...trends,
+        }))
+        const wrapper = createWrapper()
+        await nextTick()
+        await nextTick()
+        return wrapper
+      }
+
+      const githubChartOf = wrapper =>
+        wrapper.findAllComponents(TrendChart).find(c => c.props('title') === 'GitHub Contributions')
+
+      it('does not chart a fabricated zero Overall series when Jira supplies the month labels', async () => {
+        const wrapper = await mountWithEmptyGithub()
+        expect(githubChartOf(wrapper)).toBeUndefined()
+        expect(wrapper.text()).toContain('GitHub Contributions: not published for this project.')
+      })
+
+      it('does not chart fabricated zero team or aggregate series for the selected teams', async () => {
+        mockRosterTeams.value = [
+          { key: 'flightctl::team-1', displayName: 'Team One', members: [] },
+          { key: 'flightctl::team-2', displayName: 'Team Two', members: [] },
+        ]
+        useReportFilters().selectedTeamKeys.value = ['flightctl::team-1', 'flightctl::team-2']
+        const wrapper = await mountWithEmptyGithub()
+        expect(githubChartOf(wrapper)).toBeUndefined()
+
+        await wrapper.findAll('button').find(b => b.text() === 'Aggregate').trigger('click')
+        await nextTick()
+        await nextTick()
+        expect(githubChartOf(wrapper)).toBeUndefined()
+      })
+
+      it('reports no trend data when Jira is unavailable too', async () => {
+        const wrapper = await mountWithEmptyGithub({ jira: null })
+        expect(wrapper.text()).toContain('No trend data available')
+      })
+
+      it('still charts a published all-zero month as a genuine zero', async () => {
+        const wrapper = await mountWithEmptyGithub({
+          github: { ...emptyGithub, overall: { [MONTH]: 0 } },
+        })
+        expect(githubChartOf(wrapper).props('datasets')).toEqual([{ label: 'Overall', data: [0] }])
+      })
+    })
+
     it('omits the "Selected Teams" aggregate rather than labeling a partial sum as the full selection', async () => {
       mockRosterTeams.value = [
         { key: 'flightctl::team-1', displayName: 'Team One', members: [] },

@@ -87,6 +87,9 @@
           <p v-if="chart.unavailableTeams?.length" class="text-xs text-gray-400 dark:text-gray-500 mb-2">
             Not published for: {{ chart.unavailableTeams.join(', ') }}
           </p>
+          <p v-if="chart.coverageNote" class="text-xs text-amber-600 dark:text-amber-400 mb-2">
+            {{ chart.coverageNote }}
+          </p>
           <ReportChart
             :type="chartType"
             :labels="chart.labels"
@@ -177,6 +180,16 @@ function partitionByGithubAvailability(keys) {
     else unavailable.push(k)
   }
   return [available, unavailable]
+}
+
+// Members without a published GitHub measurement are unknown, not zero, so a
+// team with `contributorCount < memberCount` is reported as partial coverage.
+function githubCoverageNote(keys, teamLookup, scope) {
+  const partial = keys
+    .map(k => ({ name: teamLookup[k]?.displayName ?? k, github: metricsData.value[k].aggregate.github }))
+    .filter(({ github }) => github.contributorCount < github.memberCount)
+    .map(({ name, github }) => `${name} (${github.contributorCount} of ${github.memberCount} members)`)
+  return partial.length ? `Partial coverage, ${scope} measured members only: ${partial.join(', ')}` : ''
 }
 
 const METRIC_DEFS = {
@@ -280,9 +293,10 @@ async function run() {
             labels: availableKeys.map(k => teamLookup[k]?.displayName ?? k),
             data: availableKeys.map(k => {
               const github = metricsData.value[k].aggregate.github
-              return github.memberCount > 0 ? Math.round((github.total / github.memberCount) * 10) / 10 : 0
+              return Math.round((github.total / github.contributorCount) * 10) / 10
             }),
-            unavailableTeams: unavailableKeys.map(k => teamLookup[k]?.displayName ?? k)
+            unavailableTeams: unavailableKeys.map(k => teamLookup[k]?.displayName ?? k),
+            coverageNote: githubCoverageNote(availableKeys, teamLookup, 'averaged over')
           })
         } else {
           newCharts.push({
@@ -310,7 +324,8 @@ async function run() {
             unit: def.unit,
             labels: availableKeys.map(k => teamLookup[k]?.displayName ?? k),
             data: availableKeys.map(k => metricsData.value[k].aggregate.github.total),
-            unavailableTeams: unavailableKeys.map(k => teamLookup[k]?.displayName ?? k)
+            unavailableTeams: unavailableKeys.map(k => teamLookup[k]?.displayName ?? k),
+            coverageNote: githubCoverageNote(availableKeys, teamLookup, 'totals cover')
           })
         } else {
           newCharts.push({
