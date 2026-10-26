@@ -56,6 +56,11 @@ function buildHash(pathPart, params) {
   return hash
 }
 
+/** Builds a shell-route hash that keeps the current projectId so URL and selector stay in sync. */
+export function buildShellHash(pathPart, params = {}, projectId = useProjectId().value) {
+  return buildHash(pathPart, { ...projectParam(projectId), ...params })
+}
+
 /**
  * Builds the shell's `moduleNav` injection (hash-based router for built-in modules).
  * A projectId change resets to the current section's root view here, centrally.

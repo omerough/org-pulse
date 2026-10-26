@@ -189,4 +189,19 @@ describe('AboutView', () => {
     expect(wrapper.find('.platform-tab-content').exists()).toBe(true)
     expect(wrapper.text()).toContain('Platform Content')
   })
+
+  it('keeps the project context in the URL when switching tabs', async () => {
+    window.location.hash = '#/about?projectId=osac'
+    const wrapper = mount(AboutView, {
+      props: { isAdmin: false, platformAboutTabs: [] }
+    })
+    await flushPromises()
+
+    const helpButton = wrapper.findAll('nav button').find(b => b.text().includes('Help & Debug'))
+    await helpButton.trigger('click')
+    await flushPromises()
+
+    expect(window.location.hash).toBe('#/about?projectId=osac&tab=help')
+    window.location.hash = ''
+  })
 })
