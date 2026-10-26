@@ -22,7 +22,7 @@ vi.mock('@shared/client/composables/useAuth.js', () => ({
 // vs. fully missing metrics).
 const FEATURES = [
   {
-    key: 'COMPLETE-1', summary: 'Complete feature', status: 'Done', statusCategory: 'Done',
+    key: 'COMPLETE-1', summary: 'Complete feature', status: 'Release Pending', statusCategory: 'Done',
     fixVersions: ['1.0'], components: ['Comp A'], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
     executionIssueCount: 2, doneExecutionIssueCount: 2, executionState: 'complete', executionCoverage: 'available',
     executionCoverageReason: null, preparationReadiness: 'ready'
@@ -140,7 +140,7 @@ describe('OverviewView (Feature List)', () => {
         state: 'supported',
         partial: false,
         features: [{
-          key: 'EDM-100', summary: 'Jira inventory item', status: 'Resolved', statusCategory: 'Done',
+          key: 'EDM-100', summary: 'Jira inventory item', status: 'Release Pending', statusCategory: 'Done',
           fixVersions: ['0.10.0'], components: ['FlightCtl-Core'], labels: [], epicCount: 2,
           issueCount: null, blockerCount: null, completionPct: null, health: null,
           executionIssueCount: null, doneExecutionIssueCount: null, executionState: 'unavailable',
@@ -660,7 +660,7 @@ describe('OverviewView (Feature List)', () => {
 
     it('uses effective fields over raw for lane placement, landing an Epic-status-completed feature in Observed Work Done', async () => {
       const wrapper = await mountFeatures([{
-        key: 'EFF-COMPLETE', summary: 'Completed via Epic status override', status: 'Done', statusCategory: 'Done',
+        key: 'EFF-COMPLETE', summary: 'Completed via Epic status override', status: 'Release Pending', statusCategory: 'Done',
         fixVersions: [], components: [], labels: [], epicCount: 1, issueCount: 3, blockerCount: 0,
         // Raw says in-progress/1-of-3; effective credits the Epic as fully complete.
         executionIssueCount: 3, doneExecutionIssueCount: 1, executionState: 'in-progress', executionCoverage: 'available',
@@ -713,7 +713,7 @@ describe('OverviewView (Feature List)', () => {
 
     it('renders a producer-confirmed complete state with zero issue counts as 100%, not 0% or unavailable', async () => {
       const wrapper = await mountFeatures([{
-        key: 'ZEROCOMPLETE-1', summary: 'Zero-child completed Epic', status: 'Done', statusCategory: 'Done',
+        key: 'ZEROCOMPLETE-1', summary: 'Zero-child completed Epic', status: 'Release Pending', statusCategory: 'Done',
         fixVersions: [], components: [], labels: [], epicCount: 1, issueCount: 0, blockerCount: 0,
         // Raw is insufficient-data (zero observed children); effective is a confirmed 0/0 complete.
         executionIssueCount: null, doneExecutionIssueCount: null, executionState: null, executionCoverage: 'insufficient-data',
@@ -938,13 +938,11 @@ describe('OverviewView (Feature List)', () => {
       await option.find('input[type="checkbox"]').setValue(true)
     }
 
-    it('renders one unified Labels dropdown; the old UI/UX status dropdowns and status columns are gone', async () => {
+    it('renders one unified Labels dropdown listing Epic stage and workflow labels', async () => {
       const wrapper = await mountWithUiUxFeatures()
-      expect(wrapper.findAll('button').some(b => b.text().includes('All labels'))).toBe(true)
-      expect(wrapper.findAll('button').some(b => b.text().includes('All UI statuses'))).toBe(false)
-      expect(wrapper.findAll('button').some(b => b.text().includes('All UX statuses'))).toBe(false)
-      expect(wrapper.findAll('th').map(h => h.text())).not.toContain('UI')
-      expect(wrapper.findAll('th').map(h => h.text())).not.toContain('UX')
+      await wrapper.findAll('button').find(b => b.text().includes('All labels')).trigger('click')
+      const options = wrapper.findAll('label').map(l => l.text())
+      expect(options).toEqual(expect.arrayContaining(['ui-completed', 'design-approved']))
     })
 
     it('hides the Labels dropdown for a dataset with no labels/evidence at all (backward compat)', async () => {
@@ -1041,13 +1039,189 @@ describe('OverviewView (Feature List)', () => {
 
       expect(wrapper.findAll('label').some(l => l.text() === 'customer:acme')).toBe(true)
     })
+
+    it('keeps category headings non-interactive while a label search is active', async () => {
+      const features = [{ ...UIUX_FEATURES[0], labels: ['customer:acme'] }, UIUX_FEATURES[1]]
+      const wrapper = await mountWithUiUxFeatures(features)
+      await wrapper.findAll('button').find(b => b.text().includes('All labels')).trigger('click')
+      expect(wrapper.findAll('button').some(b => b.text() === 'Customer')).toBe(true)
+
+      await wrapper.find('input[placeholder="Search labels..."]').setValue('acme')
+      expect(wrapper.text()).toContain('Customer')
+      expect(wrapper.findAll('button').some(b => b.text() === 'Customer')).toBe(false)
+    })
+
+    it('lists UX routing labels as options and shows them on the card', async () => {
+      const features = [{
+        ...UIUX_FEATURES[1],
+        uxEvidence: { status: 'unknown', conflict: false, scopes: [],
+          sources: [{ epicKey: 'UX-E1', epicType: 'uix', fixVersions: ['0.3'], components: ['Dashboard'], localStatus: 'unknown', stageLabels: [], routingLabels: ['no-ux'] }] }
+      }]
+      const wrapper = await mountWithUiUxFeatures(features)
+      await selectLabel(wrapper, 'no-ux')
+      expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+      expect(wrapper.text()).toContain('no-ux')
+    })
+
+    describe('readiness category configuration', () => {
+      function featureWithLabels(key, labels) {
+        return { ...UIUX_FEATURES[1], key, labels }
+      }
+
+      async function openLabelsAndExpandOther(wrapper) {
+        await wrapper.findAll('button').find(b => b.text().includes('All labels')).trigger('click')
+        const other = wrapper.findAll('button').find(b => b.text() === 'Other')
+        if (other) await other.trigger('click')
+      }
+
+      // Text of the group heading each option sits under, in render order.
+      function groupOf(wrapper, label) {
+        const nodes = wrapper.findAll('button, label')
+        let heading = null
+        for (const node of nodes) {
+          if (node.element.tagName === 'BUTTON' && ['UI/UX Workflow', 'Readiness & Tracking', 'Customer', 'Other'].includes(node.text())) heading = node.text()
+          if (node.element.tagName === 'LABEL' && node.text() === label) return heading
+        }
+        return undefined
+      }
+
+      it('groups osac-ui / osac-ux under Readiness & Tracking for OSAC features, keeping osac-ui-0.1 distinct', async () => {
+        const wrapper = await mountWithUiUxFeatures([featureWithLabels('OSAC-1', ['osac-ui', 'osac-ux', 'osac-ui-0.1'])])
+        await openLabelsAndExpandOther(wrapper)
+        expect(groupOf(wrapper, 'osac-ui')).toBe('Readiness & Tracking')
+        expect(groupOf(wrapper, 'osac-ux')).toBe('Readiness & Tracking')
+        expect(groupOf(wrapper, 'osac-ui-0.1')).toBe('Other')
+      })
+
+      it('leaves osac-ui in Other for a project without that configuration', async () => {
+        const wrapper = await mountWithUiUxFeatures([featureWithLabels('ZZZ-1', ['osac-ui'])])
+        await openLabelsAndExpandOther(wrapper)
+        expect(groupOf(wrapper, 'osac-ui')).toBe('Other')
+      })
+    })
+  })
+
+  describe('Filter options and header', () => {
+    const OPTION_FEATURES = [
+      { key: 'OPT-OPEN', summary: 'Open feature', status: 'In Progress', statusCategory: 'In Progress',
+        fixVersions: ['0.3'], components: ['Alpha'], assignee: 'Ann Open', labels: ['ready-for-open'],
+        epicCount: 1, issueCount: 1, blockerCount: 0, executionState: 'in-progress', executionCoverage: 'available', preparationReadiness: 'unknown' },
+      { key: 'OPT-DONE', summary: 'Done feature', status: 'Done', statusCategory: 'Done',
+        fixVersions: ['0.2'], epicReleaseVersions: ['0.4'], components: ['Beta'], assignee: 'Bob Done', labels: ['ready-for-done'],
+        epicCount: 1, issueCount: 1, blockerCount: 0, executionState: 'complete', executionCoverage: 'available', preparationReadiness: 'unknown' }
+    ]
+
+    async function mountOptions() {
+      mockApiRequest.mockImplementation((url) => {
+        if (url.indexOf('/versions') !== -1) return Promise.resolve({ versions: ['0.2', '0.3', '0.4'] })
+        return Promise.resolve({ features: OPTION_FEATURES, fetchedAt: '2026-09-10T00:00:00Z', featureCount: OPTION_FEATURES.length })
+      })
+      const wrapper = mount(OverviewView, { global: { provide: { moduleNav: mockNav() } } })
+      await flushPromises()
+      return wrapper
+    }
+
+    async function openDropdown(wrapper, buttonText) {
+      await wrapper.findAll('button').find(b => b.text().includes(buttonText)).trigger('click')
+    }
+
+    function optionTexts(wrapper) {
+      return wrapper.findAll('label').map(l => l.text())
+    }
+
+    async function toggleOption(wrapper, text) {
+      await wrapper.findAll('label').find(l => l.text() === text).find('input[type="checkbox"]').setValue(true)
+    }
+
+    it('omits options that only hidden Closed Features carry, while still offering every Release', async () => {
+      const wrapper = await mountOptions()
+      await openDropdown(wrapper, 'All components')
+      expect(optionTexts(wrapper)).toContain('Alpha')
+      expect(optionTexts(wrapper)).not.toContain('Beta')
+
+      await openDropdown(wrapper, 'All statuses')
+      expect(optionTexts(wrapper)).not.toContain('Done')
+
+      await openDropdown(wrapper, 'All assignees')
+      expect(optionTexts(wrapper)).not.toContain('Bob Done')
+
+      await openDropdown(wrapper, 'All labels')
+      expect(optionTexts(wrapper)).not.toContain('ready-for-done')
+
+      await openDropdown(wrapper, 'All Versions')
+      expect(optionTexts(wrapper)).toEqual(expect.arrayContaining(['0.2', '0.3', '0.4']))
+    })
+
+    it('offers Closed Feature options once a Release reveals them (via epicReleaseVersions)', async () => {
+      const wrapper = await mountOptions()
+      await openDropdown(wrapper, 'All Versions')
+      await toggleOption(wrapper, '0.4')
+
+      await openDropdown(wrapper, 'All components')
+      expect(optionTexts(wrapper)).toContain('Beta')
+      await openDropdown(wrapper, 'All statuses')
+      expect(optionTexts(wrapper)).toContain('Done')
+      await openDropdown(wrapper, 'All assignees')
+      expect(optionTexts(wrapper)).toContain('Bob Done')
+      await openDropdown(wrapper, 'All labels')
+      expect(optionTexts(wrapper)).toContain('ready-for-done')
+    })
+
+    it('keeps an active selection listed after the Release that revealed it is cleared', async () => {
+      const wrapper = await mountOptions()
+      await openDropdown(wrapper, 'All Versions')
+      await toggleOption(wrapper, '0.4')
+      await openDropdown(wrapper, 'All components')
+      await toggleOption(wrapper, 'Beta')
+
+      await openDropdown(wrapper, '0.4')
+      await wrapper.findAll('label').find(l => l.text() === '0.4').find('input[type="checkbox"]').setValue(false)
+
+      await openDropdown(wrapper, 'Beta')
+      expect(optionTexts(wrapper)).toContain('Beta')
+    })
+
+    it('shows (filtered) only when a user filter is active', async () => {
+      const wrapper = await mountOptions()
+      expect(wrapper.text()).toContain('1 feature')
+      expect(wrapper.text()).not.toContain('(filtered)')
+
+      await openDropdown(wrapper, 'All components')
+      await toggleOption(wrapper, 'Alpha')
+      expect(wrapper.text()).toContain('(filtered)')
+    })
   })
 
   describe('Closed Feature visibility', () => {
+    it.each(['Done', 'Resolved', 'Cancelled'])('treats %s as terminal, revealing it via epicReleaseVersions only', async (status) => {
+      const features = [
+        { key: 'T-OPEN', summary: 'Open', status: 'In Progress', statusCategory: 'In Progress', fixVersions: ['0.3'], components: [], labels: [],
+          epicCount: 1, issueCount: 1, blockerCount: 0, executionState: 'in-progress', executionCoverage: 'available', preparationReadiness: 'unknown' },
+        { key: 'T-TERMINAL', summary: 'Terminal', status, statusCategory: 'Done', fixVersions: ['0.2'], epicReleaseVersions: ['0.3'], components: [], labels: [],
+          epicCount: 1, issueCount: 1, blockerCount: 0, executionState: 'complete', executionCoverage: 'available', preparationReadiness: 'unknown' }
+      ]
+      mockApiRequest.mockImplementation((url) => {
+        if (url.indexOf('/versions') !== -1) return Promise.resolve({ versions: ['0.2', '0.3'] })
+        return Promise.resolve({ features, fetchedAt: '2026-09-10T00:00:00Z', featureCount: features.length })
+      })
+      const wrapper = mount(OverviewView, { global: { provide: { moduleNav: mockNav() } } })
+      await flushPromises()
+      await wrapper.findAll('button').find(b => b.text() === 'List').trigger('click')
+      expect(wrapper.findAll('tbody tr').map(r => r.text()).some(t => t.includes('T-TERMINAL'))).toBe(false)
+
+      await wrapper.findAll('button').find(b => b.text().includes('Version')).trigger('click')
+      await wrapper.findAll('label').find(l => l.text() === '0.3').find('input[type="checkbox"]').setValue(true)
+      expect(wrapper.findAll('tbody tr').map(r => r.text()).some(t => t.includes('T-TERMINAL'))).toBe(true)
+    })
+
     const CLOSED_FEATURES = [
       { key: 'OPEN-1', summary: 'Open feature', status: 'In Progress', statusCategory: 'In Progress',
         fixVersions: ['0.3'], components: [], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
-        executionState: 'in-progress', executionCoverage: 'available', preparationReadiness: 'unknown' },
+        executionState: 'in-progress', executionCoverage: 'available', preparationReadiness: 'unknown',
+        uiEvidence: { status: 'in-progress', conflict: false, scopes: [],
+          sources: [
+            { epicKey: 'UI-0', epicType: 'ui-impl', fixVersions: ['0.3'], components: [], localStatus: 'in-progress', stageLabels: ['ui-completed'], routingLabels: [] }
+          ] } },
       { key: 'CLOSED-FV', summary: 'Closed feature matching via fixVersions', status: 'Closed', statusCategory: 'Done',
         fixVersions: ['0.3'], components: [], labels: [], epicCount: 1, issueCount: 2, blockerCount: 0,
         executionState: 'complete', executionCoverage: 'available', preparationReadiness: 'unknown' },
@@ -1109,7 +1283,9 @@ describe('OverviewView (Feature List)', () => {
       const option = wrapper.findAll('label').find(l => l.text() === 'ui-completed')
       await option.find('input[type="checkbox"]').setValue(true)
 
-      expect(wrapper.text()).not.toContain('CLOSED-UIUX')
+      const rows = wrapper.findAll('tbody tr').map(r => r.text())
+      expect(rows.some(t => t.includes('OPEN-1'))).toBe(true)
+      expect(rows.some(t => t.includes('CLOSED-UIUX'))).toBe(false)
     })
 
     it('reveals a Closed feature under an active Labels query once its Release is also selected', async () => {

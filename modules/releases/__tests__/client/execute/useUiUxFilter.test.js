@@ -76,6 +76,14 @@ describe('collectAllLabelOptions', () => {
     expect(collectAllLabelOptions([{}, { uiEvidence: evidence() }])).toEqual([])
   })
 
+  it('lists UX and UI routing labels, deduped case-insensitively', () => {
+    const features = [{
+      uiEvidence: evidence({ sources: [source({ routingLabels: ['no-ui'] })] }),
+      uxEvidence: evidence({ sources: [source({ routingLabels: ['No-UX', 'no-ui'] })] })
+    }]
+    expect(collectAllLabelOptions(features).map(o => o.value)).toEqual(['no-ui', 'No-UX'])
+  })
+
   it('case-folds pure casing variants into a single option, keeping the first-seen casing', () => {
     const features = [{ labels: ['OSAC-UI'] }, { labels: ['osac-ui'] }]
     expect(collectAllLabelOptions(features)).toEqual([{ value: 'OSAC-UI', category: 'Other' }])
@@ -220,6 +228,15 @@ describe('featureCardLabels', () => {
     expect(featureCardLabels(feature, ['0.3'])).toEqual(['ui-completed'])
   })
 
+  it('includes UX routing labels, scoped like UI routing labels', () => {
+    const feature = {
+      uxEvidence: evidence({ sources: [source({ fixVersions: ['0.3'], stageLabels: ['ux-complete'], routingLabels: ['no-ux'] })] })
+    }
+    expect(featureCardLabels(feature)).toEqual(['ux-complete', 'no-ux'])
+    expect(featureCardLabels(feature, ['0.3'])).toEqual(['ux-complete', 'no-ux'])
+    expect(featureCardLabels(feature, ['0.4'])).toEqual([])
+  })
+
   it('dedupes case-fold variants across populations, keeping the first-seen casing', () => {
     const feature = {
       labels: ['OSAC-UI'],
@@ -255,6 +272,17 @@ describe('isClosedFeatureVisible', () => {
   it('stays hidden when neither fixVersions nor epicReleaseVersions matches the selected Release', () => {
     const feature = { status: 'Closed', fixVersions: ['0.2'], epicReleaseVersions: ['0.25'] }
     expect(isClosedFeatureVisible(feature, ['0.3'])).toBe(false)
+  })
+
+  it.each(['Closed', 'Done', 'Resolved', 'Cancelled', 'done'])('treats %s as terminal: hidden by default, revealed via fixVersions or epicReleaseVersions only', (status) => {
+    expect(isClosedFeatureVisible({ status, fixVersions: ['0.3'] }, [])).toBe(false)
+    expect(isClosedFeatureVisible({ status, fixVersions: ['0.3'] }, ['0.3'])).toBe(true)
+    expect(isClosedFeatureVisible({ status, fixVersions: ['0.2'], epicReleaseVersions: ['0.3'] }, ['0.3'])).toBe(true)
+    expect(isClosedFeatureVisible({ status, fixVersions: ['0.2'], epicReleaseVersions: ['0.25'] }, ['0.3'])).toBe(false)
+  })
+
+  it.each(['Release Pending', 'In Progress', undefined])('keeps non-terminal status %s visible', (status) => {
+    expect(isClosedFeatureVisible({ status, fixVersions: ['0.3'] }, [])).toBe(true)
   })
 })
 

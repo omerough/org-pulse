@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { matchesComponents } from './useComponentStatusFilter'
+import { isClosedStatus } from '../utils/closedStatus'
 
 // Absent uiEvidence/uxEvidence (older payload, or an unconfigured project)
 // renders identically to a genuinely empty one.
@@ -18,13 +19,18 @@ export function workflowSourcesOf(feature) {
   return feature?.workflowLabelSources || []
 }
 
-// Closed Features are hidden unless the selected Release matches via
-// fixVersions or (epic-only) epicReleaseVersions.
+// A selected Release matches via fixVersions or (epic-only) epicReleaseVersions.
+export function matchesSelectedRelease(feature, selectedVersions) {
+  return matchesAnyVersion(feature?.fixVersions, selectedVersions) ||
+    matchesAnyVersion(feature?.epicReleaseVersions, selectedVersions)
+}
+
+// Features in a terminal status (Closed/Done/Resolved/Cancelled) are hidden
+// unless the selected Release matches them.
 export function isClosedFeatureVisible(feature, selectedVersions) {
-  if (feature?.status !== 'Closed') return true
+  if (!isClosedStatus(feature?.status)) return true
   if (!selectedVersions || selectedVersions.length === 0) return false
-  return matchesAnyVersion(feature.fixVersions, selectedVersions) ||
-    matchesAnyVersion(feature.epicReleaseVersions, selectedVersions)
+  return matchesSelectedRelease(feature, selectedVersions)
 }
 
 function matchesAnyVersion(versions, selectedVersions) {
@@ -75,8 +81,7 @@ function featureLevelLabelMatches(feature, foldedSelected, selectedVersions, sel
   if (!labelSetMatches(feature?.labels, foldedSelected)) return false
   if (!hasReleaseOrComponent(selectedVersions, selectedComponents)) return true
   const releaseOk = !selectedVersions || selectedVersions.length === 0 ||
-    matchesAnyVersion(feature.fixVersions, selectedVersions) ||
-    matchesAnyVersion(feature.epicReleaseVersions, selectedVersions)
+    matchesSelectedRelease(feature, selectedVersions)
   const componentOk = !selectedComponents || selectedComponents.length === 0 ||
     matchesComponents(feature.components, selectedComponents)
   return releaseOk && componentOk
@@ -156,6 +161,7 @@ export function collectAllLabelOptions(features, config = {}) {
     }
     for (const source of uxEvidenceOf(feature).sources || []) {
       for (const l of source.stageLabels || []) record(l, epicCategory(l))
+      for (const l of source.routingLabels || []) record(l, epicCategory(l))
     }
     for (const source of workflowSourcesOf(feature)) {
       for (const l of source.labels || []) record(l, epicCategory(l))
@@ -191,7 +197,7 @@ export function featureCardLabels(feature, selectedVersions = [], selectedCompon
   }
   for (const source of uxEvidenceOf(feature).sources || []) {
     if (!scopeMatchesReleaseComponent(source, selectedVersions, selectedComponents)) continue
-    for (const l of source.stageLabels || []) addLabel(l)
+    for (const l of [...(source.stageLabels || []), ...(source.routingLabels || [])]) addLabel(l)
   }
   for (const source of workflowSourcesOf(feature)) {
     if (!scopeMatchesReleaseComponent(source, selectedVersions, selectedComponents)) continue

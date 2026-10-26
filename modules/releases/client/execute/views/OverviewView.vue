@@ -24,6 +24,8 @@ import {
   featureCardLabels,
   isClosedFeatureVisible
 } from '../composables/useUiUxFilter'
+import { isClosedStatus } from '../utils/closedStatus'
+import { labelCategoryConfigFor } from '../utils/labelCategories'
 import {
   isValidProgressCount,
   executionUnavailableInfo,
@@ -479,13 +481,41 @@ watch(
   { deep: true }
 )
 
-// Options reflect the full feature list, independent of the current filter
-// selection, so narrowing one dimension never hides options for another.
-const componentOptions = computed(() => collectComponentOptions(features.value, f => f.components))
-const jiraStatusOptions = computed(() => collectStatusOptions(features.value, f => f.statusCategory))
-const assigneeOptions = computed(() => collectAssigneeOptions(features.value, f => f.assignee))
-const labelOptions = computed(() => collectAllLabelOptions(features.value))
+// Options come from Features visible under the Closed rule (Release-dependent only), not from
+// other filters; active selections stay listed so they can always be undone.
+const eligibleFeatures = computed(() =>
+  features.value.filter(f => isClosedFeatureVisible(f, selectedVersions.value))
+)
 
+function retainEligibleOptions(allOptions, eligibleOptions, selected) {
+  const keep = new Set([...eligibleOptions, ...selected])
+  return allOptions.filter(option => keep.has(option))
+}
+
+const componentOptions = computed(() => retainEligibleOptions(
+  collectComponentOptions(features.value, f => f.components),
+  collectComponentOptions(eligibleFeatures.value, f => f.components),
+  selectedComponents.value
+))
+const jiraStatusOptions = computed(() => retainEligibleOptions(
+  collectStatusOptions(features.value, f => f.statusCategory),
+  collectStatusOptions(eligibleFeatures.value, f => f.statusCategory),
+  selectedStatuses.value
+))
+const assigneeOptions = computed(() => retainEligibleOptions(
+  collectAssigneeOptions(features.value, f => f.assignee),
+  collectAssigneeOptions(eligibleFeatures.value, f => f.assignee),
+  selectedAssignees.value
+))
+const labelCategoryConfig = computed(() => labelCategoryConfigFor(features.value))
+const labelOptions = computed(() => {
+  const config = labelCategoryConfig.value
+  const keep = new Set([
+    ...collectAllLabelOptions(eligibleFeatures.value, config).map(o => o.value.toLowerCase()),
+    ...selectedLabels.value.map(l => l.toLowerCase())
+  ])
+  return collectAllLabelOptions(features.value, config).filter(o => keep.has(o.value.toLowerCase()))
+})
 // Search only narrows what's rendered; selectedAssignees is never touched by it.
 const filteredAssigneeOptions = computed(() => {
   const q = assigneeSearch.value.trim().toLowerCase()
@@ -495,6 +525,7 @@ const filteredAssigneeOptions = computed(() => {
 
 // Search only narrows what's rendered; selectedLabels is never touched by it.
 // A collapsed group's options are hidden unless search is active, so search still reaches them.
+const labelSearchActive = computed(() => labelSearch.value.trim() !== '')
 const filteredLabelGroups = computed(() => {
   const q = labelSearch.value.trim().toLowerCase()
   const filtered = q ? labelOptions.value.filter(o => o.value.toLowerCase().includes(q)) : labelOptions.value
@@ -551,9 +582,8 @@ watch(hasUnknownBlockerCount, (unknown) => {
 })
 
 const filteredFeatures = computed(() => {
-  let list = features.value
-  // Independent of the label query's Release bypass below — applies either way.
-  list = list.filter(f => isClosedFeatureVisible(f, selectedVersions.value))
+  // Closed-visibility applies independently of the label query's Release handling below.
+  let list = eligibleFeatures.value
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
     list = list.filter(f =>
@@ -571,7 +601,7 @@ const filteredFeatures = computed(() => {
     // A Closed feature already passed the release check above, possibly via
     // epicReleaseVersions only — don't re-check fixVersions alone here.
     list = list.filter(f =>
-      f.status === 'Closed' || (f.fixVersions && f.fixVersions.some(v => selectedVersions.value.includes(v)))
+      isClosedStatus(f.status) || (f.fixVersions && f.fixVersions.some(v => selectedVersions.value.includes(v)))
     )
   }
   if (selectedExecutionStates.value.length > 0) {
@@ -748,7 +778,7 @@ onBeforeUnmount(() => {
             &middot; Data from {{ formatDate(fetchedAt) }}
           </span>
           <span v-if="features.length" class="ml-2">
-            &middot; {{ filteredFeatures.length }} feature<span v-if="filteredFeatures.length !== 1">s</span><template v-if="filteredFeatures.length !== features.length"> (filtered)</template>
+            &middot; {{ filteredFeatures.length }} feature<span v-if="filteredFeatures.length !== 1">s</span><template v-if="isAnyFiltered"> (filtered)</template>
           </span>
         </p>
       </div>
@@ -954,7 +984,12 @@ onBeforeUnmount(() => {
               />
             </div>
             <template v-for="group in filteredLabelGroups" :key="group.category">
+              <div
+                v-if="labelSearchActive"
+                class="w-full px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500"
+              >{{ group.category }}</div>
               <button
+                v-else
                 type="button"
                 @click.stop="toggleLabelCategoryCollapse(group.category)"
                 :aria-expanded="!group.collapsed"
