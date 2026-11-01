@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import OrgDashboardView from '../../client/views/OrgDashboardView.vue'
 
 vi.mock('vue-chartjs', () => ({
@@ -16,6 +16,11 @@ vi.mock('chart.js', () => ({
 const projectId = ref('')
 vi.mock('@shared/client/composables/useProjectId.js', () => ({
   useProjectId: () => projectId
+}))
+
+const projectLabels = { acme: 'Acme Platform', flightctl: 'Flight Control' }
+vi.mock('../../client/composables/useProjectDisplayName', () => ({
+  useProjectDisplayName: () => computed(() => projectLabels[projectId.value] ?? projectId.value)
 }))
 
 const rosterData = ref(null)
@@ -140,7 +145,29 @@ describe('OrgDashboardView', () => {
     expect(mockLoadRoster).toHaveBeenCalled()
     expect(mockLoadOrgSummary).not.toHaveBeenCalled()
     expect(mockLoadOrgs).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('flightctl Dashboard')
+    expect(wrapper.text()).toContain('Flight Control Dashboard')
+  })
+
+  it('shows the project display name, not the raw ID, in the dashboard heading', async () => {
+    projectId.value = 'acme'
+    rosterData.value = { ...flightctlRoster(), projectId: 'acme' }
+    rosterPeople.value = rosterData.value.people
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('h2').text()).toBe('Acme Platform Dashboard')
+  })
+
+  it('falls back to the raw ID for a project without a registered display name', async () => {
+    projectId.value = 'unregistered'
+    rosterData.value = { ...flightctlRoster(), projectId: 'unregistered' }
+    rosterPeople.value = rosterData.value.people
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('h2').text()).toBe('unregistered Dashboard')
   })
 
   it('computes unique active headcount across teams and includes unassigned active people, excluding inactive ones', async () => {
@@ -242,7 +269,7 @@ describe('OrgDashboardView', () => {
 
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.text()).toContain('flightctl Dashboard')
+    expect(wrapper.text()).toContain('Flight Control Dashboard')
 
     // Switch to OSAC: canonical state is cleared immediately (useRoster's own
     // contract), the legacy summary loads, and no project panel remains.
@@ -253,7 +280,7 @@ describe('OrgDashboardView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Legacy Org Dashboard')
-    expect(wrapper.text()).not.toContain('flightctl Dashboard')
+    expect(wrapper.text()).not.toContain('Flight Control Dashboard')
 
     // Switch back with a different headcount and confirm the old roster's
     // count (3) never reappears alongside the new one (1).
@@ -266,7 +293,7 @@ describe('OrgDashboardView', () => {
     rosterTeams.value = []
     await flushPromises()
 
-    expect(wrapper.text()).toContain('flightctl Dashboard')
+    expect(wrapper.text()).toContain('Flight Control Dashboard')
     expect(wrapper.findAll('button p.text-3xl')[1].text()).toBe('1')
   })
 })

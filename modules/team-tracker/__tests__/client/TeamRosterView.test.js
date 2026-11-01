@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import TeamRosterView from '../../client/views/TeamRosterView.vue'
+import TeamMembersTable from '../../client/components/TeamMembersTable.vue'
 import { getTeamMetrics } from '@shared/client/services/api'
 
 // Mock all external dependencies
@@ -19,6 +20,8 @@ const rosterTeams = ref([legacyTeam])
 const rosterDataValue = ref({ teamDataSource: 'sheets' })
 const isNormalizedModelValue = ref(false)
 const rosterLoadingValue = ref(false)
+const rosterPeopleValue = ref([])
+const rosterAuxiliaryManagersValue = ref({})
 
 vi.mock('@shared/client/composables/useRoster', () => ({
   useRoster: () => ({
@@ -30,7 +33,10 @@ vi.mock('@shared/client/composables/useRoster', () => ({
     visibleFields: ref([]),
     primaryDisplayField: ref(null),
     reloadRoster: vi.fn(),
-    isNormalizedModel: isNormalizedModelValue
+    isNormalizedModel: isNormalizedModelValue,
+    people: rosterPeopleValue,
+    auxiliaryManagers: rosterAuxiliaryManagersValue,
+    managerNames: ref({})
   })
 }))
 
@@ -390,6 +396,60 @@ describe('TeamRosterView — project-qualified team (normalized model)', () => {
       expect.stringContaining('accountId=acc-1'),
       expect.stringContaining('accountId=acc-2')
     ])
+  })
+
+  describe('manager links', () => {
+    const managedMember = (managerRef) => ({
+      ...projectTeam.members[0], managerRef
+    })
+
+    function setProjectHash(projectId) {
+      window.location.hash = projectId ? `#/team-tracker/team-detail?projectId=${projectId}` : '#/'
+      window.dispatchEvent(new Event('urlchange'))
+    }
+
+    beforeEach(() => {
+      setProjectHash('flightctl')
+      rosterPeopleValue.value = [{ accountId: 'mgr-1', displayName: 'Roster Manager', active: true }]
+      rosterAuxiliaryManagersValue.value = { 'ext-uid': { ldapUid: 'ext-uid', displayName: 'External Manager' } }
+    })
+
+    afterEach(() => {
+      setProjectHash('')
+      rosterPeopleValue.value = []
+      rosterAuxiliaryManagersValue.value = {}
+    })
+
+    async function managerCell(managerRef) {
+      rosterTeams.value = [{ ...projectTeam, members: [managedMember(managerRef)] }]
+      const wrapper = mountProjectView()
+      await flushPromises()
+      return wrapper.findComponent(TeamMembersTable).findAll('tbody tr')[0].findAll('td')[1]
+    }
+
+    it('links a roster manager by accountId', async () => {
+      const cell = await managerCell({ kind: 'roster', accountId: 'mgr-1' })
+
+      expect(cell.text()).toBe('Roster Manager')
+      expect(cell.find('a').attributes('href')).toContain('accountId=mgr-1')
+    })
+
+    it('links an external manager to the external profile by ldapUid', async () => {
+      const cell = await managerCell({ kind: 'external', ldapUid: 'ext-uid' })
+
+      expect(cell.text()).toBe('External Manager')
+      const href = cell.find('a').attributes('href')
+      expect(href).toContain('person-detail')
+      expect(href).toContain('ldapUid=ext-uid')
+      expect(href).toContain('projectId=flightctl')
+    })
+
+    it('keeps an unresolved manager as text', async () => {
+      const cell = await managerCell({ kind: 'unresolved', reason: 'no-match' })
+
+      expect(cell.text()).toBe('—')
+      expect(cell.find('a').exists()).toBe(false)
+    })
   })
 
   it('does not call legacy endpoints while the roster is still resolving mid project-switch', async () => {

@@ -240,7 +240,8 @@ const isMemberFieldFilterActive = computed(() =>
 const managerCtx = computed(() => ({
   peopleByAccountId: new Map((people?.value || []).map(p => [p.accountId, p])),
   auxiliaryManagers: auxiliaryManagers?.value || {},
-  managerNames: managerNames?.value || {}
+  managerNames: managerNames?.value || {},
+  projectId: projectId.value
 }))
 
 const resolvedManagers = computed(() => {

@@ -13,7 +13,7 @@ describe('resolveMemberManager', () => {
   const people = [{ accountId: 'mgr-1', displayName: 'Manager One' }]
   const auxiliaryManagers = { 'ext-uid': { ldapUid: 'ext-uid', displayName: 'External Manager' } }
   const managerNames = { 'osac-mgr': 'Legacy Manager' }
-  const ctx = { people, auxiliaryManagers, managerNames }
+  const ctx = { people, auxiliaryManagers, managerNames, projectId: 'flightctl' }
 
   it('resolves a roster managerRef to a linkable roster identity by accountId', () => {
     const m = resolveMemberManager({ managerRef: { kind: 'roster', accountId: 'mgr-1' } }, ctx)
@@ -24,9 +24,43 @@ describe('resolveMemberManager', () => {
     expect(resolveMemberManager({ managerRef: { kind: 'roster', accountId: 'missing' } }, ctx)).toBeNull()
   })
 
-  it('resolves an external managerRef to a validated name without a link', () => {
+  it('resolves an external managerRef to its name and an ldapUid link', () => {
     const m = resolveMemberManager({ managerRef: { kind: 'external', ldapUid: 'ext-uid' } }, ctx)
+    expect(m).toEqual({ name: 'External Manager', link: { ldapUid: 'ext-uid' } })
+  })
+
+  it('keeps an external manager name as text when the record ldapUid disagrees with its key', () => {
+    const mismatched = { 'ext-uid': { ldapUid: 'other-uid', displayName: 'External Manager' } }
+    const m = resolveMemberManager({ managerRef: { kind: 'external', ldapUid: 'ext-uid' } }, { ...ctx, auxiliaryManagers: mismatched })
     expect(m).toEqual({ name: 'External Manager', link: null })
+  })
+
+  it('keeps an external manager name as text when the record carries no ldapUid', () => {
+    const missingUid = { 'ext-uid': { displayName: 'External Manager' } }
+    const m = resolveMemberManager({ managerRef: { kind: 'external', ldapUid: 'ext-uid' } }, { ...ctx, auxiliaryManagers: missingUid })
+    expect(m).toEqual({ name: 'External Manager', link: null })
+  })
+
+  it('keeps typed manager names as text, without links, when no project is selected', () => {
+    const noProject = { ...ctx, projectId: '' }
+    expect(resolveMemberManager({ managerRef: { kind: 'roster', accountId: 'mgr-1' } }, noProject))
+      .toEqual({ name: 'Manager One', link: null })
+    expect(resolveMemberManager({ managerRef: { kind: 'external', ldapUid: 'ext-uid' } }, noProject))
+      .toEqual({ name: 'External Manager', link: null })
+  })
+
+  it('keeps legacy uid links independent of project context', () => {
+    expect(resolveMemberManager({ managerUid: 'osac-mgr' }, { ...ctx, projectId: '' }))
+      .toEqual({ name: 'Legacy Manager', link: { uid: 'osac-mgr' } })
+  })
+
+  it('does not resolve an inherited property name as an external manager', () => {
+    expect(resolveMemberManager({ managerRef: { kind: 'external', ldapUid: 'constructor' } }, ctx)).toBeNull()
+  })
+
+  it('leaves an external managerRef unavailable when the auxiliary record has no display name', () => {
+    const nameless = { 'ext-uid': { ldapUid: 'ext-uid' } }
+    expect(resolveMemberManager({ managerRef: { kind: 'external', ldapUid: 'ext-uid' } }, { ...ctx, auxiliaryManagers: nameless })).toBeNull()
   })
 
   it('leaves an external managerRef unavailable when no auxiliary manager matches', () => {
@@ -52,7 +86,7 @@ describe('resolveMemberManager', () => {
 
   it('resolves a roster managerRef through a prebuilt accountId lookup', () => {
     const peopleByAccountId = new Map(people.map(p => [p.accountId, p]))
-    const m = resolveMemberManager({ managerRef: { kind: 'roster', accountId: 'mgr-1' } }, { peopleByAccountId, auxiliaryManagers, managerNames })
+    const m = resolveMemberManager({ managerRef: { kind: 'roster', accountId: 'mgr-1' } }, { peopleByAccountId, auxiliaryManagers, managerNames, projectId: 'flightctl' })
     expect(m).toEqual({ name: 'Manager One', link: { accountId: 'mgr-1' } })
   })
 })

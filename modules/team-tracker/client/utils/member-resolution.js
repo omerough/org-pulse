@@ -3,6 +3,8 @@
 // members table and Headcount chart stay consistent. Identity is never joined
 // by display name.
 
+import { getAuxiliaryManager } from '@shared/client/composables/useManagerHierarchy'
+
 export const UNKNOWN_ROLE = 'Unknown'
 
 // Resolves a custom field by display label across the sheets model (label keys)
@@ -53,12 +55,11 @@ export function dedupeMembersByIdentity(members = []) {
 }
 
 /**
- * Resolve a member's direct manager across both identity models. Returns
- * `{ name, link }` where `link` is non-null only for a valid roster identity;
- * external/legacy-uid names are not linkable. Returns null when unavailable.
+ * Resolve a member's direct manager to `{ name, link }`, or null when unavailable.
+ * Typed `accountId`/`ldapUid` links need `ctx.projectId`; legacy `uid` links do not.
  */
 export function resolveMemberManager(member, ctx = {}) {
-  const { people = [], peopleByAccountId = null, auxiliaryManagers = {}, managerNames = {} } = ctx
+  const { people = [], peopleByAccountId = null, auxiliaryManagers = {}, managerNames = {}, projectId = '' } = ctx
 
   // Typed project-qualified reference takes precedence over the legacy uid.
   const ref = member?.managerRef
@@ -69,11 +70,14 @@ export function resolveMemberManager(member, ctx = {}) {
         ? peopleByAccountId.get(ref.accountId)
         : people.find(p => p.accountId === ref.accountId)
       const name = person?.displayName || person?.name
-      return name ? { name, link: { accountId: ref.accountId } } : null
+      return name ? { name, link: projectId ? { accountId: ref.accountId } : null } : null
     }
     if (ref.kind === 'external' && ref.ldapUid) {
-      const aux = auxiliaryManagers[ref.ldapUid]
-      return aux?.displayName ? { name: aux.displayName, link: null } : null
+      const aux = getAuxiliaryManager(auxiliaryManagers, ref.ldapUid)
+      if (!aux?.displayName) return null
+      // A record whose ldapUid is missing or disagrees with its key is malformed.
+      const linkable = Boolean(projectId) && aux.ldapUid === ref.ldapUid
+      return { name: aux.displayName, link: linkable ? { ldapUid: ref.ldapUid } : null }
     }
     return null
   }
