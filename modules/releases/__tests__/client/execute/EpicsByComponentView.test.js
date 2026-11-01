@@ -223,6 +223,26 @@ describe('EpicsByComponentView', () => {
     wrapper.unmount()
   })
 
+  it('keeps a manually collapsed panel across filter changes and re-expands it when the release changes', async () => {
+    const { wrapper } = await mountView({ release: '0.4' })
+    const coreToggle = () => wrapper.find('[data-panel="Core"] h3 button')
+    await coreToggle().trigger('click')
+    expect(coreToggle().attributes('aria-expanded')).toBe('false')
+
+    wrapper.findComponent(ComponentStatusFilterBar).vm.$emit('toggle-status', 'Closed')
+    await nextTick()
+    wrapper.findComponent(ComponentStatusFilterBar).vm.$emit('clear')
+    await nextTick()
+    expect(coreToggle().attributes('aria-expanded')).toBe('false')
+
+    await releaseSelect(wrapper).setValue('0.5')
+    await flushPromises()
+    await releaseSelect(wrapper).setValue('0.4')
+    await flushPromises()
+    expect(coreToggle().attributes('aria-expanded')).toBe('true')
+    wrapper.unmount()
+  })
+
   it('offers Assigned to me only when the user has a Jira display name', async () => {
     const without = await mountView({ release: '0.4' })
     expect(without.wrapper.findComponent(ComponentStatusFilterBar).props('meAssignee')).toBeNull()

@@ -2,9 +2,8 @@ const { test, expect } = require('@playwright/test');
 const { setupErrorTracking, logCapturedErrors } = require('./helpers');
 
 /**
- * UI Epics by Component dashboard flow against the real app, with the Execute and registry
- * APIs mocked: demo data has no OSAC bootstrap Epics. Publishing only OSAC from /api/projects
- * puts the shell in single-project mode, where it leaves projectId empty.
+ * UI Epics by Component flow. Projects, roster, registry and Execute versions/epics are mocked
+ * (demo data has no bootstrap Epics); other requests reach the demo backend.
  *
  * Tag: @releases
  */
@@ -74,9 +73,9 @@ function epicsFor(version) {
   return { version, fetchedAt: '2026-10-26T10:33:00Z', featureCount: features.length, state: features.length ? 'supported' : 'empty', features };
 }
 
+// Publishing only OSAC puts the shell in single-project mode, which leaves projectId empty.
 function installApi(page, { projects = [{ projectId: 'osac', displayName: 'OSAC' }] } = {}) {
   const requests = [];
-  page.route('**/api/**', route => route.fulfill({ json: {} }));
   page.route('**/api/projects', route => route.fulfill({ json: { projects } }));
   page.route('**/api/roster?**', route => {
     const projectId = new URL(route.request().url()).searchParams.get('projectId');
@@ -234,6 +233,11 @@ test.describe('Releases UI Epics by Component @releases', () => {
     await expect(header).toHaveAttribute('aria-expanded', 'false');
     await page.getByRole('button', { name: 'Clear filters' }).click();
     await expect(header).toHaveAttribute('aria-expanded', 'false');
+
+    // Changing the release starts the panels over from their defaults.
+    await releaseSelect(page).selectOption('1.0');
+    await expect(summary(page)).toHaveText('3 Epics · 3 rows');
+    await expect(header).toHaveAttribute('aria-expanded', 'true');
   });
 
   test('is offered for OSAC and hidden for other projects, including by deep link', async ({ page }) => {
