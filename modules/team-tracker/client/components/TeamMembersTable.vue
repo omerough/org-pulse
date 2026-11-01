@@ -240,7 +240,8 @@ const isMemberFieldFilterActive = computed(() =>
 const managerCtx = computed(() => ({
   peopleByAccountId: new Map((people?.value || []).map(p => [p.accountId, p])),
   auxiliaryManagers: auxiliaryManagers?.value || {},
-  managerNames: managerNames?.value || {}
+  managerNames: managerNames?.value || {},
+  projectId: projectId.value
 }))
 
 const resolvedManagers = computed(() => {
@@ -259,8 +260,6 @@ function getManagerName(member) {
 function managerLink(member) {
   const resolved = resolvedManagers.value.get(member)
   if (!resolved?.link) return null
-  // External-manager profiles resolve only against a project's published roster.
-  if (resolved.link.ldapUid && !projectId.value) return null
   return linkTo('team-tracker', 'person-detail', { ...projectParam(projectId.value), ...resolved.link })
 }
 

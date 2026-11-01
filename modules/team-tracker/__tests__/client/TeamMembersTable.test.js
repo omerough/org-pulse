@@ -175,6 +175,16 @@ describe('TeamMembersTable direct manager resolution', () => {
     expect(cell.find('a').exists()).toBe(false)
   })
 
+  it('shows a roster manager as text when no project is selected', () => {
+    mockProjectId.value = ''
+    mockRoster.people.value = [{ accountId: 'mgr-1', displayName: 'Manager One' }]
+    const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'roster', accountId: 'mgr-1' } }
+    const cell = managerCell(mount(TeamMembersTable, { props: { members: [member] } }))
+
+    expect(cell.text()).toBe('Manager One')
+    expect(cell.find('a').exists()).toBe(false)
+  })
+
   it('shows an external manager as text when the ldapUid has no auxiliary record', () => {
     mockProjectId.value = 'osac'
     const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'external', ldapUid: 'ghost' } }

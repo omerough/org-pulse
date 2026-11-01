@@ -55,12 +55,11 @@ export function dedupeMembersByIdentity(members = []) {
 }
 
 /**
- * Resolve a member's direct manager across both identity models. Returns
- * `{ name, link }`; `link` is `{ accountId }`, `{ ldapUid }` or `{ uid }` for a valid
- * profile target, else null. Returns null when the manager is unavailable.
+ * Resolve a member's direct manager to `{ name, link }`, or null when unavailable.
+ * Typed `accountId`/`ldapUid` links need `ctx.projectId`; legacy `uid` links do not.
  */
 export function resolveMemberManager(member, ctx = {}) {
-  const { people = [], peopleByAccountId = null, auxiliaryManagers = {}, managerNames = {} } = ctx
+  const { people = [], peopleByAccountId = null, auxiliaryManagers = {}, managerNames = {}, projectId = '' } = ctx
 
   // Typed project-qualified reference takes precedence over the legacy uid.
   const ref = member?.managerRef
@@ -71,13 +70,13 @@ export function resolveMemberManager(member, ctx = {}) {
         ? peopleByAccountId.get(ref.accountId)
         : people.find(p => p.accountId === ref.accountId)
       const name = person?.displayName || person?.name
-      return name ? { name, link: { accountId: ref.accountId } } : null
+      return name ? { name, link: projectId ? { accountId: ref.accountId } : null } : null
     }
     if (ref.kind === 'external' && ref.ldapUid) {
       const aux = getAuxiliaryManager(auxiliaryManagers, ref.ldapUid)
       if (!aux?.displayName) return null
-      // A record whose ldapUid disagrees with its key is not a valid target.
-      const linkable = aux.ldapUid === undefined || aux.ldapUid === ref.ldapUid
+      // A record whose ldapUid is missing or disagrees with its key is malformed.
+      const linkable = Boolean(projectId) && aux.ldapUid === ref.ldapUid
       return { name: aux.displayName, link: linkable ? { ldapUid: ref.ldapUid } : null }
     }
     return null
