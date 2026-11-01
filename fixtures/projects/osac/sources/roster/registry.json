@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "projectId": "osac",
+  "profileRevision": "653d4e3d171383df",
+  "artifactKey": "sources/roster/registry.json",
+  "source": {
+    "id": "osac-roster",
+    "kind": "atlassian-teams"
+  },
+  "generatedAt": "2026-10-05T11:00:00Z",
+  "state": "supported",
+  "freshness": "fresh",
+  "partial": false,
+  "error": null,
+  "data": {
+    "projectId": "osac",
+    "teams": [
+      {
+        "id": "93eb6d97-b6c6-4509-ab08-16478cd02304",
+        "name": "Platform",
+        "state": "ACTIVE"
+      },
+      {
+        "id": "b470b07d-0ba5-4216-934f-0b6c0238caf2",
+        "name": "Infrastructure",
+        "state": "ACTIVE"
+      },
+      {
+        "id": "b29325e5-601a-4d53-b84b-0170920db548",
+        "name": "ML Platform",
+        "state": "ACTIVE"
+      },
+      {
+        "id": "a63c4ba4-a73c-41ea-a397-0a4020253953",
+        "name": "Data Pipeline",
+        "state": "ACTIVE"
+      }
+    ],
+    "people": [
+      {
+        "accountId": "osac-acc-1",
+        "displayName": "Alice Chen",
+        "active": true,
+        "email": "achen@example.com",
+        "teamIds": [
+          "93eb6d97-b6c6-4509-ab08-16478cd02304"
+        ]
+      },
+      {
+        "accountId": "osac-acc-2",
+        "displayName": "Bob Smith",
+        "active": true,
+        "email": "bsmith@example.com",
+        "teamIds": [
+          "93eb6d97-b6c6-4509-ab08-16478cd02304"
+        ]
+      },
+      {
+        "accountId": "osac-acc-3",
+        "displayName": "Carol Williams",
+        "active": true,
+        "email": "cwilliams@example.com",
+        "teamIds": [
+          "93eb6d97-b6c6-4509-ab08-16478cd02304"
+        ]
+      },
+      {
+        "accountId": "osac-acc-4",
+        "displayName": "David Lee",
+        "active": true,
+        "email": "dlee@example.com",
+        "teamIds": [
+          "b470b07d-0ba5-4216-934f-0b6c0238caf2"
+        ]
+      },
+      {
+        "accountId": "osac-acc-5",
+        "displayName": "Emma Garcia",
+        "active": true,
+        "email": "egarcia@example.com",
+        "teamIds": [
+          "b470b07d-0ba5-4216-934f-0b6c0238caf2"
+        ]
+      },
+      {
+        "accountId": "osac-acc-6",
+        "displayName": "Frank Johnson",
+        "active": true,
+        "email": "fjohnson@example.com",
+        "teamIds": [
+          "b29325e5-601a-4d53-b84b-0170920db548"
+        ]
+      },
+      {
+        "accountId": "osac-acc-7",
+        "displayName": "Grace Kim",
+        "active": true,
+        "email": "gkim@example.com",
+        "teamIds": [
+          "b29325e5-601a-4d53-b84b-0170920db548"
+        ]
+      },
+      {
+        "accountId": "osac-acc-8",
+        "displayName": "Henry Wilson",
+        "active": true,
+        "email": "hwilson@example.com",
+        "teamIds": [
+          "b29325e5-601a-4d53-b84b-0170920db548"
+        ]
+      },
+      {
+        "accountId": "osac-acc-9",
+        "displayName": "Iris Martinez",
+        "active": true,
+        "email": "imartinez@example.com",
+        "teamIds": [
+          "a63c4ba4-a73c-41ea-a397-0a4020253953"
+        ]
+      },
+      {
+        "accountId": "osac-acc-10",
+        "displayName": "Jack Brown",
+        "active": true,
+        "email": "jbrown@example.com",
+        "teamIds": [
+          "a63c4ba4-a73c-41ea-a397-0a4020253953"
+        ]
+      },
+      {
+        "accountId": "osac-acc-11",
+        "displayName": "Pat Manager",
+        "active": true,
+        "email": "pmanager@example.com",
+        "teamIds": []
+      },
+      {
+        "accountId": "osac-acc-12",
+        "displayName": "Sam Designer",
+        "active": true,
+        "email": "sdesigner@example.com",
+        "teamIds": []
+      }
+    ]
+  }
+}

@@ -88,13 +88,32 @@ function getManagerPurview(managerUid, registry, teamsData, options = {}) {
   return result;
 }
 
+const EXTERNAL_NODE_PREFIX = 'ldap:';
+
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Registry key for an auxiliary (external) manager; roster people are keyed by accountId. */
+function externalNodeKey(ldapUid) {
+  return `${EXTERNAL_NODE_PREFIX}${ldapUid}`;
+}
+
+/** Registry key for a resolved manager identity. */
+function projectManagerNodeKey(identity) {
+  return identity.kind === 'external' ? externalNodeKey(identity.ldapUid) : identity.accountId;
+}
+
 /**
  * Adapts a project-qualified roster read model into the `{ registry, teamsData }`
  * shapes getManagerPurview consumes, so projects reuse the OSAC hierarchy engine.
  *
- * Identity is `accountId`. Only a `roster` managerRef whose target is present in
- * the model becomes a `managerUid` edge; `external`/`unresolved`/dangling refs
- * produce no edge (relationship kept on the record for display, never fabricated).
+ * Roster people are keyed by `accountId`; each auxiliary manager is an extra node
+ * keyed `ldap:<ldapUid>` (no accountId, no teams). A managerRef becomes a
+ * `managerUid` edge only when its target exists in the model: `roster` refs
+ * target a roster person, `external` refs target an auxiliary manager. Unknown,
+ * `unresolved`, dangling and self-referencing refs produce no edge (the
+ * relationship stays on the record for display, never fabricated).
  */
 function buildProjectManagerModel(model) {
   const people = {};
@@ -106,11 +125,21 @@ function buildProjectManagerModel(model) {
   // A missing/blank accountId can't be a registry key without colliding across records.
   const validPeople = (model.people || []).filter(p => p && typeof p.accountId === 'string' && p.accountId);
   const accountIds = new Set(validPeople.map(p => p.accountId));
+  const auxiliaryManagers = isRecord(model.auxiliaryManagers) ? model.auxiliaryManagers : {};
+  const externalKeys = new Set(
+    Object.keys(auxiliaryManagers).map(externalNodeKey).filter(key => !accountIds.has(key))
+  );
+
+  function resolveManagerKey(ref, ownKey) {
+    if (!isRecord(ref)) return null;
+    let target = null;
+    if (ref.kind === 'roster' && accountIds.has(ref.accountId)) target = ref.accountId;
+    else if (ref.kind === 'external' && externalKeys.has(externalNodeKey(ref.ldapUid))) target = externalNodeKey(ref.ldapUid);
+    return target !== ownKey ? target : null;
+  }
+
   for (const person of validPeople) {
     const ref = person.managerRef;
-    const managerUid = ref && ref.kind === 'roster' && accountIds.has(ref.accountId)
-      ? ref.accountId
-      : null;
     people[person.accountId] = {
       uid: person.accountId,
       accountId: person.accountId,
@@ -119,9 +148,29 @@ function buildProjectManagerModel(model) {
       email: person.email || null,
       title: person.title || null,
       status: person.active ? 'active' : 'inactive',
-      managerUid,
+      managerUid: resolveManagerKey(ref, person.accountId),
       managerRef: ref || null,
       teamIds: Array.isArray(person.teamIds) ? [...person.teamIds] : []
+    };
+  }
+
+  for (const [ldapUid, record] of Object.entries(auxiliaryManagers)) {
+    const key = externalNodeKey(ldapUid);
+    if (!externalKeys.has(key)) continue;
+    const ref = record.managerRef;
+    people[key] = {
+      uid: key,
+      accountId: null,
+      ldapUid,
+      external: true,
+      projectId: model.projectId,
+      name: record.displayName,
+      email: null,
+      title: record.title || null,
+      status: 'active',
+      managerUid: resolveManagerKey(ref, key),
+      managerRef: ref || null,
+      teamIds: []
     };
   }
 
@@ -140,20 +189,60 @@ function buildProjectManagerModel(model) {
   return { registry: { people }, teamsData: { teams } };
 }
 
-/** Resolve the user's accountId by email (active people only, never by name); fails closed on an ambiguous match. */
-function resolveProjectManagerAccountId(model, email) {
-  if (!model || !email || typeof email !== 'string') return null;
+/**
+ * Resolve the authenticated user to a manager identity, never by name. Fails
+ * closed (null) on any ambiguity.
+ *
+ *  1. Exact, case-insensitive email match against active roster people.
+ *  2. Otherwise the email's local part against verified identities only: the
+ *     `ldapUid` of active roster people (set solely for a matched + joined
+ *     enrichment) and the keys of `auxiliaryManagers`.
+ *
+ * The email domain is ignored in step 2: the OpenShift OAuth proxy reports
+ * `<username>@cluster.local`, so the username is the only identity claim. It is
+ * trusted exactly as far as role matching trusts it (role-store normalizes every
+ * email to the configured auth domain), which assumes the cluster's identity
+ * providers issue usernames equal to the person's LDAP uid and never reuse one.
+ *
+ * @returns {{ kind: 'roster', accountId: string } | { kind: 'external', ldapUid: string } | null}
+ */
+function resolveProjectManagerIdentity(model, email) {
+  if (!model || typeof email !== 'string') return null;
   const target = email.toLowerCase();
-  const matches = new Set();
-  for (const person of model.people || []) {
-    if (!person.active) continue;
-    if (person.email && person.email.toLowerCase() === target) matches.add(person.accountId);
+  const parts = target.split('@');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+
+  const activePeople = (model.people || []).filter(
+    p => p && p.active && typeof p.accountId === 'string' && p.accountId
+  );
+
+  const emailMatches = new Set();
+  for (const person of activePeople) {
+    if (person.email && person.email.toLowerCase() === target) emailMatches.add(person.accountId);
   }
-  return matches.size === 1 ? [...matches][0] : null;
+  if (emailMatches.size === 1) return { kind: 'roster', accountId: [...emailMatches][0] };
+  if (emailMatches.size > 1) return null;
+
+  const localPart = parts[0];
+  const candidates = new Map();
+  for (const person of activePeople) {
+    if (typeof person.ldapUid === 'string' && person.ldapUid.trim().toLowerCase() === localPart) {
+      candidates.set(`roster:${person.accountId}`, { kind: 'roster', accountId: person.accountId });
+    }
+  }
+  if (isRecord(model.auxiliaryManagers)) {
+    for (const ldapUid of Object.keys(model.auxiliaryManagers)) {
+      if (ldapUid.toLowerCase() === localPart) {
+        candidates.set(`external:${ldapUid}`, { kind: 'external', ldapUid });
+      }
+    }
+  }
+  return candidates.size === 1 ? [...candidates.values()][0] : null;
 }
 
 module.exports = {
   getManagerPurview,
   buildProjectManagerModel,
-  resolveProjectManagerAccountId
+  resolveProjectManagerIdentity,
+  projectManagerNodeKey
 };

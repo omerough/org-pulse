@@ -1,0 +1,634 @@
+{
+  "schemaVersion": 1,
+  "projectId": "osac",
+  "profileRevision": "653d4e3d171383df",
+  "artifactKey": "sources/jira-person-metrics/registry.json",
+  "source": {
+    "id": "osac-jira-person-metrics",
+    "kind": "jira-person-metrics",
+    "revision": null,
+    "runId": null
+  },
+  "generatedAt": "2026-10-05T11:10:00Z",
+  "fetchedAt": "2026-10-05T11:10:00Z",
+  "observedAt": "2026-10-05T11:10:00Z",
+  "attemptedAt": "2026-10-05T11:10:00Z",
+  "publishedAt": "2026-10-05T11:10:00Z",
+  "state": "supported",
+  "freshness": "fresh",
+  "partial": false,
+  "error": null,
+  "lastKnownGood": null,
+  "data": {
+    "projectId": "osac",
+    "personCount": 12,
+    "people": [
+      {
+        "accountId": "osac-acc-1",
+        "teamIds": [
+          "93eb6d97-b6c6-4509-ab08-16478cd02304"
+        ],
+        "fetchedAt": "2026-10-05T11:10:00.000Z",
+        "fieldsVersion": "v2",
+        "lookbackDays": 365,
+        "resolved": {
+          "count": 1,
+          "storyPoints": 2,
+          "issues": [
+            {
+              "key": "OSAC-101",
+              "summary": "Triage platform backlog",
+              "issueType": "Story",
+              "status": "Closed",
+              "resolution": "Done",
+              "storyPoints": 2,
+              "created": "2026-09-02T00:00:00.000+0000",
+              "resolutionDate": "2026-09-08T00:00:00.000+0000",
+              "components": [
+                "platform"
+              ],
+              "cycleTimeDays": 6
+            }
+          ]
+        },
+        "inProgress": {
+          "count": 0,
+          "storyPoints": 0,
+          "issues": []
+        },
+        "cycleTime": {
+          "avgDays": 6,
+          "medianDays": 6
+        }
+      },
+      {
+        "accountId": "osac-acc-2",
+        "teamIds": [
+          "93eb6d97-b6c6-4509-ab08-16478cd02304"
+        ],
+        "fetchedAt": "2026-10-05T11:10:00.000Z",
+        "fieldsVersion": "v2",
+        "lookbackDays": 365,
+        "resolved": {
+          "count": 2,
+          "storyPoints": 8,
+          "issues": [
+            {
+              "key": "OSAC-102",
+              "summary": "Fix gateway timeout handling",
+              "issueType": "Bug",
+              "status": "Closed",
+              "resolution": "Done",
+              "storyPoints": 5,
+              "created": "2026-09-01T00:00:00.000+0000",
+              "resolutionDate": "2026-09-04T00:00:00.000+0000",
+              "components": [
+                "gateway"
+              ],
+              "cycleTimeDays": 3
+            },
+            {
+              "key": "OSAC-103",
+              "summary": "Add service mesh metrics",
+              "issueType": "Story",
+              "status": "Closed",
+              "resolution": "Done",
+              "storyPoints": 3,
+              "created": "2026-09-10T00:00:00.000+0000",
+              "resolutionDate": "2026-09-20T00:00:00.000+0000",
+              "components": [
+                "observability"
+              ],
+              "cycleTimeDays": 10
+            }
+          ]
+        },
+        "inProgress": {
+          "count": 1,
+          "storyPoints": 2,
+          "issues": [
+            {
+              "key": "OSAC-104",
+              "summary": "Harden CI pipeline retries",
+              "issueType": "Story",
+              "status": "In Progress",
+              "resolution": null,
+              "storyPoints": 2,
+              "created": "2026-10-01T00:00:00.000+0000",
+              "resolutionDate": null,
+              "components": [
+                "ci"
+              ]
+            }
+          ]
+        },
+        "cycleTime": {
+          "avgDays": 6.5,
+          "medianDays": 6.5
+        }
+      },
+      {
+        "accountId": "osac-acc-3",
+        "teamIds": [
+          "93eb6d97-b6c6-4509-ab08-16478cd02304"
+        ],
+        "fetchedAt": "2026-10-05T11:10:00.000Z",
+        "fieldsVersion": "v2",
+        "lookbackDays": 365,
+        "resolved": {
+          "count": 1,
+          "storyPoints": 2,
+          "issues": [
+            {
+              "key": "OSAC-105",
+              "summary": "Dashboard filter regression",
+              "issueType": "Bug",
+              "status": "Closed",
+              "resolution": "Done",
+              "storyPoints": 2,
+              "created": "2026-09-12T00:00:00.000+0000",
+              "resolutionDate": "2026-09-14T00:00:00.000+0000",
+              "components": [
+                "dashboard"
+              ],
+              "cycleTimeDays": 2
+            }
+          ]
+        },
+        "inProgress": {
+          "count": 1,
+          "storyPoints": 3,
+          "issues": [
+            {
+              "key": "OSAC-106",
+              "summary": "Dashboard export to CSV",
+              "issueType": "Story",
+              "status": "In Progress",
+              "resolution": null,
+              "storyPoints": 3,
+              "created": "2026-10-02T00:00:00.000+0000",
+              "resolutionDate": null,
+              "components": [
+                "dashboard"
+              ]
+            }
+          ]
+        },
+        "cycleTime": {
+          "avgDays": 2,
+          "medianDays": 2
+        }
+      },
+      {
+        "accountId": "osac-acc-4",
+        "teamIds": [
+          "b470b07d-0ba5-4216-934f-0b6c0238caf2"
+        ],
+        "fetchedAt": "2026-10-05T11:10:00.000Z",
+        "fieldsVersion": "v2",
+        "lookbackDays": 365,
+        "resolved": {
+          "count": 2,
+          "storyPoints": 8,
+          "issues": [
+            {
+              "key": "OSAC-107",
+              "summary": "Migrate cluster autoscaler config",
+              "issueType": "Story",
+              "status": "Closed",
+              "resolution": "Done",
+              "storyPoints": 5,
+              "created": "2026-09-03T00:00:00.000+0000",
+              "resolutionDate": "2026-09-18T00:00:00.000+0000",
+              "components": [
+                "infra"
+              ],
+              "cycleTimeDays": 15
+            },
+            {
+              "key": "OSAC-108",
+              "summary": "Fix node drain ordering",
+              "issueType": "Bug",
+              "status": "Closed",
+              "resolution": "Done",
+              "storyPoints": 3,
+              "created": "2026-09-20T00:00:00.000+0000",
+              "resolutionDate": "2026-09-24T00:00:00.000+0000",
+              "components": [
+                "infra"
+              ],
+              "cycleTimeDays": 4
+            }
+          ]
+        },
+        "inProgress": {
+          "count": 0,
+          "storyPoints": 0,
+          "issues": []
+        },
+        "cycleTime": {
+          "avgDays": 9.5,
+          "medianDays": 9.5
+        }
+      },
+      {
+        "accountId": "osac-acc-5",
+        "teamIds": [
+          "b470b07d-0ba5-4216-934f-0b6c0238caf2"
+        ],
+        "fetchedAt": "2026-10-05T11:10:00.000Z",
+        "fieldsVersion": "v2",
+        "lookbackDays": 365,
+        "resolved": {
+          "count": 1,
+          "storyPoints": 5,
+          "issues": [
+            {
+              "key": "OSAC-109",
+              "summary": "Automate certificate rotation",
+              "issueType": "Story",
+              "status": "Closed",
+              "resolution": "Done",
+              "storyPoints": 5,
+              "created": "2026-09-05T00:00:00.000+0000",
+              "resolutionDate": "2026-09-25T00:00:00.000+0000",
+              "components": [
+                "infra"
+              ],
+              "cycleTimeDays": 20
+            }
+          ]
+        },
+        "inProgress": {
+          "count": 1,
+          "storyPoints": 1,
+          "issues": [
+            {
+              "key": "OSAC-110",
+              "summary": "Provisioning pipeline cleanup",
+              "issueType": "Task",
+              "status": "In Progress",
+              "resolution": null,
+              "storyPoints": 1,
+              "created": "2026-10-03T00:00:00.000+0000",
+              "resolutionDate": null,
+              "components": [
+                "infra"
+              ]
+            }
+          ]
+        },
+        "cycleTime": {
+          "avgDays": 20,
+          "medianDays": 20
+        }
+      },
+      {
+        "accountId": "osac-acc-6",
+        "teamIds": [
+          "b29325e5-601a-4d53-b84b-0170920db548"
+        ],
+        "fetchedAt": "2026-10-05T11:10:00.000Z",
+        "fieldsVersion": "v2",
+        "lookbackDays": 365,
+        "resolved": {
+          "count": 0,
+          "storyPoints": 0,
+          "issues": []
+        },
+        "inProgress": {
+          "count": 0,
+          "storyPoints": 0,
+          "issues": []
+        },
+        "cycleTime": {
+          "avgDays": null,
+          "medianDays": null
+        }
+      },
+      {
+        "accountId": "osac-acc-7",
+        "teamIds": [
+          "b29325e5-601a-4d53-b84b-0170920db548"
+        ],
+        "fetchedAt": "2026-10-05T11:10:00.000Z",
+        "fieldsVersion": "v2",
+        "lookbackDays": 365,
+        "resolved": {
+          "count": 2,
+          "storyPoints": 7,
+          "issues": [
+            {
+              "key": "OSAC-111",
+              "summary": "Model registry versioning",
+              "issueType": "Story",
+              "status": "Closed",
+              "resolution": "Done",
+              "storyPoints": 5,
+              "created": "2026-09-01T00:00:00.000+0000",
+              "resolutionDate": "2026-09-16T00:00:00.000+0000",
+              "components": [
+                "models"
+              ],
+              "cycleTimeDays": 15
+            },
+            {
+              "key": "OSAC-112",
+              "summary": "Fix stale model cache",
+              "issueType": "Bug",
+              "status": "Closed",
+              "resolution": "Done",
+              "storyPoints": 2,
+              "created": "2026-09-18T00:00:00.000+0000",
+              "resolutionDate": "2026-09-21T00:00:00.000+0000",
+              "components": [
+                "models"
+              ],
+              "cycleTimeDays": 3
+            }
+          ]
+        },
+        "inProgress": {
+          "count": 0,
+          "storyPoints": 0,
+          "issues": []
+        },
+        "cycleTime": {
+          "avgDays": 9,
+          "medianDays": 9
+        }
+      },
+      {
+        "accountId": "osac-acc-8",
+        "teamIds": [
+          "b29325e5-601a-4d53-b84b-0170920db548"
+        ],
+        "fetchedAt": "2026-10-05T11:10:00.000Z",
+        "fieldsVersion": "v2",
+        "lookbackDays": 365,
+        "resolved": {
+          "count": 1,
+          "storyPoints": 3,
+          "issues": [
+            {
+              "key": "OSAC-113",
+              "summary": "Evaluation harness config",
+              "issueType": "Story",
+              "status": "Closed",
+              "resolution": "Done",
+              "storyPoints": 3,
+              "created": "2026-09-08T00:00:00.000+0000",
+              "resolutionDate": "2026-09-22T00:00:00.000+0000",
+              "components": [
+                "models"
+              ],
+              "cycleTimeDays": 14
+            }
+          ]
+        },
+        "inProgress": {
+          "count": 1,
+          "storyPoints": 5,
+          "issues": [
+            {
+              "key": "OSAC-114",
+              "summary": "Add GPU scheduling hints",
+              "issueType": "Story",
+              "status": "In Progress",
+              "resolution": null,
+              "storyPoints": 5,
+              "created": "2026-10-01T00:00:00.000+0000",
+              "resolutionDate": null,
+              "components": [
+                "scheduler"
+              ]
+            }
+          ]
+        },
+        "cycleTime": {
+          "avgDays": 14,
+          "medianDays": 14
+        }
+      },
+      {
+        "accountId": "osac-acc-9",
+        "teamIds": [
+          "a63c4ba4-a73c-41ea-a397-0a4020253953"
+        ],
+        "fetchedAt": "2026-10-05T11:10:00.000Z",
+        "fieldsVersion": "v2",
+        "lookbackDays": 365,
+        "resolved": {
+          "count": 1,
+          "storyPoints": 8,
+          "issues": [
+            {
+              "key": "OSAC-115",
+              "summary": "Backfill ingestion job",
+              "issueType": "Story",
+              "status": "Closed",
+              "resolution": "Done",
+              "storyPoints": 8,
+              "created": "2026-09-01T00:00:00.000+0000",
+              "resolutionDate": "2026-09-26T00:00:00.000+0000",
+              "components": [
+                "ingestion"
+              ],
+              "cycleTimeDays": 25
+            }
+          ]
+        },
+        "inProgress": {
+          "count": 0,
+          "storyPoints": 0,
+          "issues": []
+        },
+        "cycleTime": {
+          "avgDays": 25,
+          "medianDays": 25
+        }
+      },
+      {
+        "accountId": "osac-acc-10",
+        "teamIds": [
+          "a63c4ba4-a73c-41ea-a397-0a4020253953"
+        ],
+        "fetchedAt": "2026-10-05T11:10:00.000Z",
+        "fieldsVersion": "v2",
+        "lookbackDays": 365,
+        "resolved": {
+          "count": 1,
+          "storyPoints": 2,
+          "issues": [
+            {
+              "key": "OSAC-116",
+              "summary": "Fix schema drift alert",
+              "issueType": "Bug",
+              "status": "Closed",
+              "resolution": "Done",
+              "storyPoints": 2,
+              "created": "2026-09-14T00:00:00.000+0000",
+              "resolutionDate": "2026-09-17T00:00:00.000+0000",
+              "components": [
+                "ingestion"
+              ],
+              "cycleTimeDays": 3
+            }
+          ]
+        },
+        "inProgress": {
+          "count": 1,
+          "storyPoints": 3,
+          "issues": [
+            {
+              "key": "OSAC-117",
+              "summary": "Partition pruning for batch runs",
+              "issueType": "Story",
+              "status": "In Progress",
+              "resolution": null,
+              "storyPoints": 3,
+              "created": "2026-10-04T00:00:00.000+0000",
+              "resolutionDate": null,
+              "components": [
+                "ingestion"
+              ]
+            }
+          ]
+        },
+        "cycleTime": {
+          "avgDays": 3,
+          "medianDays": 3
+        }
+      },
+      {
+        "accountId": "osac-acc-11",
+        "teamIds": [],
+        "fetchedAt": "2026-10-05T11:10:00.000Z",
+        "fieldsVersion": "v2",
+        "lookbackDays": 365,
+        "resolved": {
+          "count": 0,
+          "storyPoints": 0,
+          "issues": []
+        },
+        "inProgress": {
+          "count": 0,
+          "storyPoints": 0,
+          "issues": []
+        },
+        "cycleTime": {
+          "avgDays": null,
+          "medianDays": null
+        }
+      },
+      {
+        "accountId": "osac-acc-12",
+        "teamIds": [],
+        "fetchedAt": "2026-10-05T11:10:00.000Z",
+        "fieldsVersion": "v2",
+        "lookbackDays": 365,
+        "resolved": {
+          "count": 0,
+          "storyPoints": 0,
+          "issues": []
+        },
+        "inProgress": {
+          "count": 0,
+          "storyPoints": 0,
+          "issues": []
+        },
+        "cycleTime": {
+          "avgDays": null,
+          "medianDays": null
+        }
+      }
+    ],
+    "teams": [
+      {
+        "id": "93eb6d97-b6c6-4509-ab08-16478cd02304",
+        "name": "Platform",
+        "memberCount": 3,
+        "membersIncluded": 3,
+        "membersMissing": [],
+        "resolved": {
+          "count": 4,
+          "storyPoints": 12
+        },
+        "inProgress": {
+          "count": 2,
+          "storyPoints": 5
+        },
+        "cycleTime": {
+          "avgDays": 5.3,
+          "medianDays": 4.5
+        },
+        "partial": false
+      },
+      {
+        "id": "b470b07d-0ba5-4216-934f-0b6c0238caf2",
+        "name": "Infrastructure",
+        "memberCount": 2,
+        "membersIncluded": 2,
+        "membersMissing": [],
+        "resolved": {
+          "count": 3,
+          "storyPoints": 13
+        },
+        "inProgress": {
+          "count": 1,
+          "storyPoints": 1
+        },
+        "cycleTime": {
+          "avgDays": 13,
+          "medianDays": 15
+        },
+        "partial": false
+      },
+      {
+        "id": "b29325e5-601a-4d53-b84b-0170920db548",
+        "name": "ML Platform",
+        "memberCount": 3,
+        "membersIncluded": 3,
+        "membersMissing": [],
+        "resolved": {
+          "count": 3,
+          "storyPoints": 10
+        },
+        "inProgress": {
+          "count": 1,
+          "storyPoints": 5
+        },
+        "cycleTime": {
+          "avgDays": 10.7,
+          "medianDays": 14
+        },
+        "partial": false
+      },
+      {
+        "id": "a63c4ba4-a73c-41ea-a397-0a4020253953",
+        "name": "Data Pipeline",
+        "memberCount": 2,
+        "membersIncluded": 2,
+        "membersMissing": [],
+        "resolved": {
+          "count": 2,
+          "storyPoints": 10
+        },
+        "inProgress": {
+          "count": 1,
+          "storyPoints": 3
+        },
+        "cycleTime": {
+          "avgDays": 14,
+          "medianDays": 14
+        },
+        "partial": false
+      }
+    ],
+    "diagnostics": {
+      "missingPeople": [],
+      "staleCarryForward": [],
+      "freshSuccessCount": 12
+    }
+  }
+}

@@ -1,7 +1,7 @@
 /**
- * OSAC falls through to the legacy global computation; other projects read
- * the project-qualified jira-person-metrics publication and never fall back
- * to OSAC data.
+ * An unset projectId uses the legacy global computation; any selected project
+ * reads the project-qualified jira-person-metrics publication and never falls
+ * back to legacy data.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -207,15 +207,27 @@ describe('GET /trends project-selection dispatch', () => {
     rosterSyncConfig.clearDisplayNamesCache()
   })
 
-  it('routes projectId=osac through the legacy global trends, not the project publication', async () => {
-    const projects = makeProjectsReader({ knownProjectIds: ['osac', 'flightctl'], jiraMetricsProjectIds: ['flightctl'] })
+  it('routes projectId=osac through its project publication, not the legacy global trends', async () => {
+    const projects = makeProjectsReader({ knownProjectIds: ['osac', 'flightctl'], jiraMetricsProjectIds: ['osac', 'flightctl'] })
     const app = createTestServer(makeRegistryStorageData(), projects)
 
     const { status, body } = await requestGet(app, '/trends?projectId=osac')
 
     expect(status).toBe(200)
-    expect(body.projectId).toBeUndefined()
-    expect(body.availability).toBeUndefined()
+    expect(body.projectId).toBe('osac')
+    expect(body.availability).toBe('available')
+    expect(Object.keys(body.jira['2026-09'].byTeam)).toEqual(['osac::team-1'])
+  })
+
+  it('does not fall back to legacy trends when the osac publication is missing', async () => {
+    const projects = makeProjectsReader({ knownProjectIds: ['osac', 'flightctl'], jiraMetricsProjectIds: ['flightctl'] })
+    const app = createTestServer(makeRegistryStorageData(), projects)
+
+    const { body } = await requestGet(app, '/trends?projectId=osac')
+
+    expect(body.projectId).toBe('osac')
+    expect(body.availability).toBe('unavailable')
+    expect(body.jira).toBeNull()
   })
 
   it('falls through to legacy trends when no projectId is given', async () => {
@@ -283,6 +295,15 @@ describe('GET /team/:teamKey/metrics project-selection dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     rosterSyncConfig.clearDisplayNamesCache()
+  })
+
+  it('returns 404 for a legacy name-keyed team under projectId=osac', async () => {
+    const projects = makeProjectsReader({ knownProjectIds: ['osac', 'flightctl'], jiraMetricsProjectIds: ['osac', 'flightctl'] })
+    const app = createTestServer(makeRegistryStorageData(), projects)
+
+    const { status } = await requestGet(app, '/team/osac%3A%3Aosac-team/metrics?projectId=osac')
+
+    expect(status).toBe(404)
   })
 
   it('routes projectId=flightctl through the project-qualified publication', async () => {

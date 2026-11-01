@@ -19,6 +19,7 @@ beforeEach(async () => {
 
   // Clear sessionStorage
   sessionStorage.clear()
+  window.location.hash = ''
 
   // Re-mock after resetModules
   vi.doMock('@shared/client/services/api', () => ({
@@ -156,5 +157,70 @@ describe('useMessages', () => {
     const { messages, fetchMessages } = useMessages()
     await fetchMessages()
     expect(messages.value).toEqual([])
+  })
+
+  describe('project context', () => {
+    function selectProject(projectId) {
+      window.location.hash = projectId ? `#/team-tracker/home?projectId=${projectId}` : '#/team-tracker/home'
+      window.dispatchEvent(new Event('urlchange'))
+    }
+
+    it('requests /messages unqualified when no project is selected', async () => {
+      const { apiRequest: mockApi } = await import('@shared/client/services/api')
+      mockApi.mockResolvedValue({ messages: [] })
+
+      await useMessages().fetchMessages()
+
+      expect(mockApi).toHaveBeenCalledWith('/messages')
+    })
+
+    it('qualifies the request with the selected project', async () => {
+      const { apiRequest: mockApi } = await import('@shared/client/services/api')
+      mockApi.mockResolvedValue({ messages: [] })
+      window.location.hash = '#/team-tracker/home?projectId=osac'
+
+      await useMessages().fetchMessages()
+
+      expect(mockApi).toHaveBeenCalledWith('/messages?projectId=osac')
+    })
+
+    it('clears and refetches on switching between project and no-project contexts', async () => {
+      const { apiRequest: mockApi } = await import('@shared/client/services/api')
+      mockApi.mockResolvedValueOnce({ messages: [{ id: 'legacy-only', type: 'warning', text: 'incomplete' }] })
+      const { messages, fetchMessages } = useMessages()
+      await fetchMessages()
+      expect(messages.value.map(m => m.id)).toEqual(['legacy-only'])
+
+      let resolveProject
+      mockApi.mockImplementationOnce(() => new Promise(resolve => { resolveProject = resolve }))
+      selectProject('osac')
+      expect(messages.value).toEqual([])
+      expect(mockApi).toHaveBeenLastCalledWith('/messages?projectId=osac')
+      resolveProject({ messages: [{ id: 'shared', type: 'info', text: 'hi' }] })
+      await vi.waitFor(() => expect(messages.value.map(m => m.id)).toEqual(['shared']))
+
+      mockApi.mockResolvedValueOnce({ messages: [{ id: 'legacy-only', type: 'warning', text: 'incomplete' }] })
+      selectProject('')
+      expect(messages.value).toEqual([])
+      expect(mockApi).toHaveBeenLastCalledWith('/messages')
+      await vi.waitFor(() => expect(messages.value.map(m => m.id)).toEqual(['legacy-only']))
+    })
+
+    it('ignores a late response from the previous context', async () => {
+      const { apiRequest: mockApi } = await import('@shared/client/services/api')
+      let resolveStale
+      mockApi.mockImplementationOnce(() => new Promise(resolve => { resolveStale = resolve }))
+      const { messages, fetchMessages } = useMessages()
+      const staleFetch = fetchMessages()
+
+      mockApi.mockResolvedValueOnce({ messages: [{ id: 'project', type: 'info', text: 'p' }] })
+      selectProject('osac')
+      await vi.waitFor(() => expect(messages.value.map(m => m.id)).toEqual(['project']))
+
+      resolveStale({ messages: [{ id: 'legacy-only', type: 'warning', text: 'incomplete' }] })
+      await staleFetch
+
+      expect(messages.value.map(m => m.id)).toEqual(['project'])
+    })
   })
 })

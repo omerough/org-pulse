@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import PersonProfileView from '../../client/views/PersonProfileView.vue'
 
 const rosterPeople = ref([])
 const rosterTeamsValue = ref([])
 const rosterDataValue = ref(null)
 const rosterLoadingValue = ref(false)
+const rosterErrorValue = ref(null)
 const isAdminValue = ref(false)
 const auxiliaryManagersValue = ref({})
 const fieldDefinitionsValue = ref({ personFields: [] })
@@ -25,6 +26,7 @@ vi.mock('@shared/client/composables/useRoster.js', () => ({
     teams: rosterTeamsValue,
     rosterData: rosterDataValue,
     loading: rosterLoadingValue,
+    error: rosterErrorValue,
     getPersonByAccountId: (accountId) => rosterPeople.value.find(p => p.accountId === accountId) || null,
     people: rosterPeople,
     auxiliaryManagers: auxiliaryManagersValue
@@ -33,6 +35,11 @@ vi.mock('@shared/client/composables/useRoster.js', () => ({
 
 vi.mock('@shared/client/composables/useProjectId.js', () => ({
   useProjectId: () => projectIdValue
+}))
+
+const projectLabels = { osac: 'OSAC', flightctl: 'Flight Control' }
+vi.mock('../../client/composables/useProjectDisplayName', () => ({
+  useProjectDisplayName: () => computed(() => projectLabels[projectIdValue.value] ?? projectIdValue.value)
 }))
 
 vi.mock('@shared/client/composables/useAuth.js', () => ({
@@ -113,21 +120,20 @@ function metricTileValue(wrapper, label) {
 
 const mountedWrappers = []
 
-function mountView(params) {
+// `applyUpdates` makes `updateParams` rewrite the params like the real module nav.
+function mountView(params, { applyUpdates = false } = {}) {
   const navParams = ref(params)
-  const wrapper = mount(PersonProfileView, {
-    global: {
-      provide: {
-        moduleNav: {
-          params: navParams,
-          goBack: vi.fn(),
-          navigateTo: vi.fn(),
-          updateParams: vi.fn()
-        }
+  const updateParams = vi.fn(applyUpdates
+    ? update => {
+        navParams.value = Object.fromEntries(
+          Object.entries({ ...navParams.value, ...update }).filter(([, value]) => value !== undefined)
+        )
       }
-    }
-  })
+    : undefined)
+  const nav = { params: navParams, goBack: vi.fn(), navigateTo: vi.fn(), updateParams }
+  const wrapper = mount(PersonProfileView, { global: { provide: { moduleNav: nav } } })
   wrapper.navParams = navParams
+  wrapper.nav = nav
   mountedWrappers.push(wrapper)
   return wrapper
 }
@@ -141,6 +147,7 @@ describe('PersonProfileView', () => {
     rosterTeamsValue.value = []
     rosterDataValue.value = null
     rosterLoadingValue.value = false
+    rosterErrorValue.value = null
     isAdminValue.value = false
     auxiliaryManagersValue.value = {}
     fieldDefinitionsValue.value = { personFields: [] }
@@ -546,7 +553,8 @@ describe('PersonProfileView', () => {
     expect(wrapper.text()).not.toContain('Stale')
   })
 
-  it('leaves OSAC legacy behavior unchanged (resolves by uid via the registry endpoint)', async () => {
+  it('with no project, resolves a uid via the registry endpoint', async () => {
+    projectIdValue.value = ''
     apiRequest.mockImplementation((url) => {
       if (url.includes('/registry/people/u1')) {
         return Promise.resolve({
@@ -573,11 +581,12 @@ describe('PersonProfileView', () => {
 
     expect(wrapper.text()).toContain('Bob Builder')
     expect(apiRequest).toHaveBeenCalledWith(expect.stringContaining('/registry/people/u1'))
-    // OSAC profiles never call the project-qualified endpoint.
+    // Legacy profiles never call the project-qualified endpoint.
     expect(getProjectPersonMetrics).not.toHaveBeenCalled()
   })
 
-  it('leaves the legacy OSAC identity badge unchanged: shows the registry uid, unlabeled', async () => {
+  it('with no project, shows the registry uid unlabeled in the identity badge', async () => {
+    projectIdValue.value = ''
     apiRequest.mockImplementation((url) => {
       if (url.includes('/registry/people/u1')) {
         return Promise.resolve({
@@ -730,6 +739,7 @@ describe('PersonProfileView', () => {
     }
 
     it('ignores a stale legacy response after navigating to a project-qualified person (cross-mode race)', async () => {
+      projectIdValue.value = ''
       setRoster([rosterPersonFixture('acc-1', 'Ada Lovelace')])
       getProjectPersonMetrics.mockResolvedValue(availableJiraMetrics())
 
@@ -745,6 +755,7 @@ describe('PersonProfileView', () => {
       await flushPromises()
 
       // Navigate to a project-qualified person before the legacy lookup resolves.
+      projectIdValue.value = 'flightctl'
       wrapper.navParams.value = { accountId: 'acc-1' }
       await flushPromises()
       expect(wrapper.text()).toContain('Ada Lovelace')
@@ -1244,6 +1255,48 @@ describe('PersonProfileView', () => {
       expect(navigateTo).toHaveBeenCalledWith('person-detail', { accountId: 'r1' })
     })
 
+    it('lists external managers among an external manager\'s direct reports and opens them by ldapUid', async () => {
+      rosterPeople.value = [
+        { accountId: 'r1', displayName: 'Report One', active: true, managerRef: { kind: 'external', ldapUid: 'vp1' } }
+      ]
+      auxiliaryManagersValue.value = {
+        vp1: { ldapUid: 'vp1', displayName: 'VP One', managerRef: null },
+        lead1: { ldapUid: 'lead1', displayName: 'Lead One', title: 'Lead', managerRef: { kind: 'external', ldapUid: 'vp1' } }
+      }
+      rosterDataValue.value = {
+        projectId: 'flightctl',
+        teams: [],
+        people: rosterPeople.value,
+        enrichment: { state: 'fresh', partial: false, generatedAt: '2026-01-01T00:00:00Z' }
+      }
+
+      const { wrapper, navigateTo } = mountViewWithNav({ ldapUid: 'vp1' })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Direct Reports (2)')
+      await wrapper.findAll('button').find(b => b.text().includes('Lead One')).trigger('click')
+      expect(navigateTo).toHaveBeenCalledWith('person-detail', { ldapUid: 'lead1' })
+    })
+
+    it('lists an external manager among a roster manager\'s direct reports and opens them by ldapUid', async () => {
+      rosterPeople.value = [{ accountId: 'mgr', displayName: 'Mgr One', active: true, managerRef: null }]
+      auxiliaryManagersValue.value = {
+        director1: { ldapUid: 'director1', displayName: 'Director One', managerRef: { kind: 'roster', accountId: 'mgr' } }
+      }
+      rosterDataValue.value = {
+        projectId: 'flightctl',
+        teams: [],
+        people: rosterPeople.value,
+        enrichment: { state: 'fresh', partial: false, generatedAt: '2026-01-01T00:00:00Z' }
+      }
+
+      const { wrapper, navigateTo } = mountViewWithNav({ accountId: 'mgr' })
+      await flushPromises()
+
+      await wrapper.findAll('button').find(b => b.text().includes('Director One')).trigger('click')
+      expect(navigateTo).toHaveBeenCalledWith('person-detail', { ldapUid: 'director1' })
+    })
+
     it('isolates external-manager data per project: the same ldapUid in two projects does not leak records', async () => {
       auxiliaryManagersValue.value = {
         shared: { ldapUid: 'shared', displayName: 'FlightCtl Director', managerRef: null }
@@ -1264,6 +1317,7 @@ describe('PersonProfileView', () => {
     })
 
     it('does not refetch legacy GitLab stats when navigating from a legacy auxiliary profile to an external-manager profile', async () => {
+      projectIdValue.value = ''
       apiRequest.mockImplementation((url) => {
         if (url.includes('/registry/people/aux1')) {
           return Promise.resolve({
@@ -1285,6 +1339,7 @@ describe('PersonProfileView', () => {
       expect(wrapper.text()).toContain('Aux Person')
       mockLoadGitlabStats.mockClear()
 
+      projectIdValue.value = 'flightctl'
       wrapper.navParams.value = { ldapUid: 'director1' }
       await flushPromises()
 
@@ -1293,6 +1348,7 @@ describe('PersonProfileView', () => {
     })
 
     it('clears a stale legacy identity edit when navigating to an external-manager profile, so Save cannot hit the legacy endpoint', async () => {
+      projectIdValue.value = ''
       isAdminValue.value = true
       apiRequest.mockImplementation((url) => {
         if (url.includes('/registry/people/legacy1')) {
@@ -1317,6 +1373,7 @@ describe('PersonProfileView', () => {
       expect(wrapper.find('input[placeholder="username"]').exists()).toBe(true)
 
       apiRequest.mockClear()
+      projectIdValue.value = 'flightctl'
       wrapper.navParams.value = { ldapUid: 'director1' }
       await flushPromises()
 
@@ -1337,6 +1394,295 @@ describe('PersonProfileView', () => {
         await flushPromises()
         expect(wrapper.text()).toContain('Person not found')
       }
+    })
+  })
+
+  describe('legacy deep links in project context', () => {
+    const projectPerson = (accountId, displayName, extra = {}) => ({ accountId, displayName, active: true, ...extra })
+
+    function setProjectRoster({ people = [], teams = [], auxiliaryManagers = {}, enrichment } = {}) {
+      rosterPeople.value = people
+      auxiliaryManagersValue.value = auxiliaryManagers
+      rosterTeamsValue.value = teams.map(t => ({ key: t.key, displayKey: null, displayName: t.displayName, members: [] }))
+      rosterDataValue.value = { projectId: 'osac', teams, people, auxiliaryManagers, ...(enrichment ? { enrichment } : {}) }
+    }
+
+    function expectNoLegacyFetchOrEditControls(wrapper) {
+      expect(apiRequest).not.toHaveBeenCalled()
+      expect(wrapper.findAll('button').some(b => ['Impersonate', 'Reactivate', 'Purge'].includes(b.text()))).toBe(false)
+      expect(wrapper.find('button[title="Set"]').exists()).toBe(false)
+    }
+
+    beforeEach(() => {
+      projectIdValue.value = 'osac'
+      isAdminValue.value = true
+    })
+
+    it('rewrites a uid link to accountId without a registry call or edit controls', async () => {
+      setProjectRoster({ people: [projectPerson('acc-1', 'Alice Chen', { ldapUid: 'achen' })] })
+
+      const wrapper = mountView({ uid: 'achen' })
+      await flushPromises()
+
+      expect(wrapper.nav.updateParams).toHaveBeenCalledWith(
+        { accountId: 'acc-1', uid: undefined, person: undefined },
+        { push: false }
+      )
+      expectNoLegacyFetchOrEditControls(wrapper)
+    })
+
+    it('shows no edit controls for an inactive person reached by uid', async () => {
+      setProjectRoster({ people: [projectPerson('acc-1', 'Gone Person', { ldapUid: 'gone', active: false })] })
+
+      const wrapper = mountView({ accountId: 'acc-1' })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Gone Person')
+      expectNoLegacyFetchOrEditControls(wrapper)
+    })
+
+    it('rewrites a person-name link to accountId', async () => {
+      setProjectRoster({ people: [projectPerson('acc-2', 'Bob Smith', { ldapUid: 'bsmith' })] })
+
+      const wrapper = mountView({ person: 'Bob Smith' })
+      await flushPromises()
+
+      expect(wrapper.nav.updateParams).toHaveBeenCalledWith(
+        { accountId: 'acc-2', uid: undefined, person: undefined },
+        { push: false }
+      )
+      expect(apiRequest).not.toHaveBeenCalled()
+    })
+
+    it('rewrites a uid that names only an external manager to ldapUid', async () => {
+      setProjectRoster({
+        people: [projectPerson('acc-1', 'Alice Chen', { ldapUid: 'achen' })],
+        auxiliaryManagers: { demovp: { ldapUid: 'demovp', displayName: 'Demo VP' } }
+      })
+
+      const wrapper = mountView({ uid: 'demovp' })
+      await flushPromises()
+
+      expect(wrapper.nav.updateParams).toHaveBeenCalledWith(
+        { ldapUid: 'demovp', uid: undefined, person: undefined },
+        { push: false }
+      )
+      expect(apiRequest).not.toHaveBeenCalled()
+    })
+
+    it('follows a differently-cased uid link to the published external manager profile and its reports', async () => {
+      setProjectRoster({
+        people: [
+          projectPerson('acc-1', 'Alice Chen', { ldapUid: 'achen', managerRef: { kind: 'external', ldapUid: 'demovp' } })
+        ],
+        auxiliaryManagers: { demovp: { ldapUid: 'demovp', displayName: 'Demo VP', managerRef: null } },
+        enrichment: { state: 'fresh', partial: false, generatedAt: '2026-01-01T00:00:00Z' }
+      })
+
+      const wrapper = mountView({ uid: 'DemoVP' }, { applyUpdates: true })
+      await flushPromises()
+
+      expect(wrapper.navParams.value).toEqual({ ldapUid: 'demovp' })
+      expect(wrapper.find('[data-testid="link-unresolved"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('Demo VP')
+      expect(wrapper.text()).toContain('Alice Chen')
+      expectNoLegacyFetchOrEditControls(wrapper)
+    })
+
+    it('follows a differently-cased uid link to the roster person profile', async () => {
+      setProjectRoster({ people: [projectPerson('acc-1', 'Alice Chen', { ldapUid: 'achen' })] })
+
+      const wrapper = mountView({ uid: 'AChen' }, { applyUpdates: true })
+      await flushPromises()
+
+      expect(wrapper.navParams.value).toEqual({ accountId: 'acc-1' })
+      expect(wrapper.text()).toContain('Alice Chen')
+      expectNoLegacyFetchOrEditControls(wrapper)
+    })
+
+    it.each([
+      ['a uid shared by a roster person and an external manager', {
+        people: [projectPerson('acc-1', 'Alice Chen', { ldapUid: 'shared' })],
+        auxiliaryManagers: { shared: { ldapUid: 'shared', displayName: 'Shared Manager' } }
+      }, { uid: 'shared' }],
+      ['uids colliding only by case between a roster person and an external manager', {
+        people: [projectPerson('acc-1', 'Alice Chen', { ldapUid: 'Shared' })],
+        auxiliaryManagers: { shared: { ldapUid: 'shared', displayName: 'Shared Manager' } }
+      }, { uid: 'SHARED' }],
+      ['a uid shared by two roster people', {
+        people: [projectPerson('a', 'A', { ldapUid: 'shared' }), projectPerson('b', 'B', { ldapUid: 'shared' })]
+      }, { uid: 'shared' }],
+      ['an unknown uid', { people: [projectPerson('acc-1', 'Alice Chen', { ldapUid: 'achen' })] }, { uid: 'nobody' }],
+      ['a uid while enrichment is absent', { people: [projectPerson('acc-1', 'Alice Chen')] }, { uid: 'achen' }],
+      ['a person name shared by two active people', {
+        people: [projectPerson('a', 'Same Name'), projectPerson('b', 'Same Name')]
+      }, { person: 'Same Name' }]
+    ])('renders the unresolved state and does not rewrite for %s', async (_label, roster, params) => {
+      setProjectRoster(roster)
+
+      const wrapper = mountView(params)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="link-unresolved"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain("This link doesn't match a person in OSAC.")
+      expect(wrapper.nav.updateParams).not.toHaveBeenCalled()
+      expectNoLegacyFetchOrEditControls(wrapper)
+    })
+
+    it('names the selected project by display name in the unresolved state', async () => {
+      projectIdValue.value = 'flightctl'
+      setProjectRoster({ people: [projectPerson('acc-1', 'Alice Chen', { ldapUid: 'achen' })] })
+      rosterDataValue.value = { ...rosterDataValue.value, projectId: 'flightctl' }
+
+      const wrapper = mountView({ uid: 'nobody' })
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="link-unresolved"]').text()).toContain("This link doesn't match a person in Flight Control.")
+    })
+
+    it('waits for the selected project roster before resolving', async () => {
+      rosterDataValue.value = { projectId: 'flightctl', teams: [], people: [projectPerson('fc-1', 'Other', { ldapUid: 'achen' })] }
+      rosterLoadingValue.value = true
+
+      const wrapper = mountView({ uid: 'achen' })
+      await flushPromises()
+      expect(wrapper.nav.updateParams).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="link-unresolved"]').exists()).toBe(false)
+
+      rosterLoadingValue.value = false
+      setProjectRoster({ people: [projectPerson('acc-1', 'Alice Chen', { ldapUid: 'achen' })] })
+      await flushPromises()
+
+      expect(wrapper.nav.updateParams).toHaveBeenCalledWith(
+        { accountId: 'acc-1', uid: undefined, person: undefined },
+        { push: false }
+      )
+    })
+
+    it('sends back navigation from a legacy team key to the canonical team', async () => {
+      setProjectRoster({
+        people: [projectPerson('acc-1', 'Alice Chen')],
+        teams: [{ key: 'osac::t-1', id: 't-1', displayName: 'Platform' }]
+      })
+
+      const wrapper = mountView({ accountId: 'acc-1', teamKey: 'osac::Platform' })
+      await flushPromises()
+      await wrapper.findAll('button').find(b => b.text() === 'Platform').trigger('click')
+
+      expect(wrapper.nav.navigateTo).toHaveBeenCalledWith('team-detail', { teamKey: 'osac::t-1' })
+    })
+
+    it('sends back navigation to People when the legacy team key is ambiguous', async () => {
+      setProjectRoster({
+        people: [projectPerson('acc-1', 'Alice Chen')],
+        teams: [{ key: 'osac::Platform', id: 'Platform', displayName: 'Core' }, { key: 'osac::t-2', id: 't-2', displayName: 'Platform' }]
+      })
+
+      const wrapper = mountView({ accountId: 'acc-1', teamKey: 'OSAC::Platform' })
+      await flushPromises()
+      await wrapper.findAll('button').find(b => b.text() === 'People').trigger('click')
+
+      expect(wrapper.nav.navigateTo).toHaveBeenCalledWith('people')
+    })
+  })
+
+  describe('project roster failure', () => {
+    const failedRoster = () => {
+      rosterDataValue.value = null
+      rosterLoadingValue.value = false
+      rosterErrorValue.value = 'Roster unavailable'
+    }
+
+    beforeEach(() => {
+      projectIdValue.value = 'osac'
+    })
+
+    it.each([
+      ['accountId', { accountId: 'acc-1' }],
+      ['ldapUid', { ldapUid: 'dvp' }],
+      ['legacy uid', { uid: 'achen' }]
+    ])('shows an explicit error, not a spinner or legacy fetch, for a %s link', async (_label, params) => {
+      failedRoster()
+
+      const wrapper = mountView(params)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Could not load the roster for this project.')
+      expect(wrapper.find('.animate-spin').exists()).toBe(false)
+      expect(apiRequest).not.toHaveBeenCalled()
+      expect(wrapper.nav.updateParams).not.toHaveBeenCalled()
+    })
+
+    it('stays loading while the roster is still being fetched, even if an earlier error is set', async () => {
+      rosterErrorValue.value = 'Roster unavailable'
+      rosterLoadingValue.value = true
+
+      const wrapper = mountView({ accountId: 'acc-1' })
+      await flushPromises()
+
+      expect(wrapper.find('.animate-spin').exists()).toBe(true)
+      expect(wrapper.text()).not.toContain('Could not load the roster')
+    })
+
+    it('recovers when a later roster load succeeds', async () => {
+      failedRoster()
+      const wrapper = mountView({ accountId: 'acc-1' })
+      await flushPromises()
+      expect(wrapper.text()).toContain('Could not load the roster')
+
+      rosterErrorValue.value = null
+      rosterPeople.value = [{ accountId: 'acc-1', displayName: 'Alice Chen', active: true }]
+      rosterDataValue.value = { projectId: 'osac', teams: [], people: rosterPeople.value }
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Alice Chen')
+      expect(wrapper.text()).not.toContain('Could not load the roster')
+    })
+  })
+
+  describe('with no project', () => {
+    beforeEach(() => {
+      projectIdValue.value = ''
+      isAdminValue.value = true
+    })
+
+    it('keeps admin edit controls on a legacy uid profile', async () => {
+      apiRequest.mockImplementation((url) => {
+        if (url.includes('/registry/people/u1')) {
+          return Promise.resolve({
+            person: { uid: 'u1', name: 'Bob Builder', status: 'inactive', orgType: 'engineering', github: null, gitlab: null },
+            managerChain: [],
+            directReports: [],
+            associatedTeams: []
+          })
+        }
+        return Promise.resolve({ resolved: { issues: [] }, inProgress: { issues: [] } })
+      })
+
+      const wrapper = mountView({ uid: 'u1' })
+      await flushPromises()
+
+      const labels = wrapper.findAll('button').map(b => b.text())
+      expect(labels).toContain('Reactivate')
+      expect(labels).toContain('Purge')
+      expect(wrapper.find('button[title="Set"]').exists()).toBe(true)
+    })
+
+    it('leaves a legacy team key untouched for back navigation', async () => {
+      rosterTeamsValue.value = [{ key: 'org::Platform', displayKey: null, displayName: 'Platform', members: [] }]
+      apiRequest.mockResolvedValue({
+        person: { uid: 'u1', name: 'Bob Builder', status: 'active', orgType: 'engineering' },
+        managerChain: [],
+        directReports: [],
+        associatedTeams: []
+      })
+
+      const wrapper = mountView({ uid: 'u1', teamKey: 'org::Platform' })
+      await flushPromises()
+      await wrapper.findAll('button').find(b => b.text() === 'Platform').trigger('click')
+
+      expect(wrapper.nav.navigateTo).toHaveBeenCalledWith('team-detail', { teamKey: 'org::Platform' })
+      expect(wrapper.nav.updateParams).not.toHaveBeenCalled()
     })
   })
 })

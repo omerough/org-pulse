@@ -151,7 +151,7 @@ const { getContributions: getGitlabContributions } = useGitlabStats()
 const { getByAccountId: getProjectContribution, loadContributions: loadProjectContributions } = useProjectContributions()
 const projectId = useProjectId()
 
-// No-op for legacy OSAC (no project context); shares its cache with any other
+// No-op without a project context; shares its cache with any other
 // view that already loaded this project's contributions this session.
 onMounted(loadProjectContributions)
 watch(projectId, loadProjectContributions)
@@ -284,7 +284,7 @@ const teamGitlabByInstance = computed(() => {
 })
 
 async function openPersonHistory(member) {
-  // Snapshot history is OSAC-only; never call it for a canonical team.
+  // Snapshot history is legacy-only; never call it for a canonical team.
   if (isNormalizedModel.value) return
   showSnapshotHistory.value = true
   snapshotHistoryLoading.value = true

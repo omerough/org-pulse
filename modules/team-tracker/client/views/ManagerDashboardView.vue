@@ -121,14 +121,14 @@
                 </tr>
               </thead>
               <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                <tr v-for="report in projectFilteredReports" :key="report.accountId" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <tr v-for="report in projectFilteredReports" :key="reportId(report)" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td class="px-4 py-3 text-sm whitespace-nowrap">
                     <div class="flex items-center gap-1.5">
-                      <button @click="navigateToProjectPerson(report.accountId)" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">
+                      <button @click="navigateToProjectPerson(report)" class="text-primary-600 dark:text-primary-400 hover:underline font-medium">
                         {{ report.name }}
                       </button>
                       <span
-                        v-if="includeIndirect && !directReportUidSet.has(report.accountId)"
+                        v-if="includeIndirect && !directReportUidSet.has(reportId(report))"
                         class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
                         title="Indirect report"
                       >indirect</span>
@@ -736,9 +736,9 @@ const incompleteTeams = computed(() => {
 
 const incompleteTeamIds = computed(() => new Set(incompleteTeams.value.map(t => t.id)))
 
-// Reports are keyed by `uid` (OSAC) or canonical `accountId` (project roster).
+// Legacy reports are keyed by `uid`; project reports carry a server-provided `key`.
 function reportId(report) {
-  return report.uid ?? report.accountId
+  return report.uid ?? report.key ?? report.accountId
 }
 
 const directReportUidSet = computed(() =>
@@ -790,8 +790,10 @@ function projectTeamKey(team) {
   return `${projectId.value}::${team.id}`
 }
 
-function navigateToProjectPerson(accountId) {
-  if (nav && accountId) nav.navigateTo('person-detail', { accountId })
+function navigateToProjectPerson(report) {
+  if (!nav) return
+  if (report.accountId) nav.navigateTo('person-detail', { accountId: report.accountId })
+  else if (report.ldapUid) nav.navigateTo('person-detail', { ldapUid: report.ldapUid })
 }
 
 function navigateToProjectTeam(team) {
@@ -1314,7 +1316,7 @@ function handleLaunchTutorial() {
   launchTutorial({ onTabClick: (tabId) => { activeTab.value = tabId }, nav })
 }
 
-// The guided tour targets OSAC editing controls that are absent in project mode.
+// The guided tour targets legacy editing controls that are absent in project mode.
 let initialLoadHandled = false
 watch(loading, (isLoading, wasLoading) => {
   if (!initialLoadHandled && wasLoading && !isLoading && !error.value && !reason.value && !isProjectMode.value) {

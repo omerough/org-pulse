@@ -1,12 +1,15 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useTeams } from '@shared/client/composables/useTeams'
 import { useRoster } from '@shared/client/composables/useRoster'
 import { usePermissions } from '@shared/client/composables/usePermissions'
+import { useProjectId } from '@shared/client/composables/useProjectId.js'
+import ProjectRosterUnavailable from './ProjectRosterUnavailable.vue'
 
 const { teams, demoToast, fetchTeams, assignMembersBulk, fetchUnassigned } = useTeams()
 const { reloadRoster } = useRoster()
 const { isAdmin, isManager, canEdit } = usePermissions()
+const projectId = useProjectId()
 
 const people = ref([])
 const scope = ref('all')
@@ -20,21 +23,27 @@ watch(demoToast, (msg) => {
   if (msg) { demoInfo.value = msg; setTimeout(() => { demoInfo.value = null }, 3000) }
 })
 
+let loadSequence = 0
+
 async function loadPeople() {
+  const requestId = ++loadSequence
   loading.value = true
   try {
-    people.value = await fetchUnassigned(scope.value)
+    const result = await fetchUnassigned(scope.value)
+    if (requestId === loadSequence) people.value = result
   } catch {
-    people.value = []
+    if (requestId === loadSequence) people.value = []
   } finally {
-    loading.value = false
+    if (requestId === loadSequence) loading.value = false
   }
 }
 
-onMounted(() => {
+// Also fires when a selected project is cleared while this view stays mounted.
+watch(projectId, id => {
+  if (id) return
   loadPeople()
   fetchTeams()
-})
+}, { immediate: true })
 
 function toggleSelect(uid) {
   if (selectedUids.value.has(uid)) {
@@ -66,7 +75,8 @@ function changeScope(newScope) {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <ProjectRosterUnavailable v-if="projectId" />
+  <div v-else class="space-y-4">
     <div class="flex items-center justify-between">
       <h3 class="text-lg font-medium text-gray-900">Unassigned People</h3>
       <div class="flex items-center gap-2">

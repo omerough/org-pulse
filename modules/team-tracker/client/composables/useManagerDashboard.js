@@ -24,7 +24,7 @@ const projectId = useProjectId()
 let loadSequence = 0
 
 export function useManagerDashboard() {
-  const isProjectMode = computed(() => Boolean(projectId.value) && projectId.value !== 'osac')
+  const isProjectMode = computed(() => Boolean(projectId.value))
 
   function resetState() {
     manager.value = null

@@ -250,7 +250,7 @@ test.describe('People & Teams People Directory @people-teams', () => {
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
     // The people directory should render a list or table of people
-    // from the fixture registry (which has 13 people)
+    // from the default (OSAC) canonical roster fixture
     const mainContentVisible = await mainContentIsVisible(page);
     expect(mainContentVisible).toBe(true);
 
@@ -268,7 +268,8 @@ test.describe('People & Teams People Directory @people-teams', () => {
  * Project-qualified People & Teams (OSAC-5968)
  *
  * Verifies the Flight Control project roster renders through the normalized
- * read model, and that OSAC legacy behavior is unaffected.
+ * read model. OSAC-specific canonical coverage lives in the OSAC describe
+ * blocks at the end of this file.
  */
 test.describe('People & Teams Project-Qualified Roster @people-teams', () => {
   const FLIGHTCTL = 'flightctl';
@@ -455,7 +456,7 @@ test.describe('People & Teams Project-Qualified Roster @people-teams', () => {
     expect(page.errors).toHaveLength(0);
   });
 
-  test('OSAC legacy People Directory still resolves people by uid', async ({ page }) => {
+  test('OSAC People Directory resolves people by accountId, not legacy uid', async ({ page }) => {
     await page.goto('/#/team-tracker/people');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
@@ -468,8 +469,9 @@ test.describe('People & Teams Project-Qualified Roster @people-teams', () => {
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
     expect(page.url()).toMatch(/person-detail/);
-    expect(page.url()).toContain('uid=');
-    expect(page.url()).not.toContain('accountId=');
+    expect(page.url()).toContain('accountId=');
+    expect(page.url()).not.toContain('uid=');
+    expect(page.errors).toHaveLength(0);
   });
 });
 
@@ -792,7 +794,7 @@ test.describe('People & Teams Project-Qualified Contributions @people-teams', ()
 /**
  * Project-Qualified Trends and Team Comparison (OSAC-6322)
  * Verifies the report journeys read project-scoped GitHub/Jira data, present
- * unavailable and partial coverage accurately, and leave legacy OSAC unchanged.
+ * unavailable and partial coverage accurately, for both published projects.
  */
 test.describe('People & Teams Project-Qualified Reports @people-teams', () => {
   const FLIGHTCTL = 'flightctl';
@@ -906,23 +908,478 @@ test.describe('People & Teams Project-Qualified Reports @people-teams', () => {
     expect(page.errors).toHaveLength(0);
   });
 
-  test('legacy OSAC Trends and Team Comparison keep the username-keyed shape and enabled GitLab metrics', async ({ page }) => {
+  test('OSAC Trends and Team Comparison read the canonical project-scoped series with GitLab unsupported', async ({ page }) => {
     const trendsResponse = page.waitForResponse(response => TRENDS_URL.test(response.url()));
     await openReport(page, 'Productivity Trends');
 
     const response = await trendsResponse;
     expect(new URL(response.url()).searchParams.get('projectId')).toBe('osac');
     const trends = await response.json();
-    expect(trends.github).toHaveProperty('users');
-    expect(trends.github).not.toHaveProperty('overall');
+    expect(trends.github).toHaveProperty('overall');
+    expect(trends.github).not.toHaveProperty('users');
+    expect(Object.keys(trends.github.byTeam).every(key => key.startsWith('osac::'))).toBe(true);
     await expect(page.locator('canvas').first()).toBeVisible();
-    await expect(page.getByText('Unsupported for this project')).toHaveCount(0);
+    await expect(page.getByText('GitLab Contributions: Unsupported for this project.')).toBeVisible();
 
+    const metricsUrls = [];
+    page.on('request', request => {
+      if (TEAM_METRICS_URL.test(request.url())) metricsUrls.push(request.url());
+    });
     await openReport(page, 'Team Comparison');
-    await expect(page.getByLabel('GitLab Contributions (1yr)')).toBeEnabled();
-    await expect(page.getByText('Unsupported for this project')).toHaveCount(0);
-    await expect(page.getByText(/Partial coverage/)).toHaveCount(0);
+    await expect(page.getByLabel('GitLab Contributions (1yr)')).toBeDisabled();
+
+    const teamFilter = page.getByRole('group', { name: 'Team filter' });
+    await teamFilter.getByText('Platform', { exact: true }).click();
+    await page.getByLabel('GitHub Contributions (1yr)').check();
+    await page.getByRole('button', { name: 'Run' }).click();
+    await expect(page.locator('canvas')).toHaveCount(1);
+
+    expect(metricsUrls.length).toBeGreaterThan(0);
+    for (const url of metricsUrls) {
+      expect(new URL(url).searchParams.get('projectId')).toBe('osac');
+    }
+    expect(page.errors).toHaveLength(0);
+  });
+});
+
+/**
+ * OSAC Canonical People & Teams (OSAC-6323)
+ * OSAC uses the read-only project-qualified path; requests without projectId stay legacy.
+ */
+const OSAC = 'osac';
+const FLIGHTCTL_PROJECT = 'flightctl';
+const OSAC_PLATFORM_KEY = 'osac::93eb6d97-b6c6-4509-ab08-16478cd02304';
+const FORWARDED_EMAIL = 'X-Forwarded-Email';
+
+const ROSTER_URL = /\/api\/(?:modules\/team-tracker\/)?roster(?:\?|$)/;
+const TEAM_METRICS_PATH = /\/api\/(?:modules\/team-tracker\/)?team\/([^/?]+)\/metrics/;
+const MESSAGES_URL = /\/api\/messages(?:\?|$)/;
+const LEGACY_ENDPOINT = /\/api\/(?:modules\/team-tracker\/)?(?:registry\/|structure\/(?:teams|unassigned)|people\/metrics|person\/[^/?]+\/metrics)/;
+const LEGACY_LINK_PARAM = /[?&](?:uid|person)=/;
+const TEAM_TRACKER_API = '/api/modules/team-tracker';
+
+const mainContent = page => page.locator('main, [role="main"], .min-h-screen').first();
+
+async function settle(page) {
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+}
+
+function trackRequests(page, pattern) {
+  const urls = [];
+  page.on('request', request => {
+    if (pattern.test(request.url())) urls.push(request.url());
+  });
+  return urls;
+}
+
+function expectAllProjectQualified(urls, projectId) {
+  expect(urls.length).toBeGreaterThan(0);
+  for (const url of urls) {
+    expect(new URL(url).searchParams.get('projectId')).toBe(projectId);
+  }
+}
+
+const editControls = page => page.locator('button[title="Edit"], button[title="Set"]');
+const destructiveControls = page => page.getByRole('button', { name: /^(Delete|Reactivate|Save)/ });
+
+test.describe('People & Teams OSAC Canonical Roster @people-teams', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  test('People Directory reads only the project-qualified roster and navigates by accountId', async ({ page }) => {
+    const rosterUrls = trackRequests(page, ROSTER_URL);
+    const legacyUrls = trackRequests(page, LEGACY_ENDPOINT);
+
+    await page.goto(`/#/team-tracker/people?projectId=${OSAC}`);
+    await settle(page);
+
+    const bodyText = await mainContent(page).textContent();
+    expect(bodyText).toContain('Alice Chen');
+    expect(bodyText).toContain('Sam Designer');
+    expectAllProjectQualified(rosterUrls, OSAC);
+    expect(legacyUrls).toHaveLength(0);
+
+    await page.locator('tbody tr', { hasText: 'Bob Smith' }).first().click();
+    await settle(page);
+    expect(page.url()).toContain('accountId=osac-acc-2');
+    expect(page.url()).not.toMatch(LEGACY_LINK_PARAM);
 
     expect(page.errors).toHaveLength(0);
+  });
+
+  test('Team Directory lists the published teams and opens Team Detail by canonical key', async ({ page }) => {
+    await page.goto(`/#/team-tracker/home?projectId=${OSAC}`);
+    await settle(page);
+
+    const teamCard = page.locator('.cursor-pointer', { hasText: 'ML Platform' }).first();
+    await expect(teamCard).toBeVisible();
+    await teamCard.click();
+    await settle(page);
+
+    expect(page.url()).toMatch(/team-detail/);
+    expect(decodeURIComponent(page.url())).toContain('teamKey=osac::b29325e5-601a-4d53-b84b-0170920db548');
+    await expect(mainContent(page)).toContainText('Grace Kim');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Person Profile is read-only and shows the verified LDAP identity', async ({ page }) => {
+    const legacyUrls = trackRequests(page, LEGACY_ENDPOINT);
+
+    await page.goto(`/#/team-tracker/person-detail?projectId=${OSAC}&accountId=osac-acc-1`);
+    await settle(page);
+
+    const card = page.locator('[data-tour="person-profile-card"]');
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('Alice Chen');
+    await expect(card.locator('.font-mono.text-xs')).toHaveText('achen');
+    await expect(editControls(page)).toHaveCount(0);
+    await expect(destructiveControls(page)).toHaveCount(0);
+    expect(legacyUrls).toHaveLength(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Team Detail is read-only for the OSAC project', async ({ page }) => {
+    await page.goto(`/#/team-tracker/team-detail?projectId=${OSAC}&teamKey=${OSAC_PLATFORM_KEY}`);
+    await settle(page);
+
+    await expect(mainContent(page)).toContainText('Bob Smith');
+    await expect(editControls(page)).toHaveCount(0);
+    await expect(destructiveControls(page)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Add Member|Edit Team|Delete Team/ })).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Org Dashboard totals come from the canonical roster', async ({ page }) => {
+    await page.goto(`/#/team-tracker/org-dashboard?projectId=${OSAC}`);
+    await settle(page);
+
+    const bodyText = await mainContent(page).textContent();
+    for (const team of ['Platform', 'Infrastructure', 'ML Platform', 'Data Pipeline']) {
+      expect(bodyText).toContain(team);
+    }
+    expect(bodyText).not.toContain('Open PRDs');
+
+    expect(page.errors).toHaveLength(0);
+  });
+});
+
+test.describe('People & Teams OSAC Legacy Deep Links @people-teams', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  const personLinks = [
+    { title: 'a roster uid', query: 'uid=bsmith', canonical: 'accountId=osac-acc-2', name: 'Bob Smith' },
+    { title: 'a display name', query: 'person=Carol%20Williams', canonical: 'accountId=osac-acc-3', name: 'Carol Williams' },
+    { title: 'an external manager uid', query: 'uid=demovp', canonical: 'ldapUid=demovp', name: 'Demo VP' },
+  ];
+
+  for (const { title, query, canonical, name } of personLinks) {
+    test(`legacy person link with ${title} is rewritten to the canonical identity`, async ({ page }) => {
+      const legacyUrls = trackRequests(page, LEGACY_ENDPOINT);
+
+      await page.goto(`/#/team-tracker/person-detail?projectId=${OSAC}&${query}`);
+      await settle(page);
+
+      await expect.poll(() => page.url()).toContain(canonical);
+      expect(page.url()).not.toMatch(LEGACY_LINK_PARAM);
+      await expect(mainContent(page)).toContainText(name);
+      await expect(page.getByTestId('link-unresolved')).toHaveCount(0);
+      await expect(editControls(page)).toHaveCount(0);
+      await expect(destructiveControls(page)).toHaveCount(0);
+      expect(legacyUrls).toHaveLength(0);
+
+      expect(page.errors).toHaveLength(0);
+    });
+  }
+
+  test('an unmatched legacy person link shows the unresolved state and leaves the URL alone', async ({ page }) => {
+    const legacyUrls = trackRequests(page, LEGACY_ENDPOINT);
+
+    await page.goto(`/#/team-tracker/person-detail?projectId=${OSAC}&uid=ghost`);
+    await settle(page);
+
+    await expect(page.getByTestId('link-unresolved')).toBeVisible();
+    expect(page.url()).toContain('uid=ghost');
+    expect(page.url()).not.toContain('accountId=');
+    await expect(editControls(page)).toHaveCount(0);
+    expect(legacyUrls).toHaveLength(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('legacy team link osac::<TeamName> is rewritten to the canonical team key', async ({ page }) => {
+    const metricsUrls = trackRequests(page, TEAM_METRICS_PATH);
+    const metricsResponse = page.waitForResponse(response =>
+      TEAM_METRICS_PATH.test(response.url())
+      && decodeURIComponent(response.url().match(TEAM_METRICS_PATH)[1]) === OSAC_PLATFORM_KEY);
+
+    await page.goto(`/#/team-tracker/team-detail?projectId=${OSAC}&teamKey=osac::Platform`);
+    await expect.poll(() => decodeURIComponent(page.url())).toContain(`teamKey=${OSAC_PLATFORM_KEY}`);
+    await expect(mainContent(page)).toContainText('Alice Chen');
+    await page.getByRole('button', { name: 'Delivery' }).click();
+
+    const response = await metricsResponse;
+    expect(response.ok()).toBeTruthy();
+    expect(new URL(response.url()).searchParams.get('projectId')).toBe(OSAC);
+    for (const url of metricsUrls) {
+      expect(decodeURIComponent(url.match(TEAM_METRICS_PATH)[1])).not.toBe('osac::Platform');
+    }
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('unmatched and foreign-prefixed legacy team links show the not-found state without a metrics call', async ({ page }) => {
+    const metricsUrls = trackRequests(page, TEAM_METRICS_PATH);
+
+    for (const teamKey of ['osac::Nonexistent', 'achen::Platform']) {
+      await page.goto(`/#/team-tracker/team-detail?projectId=${OSAC}&teamKey=${teamKey}`);
+      await settle(page);
+      await expect(page.getByTestId('team-not-found')).toBeVisible();
+    }
+    expect(metricsUrls).toHaveLength(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  for (const viewId of ['manage', 'org-explorer', 'unassigned']) {
+    test(`${viewId} shows the project-roster guard and makes no legacy fetch`, async ({ page }) => {
+      const legacyUrls = trackRequests(page, LEGACY_ENDPOINT);
+
+      await page.goto(`/#/team-tracker/${viewId}?projectId=${OSAC}`);
+      await settle(page);
+
+      await expect(page.getByTestId('not-available-for-project')).toContainText('Not available for project rosters.');
+      expect(legacyUrls).toHaveLength(0);
+
+      expect(page.errors).toHaveLength(0);
+    });
+  }
+});
+
+test.describe('People & Teams OSAC Project Switching @people-teams', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  test('switching between OSAC and Flight Control never shows the other project\'s people', async ({ page }) => {
+    const rosterUrls = trackRequests(page, ROSTER_URL);
+
+    await page.goto(`/#/team-tracker/people?projectId=${OSAC}`);
+    await settle(page);
+    await expect(mainContent(page)).toContainText('Alice Chen');
+    await expect(mainContent(page)).not.toContainText('Nadia Osei');
+
+    await page.locator('#project-selector').selectOption(FLIGHTCTL_PROJECT);
+    await page.goto(`/#/team-tracker/people?projectId=${FLIGHTCTL_PROJECT}`);
+    await settle(page);
+    await expect(mainContent(page)).toContainText('Nadia Osei');
+    await expect(mainContent(page)).not.toContainText('Alice Chen');
+
+    await page.locator('#project-selector').selectOption(OSAC);
+    await page.goto(`/#/team-tracker/people?projectId=${OSAC}`);
+    await settle(page);
+    await expect(mainContent(page)).toContainText('Alice Chen');
+    await expect(mainContent(page)).not.toContainText('Nadia Osei');
+
+    const projects = new Set(rosterUrls.map(url => new URL(url).searchParams.get('projectId')));
+    expect(projects).toEqual(new Set([OSAC, FLIGHTCTL_PROJECT]));
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('field-completeness messages are requested per selected project', async ({ page }) => {
+    const messageUrls = trackRequests(page, MESSAGES_URL);
+
+    await page.goto(`/#/team-tracker/home?projectId=${OSAC}`);
+    await settle(page);
+    expect(messageUrls.length).toBeGreaterThan(0);
+    for (const url of messageUrls) {
+      expect(new URL(url).searchParams.get('projectId')).toBe(OSAC);
+    }
+    await expect(page.locator('a[href*="team-tracker/manage"]')).toHaveCount(0);
+
+    messageUrls.length = 0;
+    await page.locator('#project-selector').selectOption(FLIGHTCTL_PROJECT);
+    await settle(page);
+    expect(messageUrls.length).toBeGreaterThan(0);
+    expect(new URL(messageUrls[messageUrls.length - 1]).searchParams.get('projectId')).toBe(FLIGHTCTL_PROJECT);
+    await expect(page.locator('a[href*="team-tracker/manage"]')).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+});
+
+test.describe('People & Teams OSAC External Manager @people-teams', () => {
+  test.use({ extraHTTPHeaders: { [FORWARDED_EMAIL]: 'demovp@cluster.local' } });
+
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  test('an external manager sees external and indirect reports and opens them by ldapUid', async ({ page }) => {
+    await page.goto(`/#/team-tracker/manager-dashboard?projectId=${OSAC}`);
+    await settle(page);
+
+    const table = page.locator('tbody:visible');
+    await expect(table.getByRole('button', { name: 'Alice Chen' })).toBeVisible();
+    await expect(table.getByRole('button', { name: 'Frank Johnson' })).toBeVisible();
+    await expect(table.getByRole('button', { name: 'Dana PMLeader' })).toBeVisible();
+    await expect(table.getByRole('button', { name: 'Pat Manager' })).toHaveCount(0);
+
+    await page.getByRole('switch').click();
+    await expect(table.getByRole('button', { name: 'Pat Manager' })).toBeVisible();
+    await expect(table.getByRole('button', { name: 'Bob Smith' })).toBeVisible();
+
+    await table.getByRole('button', { name: 'Dana PMLeader' }).click();
+    await expect.poll(() => page.url()).toContain('ldapUid=pmleader');
+    await expect(mainContent(page)).toContainText('Dana PMLeader');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('manager state does not leak into Flight Control after switching projects', async ({ page }) => {
+    await page.goto(`/#/team-tracker/manager-dashboard?projectId=${OSAC}`);
+    await settle(page);
+    await expect(mainContent(page)).toContainText('Dana PMLeader');
+    await expect(page.locator('aside nav button').filter({ hasText: 'My Teams' }).first()).toBeVisible();
+
+    await page.locator('#project-selector').selectOption(FLIGHTCTL_PROJECT);
+    await page.goto(`/#/team-tracker/manager-dashboard?projectId=${FLIGHTCTL_PROJECT}`);
+    await settle(page);
+
+    const bodyText = await mainContent(page).textContent();
+    expect(bodyText).toContain('No Registry Identity');
+    for (const osacName of ['Alice Chen', 'Frank Johnson', 'Dana PMLeader']) {
+      expect(bodyText).not.toContain(osacName);
+    }
+    await expect(page.locator('aside nav button').filter({ hasText: 'My Teams' })).toHaveCount(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+});
+
+test.describe('People & Teams OSAC Canonical API @people-teams', () => {
+  const get = (request, path, headers = {}) => request.get(`${TEAM_TRACKER_API}${path}`, { headers });
+  const forwarded = email => ({ [FORWARDED_EMAIL]: email });
+
+  test('requests without projectId keep the legacy response shapes', async ({ request }) => {
+    const roster = await (await get(request, '/roster')).json();
+    expect(Array.isArray(roster.orgs)).toBe(true);
+    expect(roster).not.toHaveProperty('availability');
+    expect(roster).not.toHaveProperty('people');
+    const [firstPerson] = Object.values(roster.orgs[0].teams)[0].members;
+    expect(firstPerson).toHaveProperty('uid');
+    expect(firstPerson).not.toHaveProperty('accountId');
+
+    const permissions = await (await get(request, '/permissions/me')).json();
+    expect(Object.keys(permissions).sort()).toEqual(['email', 'isManager', 'managedUids', 'roles', 'uid']);
+
+    const dashboard = await (await get(request, '/manager/dashboard')).json();
+    expect(dashboard).not.toHaveProperty('mode');
+    expect(dashboard).not.toHaveProperty('availability');
+
+    const trends = await (await get(request, '/trends')).json();
+    expect(trends.github).toHaveProperty('users');
+    expect(trends.github).not.toHaveProperty('overall');
+  });
+
+  test('projectId=osac serves the canonical roster, never the legacy one', async ({ request }) => {
+    const response = await get(request, `/roster?projectId=${OSAC}`);
+    expect(response.status()).toBe(200);
+    const roster = await response.json();
+    expect(roster).toMatchObject({ projectId: OSAC, availability: 'available' });
+    expect(roster).not.toHaveProperty('orgs');
+    expect(roster.people).toHaveLength(12);
+    expect(roster.teams.map(team => team.displayName).sort()).toEqual(['Data Pipeline', 'Infrastructure', 'ML Platform', 'Platform']);
+    expect(roster.people.every(person => person.key.startsWith('osac::') && !('uid' in person))).toBe(true);
+
+    const trends = await (await get(request, `/trends?projectId=${OSAC}`)).json();
+    expect(trends).toMatchObject({ projectId: OSAC, availability: 'available' });
+    expect(trends.github).toHaveProperty('overall');
+  });
+
+  test('team metrics resolve canonical keys only; a legacy team name is not found', async ({ request }) => {
+    const canonical = await get(request, `/team/${encodeURIComponent(OSAC_PLATFORM_KEY)}/metrics?projectId=${OSAC}`);
+    expect(canonical.status()).toBe(200);
+    expect(await canonical.json()).toMatchObject({ teamKey: OSAC_PLATFORM_KEY, available: true });
+
+    const legacyName = await get(request, `/team/${encodeURIComponent('osac::Platform')}/metrics?projectId=${OSAC}`);
+    expect(legacyName.status()).toBe(404);
+  });
+
+  test('an unknown project is rejected rather than served from the legacy registry', async ({ request }) => {
+    for (const path of ['/roster', '/trends', '/permissions/me', '/manager/dashboard']) {
+      const response = await get(request, `${path}?projectId=no-such-project`);
+      expect(response.status(), path).toBe(404);
+    }
+  });
+
+  const managerIdentities = [
+    { title: 'an external manager by local part', email: 'demovp@cluster.local', uid: null, ldapUid: 'demovp', managed: ['osac-acc-1', 'osac-acc-6', 'ldap:pmleader'] },
+    { title: 'an external manager of an external manager', email: 'pmleader@redhat.com', uid: null, ldapUid: 'pmleader', managed: ['osac-acc-11', 'osac-acc-12'] },
+    { title: 'a roster manager by exact email', email: 'bsmith@example.com', uid: 'osac-acc-2', ldapUid: null, managed: ['osac-acc-3'] },
+    { title: 'a roster manager by local part', email: 'bsmith@cluster.local', uid: 'osac-acc-2', ldapUid: null, managed: ['osac-acc-3'] },
+  ];
+
+  for (const { title, email, uid, ldapUid, managed } of managerIdentities) {
+    test(`resolves ${title}`, async ({ request }) => {
+      const permissions = await (await get(request, `/permissions/me?projectId=${OSAC}`, forwarded(email))).json();
+      expect(permissions).toMatchObject({ email, uid, ldapUid, isManager: true });
+      expect([...permissions.managedUids].sort()).toEqual([...managed].sort());
+
+      const dashboard = await get(request, `/manager/dashboard?projectId=${OSAC}`, forwarded(email));
+      expect(dashboard.status()).toBe(200);
+      expect((await dashboard.json()).directReports.length).toBe(managed.length);
+    });
+  }
+
+  test('a roster member who manages nobody gets 403 and an unknown identity gets the empty state', async ({ request }) => {
+    const nonManager = await get(request, `/manager/dashboard?projectId=${OSAC}`, forwarded('cwilliams@example.com'));
+    expect(nonManager.status()).toBe(403);
+
+    const unknown = await get(request, `/manager/dashboard?projectId=${OSAC}`, forwarded('nobody@redhat.com'));
+    expect(unknown.status()).toBe(200);
+    expect(await unknown.json()).toMatchObject({ reason: 'no-registry-identity', directReports: [] });
+  });
+
+  test('an OSAC manager identity grants nothing in Flight Control', async ({ request }) => {
+    const permissions = await (await get(request, `/permissions/me?projectId=${FLIGHTCTL_PROJECT}`, forwarded('demovp@cluster.local'))).json();
+    expect(permissions).toMatchObject({ uid: null, ldapUid: null, isManager: false, managedUids: [] });
+
+    const dashboard = await get(request, `/manager/dashboard?projectId=${FLIGHTCTL_PROJECT}`, forwarded('demovp@cluster.local'));
+    expect((await dashboard.json()).directReports).toEqual([]);
+  });
+
+  test('messages accept a project selection and suppress legacy field-completeness for it', async ({ request }) => {
+    const unqualified = await request.get('/api/messages');
+    expect(unqualified.status()).toBe(200);
+    expect(Array.isArray((await unqualified.json()).messages)).toBe(true);
+
+    const qualified = await request.get(`/api/messages?projectId=${OSAC}`);
+    expect(qualified.status()).toBe(200);
+    const { messages } = await qualified.json();
+    expect(JSON.stringify(messages)).not.toContain('team-tracker/manage');
   });
 });

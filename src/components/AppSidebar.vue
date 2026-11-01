@@ -328,8 +328,8 @@ const navSections = computed(() => {
     const navItems = manifest.client?.navItems || []
     const items = navItems
       .filter(item => {
-        // Project rosters have no teamDataSource; a selected non-OSAC project satisfies this gate instead.
-        const inProjectContext = Boolean(props.projectId) && props.projectId !== 'osac'
+        // Project rosters have no teamDataSource; a selected project satisfies this gate instead.
+        const inProjectContext = Boolean(props.projectId)
         if (item.requireCondition === 'in-app-mode' && props.teamDataSource !== 'in-app' && !inProjectContext) return false
         if (!item.requireRole) return true
         if (props.isAdmin) return true

@@ -1,8 +1,11 @@
 <script setup>
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, watch, inject } from 'vue'
 import { apiRequest } from '@shared/client/services/api.js'
+import { useProjectId } from '@shared/client/composables/useProjectId.js'
+import ProjectRosterUnavailable from '../components/ProjectRosterUnavailable.vue'
 
 const nav = inject('moduleNav')
+const projectId = useProjectId()
 
 const orgData = ref(null)
 const loading = ref(true)
@@ -10,14 +13,18 @@ const search = ref('')
 const selectedRoot = ref(0)
 const drillPath = ref([])
 
+let loadSequence = 0
+
 async function loadOrgs() {
+  const requestId = ++loadSequence
   loading.value = true
   try {
-    orgData.value = await apiRequest('/modules/team-tracker/registry/orgs')
+    const data = await apiRequest('/modules/team-tracker/registry/orgs')
+    if (requestId === loadSequence) orgData.value = data
   } catch {
-    orgData.value = null
+    if (requestId === loadSequence) orgData.value = null
   } finally {
-    loading.value = false
+    if (requestId === loadSequence) loading.value = false
   }
 }
 
@@ -102,11 +109,15 @@ function openPerson(uid) { nav.navigateTo('person-detail', { uid }) }
 function ghPct(stats) { return stats.total > 0 ? Math.round(stats.github / stats.total * 100) : 0 }
 function glPct(stats) { return stats.total > 0 ? Math.round(stats.gitlab / stats.total * 100) : 0 }
 
-onMounted(loadOrgs)
+// Also fires when a selected project is cleared while this view stays mounted.
+watch(projectId, id => {
+  if (!id) loadOrgs()
+}, { immediate: true })
 </script>
 
 <template>
-  <div>
+  <ProjectRosterUnavailable v-if="projectId" />
+  <div v-else>
     <div v-if="loading" class="flex items-center justify-center py-12">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
     </div>

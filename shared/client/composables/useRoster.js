@@ -59,7 +59,7 @@ function fetchRoster({ force = false } = {}) {
   const promise = (async () => {
     try {
       const fresh = await getRoster(requestedProjectId)
-      if (requestedProjectId && requestedProjectId !== 'osac' && fresh?.projectId !== requestedProjectId) {
+      if (requestedProjectId && fresh?.projectId !== requestedProjectId) {
         throw new Error('Roster response project identity mismatch')
       }
       if (requestId === requestSequence && projectId.value === requestedProjectId) {

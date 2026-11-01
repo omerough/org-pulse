@@ -285,6 +285,50 @@ describe('getDirectReports', () => {
   })
 })
 
+describe('direct reports that are external managers', () => {
+  const auxiliaryManagers = {
+    director1: { ldapUid: 'director1', displayName: 'Director One', title: 'Director', managerRef: { kind: 'roster', accountId: 'mgr' } },
+    vp1: { ldapUid: 'vp1', displayName: 'VP One', title: 'VP', managerRef: null },
+    lead1: { ldapUid: 'lead1', displayName: 'Lead One', managerRef: { kind: 'external', ldapUid: 'vp1' } },
+    selfRef: { ldapUid: 'selfRef', displayName: 'Self Ref', managerRef: { kind: 'external', ldapUid: 'selfRef' } }
+  }
+  const people = [
+    rosterPerson('mgr', { displayName: 'Mgr' }),
+    rosterPerson('r1', { displayName: 'Report One', managerRef: { kind: 'external', ldapUid: 'vp1' } })
+  ]
+
+  it('lists an external manager reporting to a roster manager, after roster reports', () => {
+    const withRosterReport = [...people, rosterPerson('r2', { displayName: 'Report Two', managerRef: { kind: 'roster', accountId: 'mgr' } })]
+
+    expect(getDirectReports('mgr', { people: withRosterReport, auxiliaryManagers })).toEqual([
+      { accountId: 'r2', name: 'Report Two', title: null, navigable: true },
+      { ldapUid: 'director1', name: 'Director One', title: 'Director', navigable: true }
+    ])
+  })
+
+  it('lists roster people then external managers reporting to an external manager, excluding itself', () => {
+    expect(getDirectReportsOfExternal('vp1', { people, auxiliaryManagers })).toEqual([
+      { accountId: 'r1', name: 'Report One', title: null, navigable: true },
+      { ldapUid: 'lead1', name: 'Lead One', title: null, navigable: true }
+    ])
+    expect(getDirectReportsOfExternal('selfRef', { people, auxiliaryManagers })).toEqual([])
+  })
+
+  it('gives external reports no accountId', () => {
+    const [report] = getDirectReports('mgr', { people: [rosterPerson('mgr')], auxiliaryManagers })
+    expect(report).not.toHaveProperty('accountId')
+  })
+
+  it('ignores an inherited or absent auxiliaryManagers dictionary', () => {
+    expect(getDirectReports('mgr', { people: [rosterPerson('mgr')] })).toEqual([])
+    expect(getDirectReportsOfExternal('vp1', { people, auxiliaryManagers: null }).map(r => r.accountId)).toEqual(['r1'])
+  })
+
+  it('does not attach an external manager to a different roster manager', () => {
+    expect(getDirectReports('someone-else', { people, auxiliaryManagers })).toEqual([])
+  })
+})
+
 describe('getHierarchyAvailability', () => {
   it('is unavailable when no enrichment ever joined', () => {
     expect(getHierarchyAvailability(undefined)).toEqual({ available: false, indicator: null })

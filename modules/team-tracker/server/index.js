@@ -552,7 +552,8 @@ module.exports = function registerRoutes(router, context) {
   const {
     getManagerPurview,
     buildProjectManagerModel,
-    resolveProjectManagerAccountId
+    resolveProjectManagerIdentity,
+    projectManagerNodeKey
   } = require('./manager-purview');
 
   /**
@@ -565,40 +566,42 @@ module.exports = function registerRoutes(router, context) {
    *       - in: query
    *         name: projectId
    *         schema: { type: string }
-   *         description: OSAC/unset returns the legacy registry-based permission tier; any other project returns its project-qualified manager status.
+   *         description: Unset returns the legacy registry-based permission tier; any registered project returns its project-qualified manager status.
    *     responses:
    *       200:
    *         description: Permission info
    */
   router.get('/permissions/me', requireScope('roster:read'), function(req, res) {
-    // Manager status comes from the published read model, not the OSAC registry.
+    // Manager status comes from the published read model, not the legacy registry.
     const permSelection = resolveProjectSelection(context.projects, req.query);
     if (permSelection.provided && permSelection.status) {
       return res.status(permSelection.status).json({ error: permSelection.error });
     }
-    if (permSelection.provided && permSelection.projectId !== 'osac') {
+    if (permSelection.provided) {
       const result = readProjectPeopleTeams(context.projects, permSelection.projectId);
       if (result.status !== 200 || !result.model) {
         return res.status(result.status).json({ error: result.error });
       }
       const { projectHierarchyStatus } = require('./project-manager-dashboard');
-      const accountId = resolveProjectManagerAccountId(result.model, req.userEmail);
+      const identity = resolveProjectManagerIdentity(result.model, req.userEmail);
       let isManager = false;
-      let managedAccountIds = [];
-      if (accountId) {
+      let managedKeys = [];
+      if (identity) {
         const { registry, teamsData } = buildProjectManagerModel(result.model);
-        const purview = getManagerPurview(accountId, registry, teamsData, {});
+        const purview = getManagerPurview(projectManagerNodeKey(identity), registry, teamsData, {});
         isManager = purview.directReportUids.length > 0;
-        managedAccountIds = purview.directReportUids;
+        managedKeys = purview.directReportUids;
       }
       return res.json({
         email: req.userEmail,
-        uid: accountId,
+        uid: identity?.kind === 'roster' ? identity.accountId : null,
+        ldapUid: identity?.kind === 'external' ? identity.ldapUid : null,
         roles: req.userRoles || [],
         // Fail closed: true only when a verified downward edge exists. An
         // absent/partial/expired hierarchy yields false (unknown), never true.
         isManager,
-        managedUids: managedAccountIds,
+        // Roster accountIds plus `ldap:<uid>` keys for external reports.
+        managedUids: managedKeys,
         // Separate, identity-independent availability signal so read-only UI can
         // explain an absent/partial/expired hierarchy without mistaking a
         // fail-closed isManager:false for a verified non-manager. Never affects authz.
@@ -630,7 +633,7 @@ module.exports = function registerRoutes(router, context) {
    *       - in: query
    *         name: projectId
    *         schema: { type: string }
-   *         description: OSAC/unset returns the legacy registry dashboard; any other project returns its read-only project-qualified purview.
+   *         description: Unset returns the legacy registry dashboard; any registered project returns its read-only project-qualified purview.
    *       - in: query
    *         name: includeIndirect
    *         schema: { type: boolean }
@@ -643,12 +646,12 @@ module.exports = function registerRoutes(router, context) {
    */
   router.get('/manager/dashboard', requireScope('roster:read'), function(req, res) {
     // Project-qualified roster: compute purview from the published read model.
-    // OSAC and an unset projectId fall through to the legacy registry path.
+    // An unset projectId falls through to the legacy registry path.
     const selection = resolveProjectSelection(context.projects, req.query);
     if (selection.provided && selection.status) {
       return res.status(selection.status).json({ error: selection.error });
     }
-    if (selection.provided && selection.projectId !== 'osac') {
+    if (selection.provided) {
       const result = readProjectPeopleTeams(context.projects, selection.projectId);
       if (result.status !== 200 || !result.model) {
         return res.status(result.status).json({ error: result.error });
@@ -2880,7 +2883,7 @@ module.exports = function registerRoutes(router, context) {
    *         name: projectId
    *         required: false
    *         schema: { type: string }
-   *         description: OSAC and an unset projectId return the legacy roster; any other project returns its normalized read model.
+   *         description: An unset projectId returns the legacy roster; any registered project returns its normalized read model.
    *     responses:
    *       200:
    *         description: Organization roster data
@@ -2916,8 +2919,7 @@ module.exports = function registerRoutes(router, context) {
     try {
       const selection = resolveProjectSelection(context.projects, req.query);
       if (selection.status) return res.status(selection.status).json({ error: selection.error });
-      // OSAC's project publication has a minimal person contract; use the enriched legacy roster instead.
-      if (selection.provided && selection.projectId !== 'osac') {
+      if (selection.provided) {
         const result = readProjectPeopleTeams(context.projects, selection.projectId);
         if (result.status !== 200) return res.status(result.status).json({ error: result.error });
         return res.json(result.model);
@@ -3133,12 +3135,12 @@ module.exports = function registerRoutes(router, context) {
    *         required: true
    *         schema:
    *           type: string
-   *         description: Team key (format orgKey::teamName for OSAC, projectId::teamId for a project)
+   *         description: Team key (format orgKey::teamName without a projectId, projectId::teamId with one)
    *       - in: query
    *         name: projectId
    *         required: false
    *         schema: { type: string }
-   *         description: OSAC and an unset projectId return legacy team metrics; any other project returns its project-qualified Jira team metrics.
+   *         description: An unset projectId returns legacy team metrics; any registered project returns its project-qualified Jira team metrics.
    *     responses:
    *       200:
    *         description: Team metrics data
@@ -3155,7 +3157,7 @@ module.exports = function registerRoutes(router, context) {
 
       const selection = resolveProjectSelection(context.projects, req.query);
       if (selection.status) return res.status(selection.status).json({ error: selection.error });
-      if (selection.provided && selection.projectId !== 'osac') {
+      if (selection.provided) {
         const sepIdx = teamKey.indexOf('::');
         const keyProjectId = sepIdx !== -1 ? teamKey.substring(0, sepIdx) : null;
         if (keyProjectId !== null && keyProjectId !== selection.projectId) {
@@ -3427,7 +3429,7 @@ module.exports = function registerRoutes(router, context) {
    *         name: projectId
    *         required: false
    *         schema: { type: string }
-   *         description: OSAC and an unset projectId return the legacy global trends; any other project returns its project-qualified Jira trends, with GitHub merged in from the project's contributions publication when available. GitLab is always null for project mode (no project-qualified publication exists).
+   *         description: An unset projectId returns the legacy global trends; any registered project returns its project-qualified Jira trends, with GitHub merged in from the project's contributions publication when available. GitLab is always null for project mode (no project-qualified publication exists).
    *     responses:
    *       200:
    *         description: Combined trend data from all sources
@@ -3442,7 +3444,7 @@ module.exports = function registerRoutes(router, context) {
     try {
       const selection = resolveProjectSelection(context.projects, req.query);
       if (selection.status) return res.status(selection.status).json({ error: selection.error });
-      if (selection.provided && selection.projectId !== 'osac') {
+      if (selection.provided) {
         const result = readProjectTrends(context.projects, selection.projectId, readFromStorage);
         if (result.status !== 200) return res.status(result.status).json({ error: result.error });
         const contributions = readProjectContributionsTrends(context.projects, selection.projectId);
@@ -4784,6 +4786,9 @@ module.exports = function registerRoutes(router, context) {
     const { getManagerPurview } = require('./manager-purview');
 
     context.registerMessageProvider('team-tracker:field-completeness', async function(user) {
+      // Project rosters are read-only and carry no legacy field/board data to complete.
+      if (user.projectId) return [];
+
       // Early bailout: skip all disk I/O for non-managers.
       if (!user.uid) return [];
       if (!user.isAdmin && !user.isTeamAdmin && !user.isManager) return [];

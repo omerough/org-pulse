@@ -6,7 +6,7 @@
     </div>
 
     <!-- Team not found after roster loaded -->
-    <div v-else-if="!team" class="flex flex-col items-center justify-center py-12 text-center">
+    <div v-else-if="!team" data-testid="team-not-found" class="flex flex-col items-center justify-center py-12 text-center">
       <svg class="h-12 w-12 text-gray-300 dark:text-gray-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
@@ -356,6 +356,7 @@ import { refreshMetrics, getTeamMetrics, apiRequest } from '@shared/client/servi
 import { useManagerTutorial } from '../composables/useManagerTutorial'
 import { useAllocationStrategy } from '../composables/useAllocationStrategy'
 import { dedupeMembersByIdentity } from '../utils/member-resolution'
+import { resolveLegacyTeamKey } from '../utils/legacy-link-resolution'
 import { Marked } from 'marked'
 import DOMPurify from 'dompurify'
 
@@ -387,6 +388,19 @@ const team = computed(() => {
   if (!teamKey) return null
   return allTeams.value.find(t => t.key === teamKey || t.displayKey === teamKey) || null
 })
+
+// A legacy team key in a normalized roster is rewritten to its canonical key before any
+// metrics call; an unresolved key leaves `team` null and renders the not-found state.
+watch(
+  [() => nav.params.value?.teamKey, team, rosterLoading, rosterData],
+  ([teamKey]) => {
+    const projectId = rosterData.value?.projectId
+    if (!teamKey || team.value || rosterLoading.value || !isNormalizedModel.value || !projectId) return
+    const resolved = resolveLegacyTeamKey(rosterData.value, projectId, teamKey)
+    if (resolved.teamKey) nav.updateParams({ teamKey: resolved.teamKey }, { push: false })
+  },
+  { immediate: true }
+)
 
 // People from org teams (for autocomplete and person-reference display)
 const orgPeople = computed(() => {
@@ -766,7 +780,8 @@ onBeforeUnmount(() => {
 })
 
 watch(() => nav.params.value?.teamKey, () => {
-  fetchTeamMetrics()
+  // A legacy-key rewrite changes the param but not the resolved team.
+  if (teamMetricsIdentityKey() !== teamMetricsRequestIdentityKey) fetchTeamMetrics()
   fetchTeamDetail()
   fetchRfeConfig()
 })

@@ -2,7 +2,9 @@
   <div class="max-w-7xl mx-auto px-4 py-6">
     <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Manage Teams & Fields</h2>
 
-    <div v-if="!hasAccess" class="text-center py-12 text-gray-500 dark:text-gray-400">
+    <ProjectRosterUnavailable v-if="projectId" />
+
+    <div v-else-if="!hasAccess" class="text-center py-12 text-gray-500 dark:text-gray-400">
       You do not have permission to access this page.
     </div>
 
@@ -33,6 +35,8 @@
 <script setup>
 import { ref, computed, watch, inject } from 'vue'
 import { usePermissions } from '@shared/client/composables/usePermissions'
+import { useProjectId } from '@shared/client/composables/useProjectId.js'
+import ProjectRosterUnavailable from '../components/ProjectRosterUnavailable.vue'
 import TeamManagement from '../components/TeamManagement.vue'
 import FieldDefinitionManager from '../components/FieldDefinitionManager.vue'
 import FieldOptionsManager from '../components/FieldOptionsManager.vue'
@@ -40,6 +44,7 @@ import DataQualityTab from '../components/DataQualityTab.vue'
 import FieldExceptionsTab from '../components/FieldExceptionsTab.vue'
 
 const { isAdmin, isTeamAdmin, loading } = usePermissions()
+const projectId = useProjectId()
 const moduleNav = inject('moduleNav')
 
 const tabs = [
@@ -75,8 +80,8 @@ if (moduleNav?.params) {
 
 const hasAccess = computed(() => isAdmin.value || isTeamAdmin.value)
 
-watch(loading, (isLoading) => {
-  if (!isLoading && !hasAccess.value && moduleNav) {
+watch([loading, projectId], ([isLoading, id]) => {
+  if (!isLoading && !id && !hasAccess.value && moduleNav) {
     moduleNav.navigateTo('home')
   }
 }, { immediate: true })

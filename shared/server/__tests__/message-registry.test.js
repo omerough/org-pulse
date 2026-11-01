@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // We need a fresh module for each test to reset the internal providers Map
-let registerProvider, getMessages
+let registerProvider, getMessages, selectedProjectId
 
 beforeEach(async () => {
   vi.resetModules()
   const mod = await import('../message-registry.js')
   registerProvider = mod.registerProvider
   getMessages = mod.getMessages
+  selectedProjectId = mod.selectedProjectId
 })
 
 describe('registerProvider', () => {
@@ -86,5 +87,57 @@ describe('getMessages', () => {
       { id: 'b1', type: 'warning', text: 'B1' },
       { id: 'b2', type: 'error', text: 'B2' }
     ])
+  })
+})
+
+describe('selectedProjectId', () => {
+  const projects = {
+    get: projectId => (['osac', 'flightctl'].includes(projectId) ? { projectId } : null)
+  }
+
+  it('returns the project named by a valid projectId query', () => {
+    expect(selectedProjectId(projects, { projectId: 'osac' })).toBe('osac')
+    expect(selectedProjectId(projects, { projectId: 'flightctl' })).toBe('flightctl')
+  })
+
+  it('is undefined when no projectId is supplied, even when project profiles are registered', () => {
+    expect(selectedProjectId(projects, {})).toBeUndefined()
+    expect(selectedProjectId(projects, undefined)).toBeUndefined()
+  })
+
+  it.each([
+    ['unknown', 'nonexistent'],
+    ['malformed', 'Not_Valid!'],
+    ['whitespace-padded', ' osac'],
+    ['empty', '']
+  ])('is undefined for a %s projectId', (_label, projectId) => {
+    expect(selectedProjectId(projects, { projectId })).toBeUndefined()
+  })
+
+  it('keeps a well-formed projectId selected when the profile reader is unavailable', () => {
+    expect(selectedProjectId(undefined, { projectId: 'osac' })).toBe('osac')
+  })
+
+  it('keeps a well-formed projectId selected when the profile reader throws', () => {
+    const failing = { get: () => { throw new Error('index unreadable') } }
+    expect(selectedProjectId(failing, { projectId: 'osac' })).toBe('osac')
+  })
+
+  it('stays unset for a malformed projectId even when the profile reader is unavailable', () => {
+    expect(selectedProjectId(undefined, { projectId: 'Not_Valid!' })).toBeUndefined()
+    expect(selectedProjectId(undefined, { projectId: ' osac' })).toBeUndefined()
+    expect(selectedProjectId(undefined, { projectId: '' })).toBeUndefined()
+    expect(selectedProjectId(undefined, {})).toBeUndefined()
+  })
+
+  it('passes the selection to every provider in registration order', async () => {
+    const calls = []
+    registerProvider('test:first', async (ctx) => { calls.push(['first', ctx.projectId]); return [{ id: 'a' }] })
+    registerProvider('test:second', async (ctx) => { calls.push(['second', ctx.projectId]); return [{ id: 'b' }] })
+
+    const messages = await getMessages({ projectId: 'osac' })
+
+    expect(calls).toEqual([['first', 'osac'], ['second', 'osac']])
+    expect(messages.map(m => m.id)).toEqual(['a', 'b'])
   })
 })

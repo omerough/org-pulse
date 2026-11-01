@@ -1,7 +1,7 @@
 /**
- * GET /manager/dashboard and GET /permissions/me: OSAC falls through to the
- * legacy registry path unchanged; other projects derive purview/isManager
- * from the published project roster, never from the OSAC registry.
+ * GET /manager/dashboard and GET /permissions/me: an unset projectId uses the
+ * legacy registry path unchanged; any selected project derives purview/isManager
+ * from its published roster, never from the legacy registry.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -57,7 +57,7 @@ function makeRosterEnvelope(projectId, { teams, people }) {
   }
 }
 
-function makeEnrichmentEnvelope(projectId, people, { freshness = 'fresh', partial = false } = {}) {
+function makeEnrichmentEnvelope(projectId, people, { freshness = 'fresh', partial = false, auxiliaryManagers } = {}) {
   return {
     schemaVersion: 1,
     projectId,
@@ -66,12 +66,12 @@ function makeEnrichmentEnvelope(projectId, people, { freshness = 'fresh', partia
     freshness,
     partial,
     generatedAt: '2026-10-01T00:00:00Z',
-    data: { projectId, people }
+    data: { projectId, people, ...(auxiliaryManagers ? { auxiliaryManagers } : {}) }
   }
 }
 
 // Flight Control: mgr-1 manages eng-1 (direct) and eng-2 (indirect, via eng-1);
-// eng-3 reports to an external (non-roster) manager, so has no OSAC-style edge.
+// eng-3 reports to an external (non-roster) manager that is not an auxiliary node, so has no edge.
 function flightctlFixture() {
   const teams = [{ id: 'team-core', name: 'Core', orgKey: 'flightctl' }]
   const people = [
@@ -103,7 +103,10 @@ function makeProjectsReader({ knownProjectIds = [], rosters = {}, enrichments = 
     const people = Array.isArray(enrichmentSpec) ? enrichmentSpec : enrichmentSpec.people
     const freshness = Array.isArray(enrichmentSpec) ? undefined : enrichmentSpec.freshness
     const partial = Array.isArray(enrichmentSpec) ? undefined : enrichmentSpec.partial
-    publications[projectId]['sources/roster-enrichment/registry.json'] = { value: makeEnrichmentEnvelope(projectId, people, { freshness, partial }) }
+    const auxiliaryManagers = Array.isArray(enrichmentSpec) ? undefined : enrichmentSpec.auxiliaryManagers
+    publications[projectId]['sources/roster-enrichment/registry.json'] = {
+      value: makeEnrichmentEnvelope(projectId, people, { freshness, partial, auxiliaryManagers })
+    }
   }
 
   return {
@@ -309,23 +312,41 @@ describe('GET /manager/dashboard project-selection dispatch', () => {
     expect(body.reason).toBe('no-registry-identity')
   })
 
-  it('leaves the OSAC dashboard byte-for-byte unchanged when projectId is osac or unset', async () => {
+  it('leaves the legacy dashboard unchanged when projectId is unset', async () => {
+    const projects = makeProjectsReader({ knownProjectIds: ['osac', 'flightctl'] })
+    const app = createTestServer(makeRegistryStorageData(), projects, { userUid: 'osacmgr', userEmail: 'osacmgr@example.com', isManager: true })
+
+    const { status, body } = await requestGet(app, '/manager/dashboard')
+
+    expect(status).toBe(200)
+    expect(body.manager).toEqual({ uid: 'osacmgr', name: 'OSAC Manager', email: 'osacmgr@example.com' })
+    expect(body.directReports.map(r => r.uid)).toEqual(['osacrep'])
+  })
+
+  it('serves projectId=osac from its published roster, not the legacy registry', async () => {
     const { teams, people, enrichmentPeople } = flightctlFixture()
     const projects = makeProjectsReader({
       knownProjectIds: ['osac', 'flightctl'],
-      rosters: { flightctl: { teams, people } },
-      enrichments: { flightctl: enrichmentPeople }
+      rosters: { osac: { teams, people } },
+      enrichments: { osac: enrichmentPeople }
     })
+    const app = createTestServer(makeRegistryStorageData(), projects, { userUid: 'osacmgr', userEmail: 'mallory@example.com', isManager: true })
+
+    const { status, body } = await requestGet(app, '/manager/dashboard?projectId=osac')
+
+    expect(status).toBe(200)
+    expect(body.manager.accountId).toBe('mgr-1')
+    expect(body.directReports.map(r => r.accountId)).toEqual(['eng-1'])
+  })
+
+  it('does not fall back to the legacy dashboard when the osac publication is missing', async () => {
+    const projects = makeProjectsReader({ knownProjectIds: ['osac', 'flightctl'] })
     const app = createTestServer(makeRegistryStorageData(), projects, { userUid: 'osacmgr', userEmail: 'osacmgr@example.com', isManager: true })
 
-    const unset = await requestGet(app, '/manager/dashboard')
-    const osac = await requestGet(app, '/manager/dashboard?projectId=osac')
+    const { status, body } = await requestGet(app, '/manager/dashboard?projectId=osac')
 
-    expect(unset.status).toBe(200)
-    expect(osac.status).toBe(200)
-    expect(unset.body.manager).toEqual({ uid: 'osacmgr', name: 'OSAC Manager', email: 'osacmgr@example.com' })
-    expect(osac.body).toEqual(unset.body)
-    expect(osac.body.directReports.map(r => r.uid)).toEqual(['osacrep'])
+    expect(status).toBe(404)
+    expect(body.directReports).toBeUndefined()
   })
 })
 
@@ -433,16 +454,40 @@ describe('GET /permissions/me project-selection dispatch', () => {
     expect(body.uid).toBeNull()
   })
 
-  it('leaves the OSAC permission tier byte-for-byte unchanged when projectId is osac or unset', async () => {
+  it('leaves the legacy permission tier unchanged when projectId is unset', async () => {
     const projects = makeProjectsReader({ knownProjectIds: ['osac', 'flightctl'] })
     const app = createTestServer(makeRegistryStorageData(), projects, { userUid: 'osacmgr', userEmail: 'osacmgr@example.com', isManager: true, userRoles: ['user'] })
 
-    const unset = await requestGet(app, '/permissions/me')
-    const osac = await requestGet(app, '/permissions/me?projectId=osac')
+    const { status, body } = await requestGet(app, '/permissions/me')
 
-    expect(unset.status).toBe(200)
-    expect(unset.body).toEqual({ email: 'osacmgr@example.com', uid: 'osacmgr', roles: ['user'], isManager: true, managedUids: ['osacrep'] })
-    expect(osac.body).toEqual(unset.body)
+    expect(status).toBe(200)
+    expect(body).toEqual({ email: 'osacmgr@example.com', uid: 'osacmgr', roles: ['user'], isManager: true, managedUids: ['osacrep'] })
+  })
+
+  it('derives projectId=osac permissions from its published roster, not the legacy registry', async () => {
+    const { teams, people, enrichmentPeople } = flightctlFixture()
+    const projects = makeProjectsReader({
+      knownProjectIds: ['osac', 'flightctl'],
+      rosters: { osac: { teams, people } },
+      enrichments: { osac: enrichmentPeople }
+    })
+    const app = createTestServer(makeRegistryStorageData(), projects, { userUid: 'osacmgr', userEmail: 'mallory@example.com', isManager: true, userRoles: ['user'] })
+
+    const { status, body } = await requestGet(app, '/permissions/me?projectId=osac')
+
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ uid: 'mgr-1', ldapUid: null, isManager: true, managedUids: ['eng-1'] })
+    expect(body).toHaveProperty('hierarchy')
+  })
+
+  it('does not fall back to legacy permissions when the osac publication is missing', async () => {
+    const projects = makeProjectsReader({ knownProjectIds: ['osac', 'flightctl'] })
+    const app = createTestServer(makeRegistryStorageData(), projects, { userUid: 'osacmgr', userEmail: 'osacmgr@example.com', isManager: true, userRoles: ['user'] })
+
+    const { status, body } = await requestGet(app, '/permissions/me?projectId=osac')
+
+    expect(status).toBe(404)
+    expect(body.managedUids).toBeUndefined()
   })
 
   it('returns 404 for an unknown project', async () => {
@@ -541,15 +586,176 @@ describe('GET /permissions/me project-selection dispatch', () => {
       expect(body.hierarchy).toBe('partial')
     })
 
-    it('omits the hierarchy signal entirely on the legacy OSAC/unset path', async () => {
+    it('omits the hierarchy signal entirely on the legacy (unset) path', async () => {
       const projects = makeProjectsReader({ knownProjectIds: ['osac', 'flightctl'] })
       const app = createTestServer(makeRegistryStorageData(), projects, { userUid: 'osacmgr', userEmail: 'osacmgr@example.com', isManager: true, userRoles: ['user'] })
 
-      const unset = await requestGet(app, '/permissions/me')
-      const osac = await requestGet(app, '/permissions/me?projectId=osac')
+      const { body } = await requestGet(app, '/permissions/me')
 
-      expect(unset.body).not.toHaveProperty('hierarchy')
-      expect(osac.body).not.toHaveProperty('hierarchy')
+      expect(body).not.toHaveProperty('hierarchy')
     })
+  })
+})
+
+// Directors outside the roster: vp1 -> lead1 (external -> external), vp1 -> mgr-1 -> eng-1,
+// lead1 -> eng-2. Enrichment is joined, so `ldapUid` is verified for matched people.
+function externalHierarchyFixture() {
+  const teams = [{ id: 'team-core', name: 'Core', orgKey: 'proj' }]
+  const people = [
+    { accountId: 'mgr-1', displayName: 'Mallory Manager', active: true, teamIds: ['team-core'], email: 'mallory@example.com' },
+    { accountId: 'eng-1', displayName: 'Erin Eng', active: true, teamIds: ['team-core'], email: 'erin@example.com' },
+    { accountId: 'eng-2', displayName: 'Evan Eng', active: true, teamIds: ['team-core'], email: 'evan@example.com' }
+  ]
+  const enrichmentPeople = [
+    { accountId: 'mgr-1', matchStatus: 'matched', ldapUid: 'mallory-ipa', managerRef: { kind: 'external', ldapUid: 'vp1' } },
+    { accountId: 'eng-1', matchStatus: 'matched', ldapUid: 'erin-ipa', managerRef: { kind: 'roster', accountId: 'mgr-1' } },
+    { accountId: 'eng-2', matchStatus: 'matched', ldapUid: 'evan-ipa', managerRef: { kind: 'external', ldapUid: 'lead1' } }
+  ]
+  const auxiliaryManagers = {
+    vp1: { ldapUid: 'vp1', displayName: 'Vera VP', title: 'VP', managerRef: null },
+    lead1: { ldapUid: 'lead1', displayName: 'Lee Lead', title: 'Director', managerRef: { kind: 'external', ldapUid: 'vp1' } }
+  }
+  return { teams, people, enrichmentPeople, auxiliaryManagers }
+}
+
+function externalHierarchyProjects(overrides = {}) {
+  const { teams, people, enrichmentPeople, auxiliaryManagers } = externalHierarchyFixture()
+  return makeProjectsReader({
+    knownProjectIds: ['proj', 'other'],
+    rosters: { proj: { teams, people }, other: { teams, people } },
+    enrichments: { proj: { people: enrichmentPeople, auxiliaryManagers }, ...overrides }
+  })
+}
+
+describe('GET /permissions/me external manager identity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('resolves a roster manager by verified ldapUid local part', async () => {
+    const app = createTestServer({}, externalHierarchyProjects(), { userEmail: 'mallory-ipa@redhat.com', userRoles: [] })
+
+    const { status, body } = await requestGet(app, '/permissions/me?projectId=proj')
+
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ uid: 'mgr-1', ldapUid: null, isManager: true, managedUids: ['eng-1'], hierarchy: 'available' })
+  })
+
+  it('resolves an external manager with roster accountIds and ldap keys in managedUids', async () => {
+    const app = createTestServer({}, externalHierarchyProjects(), { userEmail: 'vp1@redhat.com', userRoles: [] })
+
+    const { status, body } = await requestGet(app, '/permissions/me?projectId=proj')
+
+    expect(status).toBe(200)
+    expect(body.uid).toBeNull()
+    expect(body.ldapUid).toBe('vp1')
+    expect(body.isManager).toBe(true)
+    expect([...body.managedUids].sort()).toEqual(['ldap:lead1', 'mgr-1'])
+  })
+
+  it('returns a null identity on both fields for an unmatched email', async () => {
+    const app = createTestServer({}, externalHierarchyProjects(), { userEmail: 'stranger@redhat.com', userRoles: [] })
+
+    const { body } = await requestGet(app, '/permissions/me?projectId=proj')
+
+    expect(body).toMatchObject({ uid: null, ldapUid: null, isManager: false, managedUids: [] })
+  })
+
+  it('fails closed when the local part matches both a roster ldapUid and an auxiliary key', async () => {
+    const { teams, people, enrichmentPeople, auxiliaryManagers } = externalHierarchyFixture()
+    const projects = makeProjectsReader({
+      knownProjectIds: ['proj'],
+      rosters: { proj: { teams, people } },
+      enrichments: {
+        proj: {
+          people: enrichmentPeople,
+          auxiliaryManagers: { ...auxiliaryManagers, 'mallory-ipa': { ldapUid: 'mallory-ipa', displayName: 'Imposter', managerRef: null } }
+        }
+      }
+    })
+    const app = createTestServer({}, projects, { userEmail: 'mallory-ipa@redhat.com', userRoles: [] })
+
+    const { body } = await requestGet(app, '/permissions/me?projectId=proj')
+
+    expect(body).toMatchObject({ uid: null, ldapUid: null, isManager: false, managedUids: [] })
+  })
+
+  it('does not resolve an external manager when enrichment is not published', async () => {
+    const { teams, people } = externalHierarchyFixture()
+    const projects = makeProjectsReader({
+      knownProjectIds: ['proj'],
+      rosters: { proj: { teams, people } }
+    })
+    const app = createTestServer({}, projects, { userEmail: 'vp1@redhat.com', userRoles: [] })
+
+    const { body } = await requestGet(app, '/permissions/me?projectId=proj')
+
+    expect(body).toMatchObject({ uid: null, ldapUid: null, isManager: false, hierarchy: 'absent' })
+  })
+
+  it('does not carry an external identity from one project into another', async () => {
+    const app = createTestServer({}, externalHierarchyProjects(), { userEmail: 'vp1@redhat.com', userRoles: [] })
+
+    const { body } = await requestGet(app, '/permissions/me?projectId=other')
+
+    expect(body).toMatchObject({ uid: null, ldapUid: null, isManager: false, managedUids: [] })
+  })
+})
+
+describe('GET /manager/dashboard external manager identity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    rosterSyncConfig.clearDisplayNamesCache()
+  })
+
+  it('serves an external viewer with external and roster reports, direct and indirect', async () => {
+    const app = createTestServer({}, externalHierarchyProjects(), { userEmail: 'vp1@redhat.com' })
+
+    const { status, body } = await requestGet(app, '/manager/dashboard?projectId=proj&includeIndirect=true')
+
+    expect(status).toBe(200)
+    expect(body.manager).toEqual({ accountId: null, ldapUid: 'vp1', name: 'Vera VP' })
+    expect(body.directReports.map(r => r.accountId ?? `ldap:${r.ldapUid}`).sort()).toEqual(['ldap:lead1', 'mgr-1'])
+    expect(body.indirectReports.map(r => r.accountId).sort()).toEqual(['eng-1', 'eng-2'])
+  })
+
+  it('returns 403 for a resolved external manager with no reports', async () => {
+    const { teams, people, enrichmentPeople } = externalHierarchyFixture()
+    const projects = makeProjectsReader({
+      knownProjectIds: ['proj'],
+      rosters: { proj: { teams, people } },
+      enrichments: {
+        proj: {
+          people: enrichmentPeople,
+          auxiliaryManagers: { idle: { ldapUid: 'idle', displayName: 'Ida Idle', managerRef: null } }
+        }
+      }
+    })
+    const app = createTestServer({}, projects, { userEmail: 'idle@redhat.com' })
+
+    const { status } = await requestGet(app, '/manager/dashboard?projectId=proj')
+
+    expect(status).toBe(403)
+  })
+
+  it('reports no-registry-identity for an auxiliary key that collides with a roster ldapUid', async () => {
+    const { teams, people, enrichmentPeople } = externalHierarchyFixture()
+    const projects = makeProjectsReader({
+      knownProjectIds: ['proj'],
+      rosters: { proj: { teams, people } },
+      enrichments: {
+        proj: {
+          people: enrichmentPeople,
+          auxiliaryManagers: { 'mallory-ipa': { ldapUid: 'mallory-ipa', displayName: 'Imposter', managerRef: null } }
+        }
+      }
+    })
+    const app = createTestServer({}, projects, { userEmail: 'mallory-ipa@redhat.com' })
+
+    const { status, body } = await requestGet(app, '/manager/dashboard?projectId=proj')
+
+    expect(status).toBe(200)
+    expect(body.reason).toBe('no-registry-identity')
+    expect(body.directReports).toEqual([])
   })
 })

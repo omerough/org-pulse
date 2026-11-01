@@ -30,7 +30,7 @@ const selectedOrgs = ref([])
 const selectedGeos = ref([])
 const projectRosterMessage = ref(null)
 let loadSequence = 0
-const isProjectRoster = computed(() => Boolean(projectId.value) && projectId.value !== 'osac')
+const isProjectRoster = computed(() => Boolean(projectId.value))
 const projectRosterStatus = computed(() => {
   if (!isProjectRoster.value) return ''
   const roster = projectRosterData.value
@@ -108,7 +108,7 @@ async function loadData() {
   loading.value = true
   projectRosterMessage.value = null
 
-  if (requestedProjectId && requestedProjectId !== 'osac') {
+  if (requestedProjectId) {
     people.value = []
     stats.value = null
     syncStatus.value = null
@@ -136,6 +136,7 @@ async function loadData() {
         name: person.displayName,
         status: person.active ? 'active' : 'inactive',
         email: person.email,
+        ldapUid: person.ldapUid ?? null,
         title: person.title,
         geo: person.geo,
         location: resolveMemberLocation(person),
@@ -234,7 +235,7 @@ const filtered = computed(() => {
     const term = search.value.toLowerCase()
     list = list.filter(p => {
       const searchable = [
-        p.name, p.email, p.uid,
+        p.name, p.email, p.uid, p.ldapUid,
         p.github ? p.github.username : '',
         p.gitlab ? p.gitlab.username : '',
         personTeamDisplay(p)
@@ -393,7 +394,7 @@ watch(projectId, () => {
         <input
           v-model="search"
           type="text"
-          :placeholder="isProjectRoster ? 'Search by name or team...' : 'Search by name, email, UID, GitHub, or GitLab...'"
+          placeholder="Search by name, email, UID, GitHub, or GitLab..."
             class="w-full pl-4 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>

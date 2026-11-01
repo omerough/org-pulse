@@ -144,13 +144,13 @@ const props = defineProps({
 
 defineEmits(['navigate'])
 
-const { isManager: isOsacManager, isTeamAdmin } = useAuth()
+const { isManager: isLegacyManager, isTeamAdmin } = useAuth()
 const { isManager: isProjectManager, hierarchyAvailable: isProjectHierarchyAvailable } = usePermissions()
 const projectId = useProjectId()
-const isProjectMode = computed(() => Boolean(projectId.value) && projectId.value !== 'osac')
-// A project-only manager has no legacy OSAC manager flag, so OSAC and project
+const isProjectMode = computed(() => Boolean(projectId.value))
+// A project-only manager has no legacy manager flag, so unqualified and project
 // mode each need their own source of truth here.
-const isManager = computed(() => isProjectMode.value ? isProjectManager.value : isOsacManager.value)
+const isManager = computed(() => isProjectMode.value ? isProjectManager.value : isLegacyManager.value)
 const showWidgetPicker = ref(false)
 const gridRef = ref(null)
 const topSectionRef = ref(null)

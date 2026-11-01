@@ -36,7 +36,7 @@ const {
 } = useRoster()
 const { isAdmin } = usePermissions()
 const unassignedExpanded = ref(false)
-const isProjectRoster = computed(() => Boolean(projectId.value) && projectId.value !== 'osac')
+const isProjectRoster = computed(() => Boolean(projectId.value))
 const loading = computed(() => isProjectRoster.value ? projectRosterLoading.value : orgLoading.value)
 const isInAppMode = computed(() => !isProjectRoster.value && rosterData.value?.teamDataSource === 'in-app')
 const displayedPeopleCount = computed(() => isProjectRoster.value ? uniqueMemberCount.value : orgTotalPeople.value)

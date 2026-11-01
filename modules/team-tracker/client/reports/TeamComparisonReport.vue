@@ -117,7 +117,7 @@ const { getContributions } = useGithubStats()
 const { getContributions: getGitlabContributions } = useGitlabStats()
 const projectId = useProjectId()
 
-const isProjectMode = computed(() => !!projectId.value && projectId.value !== 'osac')
+const isProjectMode = computed(() => !!projectId.value)
 
 const selectedMetrics = ref([])
 const chartType = ref('bar')
@@ -143,14 +143,14 @@ const METRICS_LIST = [
   { key: 'resolvedPerMember', label: 'Issues Resolved per Member' },
   { key: 'githubContributions', label: 'GitHub Contributions (1yr)' },
   { key: 'githubPerMember', label: 'Avg GitHub Contributions per Member (1yr)' },
-  // osacOnly: GitLab has no project-qualified publication; Unsupported in project mode (see isMetricDisabled).
-  { key: 'gitlabContributions', label: 'GitLab Contributions (1yr)', osacOnly: true },
-  { key: 'gitlabPerMember', label: 'Avg GitLab Contributions per Member (1yr)', osacOnly: true },
+  // legacyOnly: GitLab has no project-qualified publication; Unsupported in project mode (see isMetricDisabled).
+  { key: 'gitlabContributions', label: 'GitLab Contributions (1yr)', legacyOnly: true },
+  { key: 'gitlabPerMember', label: 'Avg GitLab Contributions per Member (1yr)', legacyOnly: true },
 ]
 
 // Disabled, not removed, so the capability stays discoverable.
 function isMetricDisabled(metric) {
-  return isProjectMode.value && metric.osacOnly
+  return isProjectMode.value && metric.legacyOnly
 }
 
 const CHART_TYPES = [

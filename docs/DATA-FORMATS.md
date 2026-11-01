@@ -115,11 +115,10 @@ provenance. Credentials and access grants are not profile fields.
 
 ## Project-qualified People & Teams roster (`GET /api/modules/team-tracker/roster`)
 
-For any `projectId` other than `osac`, this endpoint returns the normalized
+For any registered `projectId`, this endpoint returns the normalized
 `ProjectPeopleTeamsResponse` read model instead of the legacy `RosterResponse`
 shape (`orgs`/`vp`/`managerNames`, derived from [People Registry](#people-registry--datateam-dataregistryjson)
-data); an unset `projectId`, or `projectId=osac`, keeps returning the legacy
-response. The two shapes are never merged — callers branch on
+data); an unset `projectId` keeps returning the legacy response. The two shapes are never merged — callers branch on
 `Array.isArray(response.teams)` (see `isNormalizedModel` in
 `shared/client/composables/useRoster.js`).
 
@@ -186,8 +185,8 @@ response. The two shapes are never merged — callers branch on
 - `availability` is `available`, `empty` (publication read but no active team membership), or `unavailable` (see `reason` and `publicationState`); `empty`/`unavailable` return `teams: []`/`people: []`, never partial data.
 - `title`, `geo`, `city`, `country`, `location`, `ldapUid`, `email`, and `identities` are `null`/`{}`, and `managerRef` is `null`, when not yet published by the project's roster/enrichment sources — never fabricated or inferred. `geo` is Geo/Region; `city`/`country`/`location` are physical location — the two are distinct and never substituted for each other. `ldapUid` is a verified IPA/LDAP uid for a matched person, never derived from name/email/Jira accountId.
 - `manager` is always `null`. It predates enrichment and is kept, unpopulated, for response compatibility; `managerRef` is the enrichment-joined field and the two are never conflated.
-- The project's roster publication (`sources/roster/registry.json`, see [Project-qualified publication envelope](#project-qualified-publication-envelope)) is the sole source for `key`/`accountId`/`displayName`/`active`/`email`/`teamIds`; there is no fallback to the legacy OSAC roster for a known non-OSAC project.
-- The legacy OSAC roster (`orgs`-based `RosterResponse`) remains a separate, parallel path used only for `osac`/unset `projectId` during the People & Teams migration; it is not normalized to this shape.
+- The project's roster publication (`sources/roster/registry.json`, see [Project-qualified publication envelope](#project-qualified-publication-envelope)) is the sole source for `key`/`accountId`/`displayName`/`active`/`email`/`teamIds`; there is no fallback to the legacy roster for a registered project, including when its publication is unavailable.
+- The legacy OSAC roster (`orgs`-based `RosterResponse`) remains a separate, parallel path used only when `projectId` is unset; it is not normalized to this shape.
 
 ### Roster-enrichment join (`sources/roster-enrichment/registry.json`)
 
@@ -254,13 +253,13 @@ is in scope here.
 
 ## Project-qualified Jira Trends and Team Comparison (`GET /trends`, `GET /team/:teamKey/metrics`)
 
-For any `projectId` other than `osac`, these endpoints read the project's
+For any registered `projectId`, these endpoints read the project's
 `sources/jira-person-metrics/registry.json` publication (see
 [Project-qualified publication envelope](#project-qualified-publication-envelope))
 instead of the legacy global computation (`buildJiraTrends()` /
-`deriveRoster()`-backed team metrics); an unset `projectId`, or
-`projectId=osac`, keeps returning the legacy response unchanged. As with
-`/roster`, there is no fallback to OSAC data for a known non-OSAC project.
+`deriveRoster()`-backed team metrics); an unset `projectId` keeps returning
+the legacy response unchanged. As with `/roster`, there is no fallback to
+legacy data for a registered project.
 Both routes additionally merge in the project's GitHub contributions
 publication (see
 [Project-qualified GitHub Contributions](#project-qualified-github-contributions-get-apimodulesteam-trackerproject-contributions))
@@ -445,7 +444,7 @@ The `GET /api/modules/team-tracker/project-contributions?projectId=<id>` respons
 - `envelope.profileRevision` is checked against the currently loaded project profile's `profileRevision`. A mismatch (the roster/profile moved on since this artifact was published) is reported as `freshness: "stale"`, never silently `"fresh"` — the artifact is still served, following the same last-known-good-but-marked-non-fresh pattern used elsewhere in this contract, rather than being hidden as unavailable.
 - `envelope.projectId`, `artifactKey`, `schemaVersion`, and nested `data.projectId` must all agree with the request; any mismatch is rejected outright (`502`), never partially joined — the same isolation guarantee as roster/enrichment/trends.
 
-A representative fixture lives at `fixtures/projects/flightctl/sources/contributions/registry.json` (paired with that project's `sources/roster/registry.json` and `sources/roster-enrichment/registry.json` fixtures, sharing the same `accountId`s).
+A representative fixture lives at `fixtures/projects/flightctl/sources/contributions/registry.json` (paired with that project's `sources/roster/registry.json` and `sources/roster-enrichment/registry.json` fixtures, sharing the same `accountId`s). `fixtures/projects/osac/sources/{roster,roster-enrichment,jira-person-metrics,contributions}/registry.json` provide the same four publications for the demo `osac` project, including auxiliary (external) managers.
 
 ## Shared Releases → Execute contract
 

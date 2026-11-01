@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 1,
+  "projectId": "osac",
+  "profileRevision": "653d4e3d171383df",
+  "artifactKey": "sources/roster-enrichment/registry.json",
+  "source": {
+    "id": "ipa-ldap",
+    "kind": "ipa-ldap",
+    "revision": null,
+    "runId": null
+  },
+  "generatedAt": "2026-10-05T11:05:00Z",
+  "fetchedAt": "2026-10-05T11:05:00Z",
+  "observedAt": "2026-10-05T11:05:00Z",
+  "attemptedAt": "2026-10-05T11:05:00Z",
+  "publishedAt": "2026-10-05T11:05:00Z",
+  "state": "supported",
+  "freshness": "fresh",
+  "partial": false,
+  "error": null,
+  "lastKnownGood": null,
+  "data": {
+    "projectId": "osac",
+    "personCount": 12,
+    "matchedCount": 12,
+    "unmatchedCount": 0,
+    "ambiguousCount": 0,
+    "managerChainRootUids": [
+      "demovp"
+    ],
+    "people": [
+      {
+        "accountId": "osac-acc-1",
+        "matchStatus": "matched",
+        "title": "Senior Engineering Manager",
+        "city": null,
+        "country": null,
+        "geo": null,
+        "location": null,
+        "officeLocation": null,
+        "costCenter": null,
+        "ldapUid": "achen",
+        "identities": {
+          "github": {
+            "username": "alicechen",
+            "source": "ldap"
+          },
+          "gitlab": {
+            "username": "alicechen",
+            "source": "ldap"
+          }
+        },
+        "managerRef": {
+          "kind": "external",
+          "ldapUid": "demovp"
+        }
+      },
+      {
+        "accountId": "osac-acc-2",
+        "matchStatus": "matched",
+        "title": "Senior Software Engineer",
+        "city": null,
+        "country": null,
+        "geo": null,
+        "location": null,
+        "officeLocation": null,
+        "costCenter": null,
+        "ldapUid": "bsmith",
+        "identities": {
+          "github": {
+            "username": "bobsmith",
+            "source": "ldap"
+          },
+          "gitlab": {
+            "username": "bobsmith",
+            "source": "ldap"
+          }
+        },
+        "managerRef": {
+          "kind": "roster",
+          "accountId": "osac-acc-1"
+        }
+      },
+      {
+        "accountId": "osac-acc-3",
+        "matchStatus": "matched",
+        "title": "Software Engineer",
+        "city": null,
+        "country": null,
+        "geo": null,
+        "location": null,
+        "officeLocation": null,
+        "costCenter": null,
+        "ldapUid": "cwilliams",
+        "identities": {
+          "github": {
+            "username": "carolw",
+            "source": "ldap"
+          },
+          "gitlab": {
+            "username": "carolw",
+            "source": "ldap"
+          }
+        },
+        "managerRef": {
+          "kind": "roster",
+          "accountId": "osac-acc-2"
+        }
+      },
+      {
+        "accountId": "osac-acc-4",
+        "matchStatus": "matched",
+        "title": "Principal Software Engineer",
+        "city": null,
+        "country": null,
+        "geo": null,
+        "location": null,
+        "officeLocation": null,
+        "costCenter": null,
+        "ldapUid": "dlee",
+        "identities": {
+          "github": {
+            "username": "davidlee",
+            "source": "ldap"
+          },
+          "gitlab": {
+            "username": "davidlee",
+            "source": "ldap"
+          }
+        },
+        "managerRef": {
+          "kind": "roster",
+          "accountId": "osac-acc-1"
+        }
+      },
+      {
+        "accountId": "osac-acc-5",
+        "matchStatus": "matched",
+        "title": "Software Engineer",
+        "city": null,
+        "country": null,
+        "geo": null,
+        "location": null,
+        "officeLocation": null,
+        "costCenter": null,
+        "ldapUid": "egarcia",
+        "identities": {
+          "github": {
+            "username": "emmagarcia",
+            "source": "ldap"
+          },
+          "gitlab": {
+            "username": "emmagarcia",
+            "source": "ldap"
+          }
+        },
+        "managerRef": {
+          "kind": "roster",
+          "accountId": "osac-acc-1"
+        }
+      },
+      {
+        "accountId": "osac-acc-6",
+        "matchStatus": "matched",
+        "title": "Engineering Manager",
+        "city": null,
+        "country": null,
+        "geo": null,
+        "location": null,
+        "officeLocation": null,
+        "costCenter": null,
+        "ldapUid": "fjohnson",
+        "identities": {
+          "github": {
+            "username": "frankj",
+            "source": "ldap"
+          },
+          "gitlab": {
+            "username": "frankj",
+            "source": "ldap"
+          }
+        },
+        "managerRef": {
+          "kind": "external",
+          "ldapUid": "demovp"
+        }
+      },
+      {
+        "accountId": "osac-acc-7",
+        "matchStatus": "matched",
+        "title": "Senior Software Engineer",
+        "city": null,
+        "country": null,
+        "geo": null,
+        "location": null,
+        "officeLocation": null,
+        "costCenter": null,
+        "ldapUid": "gkim",
+        "identities": {
+          "github": {
+            "username": "gracekim",
+            "source": "ldap"
+          },
+          "gitlab": {
+            "username": "gracekim",
+            "source": "ldap"
+          }
+        },
+        "managerRef": {
+          "kind": "roster",
+          "accountId": "osac-acc-6"
+        }
+      },
+      {
+        "accountId": "osac-acc-8",
+        "matchStatus": "matched",
+        "title": "Software Engineer",
+        "city": null,
+        "country": null,
+        "geo": null,
+        "location": null,
+        "officeLocation": null,
+        "costCenter": null,
+        "ldapUid": "hwilson",
+        "identities": {
+          "github": {
+            "username": "henryw",
+            "source": "ldap"
+          },
+          "gitlab": {
+            "username": "henryw",
+            "source": "ldap"
+          }
+        },
+        "managerRef": {
+          "kind": "roster",
+          "accountId": "osac-acc-6"
+        }
+      },
+      {
+        "accountId": "osac-acc-9",
+        "matchStatus": "matched",
+        "title": "Principal Software Engineer",
+        "city": null,
+        "country": null,
+        "geo": null,
+        "location": null,
+        "officeLocation": null,
+        "costCenter": null,
+        "ldapUid": "imartinez",
+        "identities": {
+          "github": null,
+          "gitlab": {
+            "username": "irism",
+            "source": "ldap"
+          }
+        },
+        "managerRef": {
+          "kind": "roster",
+          "accountId": "osac-acc-6"
+        }
+      },
+      {
+        "accountId": "osac-acc-10",
+        "matchStatus": "matched",
+        "title": "Software Engineer",
+        "city": null,
+        "country": null,
+        "geo": null,
+        "location": null,
+        "officeLocation": null,
+        "costCenter": null,
+        "ldapUid": "jbrown",
+        "identities": {
+          "github": {
+            "username": "jackbrown",
+            "source": "ldap"
+          },
+          "gitlab": null
+        },
+        "managerRef": {
+          "kind": "roster",
+          "accountId": "osac-acc-6"
+        }
+      },
+      {
+        "accountId": "osac-acc-11",
+        "matchStatus": "matched",
+        "title": "Senior Product Manager",
+        "city": "Boston",
+        "country": "US",
+        "geo": "NA",
+        "location": "Remote",
+        "officeLocation": null,
+        "costCenter": null,
+        "ldapUid": "pmanager",
+        "identities": {
+          "github": null,
+          "gitlab": null
+        },
+        "managerRef": {
+          "kind": "external",
+          "ldapUid": "pmleader"
+        }
+      },
+      {
+        "accountId": "osac-acc-12",
+        "matchStatus": "matched",
+        "title": "Senior UX Designer",
+        "city": "San Francisco",
+        "country": "US",
+        "geo": "NA",
+        "location": "Remote",
+        "officeLocation": null,
+        "costCenter": null,
+        "ldapUid": "sdesigner",
+        "identities": {
+          "github": null,
+          "gitlab": null
+        },
+        "managerRef": {
+          "kind": "external",
+          "ldapUid": "pmleader"
+        }
+      }
+    ],
+    "auxiliaryManagers": {
+      "pmleader": {
+        "ldapUid": "pmleader",
+        "displayName": "Dana PMLeader",
+        "title": "Director of Product Management",
+        "city": "New York",
+        "country": "US",
+        "geo": "NA",
+        "location": "Remote",
+        "officeLocation": null,
+        "costCenter": null,
+        "identities": {
+          "github": null,
+          "gitlab": null
+        },
+        "managerRef": {
+          "kind": "external",
+          "ldapUid": "demovp"
+        }
+      },
+      "demovp": {
+        "ldapUid": "demovp",
+        "displayName": "Demo VP",
+        "title": "VP Engineering",
+        "city": "Raleigh",
+        "country": "US",
+        "geo": "NA",
+        "location": "Raleigh, NC",
+        "officeLocation": null,
+        "costCenter": null,
+        "identities": {
+          "github": null,
+          "gitlab": null
+        },
+        "managerRef": null
+      }
+    },
+    "diagnostics": {
+      "unmatched": [],
+      "ambiguous": [],
+      "duplicateLdapUid": [],
+      "unresolvedManagers": []
+    }
+  }
+}

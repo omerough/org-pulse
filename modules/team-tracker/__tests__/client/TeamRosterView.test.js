@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import TeamRosterView from '../../client/views/TeamRosterView.vue'
@@ -621,5 +621,123 @@ describe('TeamRosterView — stale team metrics requests (OSAC-6322)', () => {
     expect(wrapper.text()).toContain('42')
 
     consoleErrorSpy.mockRestore()
+  })
+})
+
+describe('TeamRosterView — legacy team links in project context', () => {
+  const team = (id, displayName) => ({
+    key: `osac::${id}`, displayKey: null, displayName, members: [], teamId: id, metadata: {}, description: null
+  })
+
+  function setProjectTeams(teams) {
+    rosterTeams.value = teams
+    rosterDataValue.value = { projectId: 'osac', teams: teams.map(t => ({ key: t.key, id: t.teamId, displayName: t.displayName })), people: [] }
+  }
+
+  const mounted = []
+
+  // updateParams applies to the params ref like the shell router does.
+  function mountWithKey(teamKey) {
+    const params = ref({ teamKey })
+    const nav = {
+      params,
+      goBack: vi.fn(),
+      navigateTo: vi.fn(),
+      updateParams: vi.fn(next => { params.value = { ...params.value, ...next } })
+    }
+    const wrapper = mount(TeamRosterView, { global: { provide: { moduleNav: nav } } })
+    mounted.push(wrapper)
+    return { wrapper, nav }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    isNormalizedModelValue.value = true
+    rosterLoadingValue.value = false
+  })
+
+  // Mounted views share the roster mocks and would react to later tests' state.
+  afterEach(() => {
+    for (const wrapper of mounted.splice(0)) wrapper.unmount()
+  })
+
+  it('rewrites a legacy name key to the canonical key before the metrics call', async () => {
+    setProjectTeams([team('t-1', 'Platform'), team('t-2', 'Infrastructure')])
+
+    const { wrapper, nav } = mountWithKey('osac::Platform')
+    await flushPromises()
+
+    expect(nav.updateParams).toHaveBeenCalledTimes(1)
+    expect(nav.updateParams).toHaveBeenCalledWith({ teamKey: 'osac::t-1' }, { push: false })
+    expect(getTeamMetrics).toHaveBeenCalledTimes(1)
+    expect(getTeamMetrics).toHaveBeenCalledWith('osac::t-1', 'osac')
+    expect(wrapper.text()).toContain('Platform')
+  })
+
+  it('rewrites a case-variant display key', async () => {
+    setProjectTeams([team('t-1', 'Platform')])
+
+    const { nav } = mountWithKey('OSAC::Platform')
+    await flushPromises()
+
+    expect(nav.updateParams).toHaveBeenCalledWith({ teamKey: 'osac::t-1' }, { push: false })
+    expect(getTeamMetrics).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for the roster before resolving', async () => {
+    rosterLoadingValue.value = true
+    rosterDataValue.value = null
+    rosterTeams.value = []
+
+    const { nav } = mountWithKey('osac::Platform')
+    await flushPromises()
+    expect(nav.updateParams).not.toHaveBeenCalled()
+
+    rosterLoadingValue.value = false
+    setProjectTeams([team('t-1', 'Platform')])
+    await flushPromises()
+
+    expect(nav.updateParams).toHaveBeenCalledWith({ teamKey: 'osac::t-1' }, { push: false })
+    expect(getTeamMetrics).toHaveBeenCalledTimes(1)
+    expect(getTeamMetrics).toHaveBeenCalledWith('osac::t-1', 'osac')
+  })
+
+  it.each([
+    ['a suffix that is one team ID and another team displayName', [team('Platform', 'Core'), team('t-2', 'Platform')], 'OSAC::Platform'],
+    ['a bare name that is one team ID and another team displayName', [team('Platform', 'Core'), team('t-2', 'Platform')], 'Platform'],
+    ['several teams sharing the displayName', [team('t-1', 'Platform'), team('t-2', 'Platform')], 'osac::Platform'],
+    ['an unknown team name', [team('t-1', 'Platform')], 'osac::Nope']
+  ])('renders not-found and does not rewrite or fetch metrics for %s', async (_label, teams, teamKey) => {
+    setProjectTeams(teams)
+
+    const { wrapper, nav } = mountWithKey(teamKey)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="team-not-found"]').exists()).toBe(true)
+    expect(nav.updateParams).not.toHaveBeenCalled()
+    expect(getTeamMetrics).not.toHaveBeenCalled()
+  })
+
+  it('keeps an exact canonical key even when another team displayName collides with its suffix', async () => {
+    setProjectTeams([team('Platform', 'Core'), team('t-2', 'Platform')])
+
+    const { wrapper, nav } = mountWithKey('osac::Platform')
+    await flushPromises()
+
+    expect(nav.updateParams).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Core')
+    expect(getTeamMetrics).toHaveBeenCalledWith('osac::Platform', 'osac')
+  })
+
+  it('does not rewrite a missing team in a legacy (non-normalized) roster', async () => {
+    isNormalizedModelValue.value = false
+    rosterDataValue.value = { teamDataSource: 'sheets' }
+    rosterTeams.value = []
+
+    const { wrapper, nav } = mountWithKey('osac::Platform')
+    await flushPromises()
+
+    expect(nav.updateParams).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="team-not-found"]').exists()).toBe(true)
   })
 })

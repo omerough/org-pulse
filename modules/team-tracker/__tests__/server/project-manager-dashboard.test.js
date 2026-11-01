@@ -242,3 +242,142 @@ describe('projectHierarchyStatus', () => {
     expect(isProjectHierarchyAvailable({ projectId: 'proj', availability: 'unavailable' })).toBe(false)
   })
 })
+
+function externalManager(ldapUid, managerRef = null) {
+  return { ldapUid, displayName: `External ${ldapUid}`, title: 'Director', managerRef }
+}
+
+function withLdapUid(ldapUid, base) {
+  return { ...base, ldapUid }
+}
+
+// Directors live outside the roster: demovp -> pmleader (external -> external),
+// demovp -> achen -> bsmith, pmleader -> pat. `orphandir` manages only an
+// external node.
+function externalHierarchyModel(overrides = {}) {
+  return {
+    projectId: 'osac',
+    availability: 'available',
+    reason: null,
+    generatedAt: '2026-10-15T00:00:00.000Z',
+    teams: [{ key: 'osac::t1', projectId: 'osac', id: 't1', displayName: 'Platform', memberAccountIds: [] }],
+    people: [
+      withLdapUid('achen', person('acc_achen', { projectId: 'osac', email: 'achen@example.com', teamIds: ['t1'], managerRef: { kind: 'external', ldapUid: 'demovp' } })),
+      withLdapUid('bsmith', person('acc_bsmith', { projectId: 'osac', email: 'bsmith@example.com', teamIds: ['t1'], managerRef: rosterRef('acc_achen') })),
+      withLdapUid('pat', person('acc_pat', { projectId: 'osac', email: 'pat@example.com', managerRef: { kind: 'external', ldapUid: 'pmleader' } })),
+      withLdapUid('orphandir', person('acc_orphandir', { projectId: 'osac', email: 'orphandir@example.com' }))
+    ],
+    auxiliaryManagers: {
+      demovp: externalManager('demovp'),
+      pmleader: externalManager('pmleader', { kind: 'external', ldapUid: 'demovp' }),
+      lonely: externalManager('lonely', { kind: 'roster', accountId: 'acc_orphandir' }),
+      idle: externalManager('idle')
+    },
+    enrichment: { state: 'fresh', partial: false, generatedAt: '2026-10-15T00:00:00.000Z' },
+    ...overrides
+  }
+}
+
+describe('buildProjectManagerDashboard with external managers', () => {
+  it('resolves an external viewer by auxiliary key and lists roster and external reports', () => {
+    const { status, body } = buildProjectManagerDashboard(externalHierarchyModel(), { email: 'demovp@redhat.com' })
+
+    expect(status).toBe(200)
+    expect(body.manager).toEqual({ accountId: null, ldapUid: 'demovp', name: 'External demovp' })
+
+    const achen = body.directReports.find(r => r.accountId === 'acc_achen')
+    expect(achen).toBeDefined()
+    expect(achen).not.toHaveProperty('ldapUid')
+
+    const pmleader = body.directReports.find(r => r.ldapUid === 'pmleader')
+    expect(pmleader).toMatchObject({ accountId: null, name: 'External pmleader', indirect: false })
+    expect(body.directReports).toHaveLength(2)
+  })
+
+  it('gives every report a stable key: the accountId for roster people, ldap:<uid> for external managers', () => {
+    const { body } = buildProjectManagerDashboard(externalHierarchyModel(), {
+      email: 'demovp@redhat.com',
+      includeIndirect: true
+    })
+
+    const keys = [...body.directReports, ...body.indirectReports].map(r => r.key)
+    expect(new Set(keys).size).toBe(keys.length)
+    for (const report of [...body.directReports, ...body.indirectReports]) {
+      expect(report.key).toBe(report.ldapUid ? `ldap:${report.ldapUid}` : report.accountId)
+    }
+  })
+
+  it('walks external -> external -> roster chains for indirect reports', () => {
+    const { body } = buildProjectManagerDashboard(externalHierarchyModel(), {
+      email: 'demovp@redhat.com',
+      includeIndirect: true
+    })
+
+    expect(body.indirectReports.map(r => r.accountId).sort()).toEqual(['acc_bsmith', 'acc_pat'])
+    expect(body.indirectReports.every(r => r.indirect === true)).toBe(true)
+  })
+
+  it('keeps external nodes out of team report attribution', () => {
+    const { body } = buildProjectManagerDashboard(externalHierarchyModel(), { email: 'demovp@redhat.com' })
+
+    const platform = body.teams.find(t => t.id === 't1')
+    expect(platform.directReportAccountIds).toEqual(['acc_achen'])
+    expect(body.teams.every(t => t.orgKey === 'osac')).toBe(true)
+  })
+
+  it('resolves a roster viewer by verified ldapUid when the email is not on the roster', () => {
+    const { status, body } = buildProjectManagerDashboard(externalHierarchyModel(), { email: 'achen@redhat.com' })
+
+    expect(status).toBe(200)
+    expect(body.manager).toEqual({ accountId: 'acc_achen', name: 'acc_achen', email: 'achen@example.com' })
+    expect(body.directReports.map(r => r.accountId)).toEqual(['acc_bsmith'])
+  })
+
+  it('treats a roster director who manages only an external node as a manager', () => {
+    const { status, body } = buildProjectManagerDashboard(externalHierarchyModel(), { email: 'orphandir@example.com' })
+
+    expect(status).toBe(200)
+    expect(body.directReports).toHaveLength(1)
+    expect(body.directReports[0]).toMatchObject({ accountId: null, ldapUid: 'lonely' })
+  })
+
+  it('returns 403 for a resolved external viewer without reports unless privileged', () => {
+    const model = externalHierarchyModel()
+
+    const denied = buildProjectManagerDashboard(model, { email: 'idle@redhat.com' })
+    expect(denied.status).toBe(403)
+
+    const privileged = buildProjectManagerDashboard(model, { email: 'idle@redhat.com', isPrivileged: true })
+    expect(privileged.status).toBe(200)
+    expect(privileged.body.reason).toBe('no-direct-reports')
+    expect(privileged.body.manager).toEqual({ accountId: null, ldapUid: 'idle', name: 'External idle' })
+  })
+
+  it('reports hierarchy-unavailable instead of a 403 for an external viewer under a partial join', () => {
+    const model = externalHierarchyModel({ enrichment: { state: 'partial', partial: true } })
+    const { status, body } = buildProjectManagerDashboard(model, { email: 'idle@redhat.com' })
+
+    expect(status).toBe(200)
+    expect(body.reason).toBe('hierarchy-unavailable')
+  })
+
+  it('fails closed with no-registry-identity when the local part matches a roster ldapUid and an auxiliary key', () => {
+    const model = externalHierarchyModel()
+    model.auxiliaryManagers.achen = externalManager('achen')
+    const { status, body } = buildProjectManagerDashboard(model, { email: 'achen@redhat.com' })
+
+    expect(status).toBe(200)
+    expect(body.reason).toBe('no-registry-identity')
+    expect(body.manager).toBeNull()
+    expect(body.directReports).toEqual([])
+  })
+
+  it('fails closed when enrichment is not joined, so there is no ldapUid or auxiliary manager to match', () => {
+    const model = externalHierarchyModel({ enrichment: { state: 'absent' }, auxiliaryManagers: undefined })
+    model.people = model.people.map(p => ({ ...p, ldapUid: null, managerRef: null }))
+    const { body } = buildProjectManagerDashboard(model, { email: 'demovp@redhat.com' })
+
+    expect(body.reason).toBe('no-registry-identity')
+    expect(body.manager).toBeNull()
+  })
+})

@@ -1,5 +1,5 @@
 /**
- * GET /roster: OSAC falls through to the enriched legacy roster; other projects use the project publication.
+ * GET /roster: any selected project uses its publication; an unset projectId uses the enriched legacy roster.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -151,28 +151,7 @@ describe('GET /roster project-selection dispatch', () => {
     rosterSyncConfig.clearDisplayNamesCache()
   })
 
-  it('routes projectId=osac through the enriched legacy roster, not the project publication', async () => {
-    const projects = makeProjectsReader({
-      knownProjectIds: ['osac', 'flightctl'],
-      publishedProjectIds: ['flightctl'] // osac has no project publication on purpose
-    })
-    const app = createTestServer(makeRegistryStorageData(), projects)
-
-    const { status, body } = await requestGet(app, '/roster?projectId=osac')
-
-    expect(status).toBe(200)
-    expect(body.teamDataSource).not.toBe('project-publication')
-
-    const members = Object.values(body.orgs[0].teams).flatMap(t => t.members)
-    const enriched = members.find(m => m.uid === 'uid_member')
-    expect(enriched).toBeTruthy()
-    expect(enriched.manager).toBe('uid_lead')
-    expect(enriched.title).toBe('Senior Engineer')
-    expect(enriched.geo).toBe('EMEA')
-    expect(enriched.location).toBe('Dublin')
-  })
-
-  it('routes projectId=osac through the enriched legacy roster even when OSAC has a project publication', async () => {
+  it('routes projectId=osac through its project publication, not the legacy roster', async () => {
     const projects = makeProjectsReader({
       knownProjectIds: ['osac', 'flightctl'],
       publishedProjectIds: ['osac', 'flightctl']
@@ -182,11 +161,44 @@ describe('GET /roster project-selection dispatch', () => {
     const { status, body } = await requestGet(app, '/roster?projectId=osac')
 
     expect(status).toBe(200)
-    expect(body.teamDataSource).not.toBe('project-publication')
-    expect(body.orgs[0].key).toBe('uid_lead')
+    expect(body.projectId).toBe('osac')
+    expect(body.availability).toBe('available')
+    expect(body.orgs).toBeUndefined()
+    expect(body.people.map(p => p.key)).toEqual(['osac::acct-1'])
   })
 
-  it('routes projectId=flightctl through the normalized project read model, unaffected by the OSAC change', async () => {
+  it('does not fall back to the legacy roster when the osac publication is missing', async () => {
+    const projects = makeProjectsReader({
+      knownProjectIds: ['osac', 'flightctl'],
+      publishedProjectIds: ['flightctl']
+    })
+    const app = createTestServer(makeRegistryStorageData(), projects)
+
+    const { status, body } = await requestGet(app, '/roster?projectId=osac')
+
+    expect(status).toBe(404)
+    expect(body.error).toBe('Project roster publication is unavailable')
+    expect(body.orgs).toBeUndefined()
+  })
+
+  it('returns the editable legacy payload when no projectId is given and in-app teams are enabled', async () => {
+    const projects = makeProjectsReader({
+      knownProjectIds: ['osac', 'flightctl'],
+      publishedProjectIds: ['osac', 'flightctl']
+    })
+    const data = makeRegistryStorageData()
+    data['team-data/config.json'].teamDataSource = 'in-app'
+    const app = createTestServer(data, projects)
+
+    const { status, body } = await requestGet(app, '/roster')
+
+    expect(status).toBe(200)
+    expect(body.teamDataSource).toBe('in-app')
+    expect(body.permissions).toMatchObject({ roles: [], isManager: false })
+    expect(body.projectId).toBeUndefined()
+  })
+
+  it('routes projectId=flightctl through the normalized project read model, unaffected by osac', async () => {
     const projects = makeProjectsReader({
       knownProjectIds: ['osac', 'flightctl'],
       publishedProjectIds: ['flightctl']

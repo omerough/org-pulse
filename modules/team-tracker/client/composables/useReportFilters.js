@@ -30,7 +30,7 @@ export function useReportFilters() {
   // but loadRoster() is a no-op if data is already present)
   loadRoster()
 
-  // OSAC builds from orgs, not useRoster().teams, since the latter is
+  // The legacy model builds from orgs, not useRoster().teams, since the latter is
   // pre-filtered by the singleton selectedOrgKey ref.
   const allTeams = computed(() => {
     if (isNormalizedModel.value) {
@@ -73,7 +73,7 @@ export function useReportFilters() {
   })
 
   // Drop team selections that are no longer valid when the team list changes
-  // (org filter change, or switching between OSAC and a project).
+  // (org filter change, or switching between the legacy roster and a project).
   watch(availableTeams, () => {
     selectedTeamKeys.value = selectedTeamKeys.value.filter(
       tk => availableTeams.value.some(t => t.key === tk)

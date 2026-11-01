@@ -158,6 +158,47 @@ describe('PeopleDirectoryView', () => {
     expect(wrapper.text()).not.toContain('acc-mgr')
   })
 
+  describe('project search', () => {
+    const person = (n, displayName, extra) => ({
+      key: `osac::acc-${n}`, accountId: `acc-${n}`, displayName, active: true, email: null,
+      teamIds: ['team-1'], title: null, geo: null, identities: {}, ldapUid: null, ...extra
+    })
+
+    async function mountProject(people) {
+      projectId.value = 'osac'
+      rosterData.value = { projectId: 'osac', availability: 'available', reason: null, teams: [], people: [] }
+      mockLoadRoster.mockResolvedValue(rosterData.value)
+      rosterTeams.value = [{ key: 'osac::team-1', displayName: 'Platform', teamId: 'team-1', members: [], description: null }]
+      rosterPeople.value = people
+      const wrapper = mountView()
+      await flushPromises()
+      return wrapper
+    }
+
+    it.each([
+      ['email', 'alice@example.com'],
+      ['LDAP UID', 'achen'],
+      ['GitHub username', 'alice-gh'],
+      ['GitLab username', 'alice-gl'],
+      ['team name', 'Platform']
+    ])('matches a person by %s', async (_field, term) => {
+      const wrapper = await mountProject([
+        person(1, 'Alice Chen', {
+          email: 'alice@example.com',
+          ldapUid: 'achen',
+          identities: { github: { username: 'alice-gh' }, gitlab: { username: 'alice-gl' } }
+        }),
+        person(2, 'Bob Smith', { teamIds: [], email: 'bob@example.com', ldapUid: 'bsmith' })
+      ])
+
+      await wrapper.find('input[type="text"]').setValue(term)
+
+      const rows = wrapper.findAll('tbody tr')
+      expect(rows).toHaveLength(1)
+      expect(rows[0].text()).toContain('Alice Chen')
+    })
+  })
+
   it('hides identity stats when enrichment is unpublished, to avoid showing a false zero', async () => {
     projectId.value = 'flightctl'
     rosterData.value = {

@@ -16,7 +16,7 @@ function makeStorage(initial = {}) {
   }
 }
 
-function setupAndGetProvider(storageData) {
+function setupAndGetProvider(storageData, extraContext = {}) {
   let capturedProvider = null
 
   const mockRouter = {
@@ -43,7 +43,8 @@ function setupAndGetProvider(storageData) {
     registerScopes: vi.fn(),
     registerMessageProvider(id, fn) {
       capturedProvider = { id, fn }
-    }
+    },
+    ...extraContext
   }
 
   const registerRoutes = require('../../server/index.js')
@@ -263,5 +264,28 @@ describe('field-completeness message provider', () => {
       label: 'Review',
       href: '#/team-tracker/manager-dashboard'
     })
+  })
+})
+
+describe('field-completeness message provider with project selection', () => {
+  const manager = { uid: 'mgr1', isAdmin: false, isTeamAdmin: false, isManager: true }
+  const projects = {
+    get: projectId => (['osac', 'flightctl'].includes(projectId) ? { projectId, displayName: projectId, profileRevision: 'rev' } : null)
+  }
+
+  it('returns no message for a request with an explicitly selected project', async () => {
+    const { provider } = setupAndGetProvider(baseStorageData(), { projects })
+    expect(await provider.fn({ ...manager, projectId: 'osac' })).toEqual([])
+    expect(await provider.fn({ ...manager, projectId: 'flightctl' })).toEqual([])
+  })
+
+  it('returns the same message with or without registered project profiles when no project is selected', async () => {
+    const { provider: withoutProfiles } = setupAndGetProvider(baseStorageData())
+    const { provider: withProfiles } = setupAndGetProvider(baseStorageData(), { projects })
+
+    const expected = await withoutProfiles.fn(manager)
+    expect(expected).toHaveLength(1)
+    expect(await withProfiles.fn(manager)).toEqual(expected)
+    expect(await withProfiles.fn({ ...manager, projectId: undefined })).toEqual(expected)
   })
 })

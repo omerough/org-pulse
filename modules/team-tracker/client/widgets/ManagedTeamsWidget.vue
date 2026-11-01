@@ -11,7 +11,7 @@ defineProps({
 })
 
 const { navigateTo: crossNavigate } = useModuleLink()
-const { isManager: isOsacManager } = useAuth()
+const { isManager: isLegacyManager } = useAuth()
 const { isManager: isProjectManager, loading: permissionsLoading, hierarchyAvailable } = usePermissions()
 const { definitions, fetchDefinitions } = useFieldDefinitions()
 const {
@@ -26,8 +26,8 @@ const {
 
 const managerLoadFailed = ref(false)
 
-// A project-only manager has no legacy OSAC manager flag.
-const isManager = computed(() => isProjectMode.value ? isProjectManager.value : isOsacManager.value)
+// A project-only manager has no legacy manager flag.
+const isManager = computed(() => isProjectMode.value ? isProjectManager.value : isLegacyManager.value)
 const managerStatusLoading = computed(() => isProjectMode.value && permissionsLoading.value)
 
 // isManager can be true despite an unavailable hierarchy if this account's

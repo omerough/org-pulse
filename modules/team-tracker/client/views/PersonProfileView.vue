@@ -4,6 +4,7 @@ import { apiRequest, getProjectPersonMetrics } from '@shared/client/services/api
 import { useAuth } from '@shared/client/composables/useAuth.js'
 import { useRoster } from '@shared/client/composables/useRoster.js'
 import { useProjectId } from '@shared/client/composables/useProjectId.js'
+import { useProjectDisplayName } from '../composables/useProjectDisplayName'
 import { useGithubStats } from '@shared/client/composables/useGithubStats.js'
 import { useGitlabStats } from '@shared/client/composables/useGitlabStats.js'
 import { useProjectContributions } from '@shared/client/composables/useProjectContributions.js'
@@ -19,6 +20,7 @@ import {
   getAuxiliaryManager
 } from '@shared/client/composables/useManagerHierarchy.js'
 import { resolveMemberLocation } from '../utils/member-resolution.js'
+import { resolveLegacyPersonLink, resolveLegacyTeamKey } from '../utils/legacy-link-resolution.js'
 import PersonFieldEditor from '../components/PersonFieldEditor.vue'
 import { useManagerTutorial } from '../composables/useManagerTutorial'
 
@@ -29,11 +31,13 @@ const {
   teams: allTeams,
   rosterData,
   loading: rosterLoading,
+  error: rosterError,
   getPersonByAccountId,
   people: rosterPeople,
   auxiliaryManagers
 } = useRoster()
 const projectId = useProjectId()
+const projectLabel = useProjectDisplayName()
 const { canEdit, refresh: refreshPermissions } = usePermissions()
 const { startImpersonating } = useImpersonation()
 const { definitions, fetchDefinitions } = useFieldDefinitions()
@@ -55,7 +59,7 @@ const {
 const githubContribs = computed(() => {
   // No accountId to join by; must not fall through to the legacy global cache.
   if (isExternalManager.value) return null
-  // Project people read the canonical artifact by accountId; OSAC's legacy
+  // Project people read the canonical artifact by accountId; the legacy
   // view keeps its username-keyed global cache unchanged.
   if (isProjectPerson.value) {
     return getProjectContribution(person.value?.accountId)?.github || null
@@ -87,7 +91,7 @@ const githubContribsNote = computed(() => {
 
 const personTeams = computed(() => {
   // An external manager's ldapUid shares the legacy registry's uid namespace;
-  // never resolve its display name against the legacy OSAC team roster.
+  // never resolve its display name against the legacy team roster.
   if (!person.value || isExternalManager.value) return []
   return getTeamsForPerson(person.value.accountId || person.value.name)
 })
@@ -126,10 +130,11 @@ const managerChain = ref([])
 const directReports = ref([])
 const jiraMetrics = ref(null)
 // Project-qualified Jira metadata (availability/reason/partial/lookbackDays),
-// kept separate from jiraMetrics since the legacy OSAC path never sets it.
+// kept separate from jiraMetrics since the legacy path never sets it.
 const projectJiraMeta = ref(null)
 const loading = ref(true)
 const error = ref(null)
+const linkUnresolved = ref(false)
 
 const showResolvedIssues = ref(true)
 const showInProgressIssues = ref(true)
@@ -231,7 +236,8 @@ const fromTeamKey = computed(() => nav.params.value?.teamKey)
 const isProjectPerson = computed(() => Boolean(accountId.value))
 // accountId always wins if somehow both are set.
 const isExternalManager = computed(() => Boolean(ldapUidParam.value) && !isProjectPerson.value)
-const isLegacyPerson = computed(() => !isProjectPerson.value && !isExternalManager.value)
+// A selected project never reads the legacy registry; uid/person links are rewritten instead.
+const isLegacyPerson = computed(() => !projectId.value && !isProjectPerson.value && !isExternalManager.value)
 // The legacy registry path always returns an already-resolved chain; the two
 // canonical reference types both depend on this project's enrichment join.
 const isEnrichmentScopedPerson = computed(() => isProjectPerson.value || isExternalManager.value)
@@ -279,8 +285,28 @@ const jiraStatusNote = computed(() => {
   return projectJiraMeta.value.partial ? 'Jira: partial' : null
 })
 
+const PROJECT_ROSTER_ERROR = 'Could not load the roster for this project.'
+
+// 'failed' only once the fetch for this project has settled with an error; a
+// roster that is absent but not failing is still on its way.
+function projectRosterState(expectedProjectId) {
+  if (rosterLoading.value) return 'pending'
+  if (rosterData.value?.projectId === expectedProjectId) return 'ready'
+  return rosterError.value ? 'failed' : 'pending'
+}
+
+// Returns true when the caller must stop: still waiting, or failed (surfaced as an error).
+function awaitingProjectRoster(expectedProjectId) {
+  const state = projectRosterState(expectedProjectId)
+  if (state === 'failed') {
+    error.value = PROJECT_ROSTER_ERROR
+    loading.value = false
+  }
+  return state !== 'ready'
+}
+
 // Never resolves via the legacy registry or name fallback: a name
-// collision there could surface an unrelated OSAC person's profile.
+// collision there could surface an unrelated person's profile.
 function loadProjectPerson() {
   const expectedProjectId = projectId.value
   const expectedAccountId = accountId.value
@@ -294,9 +320,7 @@ function loadProjectPerson() {
   projectJiraMeta.value = null
 
   // Stay loading until the roster matches this project, to avoid flashing "not found".
-  if (rosterData.value?.projectId !== expectedProjectId || rosterLoading.value) {
-    return
-  }
+  if (awaitingProjectRoster(expectedProjectId)) return
 
   const projectPerson = getPersonByAccountId(expectedAccountId)
   if (!projectPerson) {
@@ -329,7 +353,10 @@ function loadProjectPerson() {
     people: rosterPeople.value,
     auxiliaryManagers: auxiliaryManagers.value
   })
-  directReports.value = getDirectReports(expectedAccountId, { people: rosterPeople.value })
+  directReports.value = getDirectReports(expectedAccountId, {
+    people: rosterPeople.value,
+    auxiliaryManagers: auxiliaryManagers.value
+  })
   loadProjectJiraMetrics(expectedProjectId, expectedAccountId)
   loadProjectContributions()
   loading.value = false
@@ -350,9 +377,7 @@ function loadExternalManagerPerson() {
   projectJiraMeta.value = null
 
   // Stay loading until the roster matches this project, to avoid flashing "not found".
-  if (rosterData.value?.projectId !== expectedProjectId || rosterLoading.value) {
-    return
-  }
+  if (awaitingProjectRoster(expectedProjectId)) return
 
   const record = getAuxiliaryManager(auxiliaryManagers.value, expectedLdapUid)
   if (!record) {
@@ -383,8 +408,35 @@ function loadExternalManagerPerson() {
     people: rosterPeople.value,
     auxiliaryManagers: auxiliaryManagers.value
   })
-  directReports.value = getDirectReportsOfExternal(expectedLdapUid, { people: rosterPeople.value })
+  directReports.value = getDirectReportsOfExternal(expectedLdapUid, {
+    people: rosterPeople.value,
+    auxiliaryManagers: auxiliaryManagers.value
+  })
   loading.value = false
+}
+
+// Rewrites a legacy uid/person link to accountId/ldapUid once this project's roster is loaded.
+function resolveProjectLegacyLink() {
+  const expectedProjectId = projectId.value
+  loading.value = true
+  error.value = null
+  linkUnresolved.value = false
+  person.value = null
+  managerChain.value = []
+  directReports.value = []
+  associatedTeams.value = []
+  jiraMetrics.value = null
+  projectJiraMeta.value = null
+
+  if (awaitingProjectRoster(expectedProjectId)) return
+
+  const resolved = resolveLegacyPersonLink(rosterData.value, { uid: uid.value, person: personName.value })
+  if (resolved.unresolved) {
+    linkUnresolved.value = true
+    loading.value = false
+    return
+  }
+  nav.updateParams({ ...resolved, uid: undefined, person: undefined }, { push: false })
 }
 
 let jiraMetricsRequestSeq = 0
@@ -426,6 +478,7 @@ async function loadPerson() {
   // different profile, where its Save action would target the wrong person.
   editField.value = null
   editValue.value = ''
+  linkUnresolved.value = false
 
   if (isProjectPerson.value) {
     loadProjectPerson()
@@ -438,6 +491,10 @@ async function loadPerson() {
 
   const lookupId = uid.value || personName.value
   if (!lookupId) return
+  if (projectId.value) {
+    resolveProjectLegacyLink()
+    return
+  }
   loading.value = true
   error.value = null
   try {
@@ -472,20 +529,27 @@ async function loadPerson() {
   }
 }
 
+// Legacy team keys in a project's normalized roster resolve to a canonical key, or null.
+const resolvedFromTeamKey = computed(() => {
+  const key = fromTeamKey.value
+  if (!key || !projectId.value || !Array.isArray(rosterData.value?.teams) || rosterData.value.projectId !== projectId.value) return key
+  return resolveLegacyTeamKey(rosterData.value, projectId.value, key).teamKey ?? null
+})
+
 const fromTeam = computed(() => {
-  if (!fromTeamKey.value) return null
-  return allTeams.value.find(t => t.key === fromTeamKey.value || t.displayKey === fromTeamKey.value) || null
+  if (!resolvedFromTeamKey.value) return null
+  return allTeams.value.find(t => t.key === resolvedFromTeamKey.value || t.displayKey === resolvedFromTeamKey.value) || null
 })
 
 function goBack() {
-  if (fromTeamKey.value) {
-    nav.navigateTo('team-detail', { teamKey: fromTeamKey.value })
+  if (resolvedFromTeamKey.value) {
+    nav.navigateTo('team-detail', { teamKey: resolvedFromTeamKey.value })
   } else {
     nav.navigateTo('people')
   }
 }
 
-// Legacy OSAC nodes carry `uid`; project nodes carry `accountId` or `ldapUid`
+// Legacy nodes carry `uid`; project nodes carry `accountId` or `ldapUid`
 // and are only clickable when `navigable`.
 function openHierarchyNode(node) {
   if (node.uid) {
@@ -575,7 +639,7 @@ watch(isAuxiliary, (val) => {
 // Re-resolve on every roster change: handles the deep-link case where the
 // roster is still loading, and avoids a stale person after a project switch.
 watch([rosterData, rosterLoading], () => {
-  if (isEnrichmentScopedPerson.value) loadPerson()
+  if (!isLegacyPerson.value) loadPerson()
 })
 onMounted(() => {
   loadPerson()
@@ -599,6 +663,11 @@ onBeforeUnmount(() => {
 
     <div v-if="loading" class="flex items-center justify-center py-12">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+    </div>
+
+    <div v-else-if="linkUnresolved" data-testid="link-unresolved" class="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
+      <p class="text-gray-600 dark:text-gray-300">This link doesn't match a person in {{ projectLabel }}.</p>
+      <button @click="goBack" class="mt-3 text-sm text-primary-600 dark:text-primary-400 hover:underline">Back to People</button>
     </div>
 
     <div v-else-if="error" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
@@ -958,7 +1027,7 @@ onBeforeUnmount(() => {
             <div v-else class="space-y-2">
               <button
                 v-for="dr in directReports"
-                :key="dr.uid || dr.accountId"
+                :key="dr.uid || dr.accountId || `external:${dr.ldapUid}`"
                 @click="openHierarchyNode(dr)"
                 class="w-full text-left flex items-center justify-between py-1.5 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
               >

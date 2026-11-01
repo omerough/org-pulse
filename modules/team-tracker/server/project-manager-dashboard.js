@@ -11,7 +11,8 @@
 const {
   getManagerPurview,
   buildProjectManagerModel,
-  resolveProjectManagerAccountId
+  resolveProjectManagerIdentity,
+  projectManagerNodeKey
 } = require('./manager-purview');
 
 function emptyPurviewPayload(extra = {}) {
@@ -61,9 +62,13 @@ function isProjectHierarchyAvailable(model) {
   return status === 'available' || status === 'stale';
 }
 
+// External (auxiliary) managers have no accountId; `ldapUid` is present only on them.
+// `key` is the stable row identity, matching the `managedUids` entries of /permissions/me.
 function toReport(person, { indirect = false } = {}) {
   return {
+    key: person.uid,
     accountId: person.accountId,
+    ...(person.external ? { ldapUid: person.ldapUid } : {}),
     name: person.name,
     title: person.title || null,
     teamIds: Array.isArray(person.teamIds) ? [...person.teamIds] : [],
@@ -102,8 +107,8 @@ function buildProjectManagerDashboard(model, options = {}) {
     };
   }
 
-  const accountId = resolveProjectManagerAccountId(model, email);
-  if (!accountId) {
+  const identity = resolveProjectManagerIdentity(model, email);
+  if (!identity) {
     return {
       status: 200,
       body: emptyPurviewPayload({ ...base, availability: model.availability, reason: 'no-registry-identity' })
@@ -111,14 +116,17 @@ function buildProjectManagerDashboard(model, options = {}) {
   }
 
   const { registry, teamsData } = buildProjectManagerModel(model);
-  const managerPerson = registry.people[accountId];
-  const manager = {
-    accountId,
-    name: managerPerson?.name || null,
-    email: managerPerson?.email || null
-  };
+  const managerKey = projectManagerNodeKey(identity);
+  const managerPerson = registry.people[managerKey];
+  const manager = identity.kind === 'external'
+    ? { accountId: null, ldapUid: identity.ldapUid, name: managerPerson?.name || null }
+    : {
+        accountId: identity.accountId,
+        name: managerPerson?.name || null,
+        email: managerPerson?.email || null
+      };
 
-  const purview = getManagerPurview(accountId, registry, teamsData, { includeIndirect });
+  const purview = getManagerPurview(managerKey, registry, teamsData, { includeIndirect });
 
   if (purview.directReportUids.length === 0) {
     // A partial join can be missing managerRefs too — zero reports isn't trustworthy.

@@ -2,7 +2,7 @@
  * Project-qualified roster reads for People and Teams.
  *
  * Canonical person identity is (projectId, accountId); an unknown project
- * never falls back to the legacy OSAC roster. Optional fields (title, geo,
+ * never falls back to the legacy roster. Optional fields (title, geo,
  * identities, managerRef) are joined from the roster-enrichment publication
  * by accountId when available, and are otherwise always null, never
  * fabricated. `manager` stays a static null field for response compatibility

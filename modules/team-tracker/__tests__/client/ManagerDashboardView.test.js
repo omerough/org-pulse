@@ -569,6 +569,33 @@ describe('ManagerDashboardView', () => {
       expect(nav.navigateTo).toHaveBeenCalledWith('person-detail', { accountId: 'acc_eng1' })
     })
 
+    it('renders external reports with a null accountId as distinct rows and opens their ldapUid profile', async () => {
+      enterProjectMode()
+      mockIncludeIndirect.value = true
+      mockDirectReports.value = [
+        { key: 'ldap:dirone', accountId: null, ldapUid: 'dirone', name: 'Dir One', title: 'Director', teamIds: [], managerRef: null },
+        { key: 'ldap:dirtwo', accountId: null, ldapUid: 'dirtwo', name: 'Dir Two', title: 'Director', teamIds: [], managerRef: null }
+      ]
+      mockIndirectReports.value = [
+        { key: 'ldap:dirthree', accountId: null, ldapUid: 'dirthree', name: 'Dir Three', title: 'Director', teamIds: [], indirect: true }
+      ]
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const nav = { navigateTo: vi.fn(), goBack: vi.fn(), params: ref({}) }
+      const wrapper = mount(ManagerDashboardView, {
+        global: { provide: { moduleNav: nav }, stubs: { CircleQuestionMark: { template: '<span />' } } }
+      })
+      await flushPromises()
+
+      const rows = wrapper.findAll('tbody tr')
+      expect(rows).toHaveLength(3)
+      expect(rows.filter(r => r.text().includes('indirect')).map(r => r.text())).toEqual([expect.stringContaining('Dir Three')])
+      expect(warn.mock.calls.flat().join(' ')).not.toContain('Duplicate keys')
+      warn.mockRestore()
+
+      await wrapper.findAll('button').find(b => b.text().includes('Dir Two')).trigger('click')
+      expect(nav.navigateTo).toHaveBeenCalledWith('person-detail', { ldapUid: 'dirtwo' })
+    })
+
     it('shows the indirect badge for non-direct reports when indirect is included', async () => {
       enterProjectMode()
       mockIncludeIndirect.value = true

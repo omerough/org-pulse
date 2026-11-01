@@ -292,7 +292,7 @@ const {
   loadRoster
 } = useRoster()
 
-const isProjectMode = computed(() => Boolean(projectId.value) && projectId.value !== 'osac')
+const isProjectMode = computed(() => Boolean(projectId.value))
 
 const summary = ref(null)
 const selectedOrg = ref(null)

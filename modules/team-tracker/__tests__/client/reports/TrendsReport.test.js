@@ -384,17 +384,17 @@ describe('TrendsReport', () => {
         github: null,
         gitlab: null,
       }))
-      mockProjectId.value = 'osac'
+      mockProjectId.value = 'other-project'
       await nextTick()
       await nextTick()
       await nextTick()
-      expect(wrapper.findAll('[data-testid="trend-chart"]').length).toBe(4)
+      expect(wrapper.findAll('[data-testid="trend-chart"]').length).toBe(3)
 
       resolveStale({ jira: null, github: null, gitlab: null })
       await nextTick()
       await nextTick()
 
-      expect(wrapper.findAll('[data-testid="trend-chart"]').length).toBe(4)
+      expect(wrapper.findAll('[data-testid="trend-chart"]').length).toBe(3)
       expect(wrapper.text()).not.toContain('No trend data available')
     })
   })

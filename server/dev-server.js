@@ -601,6 +601,22 @@ app.post('/api/site-config', requireAdmin, requireScope('admin:manage'), functio
 
 // ─── Routes: App-wide Messages ───
 
+/**
+ * @openapi
+ * /api/messages:
+ *   get:
+ *     tags: [Config]
+ *     summary: Get app-wide messages for the current user
+ *     parameters:
+ *       - in: query
+ *         name: projectId
+ *         required: false
+ *         schema: { type: string }
+ *         description: A registered project id. Project-qualified requests omit messages that only apply to the legacy unqualified roster; an unset, malformed or unknown id is treated as unqualified, but a well-formed id stays project-qualified when the project reader fails.
+ *     responses:
+ *       200:
+ *         description: Computed provider messages followed by stored admin messages
+ */
 app.get('/api/messages', async function(req, res) {
   const userContext = {
     email: req.userEmail,
@@ -608,7 +624,8 @@ app.get('/api/messages', async function(req, res) {
     isAdmin: req.isAdmin,
     isTeamAdmin: req.isTeamAdmin,
     isManager: req.isManager,
-    roles: req.userRoles
+    roles: req.userRoles,
+    projectId: messageRegistry.selectedProjectId(projectProfiles, req.query)
   };
 
   try {

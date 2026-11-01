@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 const mocks = vi.hoisted(() => ({
   getRoster: vi.fn(),
@@ -54,6 +54,83 @@ describe('useRoster project migration', () => {
     expect(mocks.getRoster).toHaveBeenCalledTimes(1)
     expect(mocks.getRoster).toHaveBeenCalledWith('flightctl')
     expect(roster.error.value).toBe('Project roster publication is unavailable')
+  })
+
+  it('clears the roster on project switch and ignores a late response from the previous project', async () => {
+    let resolveOsac
+    mocks.getRoster.mockImplementationOnce(() => new Promise(resolve => { resolveOsac = resolve }))
+    const roster = await createRoster('osac')
+    roster.loadRoster()
+
+    mocks.getRoster.mockResolvedValueOnce({ projectId: 'flightctl', teams: [], people: [{ accountId: 'fc-1' }] })
+    mocks.projectId.value = 'flightctl'
+    expect(roster.rosterData.value).toBeNull()
+    await vi.waitFor(() => expect(roster.rosterData.value?.projectId).toBe('flightctl'))
+
+    resolveOsac({ projectId: 'osac', teams: [], people: [{ accountId: 'osac-1' }] })
+    await vi.waitFor(() => expect(mocks.getRoster).toHaveBeenCalledTimes(2))
+    await Promise.resolve()
+
+    expect(roster.rosterData.value.projectId).toBe('flightctl')
+    expect(roster.rosterData.value.people).toEqual([{ accountId: 'fc-1' }])
+  })
+
+  it('settles a failed fetch as one loading flip with the error already set', async () => {
+    mocks.getRoster.mockRejectedValueOnce(new Error('roster down'))
+    const roster = await createRoster('osac')
+    const settled = []
+    watch([roster.rosterData, roster.loading], () => {
+      settled.push({ loading: roster.loading.value, error: roster.error.value })
+    })
+
+    roster.loadRoster()
+    await vi.waitFor(() => expect(roster.loading.value).toBe(false))
+    await Promise.resolve()
+
+    expect(settled).toEqual([
+      { loading: true, error: null },
+      { loading: false, error: 'roster down' }
+    ])
+  })
+
+  it('clears an error on project switch and ignores a late failure from the previous project', async () => {
+    let rejectOsac
+    mocks.getRoster.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOsac = reject }))
+    const roster = await createRoster('osac')
+    roster.loadRoster()
+
+    mocks.getRoster.mockImplementationOnce(() => new Promise(() => {}))
+    mocks.projectId.value = 'flightctl'
+    rejectOsac(new Error('osac down'))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(roster.error.value).toBeNull()
+    expect(roster.loading.value).toBe(true)
+  })
+
+  it('drops the previous project error synchronously when the project changes', async () => {
+    mocks.getRoster.mockRejectedValueOnce(new Error('osac down'))
+    const roster = await createRoster('osac')
+    await roster.loadRoster()
+    expect(roster.error.value).toBe('osac down')
+
+    mocks.getRoster.mockImplementationOnce(() => new Promise(() => {}))
+    mocks.projectId.value = 'flightctl'
+
+    expect(roster.error.value).toBeNull()
+    expect(roster.rosterData.value).toBeNull()
+    expect(roster.loading.value).toBe(true)
+  })
+
+  it('rejects a legacy-shaped roster for a selected project', async () => {
+    mocks.getRoster.mockResolvedValueOnce({ orgs: [] })
+    const roster = await createRoster('osac')
+
+    await roster.loadRoster()
+
+    expect(roster.rosterData.value).toBeNull()
+    expect(roster.error.value).toBe('Roster response project identity mismatch')
   })
 
   it('does not fall back when the selected OSAC project is unknown', async () => {
@@ -210,7 +287,7 @@ describe('useRoster shared Team/Person shape across both response contracts', ()
     ])
   })
 
-  it('keeps the legacy orgs-based shape for OSAC, with no normalized-model flag', async () => {
+  it('keeps the legacy orgs-based shape when no project is selected, with no normalized-model flag', async () => {
     mocks.getRoster.mockResolvedValueOnce({
       orgs: [{
         key: 'osac',
@@ -220,7 +297,7 @@ describe('useRoster shared Team/Person shape across both response contracts', ()
         }
       }]
     })
-    const roster = await createRoster('osac')
+    const roster = await createRoster('')
     await roster.loadRoster()
 
     expect(roster.isNormalizedModel.value).toBe(false)

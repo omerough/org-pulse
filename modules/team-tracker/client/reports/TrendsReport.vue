@@ -114,7 +114,7 @@ const loading = ref(false)
 const error = ref(null)
 const compareMode = ref('compare')
 
-const isProjectMode = computed(() => !!projectId.value && projectId.value !== 'osac')
+const isProjectMode = computed(() => !!projectId.value)
 const jiraAvailable = computed(() => trendsData.value?.jira != null)
 const githubAvailable = computed(() => {
   const github = trendsData.value?.github
@@ -158,7 +158,7 @@ const seriesConfig = computed(() => {
     })
   }
 
-  // Orgs selected (legacy-OSAC concept only -- a stale selection must not
+  // Orgs selected (legacy-only concept -- a stale selection must not
   // leak into project mode, which has no org concept and would otherwise
   // produce a fabricated-zero series for it).
   if (!isProjectMode.value && selectedOrgKeys.value.length > 0) {

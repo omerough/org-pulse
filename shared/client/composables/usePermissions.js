@@ -48,7 +48,7 @@ export function usePermissions() {
   )
   // Project-mode hierarchy availability signal (absent/partial/expired/unavailable
   // vs available/stale). Separate from isManager: it never grants privileges, it
-  // only lets read-only UI explain why a manager view is empty. Legacy OSAC
+  // only lets read-only UI explain why a manager view is empty. Legacy
   // responses omit it, so it reads as null/available (no degraded UI).
   const hierarchyStatus = computed(() => permissionData.value?.hierarchy || null)
   const hierarchyAvailable = computed(() => {

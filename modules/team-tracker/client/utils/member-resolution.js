@@ -1,5 +1,5 @@
 // Shared member-resolution rules for the Team Overview, generalized across the
-// legacy OSAC registry model and the project-qualified normalized model so the
+// legacy registry model and the project-qualified normalized model so the
 // members table and Headcount chart stay consistent. Identity is never joined
 // by display name.
 

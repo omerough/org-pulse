@@ -1,3 +1,5 @@
+const { resolveProjectSelection } = require('./project-profile')
+
 const providers = new Map()
 
 function registerProvider(id, fn) {
@@ -31,4 +33,16 @@ async function getMessages(userContext) {
   return results
 }
 
-module.exports = { registerProvider, getMessages }
+/**
+ * The project explicitly selected by `?projectId=`; undefined when unset, malformed or unknown.
+ * A well-formed id stays selected when the profile reader fails, because the request is still
+ * project-qualified and legacy-only messages must not appear in its place.
+ */
+function selectedProjectId(projects, query) {
+  const selection = resolveProjectSelection(projects, query)
+  if (!selection.provided) return undefined
+  if (!selection.status) return selection.projectId
+  return selection.status >= 500 ? query.projectId : undefined
+}
+
+module.exports = { registerProvider, getMessages, selectedProjectId }

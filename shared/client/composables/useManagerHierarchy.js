@@ -122,18 +122,35 @@ export function getManagerChainFromExternal(ldapUid, { people, auxiliaryManagers
   })
 }
 
-/** Active roster people whose managerRef points at accountId; no transitive closure. */
-export function getDirectReports(accountId, { people } = {}) {
+function rosterReports(people, matchesRef) {
   return (people || [])
-    .filter(p => p?.active && p.managerRef?.kind === 'roster' && p.managerRef.accountId === accountId)
+    .filter(p => p?.active && matchesRef(p.managerRef))
     .map(p => ({ accountId: p.accountId, name: p.displayName, title: p.title ?? null, navigable: true }))
 }
 
-/** Active roster people whose managerRef points at an external manager's ldapUid; no transitive closure. */
-export function getDirectReportsOfExternal(ldapUid, { people } = {}) {
-  return (people || [])
-    .filter(p => p?.active && p.managerRef?.kind === 'external' && p.managerRef.ldapUid === ldapUid)
-    .map(p => ({ accountId: p.accountId, name: p.displayName, title: p.title ?? null, navigable: true }))
+// External reports have no accountId; `ldapUid` identifies them, as in the manager dashboard contract.
+function externalReports(auxiliaryManagers, matchesRef, ownLdapUid) {
+  return Object.entries(auxiliaryManagers || {})
+    .filter(([ldapUid, record]) => ldapUid !== ownLdapUid && matchesRef(record?.managerRef))
+    .map(([ldapUid, record]) => ({ ldapUid, name: record.displayName, title: record.title ?? null, navigable: true }))
+}
+
+/**
+ * Active roster people, then external managers, whose managerRef points at accountId;
+ * no transitive closure.
+ */
+export function getDirectReports(accountId, { people, auxiliaryManagers } = {}) {
+  const matchesRef = ref => ref?.kind === 'roster' && ref.accountId === accountId
+  return [...rosterReports(people, matchesRef), ...externalReports(auxiliaryManagers, matchesRef)]
+}
+
+/**
+ * Active roster people, then other external managers, whose managerRef points at an
+ * external manager's ldapUid; no transitive closure.
+ */
+export function getDirectReportsOfExternal(ldapUid, { people, auxiliaryManagers } = {}) {
+  const matchesRef = ref => ref?.kind === 'external' && ref.ldapUid === ldapUid
+  return [...rosterReports(people, matchesRef), ...externalReports(auxiliaryManagers, matchesRef, ldapUid)]
 }
 
 /** Stale/partial enrichment is still usable (with an indicator); only a missing/distrusted join is unavailable. */

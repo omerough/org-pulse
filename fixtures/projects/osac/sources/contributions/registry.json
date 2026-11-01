@@ -1,0 +1,263 @@
+{
+  "schemaVersion": 1,
+  "projectId": "osac",
+  "profileRevision": "653d4e3d171383df",
+  "artifactKey": "sources/contributions/registry.json",
+  "source": {
+    "id": "github-contributions",
+    "kind": "github-contributions",
+    "endpoint": [
+      "https://api.github.com/graphql"
+    ],
+    "revision": null,
+    "runId": null
+  },
+  "generatedAt": "2026-10-05T11:15:00Z",
+  "fetchedAt": "2026-10-05T11:15:00Z",
+  "observedAt": "2026-10-05T11:15:00Z",
+  "attemptedAt": "2026-10-05T11:15:00Z",
+  "publishedAt": "2026-10-05T11:15:00Z",
+  "state": "supported",
+  "freshness": "fresh",
+  "partial": false,
+  "error": null,
+  "lastKnownGood": null,
+  "data": {
+    "projectId": "osac",
+    "personCount": 12,
+    "resolvedCount": 9,
+    "metric": {
+      "name": "githubContributionCalendar",
+      "scope": "github-wide",
+      "unit": "contributionCount",
+      "buckets": "month"
+    },
+    "repositories": [
+      {
+        "fullName": "osac-project/osac",
+        "role": "delivery"
+      },
+      {
+        "fullName": "osac-project/enhancement-proposals",
+        "role": "planning"
+      },
+      {
+        "fullName": "osac-project/osac-test-infra",
+        "role": "capability"
+      }
+    ],
+    "people": [
+      {
+        "accountId": "osac-acc-1",
+        "displayName": "Alice Chen",
+        "active": true,
+        "teamIds": [
+          "93eb6d97-b6c6-4509-ab08-16478cd02304"
+        ],
+        "github": {
+          "username": "alicechen",
+          "totalContributions": 39,
+          "months": {
+            "2026-08": 12,
+            "2026-09": 18,
+            "2026-10": 9
+          },
+          "fetchedAt": "2026-10-05T11:15:00Z"
+        },
+        "gitlab": null
+      },
+      {
+        "accountId": "osac-acc-2",
+        "displayName": "Bob Smith",
+        "active": true,
+        "teamIds": [
+          "93eb6d97-b6c6-4509-ab08-16478cd02304"
+        ],
+        "github": {
+          "username": "bobsmith",
+          "totalContributions": 187,
+          "months": {
+            "2026-08": 64,
+            "2026-09": 71,
+            "2026-10": 52
+          },
+          "fetchedAt": "2026-10-05T11:15:00Z"
+        },
+        "gitlab": null
+      },
+      {
+        "accountId": "osac-acc-3",
+        "displayName": "Carol Williams",
+        "active": true,
+        "teamIds": [
+          "93eb6d97-b6c6-4509-ab08-16478cd02304"
+        ],
+        "github": {
+          "username": "carolw",
+          "totalContributions": 113,
+          "months": {
+            "2026-08": 38,
+            "2026-09": 44,
+            "2026-10": 31
+          },
+          "fetchedAt": "2026-10-05T11:15:00Z"
+        },
+        "gitlab": null
+      },
+      {
+        "accountId": "osac-acc-4",
+        "displayName": "David Lee",
+        "active": true,
+        "teamIds": [
+          "b470b07d-0ba5-4216-934f-0b6c0238caf2"
+        ],
+        "github": {
+          "username": "davidlee",
+          "totalContributions": 164,
+          "months": {
+            "2026-08": 55,
+            "2026-09": 49,
+            "2026-10": 60
+          },
+          "fetchedAt": "2026-10-05T11:15:00Z"
+        },
+        "gitlab": null
+      },
+      {
+        "accountId": "osac-acc-5",
+        "displayName": "Emma Garcia",
+        "active": true,
+        "teamIds": [
+          "b470b07d-0ba5-4216-934f-0b6c0238caf2"
+        ],
+        "github": {
+          "username": "emmagarcia",
+          "totalContributions": 124,
+          "months": {
+            "2026-08": 41,
+            "2026-09": 36,
+            "2026-10": 47
+          },
+          "fetchedAt": "2026-10-05T11:15:00Z"
+        },
+        "gitlab": null
+      },
+      {
+        "accountId": "osac-acc-6",
+        "displayName": "Frank Johnson",
+        "active": true,
+        "teamIds": [
+          "b29325e5-601a-4d53-b84b-0170920db548"
+        ],
+        "github": {
+          "username": "frankj",
+          "totalContributions": 25,
+          "months": {
+            "2026-08": 8,
+            "2026-09": 11,
+            "2026-10": 6
+          },
+          "fetchedAt": "2026-10-05T11:15:00Z"
+        },
+        "gitlab": null
+      },
+      {
+        "accountId": "osac-acc-7",
+        "displayName": "Grace Kim",
+        "active": true,
+        "teamIds": [
+          "b29325e5-601a-4d53-b84b-0170920db548"
+        ],
+        "github": {
+          "username": "gracekim",
+          "totalContributions": 196,
+          "months": {
+            "2026-08": 72,
+            "2026-09": 66,
+            "2026-10": 58
+          },
+          "fetchedAt": "2026-10-05T11:15:00Z"
+        },
+        "gitlab": null
+      },
+      {
+        "accountId": "osac-acc-8",
+        "displayName": "Henry Wilson",
+        "active": true,
+        "teamIds": [
+          "b29325e5-601a-4d53-b84b-0170920db548"
+        ],
+        "github": {
+          "username": "henryw",
+          "totalContributions": 91,
+          "months": {
+            "2026-08": 29,
+            "2026-09": 35,
+            "2026-10": 27
+          },
+          "fetchedAt": "2026-10-05T11:15:00Z"
+        },
+        "gitlab": null
+      },
+      {
+        "accountId": "osac-acc-9",
+        "displayName": "Iris Martinez",
+        "active": true,
+        "teamIds": [
+          "a63c4ba4-a73c-41ea-a397-0a4020253953"
+        ],
+        "github": null,
+        "gitlab": null
+      },
+      {
+        "accountId": "osac-acc-10",
+        "displayName": "Jack Brown",
+        "active": true,
+        "teamIds": [
+          "a63c4ba4-a73c-41ea-a397-0a4020253953"
+        ],
+        "github": {
+          "username": "jackbrown",
+          "totalContributions": 101,
+          "months": {
+            "2026-08": 33,
+            "2026-09": 40,
+            "2026-10": 28
+          },
+          "fetchedAt": "2026-10-05T11:15:00Z"
+        },
+        "gitlab": null
+      },
+      {
+        "accountId": "osac-acc-11",
+        "displayName": "Pat Manager",
+        "active": true,
+        "teamIds": [],
+        "github": null,
+        "gitlab": null
+      },
+      {
+        "accountId": "osac-acc-12",
+        "displayName": "Sam Designer",
+        "active": true,
+        "teamIds": [],
+        "github": null,
+        "gitlab": null
+      }
+    ],
+    "diagnostics": {
+      "unresolvedIdentities": [
+        "osac-acc-9",
+        "osac-acc-11",
+        "osac-acc-12"
+      ],
+      "identityConflicts": [],
+      "carriedForward": [],
+      "failedFetch": [],
+      "gitlab": {
+        "state": "unavailable",
+        "reason": "no reusable GitLab contribution collector and no validated GitLab identities published"
+      }
+    }
+  }
+}
