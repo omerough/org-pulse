@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import PeopleDirectoryView from '../../client/views/PeopleDirectoryView.vue'
 
 const projectId = ref('')
 
 vi.mock('@shared/client/composables/useProjectId.js', () => ({
   useProjectId: () => projectId
+}))
+
+const projectLabels = { acme: 'Acme Platform', flightctl: 'Flight Control' }
+vi.mock('../../client/composables/useProjectDisplayName', () => ({
+  useProjectDisplayName: () => computed(() => projectLabels[projectId.value] ?? projectId.value)
 }))
 
 const mockLoadRoster = vi.fn()
@@ -410,6 +415,30 @@ describe('PeopleDirectoryView', () => {
     const csv = getCsv()
     expect(csv.split('\n')[0]).toContain('Location')
     expect(csv).toContain('Cork, Ireland')
+  })
+
+  it.each([
+    ['acme', 'Acme Platform'],
+    ['flightctl', 'Flight Control']
+  ])('shows the %s project display name in the Project column and CSV', async (id, label) => {
+    projectId.value = id
+    rosterData.value = { projectId: id, availability: 'available', reason: null, teams: [], people: [] }
+    mockLoadRoster.mockResolvedValue(rosterData.value)
+    rosterTeams.value = []
+    rosterPeople.value = [
+      { key: `${id}::acc-1`, accountId: 'acc-1', displayName: 'Ada Lovelace', active: true, email: null, teamIds: [], title: null, identities: {} }
+    ]
+    const getCsv = captureCsvExport()
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const cells = wrapper.findAll('tbody tr:first-child td').map(td => td.text())
+    expect(cells).toContain(label)
+    expect(cells).not.toContain(id)
+
+    await wrapper.findAll('button').find(b => b.text() === 'Export CSV').trigger('click')
+    expect(getCsv().split('\n')[1]).toMatch(new RegExp(`^"${label}",`))
   })
 
   it('enables the Geo filter for canonical projects', async () => {

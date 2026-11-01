@@ -2,7 +2,7 @@
   <div>
     <template v-if="isProjectMode">
       <div class="mb-6">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ projectId }} Dashboard</h2>
+        <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ projectLabel }} Dashboard</h2>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Project summary</p>
       </div>
 
@@ -276,11 +276,13 @@ import OrgSelector from '../components/OrgSelector.vue'
 import { useOrgRoster } from '../composables/useOrgRoster'
 import { useRoster } from '@shared/client/composables/useRoster'
 import { useProjectId } from '@shared/client/composables/useProjectId.js'
+import { useProjectDisplayName } from '../composables/useProjectDisplayName'
 import { deriveHeadcountByRole } from '../utils/member-resolution'
 
 const nav = inject('moduleNav')
 const { loadOrgSummary, loadOrgs, orgs } = useOrgRoster()
 const projectId = useProjectId()
+const projectLabel = useProjectDisplayName()
 const {
   rosterData,
   people: canonicalPeople,

@@ -3,6 +3,7 @@ import { ref, computed, onMounted, inject, watch } from 'vue'
 import { useOrgRoster } from '../composables/useOrgRoster'
 import { useRoster } from '@shared/client/composables/useRoster'
 import { useProjectId } from '@shared/client/composables/useProjectId.js'
+import { useProjectDisplayName } from '../composables/useProjectDisplayName'
 import { usePermissions } from '@shared/client/composables/usePermissions'
 import { useFieldDefinitions } from '@shared/client/composables/useFieldDefinitions'
 import { useFieldFilters } from '../composables/useFieldFilters'
@@ -12,6 +13,7 @@ import FieldFilterPanel from '../components/FieldFilterPanel.vue'
 
 const nav = inject('moduleNav')
 const projectId = useProjectId()
+const projectLabel = useProjectDisplayName()
 const {
   orgs,
   selectedOrg,
@@ -51,7 +53,7 @@ const projectTeams = computed(() => {
   return teams.value.map(team => ({
     key: team.key,
     name: team.displayName,
-    org: projectId.value,
+    org: projectLabel.value,
     memberCount: team.members.length,
     members: team.members,
     metadata: team.metadata || {}

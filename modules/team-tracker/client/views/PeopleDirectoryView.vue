@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, inject, watch } from 'vue'
 import { apiRequest } from '@shared/client/services/api.js'
 import { useProjectId } from '@shared/client/composables/useProjectId.js'
+import { useProjectDisplayName } from '../composables/useProjectDisplayName'
 import { useRoster } from '@shared/client/composables/useRoster.js'
 import { useFieldDefinitions } from '@shared/client/composables/useFieldDefinitions'
 import { useFieldFilters } from '../composables/useFieldFilters'
@@ -10,6 +11,7 @@ import FieldFilterPanel from '../components/FieldFilterPanel.vue'
 
 const nav = inject('moduleNav')
 const projectId = useProjectId()
+const projectLabel = useProjectDisplayName()
 const {
   rosterData: projectRosterData,
   error: projectRosterError,
@@ -312,7 +314,7 @@ function exportCsv() {
     const fieldValues = personFieldDefs.value.map(fd => personFieldValue(p, fd.id))
     if (isProjectRoster.value) {
       rows.push([
-        p.orgDisplayName || '', p.name, p.title || '', p.geo || '', p.location || '', personTeamDisplay(p),
+        projectLabel.value, p.name, p.title || '', p.geo || '', p.location || '', personTeamDisplay(p),
         ...(includeIdentityColumns ? [p.github ? p.github.username : '', p.gitlab ? p.gitlab.username : ''] : [])
       ])
     } else {
@@ -495,7 +497,7 @@ watch(projectId, () => {
                 class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
                 @click="openPerson(p)"
               >
-                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ p.orgDisplayName }}</td>
+                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ isProjectRoster ? projectLabel : p.orgDisplayName }}</td>
                 <td class="px-4 py-3">
                   <span class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">{{ p.name }}</span>
                 </td>
