@@ -125,6 +125,39 @@ describe('useFeatureDetail', () => {
     expect(error.value).toBeNull()
   })
 
+  it('drops a version response that arrives after the project changed', async () => {
+    const osacResponse = deferred()
+    mockApiRequest.mockImplementation(url => (url.includes('projectId=osac')
+      ? osacResponse.promise
+      : Promise.resolve({ versions: ['2.0'], state: 'supported' })))
+    const { versions, state, loadVersions } = useVersions()
+
+    const pending = loadVersions('epics')
+    window.location.hash = '#/releases/execute?projectId=flightctl'
+    window.dispatchEvent(new Event('urlchange'))
+    await loadVersions('epics')
+    expect(versions.value).toEqual(['2.0'])
+
+    osacResponse.resolve({ versions: ['1.0'], state: 'supported' })
+    await pending
+
+    expect(versions.value).toEqual(['2.0'])
+    expect(state.value).toBe('supported')
+  })
+
+  it('drops an older version response that resolves after a newer request for the same project', async () => {
+    const first = deferred()
+    mockApiRequest.mockReturnValueOnce(first.promise).mockResolvedValueOnce({ versions: ['new'], state: 'supported' })
+    const { versions, loadVersions } = useVersions()
+
+    const older = loadVersions('epics')
+    await loadVersions('epics')
+    first.resolve({ versions: ['old'], state: 'supported' })
+    await older
+
+    expect(versions.value).toEqual(['new'])
+  })
+
   it('qualifies feature and version requests with the selected project', async () => {
     window.location.hash = '#/releases/execute?projectId=flightctl'
     window.dispatchEvent(new Event('urlchange'))

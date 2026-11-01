@@ -4,6 +4,7 @@ import {
   matchesPanel,
   collectEpics,
   collectLabelOptions,
+  matchesLabels,
   buildComponentPanels,
   sortEpics
 } from '../../../client/execute/utils/epicComponentPanels'
@@ -122,11 +123,14 @@ describe('matchesPanel', () => {
 })
 
 describe('duplicate Epic handling', () => {
-  it('keeps one object per key across Features, first occurrence wins', () => {
-    const first = epic('OSAC-1', { components: ['Core'], summary: 'first' })
-    const second = epic('OSAC-1', { components: ['Core'], summary: 'second' })
-    const epics = collectEpics([{ epics: [first] }, { epics: [second, epic('OSAC-2', { summary: 'other' })] }])
-    expect(epics.map(e => e.summary)).toEqual(['first', 'other'])
+  const older = '2026-10-01T10:00:00.000+0000'
+  const newer = '2026-10-20T10:00:00.000+0000'
+  const inFeatures = (...epics) => epics.map(e => ({ epics: [e] }))
+  const coreRows = features => keysOf(buildComponentPanels(features, config, '0.4').panels.find(p => p.component === 'Core'))
+
+  it('keeps one record per key across Features', () => {
+    const epics = collectEpics(inFeatures(epic('OSAC-1'), epic('OSAC-1'), epic('OSAC-2')))
+    expect(epics.map(e => e.key).sort()).toEqual(['OSAC-1', 'OSAC-2'])
   })
 
   it('treats keys differing only by case or whitespace as the same Epic', () => {
@@ -145,11 +149,52 @@ describe('duplicate Epic handling', () => {
     expect(result.distinctEpicCount).toBe(1)
   })
 
-  it('evaluates only the first occurrence when duplicate rows disagree', () => {
-    const inherited = epic('OSAC-1', { components: ['Core'], componentSource: 'via-parent-feature' })
-    const direct = epic('OSAC-1', { components: ['Core'] })
-    const result = buildComponentPanels([{ epics: [inherited] }, { epics: [direct] }], config, '0.4')
-    expect(result.rowCount).toBe(0)
+  it('keeps the most recently updated record whichever order the rows arrive in', () => {
+    const staleDirect = epic('OSAC-1', { components: ['Core'], updated: older })
+    const freshInherited = epic('OSAC-1', { components: ['Core'], componentSource: 'via-parent-feature', updated: newer })
+    expect(coreRows(inFeatures(staleDirect, freshInherited))).toEqual([])
+    expect(coreRows(inFeatures(freshInherited, staleDirect))).toEqual([])
+
+    const staleInherited = { ...freshInherited, updated: older }
+    const freshDirect = { ...staleDirect, updated: newer }
+    expect(coreRows(inFeatures(staleInherited, freshDirect))).toEqual(['OSAC-1'])
+    expect(coreRows(inFeatures(freshDirect, staleInherited))).toEqual(['OSAC-1'])
+  })
+
+  it('keeps the winning record whole instead of merging fields from the others', () => {
+    const stale = epic('OSAC-1', { components: ['Core'], labels: ['bootstrap', 'stale-label'], assignee: 'Old Owner', updated: older })
+    const fresh = epic('OSAC-1', { components: ['Core', 'Storage'], labels: ['bootstrap'], assignee: null, updated: newer })
+    const [winner] = collectEpics(inFeatures(stale, fresh))
+    expect(winner).toBe(fresh)
+    expect(winner.labels).toEqual(['bootstrap'])
+    expect(winner.assignee).toBeNull()
+  })
+
+  it('ranks a record without a parseable update time below one with a timestamp', () => {
+    const undated = epic('OSAC-1', { components: ['Core'], updated: '' })
+    const garbled = epic('OSAC-1', { components: ['Core'], updated: 'not a date', summary: 'garbled' })
+    const dated = epic('OSAC-1', { components: ['Core'], updated: older, summary: 'dated' })
+    for (const order of [[undated, garbled, dated], [dated, garbled, undated], [garbled, dated, undated]]) {
+      expect(collectEpics(inFeatures(...order))[0].summary).toBe('dated')
+    }
+  })
+
+  it('resolves equally fresh conflicting records the same way for every input order', () => {
+    const records = [
+      epic('OSAC-1', { components: ['Core'], updated: newer, parentFeatureKey: 'OSAC-20', componentSource: 'via-parent-feature' }),
+      epic('OSAC-1', { components: ['Core'], updated: newer, parentFeatureKey: 'OSAC-10' }),
+      epic('OSAC-1', { components: ['Core'], updated: newer, parentFeatureKey: 'OSAC-30', labels: ['bootstrap', 'x'] })
+    ]
+    const orders = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]]
+    const winners = orders.map(order => collectEpics(inFeatures(...order.map(i => records[i])))[0].parentFeatureKey)
+    expect(new Set(winners).size).toBe(1)
+  })
+
+  it('produces identical panels when Features and their Epics are reordered', () => {
+    const features = frozenEpicsFeatures()
+    const reversed = [...features].reverse().map(f => ({ ...f, epics: [...f.epics].reverse() }))
+    const summarize = result => result.panels.map(p => [p.component, keysOf(p)])
+    expect(summarize(buildComponentPanels(reversed, config, '0.4'))).toEqual(summarize(buildComponentPanels(features, config, '0.4')))
   })
 })
 
@@ -223,6 +268,13 @@ describe('filters', () => {
     expect(one.panels.flatMap(keysOf)).toEqual(['OSAC-3539', 'OSAC-3539'])
     const either = buildComponentPanels(features, config, '0.4', { labels: ['UX-COMPLETE', 'design-approved'] })
     expect(new Set(either.panels.flatMap(keysOf))).toEqual(new Set(['OSAC-3539', 'OSAC-2633', 'OSAC-4345']))
+  })
+
+  it('collapses label spellings that differ only by case into one option', () => {
+    const options = [epic('A-1', { labels: ['UI', 'ui'] }), epic('A-2', { labels: ['Ui', ' ui '] })]
+    expect(collectLabelOptions(options)).toEqual(['UI'])
+    expect(collectLabelOptions([...options].reverse())).toEqual(['UI'])
+    expect(matchesLabels(['ui'], ['Ui'])).toBe(true)
   })
 
   it('collects raw Epic labels sorted case-insensitively, ignoring blanks', () => {

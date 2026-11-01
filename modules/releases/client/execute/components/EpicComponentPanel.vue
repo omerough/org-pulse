@@ -14,10 +14,11 @@ const JIRA_BASE = 'https://redhat.atlassian.net/browse/'
 const MAX_LABEL_CHIPS = 5
 
 const isEmpty = computed(() => props.rows.length === 0)
-const collapsed = ref(isEmpty.value)
+// A user's toggle overrides the default (empty panels start collapsed) across data and filter changes.
+const userCollapsed = ref(null)
+const collapsed = computed(() => userCollapsed.value ?? isEmpty.value)
 const showAll = ref(false)
 
-watch(isEmpty, empty => { collapsed.value = empty })
 watch(() => props.rows, () => { showAll.value = false })
 
 const visibleRows = computed(() => showAll.value ? props.rows : props.rows.slice(0, props.pageSize))
@@ -42,7 +43,7 @@ function alsoInText(alsoIn) {
         class="w-full flex items-center justify-between gap-2 px-4 py-3 text-left focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500"
         :aria-expanded="!collapsed"
         :aria-controls="contentId"
-        @click="collapsed = !collapsed"
+        @click="userCollapsed = !collapsed"
       >
         <span class="flex items-center gap-2 min-w-0">
           <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ componentDisplayLabel(component) }}</span>

@@ -201,9 +201,11 @@ function installExecuteApi(page, { delayOsacFeatures = false } = {}) {
   };
 }
 
-async function expectSharedTabs(page) {
+// The component dashboard tab is offered only for projects with a dashboard config (OSAC).
+async function expectSharedTabs(page, projectId) {
   const tabs = page.locator('nav[aria-label="Execute sub-tabs"] button');
-  await expect(tabs).toHaveText(['Feature List', 'Hygiene', 'Feature Tracking', 'Epics by Release']);
+  const shared = ['Feature List', 'Hygiene', 'Feature Tracking', 'Epics by Release'];
+  await expect(tabs).toHaveText(projectId === 'osac' ? [...shared, 'UI Epics by Component'] : shared);
 }
 
 test.describe('Shared Releases Execute @releases', () => {
@@ -213,7 +215,7 @@ test.describe('Shared Releases Execute @releases', () => {
     const api = installExecuteApi(page);
     await page.goto('/#/releases/execute?projectId=osac');
     await expect(page.locator('#project-selector')).toHaveValue('osac');
-    await expectSharedTabs(page);
+    await expectSharedTabs(page, 'osac');
 
     for (const projectId of ['osac', 'flightctl']) {
       if (projectId === 'flightctl') {
@@ -221,7 +223,7 @@ test.describe('Shared Releases Execute @releases', () => {
         await expect(page).toHaveURL(/projectId=flightctl/);
       }
 
-      await expectSharedTabs(page);
+      await expectSharedTabs(page, projectId);
       await page.getByRole('button', { name: 'Feature List', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'Feature Execution Overview' })).toBeVisible();
       await page.getByRole('button', { name: 'List', exact: true }).click();

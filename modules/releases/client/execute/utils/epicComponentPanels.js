@@ -46,30 +46,53 @@ export function matchesPanel(epic, panel, config, release) {
 
 const epicIdentity = epic => fold(epic?.key)
 
-// An Epic can be listed under several Features; the first occurrence is the one evaluated.
+function updatedMillis(epic) {
+  const time = Date.parse(epic.updated)
+  return Number.isNaN(time) ? -Infinity : time
+}
+
+// Final tie-break so equally fresh duplicates resolve the same way for any input order.
+function tieBreakKey(epic) {
+  const sorted = list => [...(list || [])].map(fold).sort()
+  return JSON.stringify([
+    fold(epic.parentFeatureKey), epic.fixVersionSource, sorted(epic.fixVersions), epic.componentSource,
+    sorted(epic.components), sorted(epic.labels), fold(resolutionName(epic.resolution)), fold(epic.status),
+    epic.summary, epic.priority, epic.assignee
+  ])
+}
+
+function isPreferredRecord(candidate, current) {
+  const candidateTime = updatedMillis(candidate)
+  const currentTime = updatedMillis(current)
+  if (candidateTime !== currentTime) return candidateTime > currentTime
+  return tieBreakKey(candidate) < tieBreakKey(current)
+}
+
+// Duplicate rows describe one Jira issue: the most recently updated record is kept whole, never merged.
 export function collectEpics(features) {
-  const seen = new Set()
-  const epics = []
+  const byIdentity = new Map()
   for (const feature of features || []) {
     for (const epic of feature?.epics || []) {
       const identity = epicIdentity(epic)
-      if (!identity || seen.has(identity)) continue
-      seen.add(identity)
-      epics.push(epic)
+      if (!identity) continue
+      const current = byIdentity.get(identity)
+      if (!current || isPreferredRecord(epic, current)) byIdentity.set(identity, epic)
     }
   }
-  return epics
+  return [...byIdentity.values()]
 }
 
 export function collectLabelOptions(epics) {
-  const labels = new Set()
+  const byFolded = new Map()
   for (const epic of epics) {
     for (const label of epic.labels || []) {
       const trimmed = String(label ?? '').trim()
-      if (trimmed) labels.add(trimmed)
+      if (!trimmed) continue
+      const existing = byFolded.get(fold(trimmed))
+      if (existing === undefined || trimmed < existing) byFolded.set(fold(trimmed), trimmed)
     }
   }
-  return [...labels].sort((a, b) => fold(a).localeCompare(fold(b)))
+  return [...byFolded.values()].sort((a, b) => fold(a).localeCompare(fold(b)))
 }
 
 export function matchesLabels(labels, selected) {

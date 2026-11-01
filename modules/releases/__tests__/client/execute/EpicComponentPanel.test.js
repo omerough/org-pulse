@@ -75,6 +75,38 @@ describe('EpicComponentPanel', () => {
     expect(wrapper.classes()).not.toContain('opacity-70')
   })
 
+  it('keeps a panel the user collapsed collapsed when filters empty and refill it', async () => {
+    const wrapper = mountPanel()
+    const header = wrapper.find('h3 button')
+    await header.trigger('click')
+    expect(header.attributes('aria-expanded')).toBe('false')
+
+    await wrapper.setProps({ rows: [] })
+    await wrapper.setProps({ rows: rows(2) })
+    expect(header.attributes('aria-expanded')).toBe('false')
+  })
+
+  it('keeps an empty panel the user expanded expanded when rows come and go', async () => {
+    const wrapper = mountPanel({ rows: [] })
+    const header = wrapper.find('h3 button')
+    await header.trigger('click')
+    expect(header.attributes('aria-expanded')).toBe('true')
+
+    await wrapper.setProps({ rows: rows(1) })
+    await wrapper.setProps({ rows: [] })
+    expect(header.attributes('aria-expanded')).toBe('true')
+  })
+
+  it('honors the last user toggle even when it equals the default', async () => {
+    const wrapper = mountPanel({ rows: [] })
+    const header = wrapper.find('h3 button')
+    await header.trigger('click')
+    await header.trigger('click')
+    expect(header.attributes('aria-expanded')).toBe('false')
+    await wrapper.setProps({ rows: rows(1) })
+    expect(header.attributes('aria-expanded')).toBe('false')
+  })
+
   it('shows an also-in pointer only for Epics listed in several panels', () => {
     const wrapper = mountPanel({
       rows: [{ epic: epic('OSAC-1'), alsoIn: ['Connectivity&Fabric', 'Core'] }, { epic: epic('OSAC-2'), alsoIn: [] }]
