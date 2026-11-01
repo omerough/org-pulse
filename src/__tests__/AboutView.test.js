@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref, markRaw, defineComponent } from 'vue'
 
@@ -53,6 +53,10 @@ describe('AboutView', () => {
     vi.resetModules()
     const mod = await import('../components/AboutView.vue')
     AboutView = mod.default
+  })
+
+  afterEach(() => {
+    window.location.hash = ''
   })
 
   it('renders core tabs in correct order', async () => {
@@ -202,6 +206,5 @@ describe('AboutView', () => {
     await flushPromises()
 
     expect(window.location.hash).toBe('#/about?projectId=osac&tab=help')
-    window.location.hash = ''
   })
 })

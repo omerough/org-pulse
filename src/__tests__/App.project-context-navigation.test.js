@@ -166,6 +166,17 @@ describe('shell navigation keeps the project context', () => {
     wrapper.unmount()
   })
 
+  it('shell redirects keep the URL project, and add none when the URL has none', async () => {
+    stubBackend([twoProjects[0]])
+    const withProject = await mountApp('#/help?projectId=osac')
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/about?projectId=osac&tab=help'))
+    withProject.unmount()
+
+    const withoutProject = await mountApp('#/docs')
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/about?tab=docs'))
+    withoutProject.unmount()
+  })
+
   it('single-project OSAC deployment navigates Home without adding a projectId', async () => {
     const fetchMock = stubBackend([twoProjects[0]])
     const wrapper = await mountApp('#/releases/execute')

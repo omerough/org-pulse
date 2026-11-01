@@ -594,7 +594,9 @@ export default {
       // Route state mirrors the URL on every route, shell views included, so
       // the selector never keeps a project the URL no longer carries.
       this.routeParams = { ...params }
-      const shellRedirect = (path, extra) => window.location.replace(buildShellHash(path, extra, params.projectId))
+      // '' (not undefined) so a URL without a project never inherits the ambient one
+      const urlProjectId = params.projectId ?? ''
+      const shellRedirect = (path, extra) => window.location.replace(buildShellHash(path, extra, urlProjectId))
 
       // Backward compatibility redirects
       if (parts[0] === 'team' && parts[1]) {
@@ -664,7 +666,7 @@ export default {
       const isKnownBuiltIn = this.allBuiltInManifests.find(m => m.slug === parts[0])
       if (isKnownBuiltIn && this.enabledBuiltInSlugs && !this.enabledBuiltInSlugs.includes(parts[0])) {
         this.setShellView('home')
-        window.location.hash = buildShellHash('', {}, params.projectId)
+        window.location.hash = buildShellHash('', {}, urlProjectId)
         return
       }
       const manifest = this.builtInManifests.find(m => m.slug === parts[0])
