@@ -71,7 +71,7 @@ const result = computed(() => {
 
 // The toolbar always renders for the Release selector; filters appear only once data is loaded.
 const NO_FILTER_OPTIONS = { components: [], statuses: [], assignees: [], labels: [] }
-const filterOptions = computed(() => (result.value && !loading.value ? result.value.options : NO_FILTER_OPTIONS))
+const filterOptions = computed(() => (result.value && !loading.value && !error.value ? result.value.options : NO_FILTER_OPTIONS))
 
 const treeUnavailable = computed(() => !!treeState.value && !['supported', 'empty'].includes(treeState.value))
 
@@ -241,7 +241,7 @@ onBeforeUnmount(() => {
         {{ treeMessage || 'Release hierarchy unavailable.' }}
       </div>
 
-      <template v-else-if="result">
+      <template v-else-if="result && !error">
         <div class="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
           <span data-testid="summary-counts">{{ result.distinctEpicCount }} Epic{{ result.distinctEpicCount === 1 ? '' : 's' }} &middot; {{ result.rowCount }} row{{ result.rowCount === 1 ? '' : 's' }}</span>
           <span v-if="fetchedAt" data-testid="fetched-at" class="text-xs text-gray-500 dark:text-gray-400">Data as of {{ formatDate(fetchedAt) }}</span>

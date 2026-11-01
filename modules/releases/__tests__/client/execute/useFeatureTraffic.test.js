@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useFeatureDetail, useFeatureTraffic, useVersions } from '../../../client/execute/composables/useFeatureTraffic'
+import { useFeatureDetail, useFeatureTraffic, useVersions, useEpicsByRelease } from '../../../client/execute/composables/useFeatureTraffic'
 
 const mockApiRequest = vi.fn()
 
@@ -176,5 +176,44 @@ describe('useFeatureDetail', () => {
     expect(versions.state.value).toBe('unavailable')
     expect(traffic.features.value).toEqual([])
     expect(versions.versions.value).toEqual([])
+  })
+})
+
+describe('useEpicsByRelease', () => {
+  beforeEach(() => {
+    mockApiRequest.mockReset()
+    window.location.hash = '#/releases/execute?projectId=osac'
+    window.dispatchEvent(new Event('urlchange'))
+  })
+
+  it('clears the previous release freshness when the next release fails to load', async () => {
+    mockApiRequest.mockResolvedValueOnce({ features: [{ key: 'OSAC-1', epics: [] }], fetchedAt: '2026-10-26T08:00:00Z', state: 'supported' })
+    const { features, fetchedAt, error, loadEpicsByRelease } = useEpicsByRelease()
+
+    await loadEpicsByRelease('0.4')
+    expect(fetchedAt.value).toBe('2026-10-26T08:00:00Z')
+
+    mockApiRequest.mockRejectedValueOnce(new Error('Server error'))
+    await loadEpicsByRelease('0.5')
+
+    expect(error.value).toBe('Server error')
+    expect(features.value).toEqual([])
+    expect(fetchedAt.value).toBeNull()
+  })
+
+  it('clears the previous release freshness as soon as the next release starts loading', async () => {
+    mockApiRequest.mockResolvedValueOnce({ features: [], fetchedAt: '2026-10-26T08:00:00Z', state: 'empty' })
+    const { fetchedAt, loading, loadEpicsByRelease } = useEpicsByRelease()
+    await loadEpicsByRelease('0.4')
+
+    const next = deferred()
+    mockApiRequest.mockReturnValueOnce(next.promise)
+    const pending = loadEpicsByRelease('0.5')
+    expect(loading.value).toBe(true)
+    expect(fetchedAt.value).toBeNull()
+
+    next.resolve({ features: [], fetchedAt: '2026-10-27T08:00:00Z', state: 'empty' })
+    await pending
+    expect(fetchedAt.value).toBe('2026-10-27T08:00:00Z')
   })
 })

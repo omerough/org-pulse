@@ -257,6 +257,31 @@ test.describe('Releases UI Epics by Component @releases', () => {
     await expect(header).toHaveAttribute('aria-expanded', 'true');
   });
 
+  test('shows only the error, with no counts, panels or stale freshness, when a release fails to load', async ({ page }) => {
+    installApi(page);
+    await openDashboard(page);
+    await expect(page.locator('[data-testid="fetched-at"]')).toBeVisible();
+
+    await page.route('**/api/modules/releases/execution/epics**', route => {
+      const version = new URL(route.request().url()).searchParams.get('version');
+      return version === '1.0'
+        ? route.fulfill({ status: 500, json: { error: 'Epics unavailable' } })
+        : route.fallback();
+    });
+    await releaseSelect(page).selectOption('1.0');
+
+    await expect(page.locator('[role="alert"]')).toBeVisible();
+    await expect(page.locator('[data-panel]')).toHaveCount(0);
+    await expect(summary(page)).toHaveCount(0);
+    await expect(page.locator('[data-testid="fetched-at"]')).toHaveCount(0);
+    await expect(page.getByText('No matching Epics')).toHaveCount(0);
+
+    await releaseSelect(page).selectOption('1.1');
+    await expect(page.locator('[role="alert"]')).toHaveCount(0);
+    await expect(summary(page)).toHaveText('15 Epics · 16 rows');
+    await expect(page.locator('[data-testid="fetched-at"]')).toBeVisible();
+  });
+
   test('is offered for OSAC and hidden for other projects, including by deep link', async ({ page }) => {
     const projects = [{ projectId: 'osac', displayName: 'OSAC' }, { projectId: 'flightctl', displayName: 'Flight Control' }];
     installApi(page, { projects });

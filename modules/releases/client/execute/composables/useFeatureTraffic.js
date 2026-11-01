@@ -173,6 +173,7 @@ export function useEpicsByRelease() {
     message.value = null
     features.value = []
     hierarchy.value = null
+    fetchedAt.value = null
 
     try {
       const params = new URLSearchParams({ version })

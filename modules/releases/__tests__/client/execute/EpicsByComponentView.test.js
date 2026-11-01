@@ -220,10 +220,50 @@ describe('EpicsByComponentView', () => {
     unavailable.wrapper.unmount()
   })
 
-  it('surfaces a load error', async () => {
+  it('shows only the error, with no counts, empty panels or empty-release note, when Epics fail to load', async () => {
     epicsResponder = () => Promise.reject(new Error('Server error'))
     const { wrapper } = await mountView({ release: '0.4' })
-    expect(wrapper.text()).toContain('Server error')
+
+    expect(wrapper.find('[role="alert"]').text()).toBe('Server error')
+    expect(wrapper.find('[data-testid="summary-counts"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="no-epics-note"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="fetched-at"]').exists()).toBe(false)
+    expect(panelNames(wrapper)).toHaveLength(0)
+    expect(wrapper.text()).not.toContain('No matching Epics')
+    expect(releaseSelect(wrapper).element.value).toBe('0.4')
+    wrapper.unmount()
+  })
+
+  it('drops the previous release data and freshness when the next release fails, and recovers afterwards', async () => {
+    const { wrapper } = await mountView({ release: '0.4' })
+    expect(wrapper.find('[data-testid="fetched-at"]').exists()).toBe(true)
+
+    const goodResponder = epicsResponder
+    epicsResponder = version => (version === '0.5' ? Promise.reject(new Error('Server error')) : goodResponder(version))
+    await releaseSelect(wrapper).setValue('0.5')
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"]').text()).toBe('Server error')
+    expect(wrapper.find('[data-testid="fetched-at"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="summary-counts"]').exists()).toBe(false)
+    expect(panelNames(wrapper)).toHaveLength(0)
+
+    await releaseSelect(wrapper).setValue('0.4')
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="fetched-at"]').exists()).toBe(true)
+    expect(panelNames(wrapper)).toHaveLength(9)
+    wrapper.unmount()
+  })
+
+  it('keeps showing counts and freshness for an empty release that loaded successfully', async () => {
+    epicsResponder = version => Promise.resolve({ version, fetchedAt: '2026-10-26T08:00:00Z', features: [], state: 'empty' })
+    const { wrapper } = await mountView({ release: '0.5' })
+
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="summary-counts"]').text()).toBe('0 Epics · 0 rows')
+    expect(wrapper.find('[data-testid="fetched-at"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="no-epics-note"]').text()).toBe('No matching Epics for release 0.5.')
     wrapper.unmount()
   })
 
