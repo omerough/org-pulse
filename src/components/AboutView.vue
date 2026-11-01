@@ -390,6 +390,7 @@ import {
 } from 'lucide-vue-next'
 import { useAuth } from '@shared/client'
 import SiteUsageTab from './health-metrics/SiteUsageTab.vue'
+import { buildShellHash } from '../composables/useModuleNav'
 
 const { isAdmin: authIsAdmin, roles } = useAuth()
 
@@ -440,7 +441,7 @@ watch(() => props.initialTab, (val) => {
 })
 
 watch(activeTab, (tab) => {
-  const hash = tab === 'about' ? '#/about' : `#/about?tab=${tab}`
+  const hash = buildShellHash('about', tab === 'about' ? {} : { tab })
   if (window.location.hash !== hash) {
     window.history.replaceState(null, '', hash)
   }

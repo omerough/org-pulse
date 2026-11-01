@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref, markRaw, defineComponent } from 'vue'
 
@@ -53,6 +53,10 @@ describe('AboutView', () => {
     vi.resetModules()
     const mod = await import('../components/AboutView.vue')
     AboutView = mod.default
+  })
+
+  afterEach(() => {
+    window.location.hash = ''
   })
 
   it('renders core tabs in correct order', async () => {
@@ -188,5 +192,19 @@ describe('AboutView', () => {
 
     expect(wrapper.find('.platform-tab-content').exists()).toBe(true)
     expect(wrapper.text()).toContain('Platform Content')
+  })
+
+  it('keeps the project context in the URL when switching tabs', async () => {
+    window.location.hash = '#/about?projectId=osac'
+    const wrapper = mount(AboutView, {
+      props: { isAdmin: false, platformAboutTabs: [] }
+    })
+    await flushPromises()
+
+    const helpButton = wrapper.findAll('nav button').find(b => b.text().includes('Help & Debug'))
+    await helpButton.trigger('click')
+    await flushPromises()
+
+    expect(window.location.hash).toBe('#/about?projectId=osac&tab=help')
   })
 })

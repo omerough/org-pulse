@@ -236,7 +236,7 @@ import { useGithubStats } from '@shared/client/composables/useGithubStats'
 import { useGitlabStats } from '@shared/client/composables/useGitlabStats'
 import { useModules } from '../composables/useModules'
 import { useTheme } from '../composables/useTheme'
-import { createModuleNav, getDefaultViewId } from '../composables/useModuleNav'
+import { createModuleNav, getDefaultViewId, buildShellHash } from '../composables/useModuleNav'
 import { refreshMetrics, getLastRefreshed, apiRequest, getSiteConfig } from '@shared/client/services/api'
 import { loadModuleManifests, loadModuleClient } from '../module-loader'
 import { loadPlatformAboutTabs } from '../platform-loader'
@@ -603,6 +603,12 @@ export default {
     async restoreFromHash() {
       const hash = window.location.hash || '#/'
       const { parts, params } = this.parseHash(hash)
+      // Route state mirrors the URL on every route, shell views included, so
+      // the selector never keeps a project the URL no longer carries.
+      this.routeParams = { ...params }
+      // '' (not undefined) so a URL without a project never inherits the ambient one
+      const urlProjectId = params.projectId ?? ''
+      const shellRedirect = (path, extra) => window.location.replace(buildShellHash(path, extra, urlProjectId))
 
       // Backward compatibility redirects
       if (parts[0] === 'team' && parts[1]) {
@@ -626,7 +632,7 @@ export default {
       // Shell routes
       if (parts[0] === 'users') {
         // Redirect legacy #/users to #/settings?tab=users
-        window.location.replace('#/settings?tab=users')
+        shellRedirect('settings', { tab: 'users' })
         return
       }
       if (parts[0] === 'api-tokens') {
@@ -644,17 +650,17 @@ export default {
         return
       }
       if (parts[0] === 'help') {
-        window.location.replace('#/about?tab=help')
+        shellRedirect('about', { tab: 'help' })
         return
       }
       if (parts[0] === 'docs') {
-        window.location.replace('#/about?tab=docs')
+        shellRedirect('about', { tab: 'docs' })
         return
       }
 
       // Redirect legacy SOTU bookmarks to central landing page
       if (parts[0] === 'ai-impact' && parts[1] === 'state-of-the-union') {
-        window.location.replace('#/')
+        shellRedirect('')
         return
       }
 
@@ -672,7 +678,7 @@ export default {
       const isKnownBuiltIn = this.allBuiltInManifests.find(m => m.slug === parts[0])
       if (isKnownBuiltIn && this.enabledBuiltInSlugs && !this.enabledBuiltInSlugs.includes(parts[0])) {
         this.setShellView('home')
-        window.location.hash = '#/'
+        window.location.hash = buildShellHash('', {}, urlProjectId)
         return
       }
       const manifest = this.builtInManifests.find(m => m.slug === parts[0])
@@ -687,7 +693,6 @@ export default {
         }
         this.activeModuleSlugRef = manifest.slug
         this.activeModule = manifest.slug
-        this.routeParams = { ...params }
 
         // Legacy team-tracker deep-link compat: #/team-tracker/team/<key>/person/<name>
         if (manifest.slug === 'team-tracker' && parts[1] === 'team' && parts[2]) {
@@ -777,7 +782,7 @@ export default {
 
     navigateHome() {
       this.setShellView('home')
-      window.location.hash = '#/'
+      window.location.hash = buildShellHash('')
     },
 
     onHashChange() {
@@ -802,26 +807,26 @@ export default {
         this.activeModule = 'module-iframe'
         this.activeViewId = null
         this.activeComponent = null
-        window.location.hash = `#/${target}`
+        window.location.hash = buildShellHash(target)
         return
       }
 
       // Shell routes
       if (target === 'api-tokens') {
         this.setShellView('api-tokens')
-        window.location.hash = '#/api-tokens'
+        window.location.hash = buildShellHash('api-tokens')
         return
       }
       if (target === 'settings') {
         this.settingsInitialTab = null
         this.setShellView('settings')
-        window.location.hash = '#/settings'
+        window.location.hash = buildShellHash('settings')
         return
       }
       if (target === 'about') {
         this.aboutInitialTab = null
         this.setShellView('about')
-        window.location.hash = '#/about'
+        window.location.hash = buildShellHash('about')
         return
       }
 

@@ -131,6 +131,7 @@ import HealthMetricsSettings from './health-metrics/HealthMetricsSettings.vue'
 import RefreshSettings from './RefreshSettings.vue'
 import SecretsTab from './settings/SecretsTab.vue'
 import { loadModuleSettingsComponent } from '../module-loader'
+import { buildShellHash } from '../composables/useModuleNav'
 
 const props = defineProps({
   builtInManifests: { type: Array, default: () => [] },
@@ -158,7 +159,7 @@ watch(() => props.initialTab, (tab) => {
 })
 
 watch(activeTab, (tab) => {
-  const hash = tab === 'general' ? '#/settings' : `#/settings?tab=${tab}`
+  const hash = buildShellHash('settings', tab === 'general' ? {} : { tab })
   if (window.location.hash !== hash) {
     window.history.replaceState(null, '', hash)
   }
