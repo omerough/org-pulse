@@ -7,15 +7,17 @@ const props = defineProps({
   statusOptions: { type: Array, default: () => [] },
   teamOptions: { type: Array, default: () => [] },
   assigneeOptions: { type: Array, default: () => [] },
+  labelOptions: { type: Array, default: () => [] },
   selectedComponents: { type: Array, default: () => [] },
   selectedStatuses: { type: Array, default: () => [] },
   selectedTeams: { type: Array, default: () => [] },
   selectedAssignees: { type: Array, default: () => [] },
+  selectedLabels: { type: Array, default: () => [] },
   // Current user's Jira display name for the "Assigned to me" shortcut; null hides it.
   meAssignee: { type: String, default: null }
 })
 
-const emit = defineEmits(['toggle-component', 'toggle-status', 'toggle-team', 'toggle-assignee', 'set-assignee-me', 'clear'])
+const emit = defineEmits(['toggle-component', 'toggle-status', 'toggle-team', 'toggle-assignee', 'toggle-label', 'set-assignee-me', 'clear'])
 
 const assigneeSearch = ref('')
 
@@ -30,20 +32,23 @@ const componentOpen = ref(false)
 const statusOpen = ref(false)
 const teamOpen = ref(false)
 const assigneeOpen = ref(false)
+const labelOpen = ref(false)
 const componentRef = ref(null)
 const statusRef = ref(null)
 const teamRef = ref(null)
 const assigneeRef = ref(null)
+const labelRef = ref(null)
 
 function closeAll() {
   componentOpen.value = false
   statusOpen.value = false
   teamOpen.value = false
   assigneeOpen.value = false
+  labelOpen.value = false
 }
 
 function toggleDropdown(name) {
-  const map = { component: componentOpen, status: statusOpen, team: teamOpen, assignee: assigneeOpen }
+  const map = { component: componentOpen, status: statusOpen, team: teamOpen, assignee: assigneeOpen, label: labelOpen }
   const wasOpen = map[name].value
   closeAll()
   if (!wasOpen) {
@@ -53,7 +58,7 @@ function toggleDropdown(name) {
 }
 
 function handleClickOutside(event) {
-  const refs = [componentRef, statusRef, teamRef, assigneeRef]
+  const refs = [componentRef, statusRef, teamRef, assigneeRef, labelRef]
   for (const r of refs) {
     if (r.value && r.value.contains(event.target)) return
   }
@@ -65,7 +70,8 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 
 const hasActiveFilters = computed(() =>
   props.selectedComponents.length > 0 || props.selectedStatuses.length > 0 ||
-  props.selectedTeams.length > 0 || props.selectedAssignees.length > 0
+  props.selectedTeams.length > 0 || props.selectedAssignees.length > 0 ||
+  props.selectedLabels.length > 0
 )
 
 function multiLabel(selected, allLabel) {
@@ -83,6 +89,8 @@ const optionClass = 'flex items-center gap-2 px-3 py-1.5 text-xs text-gray-900 d
 <template>
   <div class="py-3 px-4 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
     <div class="flex flex-wrap items-center gap-3">
+      <slot name="leading" />
+
       <!-- Component -->
       <div v-if="componentOptions.length > 0" class="flex flex-col gap-0.5">
         <label class="text-xs font-medium text-gray-600 dark:text-gray-400">Component</label>
@@ -164,6 +172,23 @@ const optionClass = 'flex items-center gap-2 px-3 py-1.5 text-xs text-gray-900 d
             </label>
             <div v-if="assigneeOptions.length === 0" class="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">No options available</div>
             <div v-else-if="filteredAssigneeOptions.length === 0" class="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">No matches for "{{ assigneeSearch }}"</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Labels -->
+      <div v-if="labelOptions.length > 0" class="flex flex-col gap-0.5">
+        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">Labels</label>
+        <div ref="labelRef" class="relative">
+          <button type="button" @click="toggleDropdown('label')" @keydown.escape="labelOpen = false" :aria-expanded="labelOpen" aria-haspopup="listbox" :class="selectedLabels.length ? btnActiveClass : btnClass">
+            <span class="truncate max-w-[140px]">{{ multiLabel(selectedLabels, 'All labels') }}</span>
+            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          <div v-if="labelOpen" role="group" :class="dropdownClass" @keydown.escape="labelOpen = false">
+            <label v-for="l in labelOptions" :key="l" :class="optionClass">
+              <input type="checkbox" :checked="selectedLabels.includes(l)" @change="emit('toggle-label', l)" class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500" />
+              <span class="truncate">{{ l }}</span>
+            </label>
           </div>
         </div>
       </div>

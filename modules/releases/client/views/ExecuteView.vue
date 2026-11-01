@@ -20,16 +20,20 @@
       <HygieneView v-else-if="activeTab === 'feature-status'" />
       <FeatureTrackingView v-else-if="activeTab === 'feature-tracking'" />
       <EpicsByReleaseView v-else-if="activeTab === 'epics-by-release'" />
+      <EpicsByComponentView v-else-if="activeTab === 'ui-epics-by-component'" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, nextTick, inject } from 'vue'
+import { ref, computed, watch, nextTick, inject } from 'vue'
+import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import OverviewView from '../execute/views/OverviewView.vue'
 import HygieneView from '../execute/views/HygieneView.vue'
 import FeatureTrackingView from '../execute/views/FeatureTrackingView.vue'
 import EpicsByReleaseView from '../execute/views/EpicsByReleaseView.vue'
+import EpicsByComponentView from '../execute/views/EpicsByComponentView.vue'
+import { resolveComponentDashboard } from '../execute/utils/componentDashboardConfig'
 
 const nav = inject('moduleNav')
 const ALL_TABS = [
@@ -37,10 +41,13 @@ const ALL_TABS = [
   { id: 'feature-status', label: 'Hygiene' },
   { id: 'feature-tracking', label: 'Feature Tracking' },
   { id: 'epics-by-release', label: 'Epics by Release' },
+  { id: 'ui-epics-by-component', label: 'UI Epics by Component', requiresComponentDashboard: true },
 ]
 
-const tabs = ALL_TABS
-const VALID_TABS = tabs.map(tab => tab.id)
+const projectId = useProjectId()
+const hasComponentDashboard = computed(() => resolveComponentDashboard(projectId.value) !== null)
+const tabs = computed(() => ALL_TABS.filter(tab => !tab.requiresComponentDashboard || hasComponentDashboard.value))
+const validTabs = computed(() => tabs.value.map(tab => tab.id))
 const DEFAULT_TAB = 'feature-list'
 const activeTab = ref(DEFAULT_TAB)
 
@@ -50,8 +57,8 @@ watch(activeTab, (tab) => {
   if (!updatingFromUrl) nav.updateParams({ tab: tab === DEFAULT_TAB ? undefined : tab })
 })
 
-watch(() => nav.params.value?.tab, (tabParam) => {
-  const tab = tabParam && VALID_TABS.includes(tabParam) ? tabParam : DEFAULT_TAB
+watch([() => nav.params.value?.tab, validTabs], ([tabParam]) => {
+  const tab = tabParam && validTabs.value.includes(tabParam) ? tabParam : DEFAULT_TAB
   if (activeTab.value !== tab) {
     updatingFromUrl = true
     activeTab.value = tab

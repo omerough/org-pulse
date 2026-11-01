@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useFeatureDetail, useFeatureTraffic, useVersions } from '../../../client/execute/composables/useFeatureTraffic'
+import { useFeatureDetail, useFeatureTraffic, useVersions, useEpicsByRelease } from '../../../client/execute/composables/useFeatureTraffic'
 
 const mockApiRequest = vi.fn()
 
@@ -125,6 +125,39 @@ describe('useFeatureDetail', () => {
     expect(error.value).toBeNull()
   })
 
+  it('drops a version response that arrives after the project changed', async () => {
+    const osacResponse = deferred()
+    mockApiRequest.mockImplementation(url => (url.includes('projectId=osac')
+      ? osacResponse.promise
+      : Promise.resolve({ versions: ['2.0'], state: 'supported' })))
+    const { versions, state, loadVersions } = useVersions()
+
+    const pending = loadVersions('epics')
+    window.location.hash = '#/releases/execute?projectId=flightctl'
+    window.dispatchEvent(new Event('urlchange'))
+    await loadVersions('epics')
+    expect(versions.value).toEqual(['2.0'])
+
+    osacResponse.resolve({ versions: ['1.0'], state: 'supported' })
+    await pending
+
+    expect(versions.value).toEqual(['2.0'])
+    expect(state.value).toBe('supported')
+  })
+
+  it('drops an older version response that resolves after a newer request for the same project', async () => {
+    const first = deferred()
+    mockApiRequest.mockReturnValueOnce(first.promise).mockResolvedValueOnce({ versions: ['new'], state: 'supported' })
+    const { versions, loadVersions } = useVersions()
+
+    const older = loadVersions('epics')
+    await loadVersions('epics')
+    first.resolve({ versions: ['old'], state: 'supported' })
+    await older
+
+    expect(versions.value).toEqual(['new'])
+  })
+
   it('qualifies feature and version requests with the selected project', async () => {
     window.location.hash = '#/releases/execute?projectId=flightctl'
     window.dispatchEvent(new Event('urlchange'))
@@ -143,5 +176,44 @@ describe('useFeatureDetail', () => {
     expect(versions.state.value).toBe('unavailable')
     expect(traffic.features.value).toEqual([])
     expect(versions.versions.value).toEqual([])
+  })
+})
+
+describe('useEpicsByRelease', () => {
+  beforeEach(() => {
+    mockApiRequest.mockReset()
+    window.location.hash = '#/releases/execute?projectId=osac'
+    window.dispatchEvent(new Event('urlchange'))
+  })
+
+  it('clears the previous release freshness when the next release fails to load', async () => {
+    mockApiRequest.mockResolvedValueOnce({ features: [{ key: 'OSAC-1', epics: [] }], fetchedAt: '2026-10-26T08:00:00Z', state: 'supported' })
+    const { features, fetchedAt, error, loadEpicsByRelease } = useEpicsByRelease()
+
+    await loadEpicsByRelease('0.4')
+    expect(fetchedAt.value).toBe('2026-10-26T08:00:00Z')
+
+    mockApiRequest.mockRejectedValueOnce(new Error('Server error'))
+    await loadEpicsByRelease('0.5')
+
+    expect(error.value).toBe('Server error')
+    expect(features.value).toEqual([])
+    expect(fetchedAt.value).toBeNull()
+  })
+
+  it('clears the previous release freshness as soon as the next release starts loading', async () => {
+    mockApiRequest.mockResolvedValueOnce({ features: [], fetchedAt: '2026-10-26T08:00:00Z', state: 'empty' })
+    const { fetchedAt, loading, loadEpicsByRelease } = useEpicsByRelease()
+    await loadEpicsByRelease('0.4')
+
+    const next = deferred()
+    mockApiRequest.mockReturnValueOnce(next.promise)
+    const pending = loadEpicsByRelease('0.5')
+    expect(loading.value).toBe(true)
+    expect(fetchedAt.value).toBeNull()
+
+    next.resolve({ features: [], fetchedAt: '2026-10-27T08:00:00Z', state: 'empty' })
+    await pending
+    expect(fetchedAt.value).toBe('2026-10-27T08:00:00Z')
   })
 })

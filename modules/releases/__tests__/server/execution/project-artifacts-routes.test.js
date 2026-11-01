@@ -314,3 +314,66 @@ describe('project-qualified Execute publication routes', () => {
     expect(response.body.reason).toBe('project-context-mismatch')
   })
 })
+
+// The shell leaves projectId empty only when OSAC is the sole published project; the client
+// then sends no projectId to /versions and /epics but an explicit one to /registry.
+describe('single published OSAC project (empty shell project id)', () => {
+  const { registerRegistryRoutes } = require('../../../server/registry')
+
+  function singleOsac() {
+    const fixture = flightctlPublication({ projectId: 'osac', jiraProjectKey: 'OSAC' })
+    const published = { schemaVersion: 1, releases: [{ id: 'osac-published', fixVersions: ['MVP Q1CY25'], state: 'active', milestones: { ga: '2026-12-31' } }] }
+    const legacy = { schemaVersion: 1, releases: [{ id: 'legacy-root', fixVersions: ['legacy'], state: 'active', milestones: {} }] }
+    fixture.storage.writeToStorage(`${fixture.root}/releases/registry.json`,
+      envelope(fixture.profile, fixture.generationId, 'releases/registry.json', published))
+    fixture.storage.writeToStorage('releases/registry.json', legacy)
+    const projects = {
+      ...fixture.projects,
+      readArtifact(projectId, artifactKey) {
+        const key = `${fixture.root}/${artifactKey}`
+        const value = fixture.storage.readFromStorage(key)
+        return value ? { key, generationId: fixture.generationId, profile: fixture.profile, value } : null
+      }
+    }
+    const router = register(fixture.storage, projects)
+    registerRegistryRoutes(router, {
+      storage: fixture.storage,
+      projects,
+      requireAuth: (req, res, next) => next(),
+      requirePlanningManager: (req, res, next) => next(),
+      requireScope: () => (req, res, next) => next()
+    })
+    return { router, fixture }
+  }
+
+  const call = (router, path, query) => {
+    const response = makeResponse()
+    router._routes.get[path].at(-1)({ query }, response)
+    return response
+  }
+
+  it('serves /versions and /epics from the same project with or without an explicit projectId', () => {
+    const { router, fixture } = singleOsac()
+    for (const [path, extra] of [['/versions', { scope: 'epics' }], ['/epics', { version: fixture.releaseId }]]) {
+      const unqualified = call(router, path, extra)
+      const explicit = call(router, path, { ...extra, projectId: 'osac' })
+      expect(unqualified.statusCode, path).toBe(200)
+      expect(unqualified.body, path).toEqual(explicit.body)
+      expect(unqualified.body.projectId, path).toBe('osac')
+    }
+  })
+
+  it('reads the published project registry only when projectId is explicit', () => {
+    const { router } = singleOsac()
+    expect(call(router, '/registry', { projectId: 'osac' }).body.releases.map(r => r.id)).toEqual(['osac-published'])
+    expect(call(router, '/registry', {}).body.releases.map(r => r.id)).toEqual(['legacy-root'])
+  })
+
+  it('requires an explicit projectId once several projects are published', () => {
+    const { fixture } = singleOsac()
+    const multi = register(fixture.storage, makeProjects([fixture.profile, makeProfile('flightctl', 'EDM')]))
+    const response = call(multi, '/versions', { scope: 'epics' })
+    expect(response.statusCode).toBe(400)
+    expect(response.body.reason).toBe('project-selection-required')
+  })
+})

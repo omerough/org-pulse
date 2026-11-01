@@ -63,6 +63,34 @@ test.describe('Releases Module @releases', () => {
     expect(page.errors).toHaveLength(0);
   });
 
+  // Demo data has no OSAC bootstrap Epics, so panel contents are covered by unit tests.
+  test('Execute offers UI Epics by Component for OSAC and shows its Bootstrap scope', async ({ page }) => {
+    await mockProjectRoster(page, 'osac');
+    await page.goto('/#/releases/execute?projectId=osac');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const executeTabs = page.getByRole('navigation', { name: 'Execute sub-tabs' });
+    await executeTabs.getByRole('button', { name: 'UI Epics by Component' }).click();
+
+    await expect(page.getByRole('heading', { name: 'UI Epics by Component' })).toBeVisible();
+    await expect(page.getByText('Bootstrap Epics only')).toBeVisible();
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Execute hides UI Epics by Component for a project without a dashboard config', async ({ page }) => {
+    await mockProjectRoster(page, 'flightctl');
+    await page.goto('/#/releases/execute?tab=ui-epics-by-component&projectId=flightctl');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+
+    const executeTabs = page.getByRole('navigation', { name: 'Execute sub-tabs' });
+    await expect(executeTabs.getByRole('button', { name: 'Hygiene' })).toBeVisible();
+    await expect(executeTabs.getByRole('button', { name: 'UI Epics by Component' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'UI Epics by Component' })).toHaveCount(0);
+    expect(page.errors).toHaveLength(0);
+  });
+
 });
 
 /**
