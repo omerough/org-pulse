@@ -127,7 +127,7 @@ test.describe('Releases UI Epics by Component @releases', () => {
     await openDashboard(page);
 
     await expect(releaseSelect(page)).toHaveValue('1.1');
-    await expect(releaseSelect(page).locator('option:checked')).toContainText('Next GA');
+    await expect(releaseSelect(page).locator('option')).toHaveText(['1.0', '1.1', '1.2']);
     await expect(page).toHaveURL(/release=1\.1/);
     await expect(page.getByText('Bootstrap Epics only')).toBeVisible();
 
@@ -151,6 +151,23 @@ test.describe('Releases UI Epics by Component @releases', () => {
     for (const key of ['OSAC-3901', 'OSAC-3902', 'OSAC-3903', 'MGMT-3904', 'OSAC-3905']) {
       await expect(page.getByText(key, { exact: true })).toHaveCount(0);
     }
+  });
+
+  test('puts the Release selector first in the filter toolbar and wraps it on narrow screens', async ({ page }) => {
+    installApi(page);
+    await openDashboard(page);
+
+    const toolbar = page.locator('div.flex-wrap', { has: releaseSelect(page) });
+    await expect(toolbar.locator('label').first()).toHaveText('Release');
+    await expect(toolbar.locator('label').nth(1)).toHaveText('Component');
+
+    // Controls wrap onto several rows and none spills out of the toolbar.
+    await page.setViewportSize({ width: 640, height: 800 });
+    const box = await toolbar.boundingBox();
+    const controls = await toolbar.locator(':scope > div').evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect()));
+    expect(controls.length).toBeGreaterThanOrEqual(5);
+    for (const rect of controls) expect(rect.right).toBeLessThanOrEqual(box.x + box.width + 1);
+    expect(new Set(controls.map(rect => Math.round(rect.top))).size).toBeGreaterThan(1);
   });
 
   test('scopes requests for the single-project shell: no projectId on Execute data, explicit on the registry', async ({ page }) => {

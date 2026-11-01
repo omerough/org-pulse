@@ -87,8 +87,37 @@ describe('EpicsByComponentView', () => {
     expect(releaseSelect(wrapper).element.value).toBe('0.5')
     expect(nav.updateParams).toHaveBeenCalledWith({ release: '0.5' }, { push: false })
     expect(urlsCalled('/execution/epics')[0]).toContain('version=0.5')
-    expect(wrapper.text()).toContain('OSAC 0.5 · GA Nov 30 · Next GA')
     wrapper.unmount()
+  })
+
+  it('lists plain version names in the filter toolbar, with the Release selector first', async () => {
+    const { wrapper } = await mountView()
+    const select = releaseSelect(wrapper)
+
+    expect(select.findAll('option').map(o => o.text())).toEqual(OSAC_AVAILABLE_VERSIONS)
+    const bar = wrapper.findComponent(ComponentStatusFilterBar)
+    const controls = bar.findAll('label').map(l => l.text())
+    expect(controls[0]).toBe('Release')
+    expect(bar.find('#epics-by-component-release').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('keeps the Release selector in the toolbar while Epics load and when no release is chosen', async () => {
+    let resolveEpics
+    epicsResponder = () => new Promise(resolve => { resolveEpics = resolve })
+    const loading = await mountView()
+    expect(loading.wrapper.find('[data-testid="loading-skeleton"]').exists()).toBe(true)
+    expect(loading.wrapper.findComponent(ComponentStatusFilterBar).find('#epics-by-component-release').exists()).toBe(true)
+    expect(loading.wrapper.findComponent(ComponentStatusFilterBar).text()).not.toContain('All statuses')
+    resolveEpics({ features: [], state: 'empty' })
+    await flushPromises()
+    loading.wrapper.unmount()
+
+    registryResponse = () => Promise.reject(new Error('boom'))
+    const unselected = await mountView()
+    expect(releaseSelect(unselected.wrapper).element.value).toBe('')
+    expect(unselected.wrapper.findComponent(ComponentStatusFilterBar).find('#epics-by-component-release').exists()).toBe(true)
+    unselected.wrapper.unmount()
   })
 
   it('reads the registry for the OSAC project when the shell project id is empty', async () => {

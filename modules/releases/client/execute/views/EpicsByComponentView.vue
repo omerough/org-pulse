@@ -7,7 +7,7 @@ import { useReleaseRegistry } from '../composables/useReleaseRegistry'
 import { useComponentStatusFilter } from '../composables/useComponentStatusFilter'
 import { resolveComponentDashboard } from '../utils/componentDashboardConfig'
 import { buildComponentPanels } from '../utils/epicComponentPanels'
-import { pickDefaultRelease, buildReleaseOptions } from '../utils/releaseDefault'
+import { pickDefaultRelease } from '../utils/releaseDefault'
 import ComponentStatusFilterBar from '../components/ComponentStatusFilterBar.vue'
 import EpicComponentPanel from '../components/EpicComponentPanel.vue'
 
@@ -34,7 +34,6 @@ const { user } = useAuth()
 const meAssignee = computed(() => user.value?.jiraDisplayName || null)
 
 const selectedVersion = ref('')
-const defaultPick = ref({ version: null, reason: null })
 const releaseNotice = ref('')
 const initializing = ref(false)
 
@@ -70,11 +69,9 @@ const result = computed(() => {
   })
 })
 
-const releaseOptions = computed(() => buildReleaseOptions({
-  availableVersions: versions.value,
-  registryReleases: registryReleases.value,
-  defaultPick: defaultPick.value
-}))
+// The toolbar always renders for the Release selector; filters appear only once data is loaded.
+const NO_FILTER_OPTIONS = { components: [], statuses: [], assignees: [], labels: [] }
+const filterOptions = computed(() => (result.value && !loading.value ? result.value.options : NO_FILTER_OPTIONS))
 
 const treeUnavailable = computed(() => !!treeState.value && !['supported', 'empty'].includes(treeState.value))
 
@@ -100,7 +97,6 @@ let initializeToken = 0
 async function initialize({ honorUrl }) {
   const token = ++initializeToken
   selectedVersion.value = ''
-  defaultPick.value = { version: null, reason: null }
   releaseNotice.value = ''
   clearAllFilters()
   if (!dashboard.value) {
@@ -114,13 +110,13 @@ async function initialize({ honorUrl }) {
   initializing.value = false
   if (selectedVersion.value) return
 
-  defaultPick.value = pickDefaultRelease({
+  const defaultPick = pickDefaultRelease({
     registryReleases: registryReleases.value,
     availableVersions: versions.value,
     today: new Date()
   })
   const requested = honorUrl ? nav.params.value?.release : null
-  let next = defaultPick.value.version || ''
+  let next = defaultPick.version || ''
   if (requested && versions.value.includes(requested)) {
     next = requested
   } else if (requested) {
@@ -184,32 +180,16 @@ onBeforeUnmount(() => {
       {{ releaseNotice }}
     </div>
 
-    <div class="flex items-start justify-between flex-wrap gap-3">
-      <div>
-        <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">UI Epics by Component</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ dashboard.config.scopeDescription }}</p>
-      </div>
-
-      <div class="flex items-center gap-2 max-w-full">
-        <label for="epics-by-component-release" class="text-sm font-medium text-gray-700 dark:text-gray-300">Release:</label>
-        <select
-          id="epics-by-component-release"
-          :value="selectedVersion"
-          class="min-w-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
-          @change="onSelectRelease"
-        >
-          <option v-if="!selectedVersion" value="">{{ versions.length === 0 ? 'No releases available' : 'Select a release' }}</option>
-          <option v-for="option in releaseOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-        </select>
-      </div>
+    <div>
+      <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">UI Epics by Component</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ dashboard.config.scopeDescription }}</p>
     </div>
 
     <ComponentStatusFilterBar
-      v-if="result && !loading"
-      :component-options="result.options.components"
-      :status-options="result.options.statuses"
-      :assignee-options="result.options.assignees"
-      :label-options="result.options.labels"
+      :component-options="filterOptions.components"
+      :status-options="filterOptions.statuses"
+      :assignee-options="filterOptions.assignees"
+      :label-options="filterOptions.labels"
       :selected-components="selectedComponents"
       :selected-statuses="selectedStatuses"
       :selected-assignees="selectedAssignees"
@@ -221,7 +201,22 @@ onBeforeUnmount(() => {
       @toggle-label="toggleLabel"
       @set-assignee-me="selectMeAssignee"
       @clear="clearAllFilters"
-    />
+    >
+      <template #leading>
+        <div class="flex flex-col gap-0.5 min-w-0 max-w-full">
+          <label for="epics-by-component-release" class="text-xs font-medium text-gray-600 dark:text-gray-400">Release</label>
+          <select
+            id="epics-by-component-release"
+            :value="selectedVersion"
+            class="min-w-0 cursor-pointer text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400"
+            @change="onSelectRelease"
+          >
+            <option v-if="!selectedVersion" value="">{{ versions.length === 0 ? 'No releases available' : 'Select a release' }}</option>
+            <option v-for="version in versions" :key="version" :value="version">{{ version }}</option>
+          </select>
+        </div>
+      </template>
+    </ComponentStatusFilterBar>
 
     <div v-if="error" role="alert" class="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-4 text-red-700 dark:text-red-400 text-sm">
       {{ error }}

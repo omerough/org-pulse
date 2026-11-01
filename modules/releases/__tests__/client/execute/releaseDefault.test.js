@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { pickDefaultRelease, buildReleaseOptions, parseGaDate } from '../../../client/execute/utils/releaseDefault'
+import { pickDefaultRelease, parseGaDate } from '../../../client/execute/utils/releaseDefault'
 import { OSAC_REGISTRY_RELEASES, OSAC_AVAILABLE_VERSIONS } from './uiEpicsFixture'
 
 const release = (id, ga, extra = {}) => ({
@@ -88,32 +88,5 @@ describe('parseGaDate', () => {
     for (const value of [undefined, null, '', '2026-11-30T00:00:00Z', '11/30/2026', 20261130]) {
       expect(parseGaDate(value)).toBeNull()
     }
-  })
-})
-
-describe('buildReleaseOptions', () => {
-  const options = buildReleaseOptions({
-    availableVersions: OSAC_AVAILABLE_VERSIONS,
-    registryReleases: OSAC_REGISTRY_RELEASES,
-    defaultPick: { version: '0.5', reason: 'next-ga' }
-  })
-  const label = value => options.find(o => o.value === value).label
-
-  it('lists every available version in order', () => {
-    expect(options.map(o => o.value)).toEqual(OSAC_AVAILABLE_VERSIONS)
-  })
-
-  it('shows registry names with GA, tags the default, and leaves unmapped versions raw', () => {
-    expect(label('0.5')).toBe('OSAC 0.5 · GA Nov 30 · Next GA')
-    expect(label('0.4')).toBe('OSAC 0.4 · GA Oct 30')
-    expect(label('Backlog')).toBe('Backlog')
-    expect(label('0.0')).toBe('0.0')
-  })
-
-  it('tags a past fallback as Latest GA', () => {
-    const past = buildReleaseOptions({
-      availableVersions: ['0.4'], registryReleases: OSAC_REGISTRY_RELEASES, defaultPick: { version: '0.4', reason: 'latest-ga' }
-    })
-    expect(past[0].label).toBe('OSAC 0.4 · GA Oct 30 · Latest GA')
   })
 })

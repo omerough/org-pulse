@@ -42,28 +42,3 @@ export function pickDefaultRelease({ registryReleases, availableVersions, today 
   const past = candidates.sort((a, b) => b.ga - a.ga || byId(a, b))
   return { version: past[0].version, reason: 'latest-ga' }
 }
-
-function formatGa(ga) {
-  return ga.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-/** Selector entries for every available version; registry display names where mapped. */
-export function buildReleaseOptions({ availableVersions, registryReleases, defaultPick }) {
-  const releaseByVersion = new Map()
-  for (const release of registryReleases || []) {
-    if (release?.state !== 'active') continue
-    for (const version of release.fixVersions || []) {
-      if (!releaseByVersion.has(version)) releaseByVersion.set(version, release)
-    }
-  }
-
-  return (availableVersions || []).map(version => {
-    const release = releaseByVersion.get(version)
-    const ga = release ? parseGaDate(release.milestones?.ga) : null
-    const name = release ? (release.displayName || release.id) : version
-    const parts = [name]
-    if (ga) parts.push(`GA ${formatGa(ga)}`)
-    if (defaultPick?.version === version) parts.push(defaultPick.reason === 'next-ga' ? 'Next GA' : 'Latest GA')
-    return { value: version, label: parts.join(' · ') }
-  })
-}

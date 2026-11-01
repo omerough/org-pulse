@@ -89,6 +89,8 @@ const optionClass = 'flex items-center gap-2 px-3 py-1.5 text-xs text-gray-900 d
 <template>
   <div class="py-3 px-4 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
     <div class="flex flex-wrap items-center gap-3">
+      <slot name="leading" />
+
       <!-- Component -->
       <div v-if="componentOptions.length > 0" class="flex flex-col gap-0.5">
         <label class="text-xs font-medium text-gray-600 dark:text-gray-400">Component</label>
