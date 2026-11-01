@@ -109,10 +109,13 @@ const projectRosterUnavailable = computed(() =>
   && (Boolean(projectRosterError.value) || rosterData.value?.availability === 'unavailable')
 )
 
+// Stable identity for navigation and row keys; `org` may be a display label.
+function teamIdentity(team) {
+  return isProjectRoster.value ? team.key : `${team.org}::${team.name}`
+}
+
 function openTeam(team) {
-  nav.navigateTo('team-detail', {
-    teamKey: isProjectRoster.value ? team.key : `${team.org}::${team.name}`
-  })
+  nav.navigateTo('team-detail', { teamKey: teamIdentity(team) })
 }
 
 function selectOrg(org) {
@@ -255,7 +258,7 @@ watch(projectId, () => {
     </div>
 
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div v-for="team in visibleTeams" :key="`${team.org}::${team.name}`">
+      <div v-for="team in visibleTeams" :key="teamIdentity(team)">
         <TeamCard
           :team="team"
           @select="openTeam(team)"

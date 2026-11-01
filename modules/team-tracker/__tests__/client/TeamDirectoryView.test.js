@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { ref, computed } from 'vue'
+import { ref, reactive, computed, nextTick } from 'vue'
 import TeamDirectoryView from '../../client/views/TeamDirectoryView.vue'
 
 const projectId = ref('')
@@ -8,7 +8,7 @@ vi.mock('@shared/client/composables/useProjectId.js', () => ({
   useProjectId: () => projectId
 }))
 
-const projectLabels = { acme: 'Acme Platform', flightctl: 'Flight Control' }
+const projectLabels = reactive({ acme: 'Acme Platform', flightctl: 'Flight Control' })
 vi.mock('../../client/composables/useProjectDisplayName', () => ({
   useProjectDisplayName: () => computed(() => projectLabels[projectId.value] ?? projectId.value)
 }))
@@ -100,6 +100,21 @@ describe('TeamDirectoryView project labels', () => {
     const subtitle = wrapper.find('h3 + div span')
     expect(wrapper.find('h3').text()).toBe('Core')
     expect(subtitle.text()).toBe(label)
+  })
+
+  it('keeps team cards mounted when the project label resolves after the first render', async () => {
+    setProjectTeams('late')
+    const wrapper = mountView()
+    await flushPromises()
+    const cardBefore = wrapper.find('h3').element.closest('.grid > div')
+    expect(wrapper.find('h3 + div span').text()).toBe('late')
+
+    projectLabels.late = 'Late Platform'
+    await nextTick()
+
+    expect(wrapper.find('h3 + div span').text()).toBe('Late Platform')
+    expect(wrapper.find('h3').element.closest('.grid > div')).toBe(cardBefore)
+    delete projectLabels.late
   })
 
   it('keeps the legacy org label without a project', async () => {
