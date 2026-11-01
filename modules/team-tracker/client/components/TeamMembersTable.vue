@@ -259,6 +259,8 @@ function getManagerName(member) {
 function managerLink(member) {
   const resolved = resolvedManagers.value.get(member)
   if (!resolved?.link) return null
+  // External-manager profiles resolve only against a project's published roster.
+  if (resolved.link.ldapUid && !projectId.value) return null
   return linkTo('team-tracker', 'person-detail', { ...projectParam(projectId.value), ...resolved.link })
 }
 

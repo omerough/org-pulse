@@ -3,6 +3,8 @@
 // members table and Headcount chart stay consistent. Identity is never joined
 // by display name.
 
+import { getAuxiliaryManager } from '@shared/client/composables/useManagerHierarchy'
+
 export const UNKNOWN_ROLE = 'Unknown'
 
 // Resolves a custom field by display label across the sheets model (label keys)
@@ -54,8 +56,8 @@ export function dedupeMembersByIdentity(members = []) {
 
 /**
  * Resolve a member's direct manager across both identity models. Returns
- * `{ name, link }` where `link` is non-null only for a valid roster identity;
- * external/legacy-uid names are not linkable. Returns null when unavailable.
+ * `{ name, link }`; `link` is `{ accountId }`, `{ ldapUid }` or `{ uid }` for a valid
+ * profile target, else null. Returns null when the manager is unavailable.
  */
 export function resolveMemberManager(member, ctx = {}) {
   const { people = [], peopleByAccountId = null, auxiliaryManagers = {}, managerNames = {} } = ctx
@@ -72,8 +74,11 @@ export function resolveMemberManager(member, ctx = {}) {
       return name ? { name, link: { accountId: ref.accountId } } : null
     }
     if (ref.kind === 'external' && ref.ldapUid) {
-      const aux = auxiliaryManagers[ref.ldapUid]
-      return aux?.displayName ? { name: aux.displayName, link: null } : null
+      const aux = getAuxiliaryManager(auxiliaryManagers, ref.ldapUid)
+      if (!aux?.displayName) return null
+      // A record whose ldapUid disagrees with its key is not a valid target.
+      const linkable = aux.ldapUid === undefined || aux.ldapUid === ref.ldapUid
+      return { name: aux.displayName, link: linkable ? { ldapUid: ref.ldapUid } : null }
     }
     return null
   }

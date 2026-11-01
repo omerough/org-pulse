@@ -24,9 +24,24 @@ describe('resolveMemberManager', () => {
     expect(resolveMemberManager({ managerRef: { kind: 'roster', accountId: 'missing' } }, ctx)).toBeNull()
   })
 
-  it('resolves an external managerRef to a validated name without a link', () => {
+  it('resolves an external managerRef to its name and an ldapUid link', () => {
     const m = resolveMemberManager({ managerRef: { kind: 'external', ldapUid: 'ext-uid' } }, ctx)
+    expect(m).toEqual({ name: 'External Manager', link: { ldapUid: 'ext-uid' } })
+  })
+
+  it('keeps an external manager name as text when the record ldapUid disagrees with its key', () => {
+    const mismatched = { 'ext-uid': { ldapUid: 'other-uid', displayName: 'External Manager' } }
+    const m = resolveMemberManager({ managerRef: { kind: 'external', ldapUid: 'ext-uid' } }, { ...ctx, auxiliaryManagers: mismatched })
     expect(m).toEqual({ name: 'External Manager', link: null })
+  })
+
+  it('does not resolve an inherited property name as an external manager', () => {
+    expect(resolveMemberManager({ managerRef: { kind: 'external', ldapUid: 'constructor' } }, ctx)).toBeNull()
+  })
+
+  it('leaves an external managerRef unavailable when the auxiliary record has no display name', () => {
+    const nameless = { 'ext-uid': { ldapUid: 'ext-uid' } }
+    expect(resolveMemberManager({ managerRef: { kind: 'external', ldapUid: 'ext-uid' } }, { ...ctx, auxiliaryManagers: nameless })).toBeNull()
   })
 
   it('leaves an external managerRef unavailable when no auxiliary manager matches', () => {

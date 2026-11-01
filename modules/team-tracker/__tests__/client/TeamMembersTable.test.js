@@ -118,7 +118,10 @@ describe('TeamMembersTable project context preservation (OSAC-5968)', () => {
 })
 
 describe('TeamMembersTable direct manager resolution', () => {
-  beforeEach(resetRoster)
+  beforeEach(() => {
+    resetRoster()
+    mockProjectId.value = ''
+  })
 
   function managerCell(wrapper) {
     // Second cell in the first data row is the Manager column.
@@ -137,12 +140,56 @@ describe('TeamMembersTable direct manager resolution', () => {
     expect(link.attributes('href')).toContain('accountId=mgr-1')
   })
 
-  it('shows an external managerRef name without a link', () => {
+  it('links an external managerRef to the external-manager profile by ldapUid', () => {
+    mockProjectId.value = 'osac'
     mockRoster.auxiliaryManagers.value = { 'ext-uid': { ldapUid: 'ext-uid', displayName: 'External Manager' } }
     const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'external', ldapUid: 'ext-uid' } }
     const cell = managerCell(mount(TeamMembersTable, { props: { members: [member] } }))
 
     expect(cell.text()).toBe('External Manager')
+    const href = cell.find('a').attributes('href')
+    expect(href).toContain('person-detail')
+    expect(href).toContain('projectId=osac')
+    expect(href).toContain('ldapUid=ext-uid')
+    expect(href).not.toMatch(/accountId=|uid=ext-uid|person=/)
+  })
+
+  it('never links an external manager to a roster person who shares its display name', () => {
+    mockProjectId.value = 'osac'
+    mockRoster.people.value = [{ accountId: 'acc-9', displayName: 'External Manager' }]
+    mockRoster.auxiliaryManagers.value = { 'ext-uid': { ldapUid: 'ext-uid', displayName: 'External Manager' } }
+    const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'external', ldapUid: 'ext-uid' } }
+    const href = managerCell(mount(TeamMembersTable, { props: { members: [member] } })).find('a').attributes('href')
+
+    expect(href).toContain('ldapUid=ext-uid')
+    expect(href).not.toContain('acc-9')
+  })
+
+  it('shows an external manager as text when no project is selected', () => {
+    mockProjectId.value = ''
+    mockRoster.auxiliaryManagers.value = { 'ext-uid': { ldapUid: 'ext-uid', displayName: 'External Manager' } }
+    const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'external', ldapUid: 'ext-uid' } }
+    const cell = managerCell(mount(TeamMembersTable, { props: { members: [member] } }))
+
+    expect(cell.text()).toBe('External Manager')
+    expect(cell.find('a').exists()).toBe(false)
+  })
+
+  it('shows an external manager as text when the ldapUid has no auxiliary record', () => {
+    mockProjectId.value = 'osac'
+    const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'external', ldapUid: 'ghost' } }
+    const cell = managerCell(mount(TeamMembersTable, { props: { members: [member] } }))
+
+    expect(cell.text()).toBe('—')
+    expect(cell.find('a').exists()).toBe(false)
+  })
+
+  it('shows a roster manager missing from the project as unavailable text', () => {
+    mockProjectId.value = 'osac'
+    const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'roster', accountId: 'missing' } }
+    const cell = managerCell(mount(TeamMembersTable, { props: { members: [member] } }))
+
+    expect(cell.text()).toBe('—')
     expect(cell.find('a').exists()).toBe(false)
   })
 
