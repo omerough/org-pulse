@@ -1,5 +1,6 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, effectScope } from 'vue'
 import { useRoster } from '@shared/client/composables/useRoster'
+import { useProjectId } from '@shared/client/composables/useProjectId.js'
 
 // Module-level singleton filter state (intentional -- provides continuity
 // across reports). Reports needing independent state declare `filters: []`
@@ -7,8 +8,23 @@ import { useRoster } from '@shared/client/composables/useRoster'
 const selectedOrgKeys = ref([])
 const selectedTeamKeys = ref([])
 
+// Selections belong to one project. The reset lives in a detached scope so it
+// survives the unmounting of whichever component first used the filters.
+let projectScopeStarted = false
+function resetSelectionsOnProjectChange() {
+  if (projectScopeStarted) return
+  projectScopeStarted = true
+  effectScope(true).run(() => {
+    watch(useProjectId(), () => {
+      selectedOrgKeys.value = []
+      selectedTeamKeys.value = []
+    }, { flush: 'sync' })
+  })
+}
+
 export function useReportFilters() {
   const { orgs, isNormalizedModel, teams: rosterTeams, loadRoster } = useRoster()
+  resetSelectionsOnProjectChange()
 
   // Ensure roster data is loaded (defensive -- App.vue also calls this,
   // but loadRoster() is a no-op if data is already present)

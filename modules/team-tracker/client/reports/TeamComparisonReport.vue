@@ -399,6 +399,7 @@ async function run() {
 // Clear stale rendered output on project switch rather than waiting for Run.
 watch(projectId, () => {
   runVersion++
+  loading.value = false
   charts.value = []
   metricsData.value = {}
   metricsUnavailable.value = false
