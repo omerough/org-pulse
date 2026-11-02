@@ -636,6 +636,10 @@ watch([uid, personName, accountId, ldapUidParam, projectId], loadPerson)
 watch(isAuxiliary, (val) => {
   if (!val && isLegacyPerson.value) loadGitlabStats()
 })
+// Field definitions are legacy-only; reload them if a selected project is cleared.
+watch(projectId, id => {
+  if (!id) fetchDefinitions()
+})
 // Re-resolve on every roster change: handles the deep-link case where the
 // roster is still loading, and avoids a stale person after a project switch.
 watch([rosterData, rosterLoading], () => {
@@ -644,7 +648,7 @@ watch([rosterData, rosterLoading], () => {
 onMounted(() => {
   loadPerson()
   if (isLegacyPerson.value) loadGitlabStats()
-  fetchDefinitions()
+  if (!projectId.value) fetchDefinitions()
   resumeTourIfActive('person-detail')
 })
 

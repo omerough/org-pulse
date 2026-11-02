@@ -5,6 +5,8 @@ import QuickLinksWidget from '../../../client/widgets/QuickLinksWidget.vue'
 
 const mockNavigateTo = vi.fn()
 const mockIsManager = ref(false)
+const mockProjectIsManager = ref(false)
+const mockProjectId = ref('')
 
 vi.mock('@shared/client/composables/useModuleLink', () => ({
   useModuleLink: () => ({
@@ -21,9 +23,20 @@ vi.mock('@shared/client/composables/useAuth', () => ({
   })
 }))
 
+vi.mock('@shared/client/composables/usePermissions', () => ({
+  usePermissions: () => ({ isManager: mockProjectIsManager })
+}))
+
+vi.mock('@shared/client/composables/useProjectId', async () => {
+  const actual = await vi.importActual('@shared/client/composables/useProjectId')
+  return { ...actual, useProjectId: () => mockProjectId }
+})
+
 beforeEach(() => {
   mockNavigateTo.mockClear()
   mockIsManager.value = false
+  mockProjectIsManager.value = false
+  mockProjectId.value = ''
 })
 
 describe('QuickLinksWidget', () => {
@@ -92,5 +105,51 @@ describe('QuickLinksWidget', () => {
     const wrapper = mount(QuickLinksWidget, { props: { size: 'half' } })
     const svgs = wrapper.findAll('svg')
     expect(svgs.length).toBe(3)
+  })
+
+  describe.each(['flight-control', 'osac'])('in project context %s', (projectId) => {
+    beforeEach(() => {
+      mockProjectId.value = projectId
+    })
+
+    it.each([
+      ['Team Directory', 'home'],
+      ['People', 'people']
+    ])('keeps the project on the %s link', async (label, viewId) => {
+      const wrapper = mount(QuickLinksWidget, { props: { size: 'half' } })
+      await wrapper.findAll('button').find(b => b.text().includes(label)).trigger('click')
+      expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', viewId, { projectId, from: 'sotu' })
+    })
+
+    it('shows My Teams from project permissions and keeps the project on its link', async () => {
+      mockProjectIsManager.value = true
+      const wrapper = mount(QuickLinksWidget, { props: { size: 'half' } })
+      await wrapper.findAll('button').find(b => b.text().includes('My Teams')).trigger('click')
+      expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'manager-dashboard', { projectId, from: 'sotu' })
+    })
+
+    it('hides My Teams for a legacy-only manager', () => {
+      mockIsManager.value = true
+      const wrapper = mount(QuickLinksWidget, { props: { size: 'half' } })
+      expect(wrapper.text()).not.toContain('My Teams')
+    })
+  })
+
+  it('follows the selected project when it changes', async () => {
+    mockProjectId.value = 'flight-control'
+    mockProjectIsManager.value = true
+    const wrapper = mount(QuickLinksWidget, { props: { size: 'half' } })
+    mockProjectId.value = 'osac'
+    mockProjectIsManager.value = false
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).not.toContain('My Teams')
+    await wrapper.findAll('button').find(b => b.text().includes('People')).trigger('click')
+    expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'people', { projectId: 'osac', from: 'sotu' })
+  })
+
+  it('ignores project permissions when unqualified', () => {
+    mockProjectIsManager.value = true
+    const wrapper = mount(QuickLinksWidget, { props: { size: 'half' } })
+    expect(wrapper.text()).not.toContain('My Teams')
   })
 })

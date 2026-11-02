@@ -1170,6 +1170,60 @@ test.describe('People & Teams OSAC Legacy Deep Links @people-teams', () => {
   }
 });
 
+const LEGACY_ALLOCATION_ENDPOINT = /\/api\/modules\/team-tracker\/allocation\//;
+const LEGACY_FIELD_DEFINITIONS_ENDPOINT = /\/api\/modules\/team-tracker\/structure\/field-definitions/;
+
+test.describe('People & Teams Project Context Isolation @people-teams', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  for (const projectId of [OSAC, FLIGHTCTL_PROJECT]) {
+    test(`the hidden allocation report deep link for ${projectId} shows the project-roster guard and makes no legacy fetch`, async ({ page }) => {
+      const legacyUrls = trackRequests(page, LEGACY_ENDPOINT);
+      const allocationUrls = trackRequests(page, LEGACY_ALLOCATION_ENDPOINT);
+
+      await page.goto(`/#/team-tracker/reports?report=allocation&projectId=${projectId}`);
+      await settle(page);
+
+      await expect(page.getByTestId('not-available-for-project')).toContainText('Not available for project rosters.');
+      await expect(page.getByText('No allocation data available')).toHaveCount(0);
+      expect(allocationUrls).toHaveLength(0);
+      expect(legacyUrls).toHaveLength(0);
+
+      expect(page.errors).toHaveLength(0);
+    });
+  }
+
+  test('Team Detail deep link does not load legacy field definitions', async ({ page }) => {
+    const definitionUrls = trackRequests(page, LEGACY_FIELD_DEFINITIONS_ENDPOINT);
+
+    await page.goto(`/#/team-tracker/team-detail?projectId=${OSAC}&teamKey=${OSAC_PLATFORM_KEY}`);
+    await settle(page);
+
+    await expect(mainContent(page)).toContainText('Bob Smith');
+    expect(definitionUrls).toHaveLength(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Person Profile deep link does not load legacy field definitions', async ({ page }) => {
+    const definitionUrls = trackRequests(page, LEGACY_FIELD_DEFINITIONS_ENDPOINT);
+
+    await page.goto(`/#/team-tracker/person-detail?projectId=${OSAC}&accountId=osac-acc-1`);
+    await settle(page);
+
+    await expect(page.locator('[data-tour="person-profile-card"]')).toContainText('Alice Chen');
+    expect(definitionUrls).toHaveLength(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+});
+
 test.describe('People & Teams OSAC Project Switching @people-teams', () => {
   test.beforeEach(async ({ page }) => {
     setupErrorTracking(page);

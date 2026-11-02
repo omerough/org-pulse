@@ -12,6 +12,7 @@ const isAdminValue = ref(false)
 const auxiliaryManagersValue = ref({})
 const fieldDefinitionsValue = ref({ personFields: [] })
 const mockLoadGitlabStats = vi.fn()
+const mockFetchDefinitions = vi.fn().mockResolvedValue({})
 
 // useProjectContributions calls useProjectId() at import time, so this ref must be
 // hoisted to exist before that eager call runs.
@@ -65,7 +66,7 @@ vi.mock('@shared/client/composables/useImpersonation.js', () => ({
 vi.mock('@shared/client/composables/useFieldDefinitions.js', () => ({
   useFieldDefinitions: () => ({
     definitions: fieldDefinitionsValue,
-    fetchDefinitions: vi.fn().mockResolvedValue({})
+    fetchDefinitions: mockFetchDefinitions
   })
 }))
 
@@ -1683,6 +1684,56 @@ describe('PersonProfileView', () => {
 
       expect(wrapper.nav.navigateTo).toHaveBeenCalledWith('team-detail', { teamKey: 'org::Platform' })
       expect(wrapper.nav.updateParams).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('legacy-only reference data', () => {
+    beforeEach(() => {
+      apiRequest.mockResolvedValue({
+        person: { uid: 'u1', name: 'Bob Builder', status: 'active', orgType: 'engineering' },
+        managerChain: [],
+        directReports: [],
+        associatedTeams: []
+      })
+    })
+
+    it('loads field definitions when no project is selected', async () => {
+      projectIdValue.value = ''
+      mountView({ uid: 'u1' })
+      await flushPromises()
+      expect(mockFetchDefinitions).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['flightctl', 'osac'])('does not load them on a %s deep link while the roster is still loading', async (projectId) => {
+      projectIdValue.value = projectId
+      rosterLoadingValue.value = true
+      rosterDataValue.value = null
+      mountView({ accountId: 'acc-1' })
+      await flushPromises()
+      expect(mockFetchDefinitions).not.toHaveBeenCalled()
+
+      rosterLoadingValue.value = false
+      rosterDataValue.value = { projectId, teams: [], people: [] }
+      await flushPromises()
+      expect(mockFetchDefinitions).not.toHaveBeenCalled()
+    })
+
+    it('does not load them after switching between projects', async () => {
+      projectIdValue.value = 'flightctl'
+      mountView({ accountId: 'acc-1' })
+      await flushPromises()
+      projectIdValue.value = 'osac'
+      await flushPromises()
+      expect(mockFetchDefinitions).not.toHaveBeenCalled()
+    })
+
+    it('loads them once the project is cleared', async () => {
+      projectIdValue.value = 'flightctl'
+      mountView({ accountId: 'acc-1' })
+      await flushPromises()
+      projectIdValue.value = ''
+      await flushPromises()
+      expect(mockFetchDefinitions).toHaveBeenCalledTimes(1)
     })
   })
 })

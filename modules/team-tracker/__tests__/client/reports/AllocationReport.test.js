@@ -1,14 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref, readonly } from 'vue'
 import AllocationReport from '../../../client/reports/AllocationReport.vue'
 
 const mockOrgs = ref([{ name: 'AI Platform' }, { name: 'Core' }])
+const mockLoadOrgs = vi.fn()
 
 vi.mock('../../../client/composables/useOrgRoster', () => ({
   useOrgRoster: () => ({
     orgs: mockOrgs,
-    loadOrgs: vi.fn(),
+    loadOrgs: mockLoadOrgs,
   })
 }))
 
@@ -63,11 +64,32 @@ vi.mock('../../../client/services/allocation-api', () => ({
 describe('AllocationReport', () => {
   const mockNavigateTo = vi.fn()
 
+  let mountedWrappers = []
+
   beforeEach(() => {
     vi.clearAllMocks()
+    setProject('')
   })
 
+  afterEach(() => {
+    mountedWrappers.forEach(w => w.unmount())
+    mountedWrappers = []
+    setProject('')
+  })
+
+  // Drives the real useProjectId the way the shell does: hash plus urlchange.
+  function setProject(projectId) {
+    window.location.hash = projectId ? `#/team-tracker/reports?report=allocation&projectId=${projectId}` : '#/team-tracker/reports?report=allocation'
+    window.dispatchEvent(new Event('urlchange'))
+  }
+
   function createWrapper() {
+    const wrapper = mountReport()
+    mountedWrappers.push(wrapper)
+    return wrapper
+  }
+
+  function mountReport() {
     return mount(AllocationReport, {
       global: {
         provide: {
@@ -135,5 +157,44 @@ describe('AllocationReport', () => {
     const card = wrapper.find('[data-testid="allocation-team-card"]')
     await card.trigger('click')
     expect(mockNavigateTo).not.toHaveBeenCalled()
+  })
+
+  describe.each(['flight-control', 'osac'])('in project context %s', (projectId) => {
+    it('shows the unavailable state and issues no legacy requests on a direct deep link', async () => {
+      const { getGlobalAllocationSummary, getOrgAllocationSummary } = await import('../../../client/services/allocation-api')
+      setProject(projectId)
+      const wrapper = createWrapper()
+      await flushPromises()
+      expect(wrapper.find('[data-testid="not-available-for-project"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="allocation-bar"]').exists()).toBe(false)
+      expect(getGlobalAllocationSummary).not.toHaveBeenCalled()
+      expect(getOrgAllocationSummary).not.toHaveBeenCalled()
+      expect(mockLoadOrgs).not.toHaveBeenCalled()
+    })
+  })
+
+  it('stays unavailable and issues no requests when the project changes', async () => {
+    const { getGlobalAllocationSummary } = await import('../../../client/services/allocation-api')
+    setProject('flight-control')
+    const wrapper = createWrapper()
+    await flushPromises()
+    setProject('osac')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="not-available-for-project"]').exists()).toBe(true)
+    expect(getGlobalAllocationSummary).not.toHaveBeenCalled()
+    expect(mockLoadOrgs).not.toHaveBeenCalled()
+  })
+
+  it('loads the legacy allocation data once the project is cleared', async () => {
+    const { getGlobalAllocationSummary } = await import('../../../client/services/allocation-api')
+    setProject('flight-control')
+    const wrapper = createWrapper()
+    await flushPromises()
+    setProject('')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="not-available-for-project"]').exists()).toBe(false)
+    expect(getGlobalAllocationSummary).toHaveBeenCalledTimes(1)
+    expect(mockLoadOrgs).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="allocation-bar"]').exists()).toBe(true)
   })
 })

@@ -57,7 +57,7 @@ const mockManagedTeams = ref([])
 const mockManagerLoading = ref(false)
 const mockIncludeIndirect = ref(false)
 const mockProjectId = ref(null)
-const mockIsProjectMode = computed(() => Boolean(mockProjectId.value) && mockProjectId.value !== 'osac')
+const mockIsProjectMode = computed(() => Boolean(mockProjectId.value))
 const mockLoadManagerDashboard = vi.fn(() => Promise.resolve())
 const mockResetState = vi.fn(() => {
   mockManagedTeams.value = []
@@ -151,6 +151,15 @@ describe('ManagedTeamsWidget', () => {
       expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'team-detail', { teamKey: 'eng::Platform', from: 'sotu' })
     })
 
+    it('navigates to the manager dashboard without a project context when unqualified', async () => {
+      mockUser.value = { email: 'ic@redhat.com', isManager: false }
+      mockProjectIsManager.value = false
+      const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+      await flushPromises()
+      await wrapper.findAll('button').find(b => b.text().includes('My Teams')).trigger('click')
+      expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'manager-dashboard', { from: 'sotu' })
+    })
+
     it('shows error state when manager dashboard fails', async () => {
       mockLoadManagerDashboard.mockImplementation(() => Promise.reject(new Error('403')))
       const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
@@ -216,7 +225,52 @@ describe('ManagedTeamsWidget', () => {
         await flushPromises()
         const card = wrapper.findAll('button').find(b => b.text().includes('Core'))
         await card.trigger('click')
-        expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'team-detail', { teamKey: 'flight-control::t_core', from: 'sotu' })
+        expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'team-detail', { projectId: 'flight-control', teamKey: 'flight-control::t_core', from: 'sotu' })
+      })
+
+      it('keeps the project on the My Teams and Manager Dashboard links', async () => {
+        mockUser.value = { email: 'ic@redhat.com', isManager: false }
+        mockProjectIsManager.value = false
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        await wrapper.findAll('button').find(b => b.text().includes('My Teams')).trigger('click')
+        expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'manager-dashboard', { projectId: 'flight-control', from: 'sotu' })
+      })
+
+      it('keeps the project on the Manager Dashboard link when the load fails', async () => {
+        mockLoadManagerDashboard.mockImplementation(() => Promise.reject(new Error('boom')))
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        await wrapper.findAll('button').find(b => b.text().includes('Manager Dashboard')).trigger('click')
+        expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'manager-dashboard', { projectId: 'flight-control', from: 'sotu' })
+      })
+
+      it('qualifies team links with the project OSAC resolves to', async () => {
+        mockProjectId.value = 'osac'
+        mockManagedTeams.value = [
+          { id: 't_ops', name: 'Ops', orgKey: 'osac', directReportCount: 1, totalMemberCount: 3, metadata: {} }
+        ]
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+        await wrapper.findAll('button').find(b => b.text().includes('Ops')).trigger('click')
+        expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'team-detail', { projectId: 'osac', teamKey: 'osac::t_ops', from: 'sotu' })
+      })
+
+      it('navigates with the newly selected project after a project switch', async () => {
+        mockManagedTeams.value = [
+          { id: 't_core', name: 'Core', orgKey: 'flight-control', directReportCount: 1, totalMemberCount: 3, metadata: {} }
+        ]
+        const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
+        await flushPromises()
+
+        mockProjectId.value = 'osac'
+        mockManagedTeams.value = [
+          { id: 't_ops', name: 'Ops', orgKey: 'osac', directReportCount: 1, totalMemberCount: 3, metadata: {} }
+        ]
+        await wrapper.vm.$nextTick()
+        await flushPromises()
+        await wrapper.findAll('button').find(b => b.text().includes('Ops')).trigger('click')
+        expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'team-detail', { projectId: 'osac', teamKey: 'osac::t_ops', from: 'sotu' })
       })
 
       it('reloads against the new project when the selected project changes', async () => {

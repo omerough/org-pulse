@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import { useOrgRoster } from '../composables/useOrgRoster'
 import { useAllocationStrategy } from '../composables/useAllocationStrategy'
 import { getOrgAllocationSummary, getGlobalAllocationSummary } from '../services/allocation-api'
@@ -7,7 +8,9 @@ import OrgSelector from '../components/OrgSelector.vue'
 import AllocationBar from '../components/allocation/AllocationBar.vue'
 import AllocationTeamCard from '../components/allocation/AllocationTeamCard.vue'
 import MetricToggle from '../components/allocation/MetricToggle.vue'
+import ProjectRosterUnavailable from '../components/ProjectRosterUnavailable.vue'
 
+const projectId = useProjectId()
 const { orgs, loadOrgs } = useOrgRoster()
 const { categories } = useAllocationStrategy()
 
@@ -79,14 +82,18 @@ function teamBuckets(team) {
 
 watch(selectedOrg, fetchSummary)
 
-onMounted(() => {
+// Allocation is org-scoped legacy data; a project context never loads it. Also
+// fires when a selected project is cleared while this report stays mounted.
+watch(projectId, id => {
+  if (id) return
   loadOrgs()
   fetchSummary()
-})
+}, { immediate: true })
 </script>
 
 <template>
-  <div>
+  <ProjectRosterUnavailable v-if="projectId" />
+  <div v-else>
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
       <div>
         <p v-if="hasData" class="text-sm text-gray-500 dark:text-gray-400">

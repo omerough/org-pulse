@@ -1,9 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount as vtuMount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import TeamRosterView from '../../client/views/TeamRosterView.vue'
 import TeamMembersTable from '../../client/components/TeamMembersTable.vue'
 import { getTeamMetrics } from '@shared/client/services/api'
+
+// The project context is shared module state, so a leftover mounted view would
+// keep reacting to later tests' project changes — track and unmount in afterEach.
+let trackedWrappers = []
+function mount(...args) {
+  const wrapper = vtuMount(...args)
+  trackedWrappers.push(wrapper)
+  return wrapper
+}
+
+afterEach(() => {
+  trackedWrappers.splice(0).forEach(w => w.unmount())
+})
 
 // Mock all external dependencies
 const legacyTeam = {
@@ -40,9 +53,12 @@ vi.mock('@shared/client/composables/useRoster', () => ({
   })
 }))
 
+const mockLoadGitlabStats = vi.fn()
+const mockFetchDefinitions = vi.fn()
+
 vi.mock('@shared/client/composables/useGitlabStats', () => ({
   useGitlabStats: () => ({
-    loadGitlabStats: vi.fn(),
+    loadGitlabStats: mockLoadGitlabStats,
     getContributions: () => null
   })
 }))
@@ -69,7 +85,7 @@ vi.mock('@shared/client/composables/useFieldDefinitions', () => ({
   useFieldDefinitions: () => ({
     definitions: ref({ personFields: [], teamFields: [] }),
     loading: ref(false),
-    fetchDefinitions: vi.fn()
+    fetchDefinitions: mockFetchDefinitions
   })
 }))
 
@@ -739,5 +755,85 @@ describe('TeamRosterView — legacy team links in project context', () => {
 
     expect(nav.updateParams).not.toHaveBeenCalled()
     expect(wrapper.find('[data-testid="team-not-found"]').exists()).toBe(true)
+  })
+})
+
+describe('TeamRosterView — legacy-only reference data', () => {
+  // Drives the real useProjectId the way the shell does: hash plus urlchange.
+  function setProject(projectId) {
+    window.location.hash = projectId ? `#/team-tracker/team-detail?projectId=${projectId}` : '#/team-tracker/team-detail'
+    window.dispatchEvent(new Event('urlchange'))
+  }
+
+  function mountWithKey(teamKey) {
+    return mount(TeamRosterView, {
+      global: {
+        provide: {
+          moduleNav: { params: ref({ teamKey }), goBack: vi.fn(), navigateTo: vi.fn(), updateParams: vi.fn() }
+        }
+      }
+    })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setProject('')
+    rosterTeams.value = [legacyTeam]
+    isNormalizedModelValue.value = false
+    rosterLoadingValue.value = false
+    rosterDataValue.value = { teamDataSource: 'sheets' }
+    setupMockLoadTeamDetail({ name: 'Model Serving', org: 'AI Platform', components: [] })
+    mockLoadRfeConfig.mockResolvedValue({ jiraHost: 'https://redhat.atlassian.net' })
+  })
+
+  afterEach(() => {
+    setProject('')
+  })
+
+  it('loads GitLab stats and field definitions when unqualified', async () => {
+    mountWithKey('AAET::Model Serving')
+    await flushPromises()
+    expect(mockLoadGitlabStats).toHaveBeenCalledTimes(1)
+    expect(mockFetchDefinitions).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['flight-control', 'osac'])('does not load them on a %s deep link while the roster is still loading', async (projectId) => {
+    setProject(projectId)
+    rosterLoadingValue.value = true
+    rosterDataValue.value = null
+    rosterTeams.value = []
+    isNormalizedModelValue.value = false
+
+    mountWithKey(`${projectId}::t-1`)
+    await flushPromises()
+    expect(mockLoadGitlabStats).not.toHaveBeenCalled()
+    expect(mockFetchDefinitions).not.toHaveBeenCalled()
+
+    rosterLoadingValue.value = false
+    rosterDataValue.value = { projectId, teams: [], people: [] }
+    isNormalizedModelValue.value = true
+    await flushPromises()
+    expect(mockLoadGitlabStats).not.toHaveBeenCalled()
+    expect(mockFetchDefinitions).not.toHaveBeenCalled()
+  })
+
+  it('does not load them after switching between projects', async () => {
+    setProject('flight-control')
+    mountWithKey('flight-control::t-1')
+    await flushPromises()
+    setProject('osac')
+    await flushPromises()
+    expect(mockLoadGitlabStats).not.toHaveBeenCalled()
+    expect(mockFetchDefinitions).not.toHaveBeenCalled()
+  })
+
+  it('loads them once the project is cleared', async () => {
+    setProject('flight-control')
+    mountWithKey('flight-control::t-1')
+    await flushPromises()
+    setProject('')
+    await flushPromises()
+    expect(mockLoadGitlabStats).toHaveBeenCalledTimes(1)
+    expect(mockFetchDefinitions).toHaveBeenCalledTimes(1)
   })
 })

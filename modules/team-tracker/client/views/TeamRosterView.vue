@@ -348,6 +348,7 @@ import TeamFieldEditor from '../components/TeamFieldEditor.vue'
 import RefreshModal from '@shared/client/components/RefreshModal.vue'
 import { useRoster } from '@shared/client/composables/useRoster'
 import { useGitlabStats } from '@shared/client/composables/useGitlabStats'
+import { useProjectId } from '@shared/client/composables/useProjectId'
 import { useAuth } from '@shared/client/composables/useAuth'
 import { usePermissions } from '@shared/client/composables/usePermissions'
 import { useFieldDefinitions } from '@shared/client/composables/useFieldDefinitions'
@@ -361,6 +362,7 @@ import { Marked } from 'marked'
 import DOMPurify from 'dompurify'
 
 const nav = inject('moduleNav')
+const projectId = useProjectId()
 const { teams: allTeams, rosterData, loading: rosterLoading, reloadRoster, isNormalizedModel } = useRoster()
 const { loadTeamDetail, loadRfeConfig } = useOrgRoster()
 const { loadGitlabStats } = useGitlabStats()
@@ -766,13 +768,23 @@ async function handleRefreshConfirm({ force, sources }) {
 }
 
 // --- Lifecycle ---
+// Legacy-only data. Gate on the URL project: isNormalizedModel is false while the roster loads.
+function loadLegacyReferenceData() {
+  loadGitlabStats()
+  fetchDefinitions()
+}
+
 onMounted(() => {
   fetchTeamMetrics()
   fetchTeamDetail()
   fetchRfeConfig()
-  loadGitlabStats()
-  fetchDefinitions()
+  if (!projectId.value) loadLegacyReferenceData()
   resumeTourIfActive('team-detail')
+})
+
+// A selected project that is cleared while this view stays mounted.
+watch(projectId, id => {
+  if (!id) loadLegacyReferenceData()
 })
 
 onBeforeUnmount(() => {

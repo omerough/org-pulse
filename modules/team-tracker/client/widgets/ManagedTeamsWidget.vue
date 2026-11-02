@@ -4,6 +4,7 @@ import { useAuth } from '@shared/client/composables/useAuth.js'
 import { usePermissions } from '@shared/client/composables/usePermissions.js'
 import { useFieldDefinitions } from '@shared/client/composables/useFieldDefinitions.js'
 import { useModuleLink } from '@shared/client/composables/useModuleLink.js'
+import { projectParam } from '@shared/client/composables/useProjectId.js'
 import { useManagerDashboard } from '../composables/useManagerDashboard.js'
 
 defineProps({
@@ -98,11 +99,11 @@ function teamDirectReportCount(team) {
 }
 
 function handleTeamClick(team) {
-  crossNavigate('team-tracker', 'team-detail', { teamKey: teamKeyFor(team), from: 'sotu' })
+  crossNavigate('team-tracker', 'team-detail', { ...projectParam(projectId.value), teamKey: teamKeyFor(team), from: 'sotu' })
 }
 
 function handleMyTeamsClick() {
-  crossNavigate('team-tracker', 'manager-dashboard', { from: 'sotu' })
+  crossNavigate('team-tracker', 'manager-dashboard', { ...projectParam(projectId.value), from: 'sotu' })
 }
 </script>
 
