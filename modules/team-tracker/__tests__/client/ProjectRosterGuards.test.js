@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import ManageView from '../../client/views/ManageView.vue'
-import OrgExplorerView from '../../client/views/OrgExplorerView.vue'
 import UnassignedPeople from '../../client/components/UnassignedPeople.vue'
 
 const projectId = ref('')
@@ -48,7 +47,6 @@ const navigateTo = vi.fn()
 
 const views = [
   ['ManageView', ManageView, 'Teams'],
-  ['OrgExplorerView', OrgExplorerView, 'No Org Data'],
   ['UnassignedPeople', UnassignedPeople, 'Unassigned People']
 ]
 
@@ -71,7 +69,7 @@ function mountView(component) {
   return wrapper
 }
 
-describe('legacy-only views in project context', () => {
+describe('admin-only legacy views in project context', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     projectId.value = ''
@@ -106,19 +104,16 @@ describe('legacy-only views in project context', () => {
     expect(wrapper.text()).toContain(marker)
   })
 
-  it('OrgExplorerView and UnassignedPeople load their legacy data when no project is selected', async () => {
-    mountView(OrgExplorerView)
+  it('UnassignedPeople loads its legacy data when no project is selected', async () => {
     mountView(UnassignedPeople)
     await flushPromises()
 
-    expect(apiRequest).toHaveBeenCalledWith('/modules/team-tracker/registry/orgs')
     expect(fetchUnassigned).toHaveBeenCalledWith('all')
     expect(fetchTeams).toHaveBeenCalled()
   })
 
   describe('while mounted across a project transition', () => {
     const loadingViews = [
-      ['OrgExplorerView', OrgExplorerView, () => apiRequest],
       ['UnassignedPeople', UnassignedPeople, () => fetchUnassigned]
     ]
 
@@ -154,16 +149,7 @@ describe('legacy-only views in project context', () => {
         return { promise, resolve, reject }
       }
 
-      const orgTree = name => ({ trees: [{ uid: name, name, children: [] }] })
-
       const staleScenarios = [
-        [
-          'OrgExplorerView',
-          OrgExplorerView,
-          () => apiRequest,
-          name => orgTree(name),
-          (wrapper, name) => wrapper.text().includes(name)
-        ],
         [
           'UnassignedPeople',
           UnassignedPeople,

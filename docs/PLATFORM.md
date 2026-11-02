@@ -68,9 +68,9 @@ standalone sections that render their own content.
 ## Allocation Strategy (`platform/allocation-strategy/`)
 
 The allocation tracker supports customizable work classification via
-`platform/allocation-strategy/`. When present, the allocation tab appears on
-team detail views and the Work Allocation report appears in the reports hub.
-When absent, allocation features are hidden entirely.
+`platform/allocation-strategy/`. When present, People & Teams settings expose
+the allocation configuration. The team-detail allocation tab and the Work
+Allocation report are not offered in project context.
 
 ### Manifest format
 

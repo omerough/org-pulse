@@ -1172,7 +1172,19 @@ test.describe('People & Teams OSAC Legacy Deep Links @people-teams', () => {
     expect(page.errors).toHaveLength(0);
   });
 
-  for (const viewId of ['manage', 'org-explorer', 'unassigned']) {
+  test('the retired org-explorer bookmark redirects to the Org Dashboard in the same project', async ({ page }) => {
+    const legacyUrls = trackRequests(page, LEGACY_ENDPOINT);
+
+    await page.goto(`/#/team-tracker/org-explorer?projectId=${OSAC}`);
+    await settle(page);
+
+    expect(page.url()).toContain(`#/team-tracker/org-dashboard?projectId=${OSAC}`);
+    expect(legacyUrls).toHaveLength(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  for (const viewId of ['manage', 'unassigned']) {
     test(`${viewId} shows the project-roster guard and makes no legacy fetch`, async ({ page }) => {
       const legacyUrls = trackRequests(page, LEGACY_ENDPOINT);
 
@@ -1201,15 +1213,15 @@ test.describe('People & Teams Project Context Isolation @people-teams', () => {
   });
 
   for (const projectId of [OSAC, FLIGHTCTL_PROJECT]) {
-    test(`the hidden allocation report deep link for ${projectId} shows the project-roster guard and makes no legacy fetch`, async ({ page }) => {
+    test(`the retired allocation report deep link for ${projectId} lands on the reports catalog and makes no legacy fetch`, async ({ page }) => {
       const legacyUrls = trackRequests(page, LEGACY_ENDPOINT);
       const allocationUrls = trackRequests(page, LEGACY_ALLOCATION_ENDPOINT);
 
       await page.goto(`/#/team-tracker/reports?report=allocation&projectId=${projectId}`);
       await settle(page);
 
-      await expect(page.getByTestId('not-available-for-project')).toContainText('Not available for project rosters.');
-      await expect(page.getByText('No allocation data available')).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Reports' }).first()).toBeVisible();
+      await expect(page.locator('.cursor-pointer', { hasText: 'Work Allocation' })).toHaveCount(0);
       expect(allocationUrls).toHaveLength(0);
       expect(legacyUrls).toHaveLength(0);
 

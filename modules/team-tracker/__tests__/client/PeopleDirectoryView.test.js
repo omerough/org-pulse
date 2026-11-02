@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref, computed } from 'vue'
 import PeopleDirectoryView from '../../client/views/PeopleDirectoryView.vue'
@@ -30,19 +30,6 @@ vi.mock('@shared/client/composables/useRoster.js', () => ({
   })
 }))
 
-vi.mock('@shared/client/composables/useFieldDefinitions', () => ({
-  useFieldDefinitions: () => ({
-    definitions: ref({ personFields: [] }),
-    fetchDefinitions: vi.fn().mockResolvedValue({})
-  })
-}))
-
-vi.mock('@shared/client/services/api.js', () => ({
-  apiRequest: vi.fn()
-}))
-
-import { apiRequest } from '@shared/client/services/api.js'
-
 const navigateTo = vi.fn()
 
 function captureCsvExport() {
@@ -56,8 +43,10 @@ function captureCsvExport() {
   return () => csv
 }
 
+const mounted = []
+
 function mountView() {
-  return mount(PeopleDirectoryView, {
+  const wrapper = mount(PeopleDirectoryView, {
     global: {
       provide: {
         moduleNav: {
@@ -69,12 +58,18 @@ function mountView() {
       }
     }
   })
+  mounted.push(wrapper)
+  return wrapper
 }
 
 describe('PeopleDirectoryView', () => {
+  afterEach(() => {
+    mounted.splice(0).forEach(w => w.unmount())
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
-    projectId.value = ''
+    projectId.value = 'flightctl'
     rosterData.value = null
     rosterError.value = null
     rosterPeople.value = []
@@ -380,43 +375,6 @@ describe('PeopleDirectoryView', () => {
     expect(csv.split('\n')[0]).not.toContain('GitLab')
   })
 
-  it('leaves OSAC legacy behavior unchanged (navigates by uid)', async () => {
-    projectId.value = ''
-    apiRequest.mockImplementation((url) => {
-      if (url.includes('registry/people')) {
-        return Promise.resolve({
-          people: [
-            {
-              uid: 'u1',
-              name: 'Bob Builder',
-              status: 'active',
-              orgRoot: 'org1',
-              orgDisplayName: 'Org One',
-              teams: ['Team A']
-            }
-          ]
-        })
-      }
-      if (url.includes('registry/stats')) {
-        return Promise.resolve({ orgDisplayNames: { org1: 'Org One' } })
-      }
-      if (url.includes('ipa/sync/status')) {
-        return Promise.resolve({})
-      }
-      return Promise.resolve({})
-    })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('Bob Builder')
-    expect(mockLoadRoster).not.toHaveBeenCalled()
-
-    await wrapper.find('tbody tr').trigger('click')
-
-    expect(navigateTo).toHaveBeenCalledWith('person-detail', { uid: 'u1' })
-  })
-
   it('displays canonical Location distinct from Geo and includes it in CSV export', async () => {
     projectId.value = 'flightctl'
     rosterData.value = {
@@ -551,5 +509,88 @@ describe('PeopleDirectoryView', () => {
 
     expect(wrapper.text()).not.toContain('Ada Lovelace')
     expect(wrapper.text()).toContain('Grace Hopper')
+  })
+
+  describe('canonical states', () => {
+    const person = (id, displayName) => ({
+      key: `flightctl::${id}`, accountId: id, displayName, active: true, email: null,
+      teamIds: [], title: null, geo: null, identities: {}
+    })
+
+    function seed(people, roster = {}) {
+      projectId.value = 'flightctl'
+      rosterData.value = { projectId: 'flightctl', availability: 'available', reason: null, teams: [], people: [], ...roster }
+      mockLoadRoster.mockResolvedValue(rosterData.value)
+      rosterTeams.value = []
+      rosterPeople.value = people
+    }
+
+    it('sorts by a clicked column and reverses on the second click', async () => {
+      seed([person('a2', 'Zed'), person('a1', 'Amy')])
+      const wrapper = mountView()
+      await flushPromises()
+      const order = () => wrapper.findAll('tbody tr').map(r => r.find('td:nth-child(2)').text())
+      expect(order()).toEqual(['Amy', 'Zed'])
+
+      const nameHeader = wrapper.findAll('th').find(th => th.text().startsWith('Name'))
+      await nameHeader.trigger('click')
+      expect(order()).toEqual(['Zed', 'Amy'])
+    })
+
+    it('shows the unavailable state with the publication reason', async () => {
+      seed([], { availability: 'unavailable', reason: 'No publication yet' })
+      const wrapper = mountView()
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('People roster unavailable')
+      expect(wrapper.text()).toContain('No publication yet')
+      expect(wrapper.find('tbody').exists()).toBe(false)
+    })
+
+    it('shows an identity mismatch instead of another project\'s people', async () => {
+      seed([person('a1', 'Amy')])
+      mockLoadRoster.mockResolvedValue({ projectId: 'other', availability: 'available' })
+      const wrapper = mountView()
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Roster response project identity mismatch.')
+      expect(wrapper.text()).not.toContain('Amy')
+    })
+
+    it('shows a loading spinner until the roster settles', async () => {
+      seed([person('a1', 'Amy')])
+      let release
+      mockLoadRoster.mockReturnValue(new Promise(resolve => { release = resolve }))
+      const wrapper = mountView()
+      await flushPromises()
+      expect(wrapper.find('.animate-spin').exists()).toBe(true)
+
+      release(rosterData.value)
+      await flushPromises()
+      expect(wrapper.find('.animate-spin').exists()).toBe(false)
+      expect(wrapper.text()).toContain('Amy')
+    })
+
+    it('ignores a superseded roster response after a project switch', async () => {
+      seed([person('a1', 'Amy')])
+      let releaseOld
+      mockLoadRoster.mockReturnValueOnce(new Promise(resolve => { releaseOld = resolve }))
+      const wrapper = mountView()
+      await flushPromises()
+
+      const next = { projectId: 'other', availability: 'available', reason: null }
+      rosterData.value = next
+      rosterPeople.value = [{ ...person('b1', 'Bea'), key: 'other::b1' }]
+      mockLoadRoster.mockResolvedValueOnce(next)
+      projectId.value = 'other'
+      await flushPromises()
+
+      releaseOld({ projectId: 'flightctl', availability: 'available' })
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Bea')
+      expect(wrapper.text()).not.toContain('Amy')
+      expect(wrapper.text()).not.toContain('identity mismatch')
+    })
   })
 })

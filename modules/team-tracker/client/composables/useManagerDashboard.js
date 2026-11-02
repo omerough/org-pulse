@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { apiRequest } from '@shared/client/services/api'
 import { useProjectId } from '@shared/client/composables/useProjectId.js'
 
@@ -6,11 +6,6 @@ const manager = ref(null)
 const directReports = ref([])
 const indirectReports = ref([])
 const teams = ref([])
-const allOrgTeams = ref([])
-const allPeople = ref([])
-const referencedPeople = ref({})
-const fieldDefinitions = ref({ person: [], team: [] })
-const fieldExceptions = ref([])
 const loading = ref(false)
 const error = ref(null)
 const reason = ref(null)
@@ -24,18 +19,11 @@ const projectId = useProjectId()
 let loadSequence = 0
 
 export function useManagerDashboard() {
-  const isProjectMode = computed(() => Boolean(projectId.value))
-
   function resetState() {
     manager.value = null
     directReports.value = []
     indirectReports.value = []
     teams.value = []
-    allOrgTeams.value = []
-    allPeople.value = []
-    referencedPeople.value = {}
-    fieldDefinitions.value = { person: [], team: [] }
-    fieldExceptions.value = []
     reason.value = null
     availability.value = null
     generatedAt.value = null
@@ -49,21 +37,14 @@ export function useManagerDashboard() {
     error.value = null
     reason.value = null
     try {
-      const params = new URLSearchParams()
-      if (requestedProjectId) params.set('projectId', requestedProjectId)
+      const params = new URLSearchParams({ projectId: requestedProjectId })
       if (includeIndirect.value) params.set('includeIndirect', 'true')
-      const query = params.toString() ? `?${params.toString()}` : ''
-      const data = await apiRequest(`/modules/team-tracker/manager/dashboard${query}`)
+      const data = await apiRequest(`/modules/team-tracker/manager/dashboard?${params.toString()}`)
       if (requestId !== loadSequence || projectId.value !== requestedProjectId) return
       manager.value = data.manager || null
       directReports.value = data.directReports || []
       indirectReports.value = data.indirectReports || []
       teams.value = data.teams || []
-      allOrgTeams.value = data.allOrgTeams || []
-      allPeople.value = data.allPeople || []
-      referencedPeople.value = data.referencedPeople || {}
-      fieldDefinitions.value = data.fieldDefinitions || { person: [], team: [] }
-      fieldExceptions.value = data.fieldExceptions || []
       reason.value = data.reason || null
       availability.value = data.availability || null
       generatedAt.value = data.generatedAt || null
@@ -86,11 +67,6 @@ export function useManagerDashboard() {
     directReports,
     indirectReports,
     teams,
-    allOrgTeams,
-    allPeople,
-    referencedPeople,
-    fieldDefinitions,
-    fieldExceptions,
     loading,
     error,
     reason,
@@ -99,7 +75,6 @@ export function useManagerDashboard() {
     generatedAt,
     enrichment,
     projectId,
-    isProjectMode,
     load,
     refresh,
     resetState

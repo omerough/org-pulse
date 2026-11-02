@@ -705,6 +705,10 @@ export default {
           shellRedirect('team-tracker/reports', { report: 'allocation' })
           return
         }
+        if (manifest.slug === 'team-tracker' && parts[1] === 'org-explorer') {
+          shellRedirect('team-tracker/org-dashboard', params)
+          return
+        }
         if (manifest.slug === 'team-tracker' && parts[1] === 'dashboard') {
           shellRedirect('team-tracker/home')
           return

@@ -46,8 +46,7 @@
     <!-- No data -->
     <div v-else-if="noDataAvailable" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center text-gray-400 dark:text-gray-500" role="status" aria-live="polite">
       <p class="text-lg mb-2">No trend data available</p>
-      <p v-if="isProjectMode" class="text-sm">{{ projectUnavailableMessage }}</p>
-      <p v-else class="text-sm">Click "Refresh Data (365d)" to fetch historical data from Jira, GitHub, and GitLab.</p>
+      <p class="text-sm">{{ projectUnavailableMessage }}</p>
     </div>
 
     <!-- Charts -->
@@ -59,7 +58,7 @@
           title="Issues Resolved"
         />
       </div>
-      <div v-else-if="isProjectMode" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-400 dark:text-gray-500">
+      <div v-else class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-400 dark:text-gray-500">
         Issues Resolved: {{ projectUnavailableMessage }}
       </div>
 
@@ -70,18 +69,12 @@
           title="GitHub Contributions"
         />
       </div>
-      <div v-else-if="isProjectMode" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-400 dark:text-gray-500">
+      <div v-else class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-400 dark:text-gray-500">
         GitHub Contributions: {{ githubAvailable ? 'not published for the selected team(s).' : 'not published for this project.' }}
       </div>
 
-      <div v-if="gitlabAvailable" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <TrendChart
-          :labels="displayLabels"
-          :datasets="gitlabDatasets"
-          title="GitLab Contributions"
-        />
-      </div>
-      <div v-else-if="isProjectMode" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-400 dark:text-gray-500">
+      <!-- GitLab has no project-qualified publication. -->
+      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-400 dark:text-gray-500">
         GitLab Contributions: Unsupported for this project.
       </div>
 
@@ -105,27 +98,24 @@ import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import { getTrends } from '@shared/client/services/api'
 import { useReportFilters } from '../composables/useReportFilters'
 
-const { orgs, isNormalizedModel, teams: rosterTeams } = useRoster()
+const { teams: rosterTeams } = useRoster()
 const projectId = useProjectId()
-const { selectedOrgKeys, selectedTeamKeys } = useReportFilters()
+const { selectedTeamKeys } = useReportFilters()
 
 const trendsData = ref(null)
 const loading = ref(false)
 const error = ref(null)
 const compareMode = ref('compare')
 
-const isProjectMode = computed(() => !!projectId.value)
 const jiraAvailable = computed(() => trendsData.value?.jira != null)
 const githubAvailable = computed(() => {
   const github = trendsData.value?.github
-  if (github == null) return false
-  return isProjectMode.value ? hasProjectMonthlyGithub(github) : true
+  return github != null && hasProjectMonthlyGithub(github)
 })
-// In project mode every selected series can be omitted for lack of a published
-// measurement; an empty chart is shown as unavailable instead.
-const githubChartVisible = computed(() => githubAvailable.value && (!isProjectMode.value || githubDatasets.value.length > 0))
-const gitlabAvailable = computed(() => trendsData.value?.gitlab != null)
-const noDataAvailable = computed(() => !jiraAvailable.value && !githubAvailable.value && !gitlabAvailable.value)
+// Every selected series can be omitted for lack of a published measurement;
+// an empty chart is shown as unavailable instead.
+const githubChartVisible = computed(() => githubAvailable.value && githubDatasets.value.length > 0)
+const noDataAvailable = computed(() => !jiraAvailable.value && !githubAvailable.value)
 
 const PROJECT_UNAVAILABLE_MESSAGES = {
   'missing-publication': 'Jira metrics have not been published for this project yet.',
@@ -141,68 +131,35 @@ const projectUnavailableMessage = computed(() => {
   return PROJECT_UNAVAILABLE_MESSAGES[reason] || 'Jira trend data is not available for this project.'
 })
 
-const showModeToggle = computed(() => {
-  return selectedOrgKeys.value.length > 1 || selectedTeamKeys.value.length > 1
-})
+const showModeToggle = computed(() => selectedTeamKeys.value.length > 1)
 
 // Build series config based on filter selections
 const seriesConfig = computed(() => {
-  // Teams selected
   if (selectedTeamKeys.value.length > 0) {
     if (compareMode.value === 'aggregate' && selectedTeamKeys.value.length > 1) {
       return [{ key: selectedTeamKeys.value, label: 'Selected Teams', type: 'teams-aggregate' }]
     }
-    return selectedTeamKeys.value.map(teamKey => {
-      const team = teamDisplayNames.value[teamKey]
-      return { key: teamKey, label: team || teamKey, type: 'team' }
-    })
-  }
-
-  // Orgs selected (legacy-only concept -- a stale selection must not
-  // leak into project mode, which has no org concept and would otherwise
-  // produce a fabricated-zero series for it).
-  if (!isProjectMode.value && selectedOrgKeys.value.length > 0) {
-    if (compareMode.value === 'aggregate' && selectedOrgKeys.value.length > 1) {
-      return [{ key: selectedOrgKeys.value, label: 'Selected Orgs', type: 'orgs-aggregate' }]
-    }
-    return selectedOrgKeys.value.map(orgKey => {
-      const org = orgs.value.find(o => o.key === orgKey)
-      return { key: orgKey, label: org?.displayName || orgKey, type: 'org' }
-    })
+    return selectedTeamKeys.value.map(teamKey => ({
+      key: teamKey,
+      label: teamDisplayNames.value[teamKey] || teamKey,
+      type: 'team'
+    }))
   }
 
   // Nothing selected -> overall total
   return [{ key: 'overall', label: 'Overall', type: 'overall' }]
 })
 
-// Build team display names, org-prefixed when multiple orgs selected
-// (project mode has no org concept, so it reads useRoster().teams directly).
 const teamDisplayNames = computed(() => {
-  if (isNormalizedModel.value) {
-    const lookup = {}
-    for (const team of rosterTeams.value) {
-      lookup[team.key] = team.displayName
-    }
-    return lookup
-  }
-
   const lookup = {}
-  const multiOrg = selectedOrgKeys.value.length > 1
-  for (const org of orgs.value) {
-    if (!org.teams) continue
-    if (!selectedOrgKeys.value.includes(org.key)) continue
-    for (const [name, team] of Object.entries(org.teams)) {
-      const key = `${org.key}::${name}`
-      lookup[key] = multiOrg
-        ? `${org.displayName || org.key} \u2014 ${team.displayName}`
-        : team.displayName
-    }
+  for (const team of rosterTeams.value) {
+    lookup[team.key] = team.displayName
   }
   return lookup
 })
 
-// Generate sorted month labels for the last 12 months. Jira/GitHub/GitLab
-// availability is independent, so any source with data can chart.
+// Generate sorted month labels for the last 12 months. Jira and GitHub
+// availability are independent, so any source with data can chart.
 const monthLabels = computed(() => {
   if (noDataAvailable.value) return []
   const allMonths = new Set()
@@ -213,30 +170,10 @@ const monthLabels = computed(() => {
     }
   }
 
-  if (trendsData.value.github?.users) {
-    for (const userData of Object.values(trendsData.value.github.users)) {
-      if (userData?.months) {
-        for (const month of Object.keys(userData.months)) {
-          allMonths.add(month)
-        }
-      }
-    }
-  }
-  // Project mode: github is already bucketed server-side (byTeam/overall), not
-  // username-keyed -- see getGithubValue().
+  // GitHub is bucketed server-side (byTeam/overall), not username-keyed.
   if (trendsData.value.github?.overall) {
     for (const month of Object.keys(trendsData.value.github.overall)) {
       allMonths.add(month)
-    }
-  }
-
-  if (trendsData.value.gitlab?.users) {
-    for (const userData of Object.values(trendsData.value.gitlab.users)) {
-      if (userData?.months) {
-        for (const month of Object.keys(userData.months)) {
-          allMonths.add(month)
-        }
-      }
     }
   }
 
@@ -260,15 +197,7 @@ function getJiraValue(monthKey, series, field) {
   const bucket = trendsData.value?.jira?.[monthKey]
   if (!bucket) return 0
   if (series.type === 'overall') return bucket[field] || 0
-  if (series.type === 'org') return bucket.byOrg?.[series.key]?.[field] || 0
   if (series.type === 'team') return bucket.byTeam?.[series.key]?.[field] || 0
-  if (series.type === 'orgs-aggregate') {
-    let total = 0
-    for (const orgKey of series.key) {
-      total += bucket.byOrg?.[orgKey]?.[field] || 0
-    }
-    return total
-  }
   if (series.type === 'teams-aggregate') {
     let total = 0
     for (const teamKey of series.key) {
@@ -279,32 +208,8 @@ function getJiraValue(monthKey, series, field) {
   return 0
 }
 
-const githubUserLookup = computed(() => {
-  const lookup = {}
-  for (const org of orgs.value) {
-    if (!org.teams) continue
-    for (const [teamName, team] of Object.entries(org.teams)) {
-      for (const member of team.members) {
-        if (member.githubUsername) {
-          lookup[member.githubUsername] = {
-            orgKey: org.key,
-            teamKey: `${org.key}::${teamName}`
-          }
-        }
-      }
-    }
-  }
-  return lookup
-})
-
-// Project mode's github is pre-bucketed server-side by (projectId, accountId)
-// team membership -- no roster username join, and no org concept (teams only).
-// A team absent from `byTeam` has no published measurement; a present team
-// with all-zero months is a real zero, not an absence. A "Selected Teams"
-// aggregate requires every selected team to have a measurement -- summing
-// only the subset that does would silently relabel a partial total as the
-// full selection.
-// `{}` means no monthly measurements were published; a month with count 0 is a real zero.
+// A team absent from `byTeam` has no measurement (a present all-zero team is a real zero),
+// so an aggregate needs every selected team measured; `{}` overall means nothing published.
 function hasProjectMonthlyGithub(github) {
   return Object.keys(github.overall || {}).length > 0
 }
@@ -316,7 +221,9 @@ function hasProjectGithubData(series, github) {
   return true
 }
 
-function getProjectGithubValue(monthKey, series, github) {
+function getGithubValue(monthKey, series) {
+  const github = trendsData.value?.github
+  if (!github) return 0
   if (series.type === 'overall') return github.overall?.[monthKey] || 0
   if (series.type === 'team') return github.byTeam?.[series.key]?.[monthKey] || 0
   if (series.type === 'teams-aggregate') {
@@ -327,70 +234,9 @@ function getProjectGithubValue(monthKey, series, github) {
   return 0
 }
 
-function getGithubValue(monthKey, series) {
-  const github = trendsData.value?.github
-  if (!github) return 0
-  if (isProjectMode.value) return getProjectGithubValue(monthKey, series, github)
-
-  if (!github.users) return 0
-  const lookup = githubUserLookup.value
-
-  let total = 0
-  for (const [username, userData] of Object.entries(github.users)) {
-    if (!userData?.months) continue
-    const info = lookup[username]
-    if (series.type === 'org' && info?.orgKey !== series.key) continue
-    if (series.type === 'team' && info?.teamKey !== series.key) continue
-    if (series.type === 'orgs-aggregate' && !series.key.includes(info?.orgKey)) continue
-    if (series.type === 'teams-aggregate' && !series.key.includes(info?.teamKey)) continue
-    total += userData.months[monthKey] || 0
-  }
-  return total
-}
-
-const gitlabUserLookup = computed(() => {
-  const lookup = {}
-  for (const org of orgs.value) {
-    if (!org.teams) continue
-    for (const [teamName, team] of Object.entries(org.teams)) {
-      for (const member of team.members) {
-        if (member.gitlabUsername) {
-          lookup[member.gitlabUsername] = {
-            orgKey: org.key,
-            teamKey: `${org.key}::${teamName}`
-          }
-        }
-      }
-    }
-  }
-  return lookup
-})
-
-function getGitlabValue(monthKey, series) {
-  const gitlab = trendsData.value?.gitlab
-  if (!gitlab?.users) return 0
-  const lookup = gitlabUserLookup.value
-
-  let total = 0
-  for (const [username, userData] of Object.entries(gitlab.users)) {
-    if (!userData?.months) continue
-    const info = lookup[username]
-    if (series.type === 'org' && info?.orgKey !== series.key) continue
-    if (series.type === 'team' && info?.teamKey !== series.key) continue
-    if (series.type === 'orgs-aggregate' && !series.key.includes(info?.orgKey)) continue
-    if (series.type === 'teams-aggregate' && !series.key.includes(info?.teamKey)) continue
-    total += userData.months[monthKey] || 0
-  }
-  return total
-}
-
 function getAvgCycleTime(monthKey, series) {
   const bucket = trendsData.value?.jira?.[monthKey]
   if (!bucket) return 0
-  if (series.type === 'orgs-aggregate') {
-    const vals = series.key.map(k => bucket.byOrg?.[k]?.avgCycleTimeDays).filter(v => v != null)
-    return vals.length > 0 ? +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : 0
-  }
   if (series.type === 'teams-aggregate') {
     const vals = series.key.map(k => bucket.byTeam?.[k]?.avgCycleTimeDays).filter(v => v != null)
     return vals.length > 0 ? +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : 0
@@ -411,23 +257,14 @@ const githubDatasets = computed(() => {
   const labels = monthLabels.value
   if (labels.length === 0) return []
   const github = trendsData.value?.github
-  // Project mode: a series for a team with no published GitHub measurement is
-  // omitted rather than charted as a fabricated zero line.
-  const series = (isProjectMode.value && github)
+  // A series for a team with no published GitHub measurement is omitted
+  // rather than charted as a fabricated zero line.
+  const series = github
     ? seriesConfig.value.filter(s => hasProjectGithubData(s, github))
-    : seriesConfig.value
+    : []
   return series.map(s => ({
     label: s.label,
     data: labels.map(m => getGithubValue(m.key, s))
-  }))
-})
-
-const gitlabDatasets = computed(() => {
-  const labels = monthLabels.value
-  if (labels.length === 0) return []
-  return seriesConfig.value.map(series => ({
-    label: series.label,
-    data: labels.map(m => getGitlabValue(m.key, series))
   }))
 })
 

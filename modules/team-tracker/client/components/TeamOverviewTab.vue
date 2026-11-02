@@ -13,38 +13,14 @@
           Team Members
           <span class="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">{{ members.length }} member{{ members.length !== 1 ? 's' : '' }}</span>
         </h3>
-        <button
-          v-if="canManage"
-          @click="showAddModal = true"
-          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 transition-colors"
-        >
-          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Add Member
-        </button>
       </div>
       <TeamMembersTable
         :members="members"
         :teamKey="teamKey"
-        :fieldDefinitions="fieldDefinitions"
-        :canManage="canManage"
-        :teamId="teamId"
         :roleFilter="roleFilter"
         @update:roleFilter="roleFilter = $event"
-        @remove-member="handleRemoveMember"
       />
     </div>
-
-    <!-- Add Member Modal -->
-    <AddMemberModal
-      v-if="showAddModal"
-      :teamId="teamId"
-      :memberUids="memberUids"
-      :allPeople="allPeople"
-      @close="showAddModal = false"
-      @updated="$emit('updated')"
-    />
   </div>
 </template>
 
@@ -52,39 +28,16 @@
 import { ref, computed } from 'vue'
 import HeadcountChart from './HeadcountChart.vue'
 import TeamMembersTable from './TeamMembersTable.vue'
-import AddMemberModal from './AddMemberModal.vue'
-import { useTeams } from '@shared/client/composables/useTeams'
 import { deriveHeadcountByRole } from '../utils/member-resolution'
 
 const props = defineProps({
   members: { type: Array, default: () => [] },
-  teamKey: { type: String, default: null },
-  fieldDefinitions: { type: Array, default: () => [] },
-  canManage: { type: Boolean, default: false },
-  teamId: { type: String, default: null },
-  allPeople: { type: Array, default: () => [] }
+  teamKey: { type: String, default: null }
 })
 
-const emit = defineEmits(['updated'])
-
-const { unassignMember } = useTeams()
-
-const showAddModal = ref(false)
 const roleFilter = ref(null)
 
-// Derived from the already-loaded members so every project shares one path:
-// deduplicated by canonical identity, missing roles bucketed as Unknown, and
-// the total always equals unique team membership.
-const headcount = computed(() => deriveHeadcountByRole(props.members, props.fieldDefinitions))
-
-const memberUids = computed(() => new Set(props.members.map(m => m.uid)))
-
-async function handleRemoveMember(uid) {
-  try {
-    await unassignMember(props.teamId, uid)
-    emit('updated')
-  } catch (e) {
-    console.error('Failed to remove member:', e)
-  }
-}
+// Derived from the already-loaded members: deduplicated by canonical identity,
+// missing roles bucketed as Unknown, and the total always equals unique team membership.
+const headcount = computed(() => deriveHeadcountByRole(props.members))
 </script>

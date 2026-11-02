@@ -23,11 +23,10 @@ const allPeople = computed(() => {
   const people = []
   for (const team of teams.value) {
     for (const member of team.members) {
-      const key = member.uid || member.accountId || member.name
+      const key = member.accountId || member.name
       if (seen.has(key)) continue
       seen.add(key)
       people.push({
-        uid: member.uid || null,
         accountId: member.accountId || null,
         name: member.name || member.jiraDisplayName || key,
         title: member.title || '',
@@ -65,9 +64,7 @@ function onFocus() {
 function selectPerson(person) {
   isOpen.value = false
   searchText.value = ''
-  if (person.uid) {
-    crossNavigate('team-tracker', 'person-detail', { ...projectParam(projectId.value), uid: person.uid, from: 'sotu' })
-  } else if (person.accountId) {
+  if (person.accountId) {
     crossNavigate('team-tracker', 'person-detail', { ...projectParam(projectId.value), accountId: person.accountId, from: 'sotu' })
   }
 }
@@ -131,7 +128,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onClickOutside))
       >
         <li
           v-for="(person, idx) in filteredPeople"
-          :key="person.uid || person.accountId || person.name"
+          :key="person.accountId || person.name"
           :id="`plw-opt-${idx}`"
           role="option"
           :aria-selected="highlightedIndex === idx"

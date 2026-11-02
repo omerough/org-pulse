@@ -1,7 +1,3 @@
-import { loadAllocationStrategy } from '@/platform-loader'
-
-const allocationStrategy = loadAllocationStrategy()
-
 export const reports = [
   {
     id: 'trends',
@@ -10,7 +6,7 @@ export const reports = [
     icon: 'TrendingUp',
     tags: ['Jira', 'GitHub', 'GitLab'],
     component: () => import('./TrendsReport.vue'),
-    filters: ['org', 'team'],
+    filters: ['team'],
   },
   {
     id: 'team-comparison',
@@ -19,16 +15,6 @@ export const reports = [
     icon: 'BarChart3',
     tags: ['Jira', 'GitHub', 'GitLab'],
     component: () => import('./TeamComparisonReport.vue'),
-    filters: ['org', 'team'],
+    filters: ['team'],
   },
-  ...(allocationStrategy ? [{
-    id: 'allocation',
-    title: 'Work Allocation',
-    description: `${allocationStrategy.name} breakdown across teams.`,
-    icon: 'PieChart',
-    tags: ['Allocation'],
-    component: () => import('./AllocationReport.vue'),
-    filters: [],
-    hidden: true,
-  }] : []),
 ]

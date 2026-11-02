@@ -15,51 +15,29 @@ vi.mock('../../client/composables/useProjectDisplayName', () => ({
 
 const rosterData = ref(null)
 const rosterTeams = ref([])
+const rosterLoading = ref(false)
+const rosterError = ref(null)
 const mockLoadRoster = vi.fn()
 vi.mock('@shared/client/composables/useRoster', () => ({
   useRoster: () => ({
     rosterData,
     teams: rosterTeams,
-    loading: ref(false),
-    error: ref(null),
+    loading: rosterLoading,
+    error: rosterError,
     uniqueMemberCount: ref(2),
     loadRoster: mockLoadRoster
   })
 }))
 
-vi.mock('../../client/composables/useOrgRoster', () => ({
-  useOrgRoster: () => ({
-    orgs: ref([]),
-    selectedOrg: ref(null),
-    loading: ref(false),
-    searchQuery: ref(''),
-    sortBy: ref('name'),
-    filteredTeams: ref([{ name: 'Legacy Team', org: 'Legacy Org', memberCount: 1, members: [], metadata: {} }]),
-    totalPeople: ref(1),
-    unassigned: ref([]),
-    loadTeams: vi.fn(),
-    loadOrgs: vi.fn()
-  })
-}))
-
-vi.mock('@shared/client/composables/usePermissions', () => ({
-  usePermissions: () => ({ isAdmin: ref(false) })
-}))
-
-vi.mock('@shared/client/composables/useFieldDefinitions', () => ({
-  useFieldDefinitions: () => ({
-    definitions: ref({ teamFields: [] }),
-    fetchDefinitions: vi.fn().mockResolvedValue({})
-  })
-}))
-
 let currentWrapper = null
+
+const navigateTo = vi.fn()
 
 function mountView() {
   currentWrapper = mount(TeamDirectoryView, {
     global: {
       provide: {
-        moduleNav: { params: ref({}), navigateTo: vi.fn(), goBack: vi.fn(), updateParams: vi.fn() }
+        moduleNav: { params: ref({}), navigateTo, goBack: vi.fn(), updateParams: vi.fn() }
       }
     }
   })
@@ -80,6 +58,8 @@ describe('TeamDirectoryView project labels', () => {
     projectId.value = ''
     rosterData.value = null
     rosterTeams.value = []
+    rosterLoading.value = false
+    rosterError.value = null
   })
 
   afterEach(() => {
@@ -116,12 +96,104 @@ describe('TeamDirectoryView project labels', () => {
     expect(wrapper.find('h3').element.closest('.grid > div')).toBe(cardBefore)
     delete projectLabels.late
   })
+})
 
-  it('keeps the legacy org label without a project', async () => {
+describe('TeamDirectoryView canonical roster', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    rosterData.value = null
+    rosterTeams.value = []
+    rosterLoading.value = false
+    rosterError.value = null
+  })
+
+  afterEach(() => {
+    currentWrapper?.unmount()
+    currentWrapper = null
+  })
+
+  function seed(id) {
+    projectId.value = id
+    rosterData.value = { projectId: id, availability: 'available', teams: [], people: [] }
+    rosterTeams.value = [
+      { key: `${id}::b`, displayName: 'Beta', members: [{ name: 'Grace Hopper' }], metadata: {} },
+      { key: `${id}::a`, displayName: 'Alpha', members: [{ name: 'Ada' }, { name: 'Linus' }, { name: 'Ken' }], metadata: {} },
+      { key: `${id}::c`, displayName: 'Gamma', members: [{ name: 'Dennis' }, { name: 'Brian' }], metadata: {} }
+    ]
+  }
+
+  const names = wrapper => wrapper.findAll('h3').map(h => h.text())
+
+  it('loads the project roster on mount and renders no legacy org controls', async () => {
+    seed('acme')
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Legacy Org')
-    expect(mockLoadRoster).not.toHaveBeenCalled()
+    expect(mockLoadRoster).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('Supported')
+    expect(wrapper.text()).not.toContain('PRD Count')
+    expect(wrapper.text()).not.toContain('not assigned to any team')
+  })
+
+  it('sorts by name and by headcount, and searches teams and members', async () => {
+    seed('acme')
+    const wrapper = mountView()
+    await flushPromises()
+    expect(names(wrapper)).toEqual(['Alpha', 'Beta', 'Gamma'])
+
+    await wrapper.find('select').setValue('headcount')
+    expect(names(wrapper)).toEqual(['Alpha', 'Gamma', 'Beta'])
+
+    await wrapper.find('input[type="text"]').setValue('hopper')
+    expect(names(wrapper)).toEqual(['Beta'])
+
+    await wrapper.find('input[type="text"]').setValue('zzz')
+    expect(wrapper.text()).toContain('No Teams Found')
+  })
+
+  it('opens Team Detail by canonical team key', async () => {
+    seed('acme')
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('h3').element.closest('.grid > div').querySelector('h3').click()
+    expect(navigateTo).toHaveBeenCalledWith('team-detail', { teamKey: 'acme::a' })
+  })
+
+  it('shows a loading spinner while the roster loads', async () => {
+    seed('acme')
+    rosterLoading.value = true
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.animate-spin').exists()).toBe(true)
+    expect(wrapper.find('h3').exists()).toBe(false)
+  })
+
+  it.each([
+    ['a roster error', () => { rosterError.value = 'Roster load failed' }, 'Roster load failed'],
+    ['an unavailable publication', () => { rosterData.value = { projectId: 'acme', availability: 'unavailable', reason: 'No publication yet' } }, 'No publication yet']
+  ])('shows the unavailable state for %s', async (_name, arrange, message) => {
+    seed('acme')
+    arrange()
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Team roster unavailable')
+    expect(wrapper.text()).toContain(message)
+  })
+
+  it('reloads the roster and resets the sort when the project changes', async () => {
+    seed('acme')
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('select').setValue('headcount')
+
+    seed('flightctl')
+    await flushPromises()
+
+    expect(mockLoadRoster).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('select').element.value).toBe('name')
+    expect(wrapper.text()).not.toContain('acme::')
   })
 })

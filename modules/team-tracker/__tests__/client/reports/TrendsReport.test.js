@@ -1,51 +1,23 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { ref, readonly, nextTick } from 'vue'
 import TrendsReport from '../../../client/reports/TrendsReport.vue'
 import TrendChart from '../../../client/components/TrendChart.vue'
 import { useReportFilters } from '../../../client/composables/useReportFilters'
 
-const mockOrgs = ref([
-  {
-    key: 'org1',
-    displayName: 'Org One',
-    teams: {
-      'Team A': {
-        displayName: 'Team A',
-        members: [
-          { name: 'Alice', githubUsername: 'alice-gh', gitlabUsername: 'alice-gl' },
-        ]
-      }
-    }
-  }
-])
-const mockIsNormalizedModel = ref(false)
 const mockRosterTeams = ref([])
 
 vi.mock('@shared/client/composables/useRoster', () => ({
   useRoster: () => ({
-    orgs: mockOrgs,
     teams: mockRosterTeams,
-    isNormalizedModel: mockIsNormalizedModel,
-    selectedOrgKey: ref(null),
-    selectOrg: vi.fn(),
     loadRoster: vi.fn(),
   })
 }))
 
-const mockProjectId = ref('')
+const mockProjectId = ref('flightctl')
 vi.mock('@shared/client/composables/useProjectId.js', () => ({
   useProjectId: () => mockProjectId,
 }))
-
-const mockTrendsData = {
-  jira: {
-    '2025-01': { resolved: 10, avgCycleTimeDays: 5, byOrg: {}, byTeam: {} },
-    '2025-02': { resolved: 15, avgCycleTimeDays: 4, byOrg: {}, byTeam: {} },
-  },
-  github: { users: {} },
-  gitlab: { users: {} },
-}
 
 // The chart only displays months within its rolling 12-month window, so
 // fixtures that assert a specific month's value must use a month guaranteed
@@ -56,6 +28,14 @@ function currentMonthKey() {
 }
 const MONTH = currentMonthKey()
 
+const mockTrendsData = {
+  jira: {
+    [MONTH]: { resolved: 10, avgCycleTimeDays: 5, byTeam: {} },
+  },
+  github: { availability: 'available', partial: false, overall: { [MONTH]: 4 }, byTeam: {} },
+  gitlab: null,
+}
+
 vi.mock('@shared/client/services/api', () => ({
   getTrends: vi.fn(async () => mockTrendsData),
 }))
@@ -63,15 +43,20 @@ vi.mock('@shared/client/services/api', () => ({
 describe('TrendsReport', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockProjectId.value = ''
-    mockIsNormalizedModel.value = false
+    mockProjectId.value = 'flightctl'
     mockRosterTeams.value = []
     useReportFilters().selectedTeamKeys.value = []
-    useReportFilters().selectedOrgKeys.value = []
+  })
+
+  // mockProjectId is shared, so a leftover mounted report would keep reacting
+  // to later tests' project changes.
+  const mounted = []
+  afterEach(() => {
+    mounted.splice(0).forEach(wrapper => wrapper.unmount())
   })
 
   function createWrapper() {
-    return mount(TrendsReport, {
+    const wrapper = mount(TrendsReport, {
       global: {
         provide: {
           moduleNav: {
@@ -90,14 +75,17 @@ describe('TrendsReport', () => {
         }
       }
     })
+    mounted.push(wrapper)
+    return wrapper
   }
 
-  it('renders 4 TrendChart components after loading', async () => {
+  it('renders the Jira and GitHub charts, with GitLab shown as unsupported', async () => {
     const wrapper = createWrapper()
     await nextTick()
     await nextTick()
     const charts = wrapper.findAll('[data-testid="trend-chart"]')
-    expect(charts.length).toBe(4)
+    expect(charts.length).toBe(3)
+    expect(wrapper.text()).toContain('GitLab Contributions: Unsupported for this project.')
   })
 
   it('shows no data message when trends data is null', async () => {
@@ -116,25 +104,18 @@ describe('TrendsReport', () => {
     const text = wrapper.text()
     expect(text).toContain('Issues Resolved')
     expect(text).toContain('GitHub Contributions')
-    expect(text).toContain('GitLab Contributions')
     expect(text).toContain('Avg Cycle Time')
   })
 
-  it('does not show mode toggle when only one org/team selected', async () => {
+  it('does not show mode toggle when fewer than two teams are selected', async () => {
     const wrapper = createWrapper()
     await nextTick()
     await nextTick()
-    // No orgs selected by default, so mode toggle should be hidden
     expect(wrapper.text()).not.toContain('Aggregate')
     expect(wrapper.text()).not.toContain('Compare')
   })
 
-  describe('project mode', () => {
-    beforeEach(() => {
-      mockProjectId.value = 'flightctl'
-      mockIsNormalizedModel.value = true
-    })
-
+  describe('published project data', () => {
     it('communicates that GitHub/GitLab are not published, instead of charting a fabricated zero', async () => {
       const { getTrends } = await import('@shared/client/services/api')
       getTrends.mockImplementationOnce(async () => ({
@@ -340,24 +321,6 @@ describe('TrendsReport', () => {
       expect(wrapper.text()).not.toContain('not published for this project.')
     })
 
-    it('ignores a stale organization-filter selection left over from legacy OSAC mode, instead of charting a fabricated-zero org series', async () => {
-      useReportFilters().selectedOrgKeys.value = ['org1']
-      const { getTrends } = await import('@shared/client/services/api')
-      getTrends.mockImplementationOnce(async () => ({
-        jira: { [MONTH]: { resolved: 3, avgCycleTimeDays: 2, byTeam: {} } },
-        github: { availability: 'available', partial: false, overall: { [MONTH]: 20 }, byTeam: {} },
-        gitlab: null,
-      }))
-      const wrapper = createWrapper()
-      await nextTick()
-      await nextTick()
-      // Project mode has no org concept; the stale selection must not route
-      // the series into the (non-existent) org bucket, which would silently
-      // produce a fabricated zero instead of the real overall total.
-      const githubChart = wrapper.findAllComponents(TrendChart).find(c => c.props('title') === 'GitHub Contributions')
-      expect(githubChart.props('datasets')).toEqual([{ label: 'Overall', data: [20] }])
-    })
-
     it('reloads when the project changes', async () => {
       const { getTrends } = await import('@shared/client/services/api')
       createWrapper()
@@ -388,13 +351,13 @@ describe('TrendsReport', () => {
       await nextTick()
       await nextTick()
       await nextTick()
-      expect(wrapper.findAll('[data-testid="trend-chart"]').length).toBe(3)
+      expect(wrapper.findAll('[data-testid="trend-chart"]').length).toBe(2)
 
       resolveStale({ jira: null, github: null, gitlab: null })
       await nextTick()
       await nextTick()
 
-      expect(wrapper.findAll('[data-testid="trend-chart"]').length).toBe(3)
+      expect(wrapper.findAll('[data-testid="trend-chart"]').length).toBe(2)
       expect(wrapper.text()).not.toContain('No trend data available')
     })
   })

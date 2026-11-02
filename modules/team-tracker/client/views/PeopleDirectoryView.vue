@@ -1,13 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, inject, watch } from 'vue'
-import { apiRequest } from '@shared/client/services/api.js'
 import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import { useProjectDisplayName } from '../composables/useProjectDisplayName'
 import { useRoster } from '@shared/client/composables/useRoster.js'
-import { useFieldDefinitions } from '@shared/client/composables/useFieldDefinitions'
-import { useFieldFilters } from '../composables/useFieldFilters'
 import { resolveMemberLocation } from '../utils/member-resolution'
-import FieldFilterPanel from '../components/FieldFilterPanel.vue'
 
 const nav = inject('moduleNav')
 const projectId = useProjectId()
@@ -21,24 +17,17 @@ const {
 } = useRoster()
 
 const people = ref([])
-const stats = ref(null)
-const syncStatus = ref(null)
-const orgDisplayNames = ref({})
 const loading = ref(true)
 const search = ref('')
-const selectedOrgs = ref([])
 const selectedGeos = ref([])
 const projectRosterMessage = ref(null)
 let loadSequence = 0
-const isProjectRoster = computed(() => Boolean(projectId.value))
 const projectRosterStatus = computed(() => {
-  if (!isProjectRoster.value) return ''
   const roster = projectRosterData.value
   if (projectRosterMessage.value || projectRosterError.value) return 'Unavailable'
   if (!roster || roster.projectId !== projectId.value) return loading.value ? 'Loading' : 'Unavailable'
   if (roster.availability === 'available') return 'Supported'
   if (roster.availability === 'empty') return 'Empty'
-  if (roster.availability === 'unavailable') return 'Unavailable'
   return 'Unavailable'
 })
 const projectRosterUpdatedAt = computed(() => {
@@ -48,7 +37,7 @@ const projectRosterUpdatedAt = computed(() => {
 // state 'absent' means identities were distrusted and nulled for everyone;
 // showing GitHub/GitLab counts then would read as a real zero, not "unpublished".
 const enrichmentAvailable = computed(() => {
-  if (!isProjectRoster.value || projectRosterData.value?.projectId !== projectId.value) return false
+  if (projectRosterData.value?.projectId !== projectId.value) return false
   const enrichment = projectRosterData.value?.enrichment
   return Boolean(enrichment) && enrichment.state !== 'absent'
 })
@@ -59,47 +48,13 @@ const enrichmentStatusNote = computed(() => {
   if (enrichment.partial) return 'Profiles: partial'
   return null
 })
-const ORG_TYPE_OPTIONS = [
-  { value: 'all', label: 'All' },
-  { value: 'engineering', label: 'Engineering' },
-  { value: 'auxiliary', label: 'Non-Engineering' }
-]
 
-// Temporarily hidden from the type filter; auxiliary profiles/data stay intact for restoration.
-const HIDDEN_ORG_TYPES = ['auxiliary']
-const visibleOrgTypeOptions = computed(() => ORG_TYPE_OPTIONS.filter(o => !HIDDEN_ORG_TYPES.includes(o.value)))
-
-const selectedOrgType = ref('all')
 const sortField = ref('name')
 const sortAsc = ref(true)
 
-const { definitions, fetchDefinitions } = useFieldDefinitions()
-
-const personFieldDefs = computed(() =>
-  isProjectRoster.value
-    ? []
-    : (definitions.value.personFields || []).filter(f => f.visible && !f.deleted && f.type === 'constrained')
-)
-
 function personKey(person) {
-  return person.uid || person.rowKey || person.accountId || person.name
+  return person.rowKey || person.accountId || person.name
 }
-
-// Full unfiltered active people list (for absolute filter counts)
-const activePeople = computed(() => people.value.filter(p => p.status === 'active'))
-
-const {
-  activeFilters: fieldActiveFilters,
-  setFilter: setFieldFilter,
-  clearFilter: clearFieldFilter,
-  clearAll: clearAllFieldFilters,
-  filtered: fieldFiltered,
-  filterCounts: fieldFilterCounts
-} = useFieldFilters(
-  activePeople,
-  personFieldDefs,
-  (person) => person._appFields || {}
-)
 
 async function loadData() {
   const requestId = ++loadSequence
@@ -107,91 +62,49 @@ async function loadData() {
   const isCurrentRequest = () => requestId === loadSequence && projectId.value === requestedProjectId
   loading.value = true
   projectRosterMessage.value = null
-
-  if (requestedProjectId) {
-    people.value = []
-    stats.value = null
-    syncStatus.value = null
-    orgDisplayNames.value = {}
-    try {
-      const roster = await loadRoster()
-      if (!isCurrentRequest()) return
-      if (!roster || roster.projectId !== requestedProjectId) {
-        projectRosterMessage.value = projectRosterError.value || 'Roster response project identity mismatch.'
-        return
-      }
-      if (roster.availability === 'unavailable') {
-        projectRosterMessage.value = roster.reason || 'No current roster publication is available for this project.'
-        return
-      }
-      if (!['available', 'empty'].includes(roster.availability)) {
-        projectRosterMessage.value = 'The project roster does not provide a people directory.'
-        return
-      }
-
-      const teamNameById = new Map(rosterTeams.value.map(t => [t.teamId, t.displayName]))
-      people.value = rosterPeople.value.map(person => ({
-        rowKey: person.key,
-        accountId: person.accountId,
-        name: person.displayName,
-        status: person.active ? 'active' : 'inactive',
-        email: person.email,
-        ldapUid: person.ldapUid ?? null,
-        title: person.title,
-        geo: person.geo,
-        location: resolveMemberLocation(person),
-        orgDisplayName: requestedProjectId,
-        teams: person.teamIds.map(id => teamNameById.get(id)).filter(Boolean),
-        github: person.identities?.github ?? null,
-        gitlab: person.identities?.gitlab ?? null,
-        // Opaque typed passthrough; not resolved or rendered until reference resolution exists.
-        managerRef: person.managerRef ?? null,
-        _appFields: {}
-      }))
-      return
-    } catch (error) {
-      if (isCurrentRequest()) {
-        people.value = []
-        projectRosterMessage.value = error.message
-      }
-      return
-    } finally {
-      if (isCurrentRequest()) loading.value = false
-    }
-  }
+  people.value = []
 
   try {
-    const [peopleRes, statsRes, syncRes] = await Promise.all([
-      apiRequest('/modules/team-tracker/registry/people'),
-      apiRequest('/modules/team-tracker/registry/stats'),
-      apiRequest('/modules/team-tracker/ipa/sync/status'),
-      fetchDefinitions()
-    ])
+    const roster = await loadRoster()
     if (!isCurrentRequest()) return
-    people.value = peopleRes.people || []
-    stats.value = statsRes
-    syncStatus.value = syncRes
-    orgDisplayNames.value = statsRes.orgDisplayNames || {}
-  } catch {
-    if (isCurrentRequest()) people.value = []
+    if (!roster || roster.projectId !== requestedProjectId) {
+      projectRosterMessage.value = projectRosterError.value || 'Roster response project identity mismatch.'
+      return
+    }
+    if (roster.availability === 'unavailable') {
+      projectRosterMessage.value = roster.reason || 'No current roster publication is available for this project.'
+      return
+    }
+    if (!['available', 'empty'].includes(roster.availability)) {
+      projectRosterMessage.value = 'The project roster does not provide a people directory.'
+      return
+    }
+
+    const teamNameById = new Map(rosterTeams.value.map(t => [t.teamId, t.displayName]))
+    people.value = rosterPeople.value.map(person => ({
+      rowKey: person.key,
+      accountId: person.accountId,
+      name: person.displayName,
+      status: person.active ? 'active' : 'inactive',
+      email: person.email,
+      ldapUid: person.ldapUid ?? null,
+      title: person.title,
+      geo: person.geo,
+      location: resolveMemberLocation(person),
+      orgDisplayName: requestedProjectId,
+      teams: person.teamIds.map(id => teamNameById.get(id)).filter(Boolean),
+      github: person.identities?.github ?? null,
+      gitlab: person.identities?.gitlab ?? null
+    }))
+  } catch (error) {
+    if (isCurrentRequest()) {
+      people.value = []
+      projectRosterMessage.value = error.message
+    }
   } finally {
     if (isCurrentRequest()) loading.value = false
   }
 }
-
-function orgName(uid) {
-  return orgDisplayNames.value[uid] || uid
-}
-
-const orgs = computed(() => {
-  const set = new Set()
-  for (const p of people.value) {
-    if (p.orgRoot) set.add(p.orgRoot)
-  }
-  return Array.from(set)
-    .map(uid => ({ uid, name: orgName(uid) }))
-    .sort((a, b) => a.name.localeCompare(b.name))
-})
 
 const geos = computed(() => {
   const set = new Set()
@@ -201,32 +114,9 @@ const geos = computed(() => {
   return Array.from(set).sort()
 })
 
-const filteredStats = computed(() => {
-  const list = filtered.value
-  const ghCount = list.filter(p => p.github && p.github.username).length
-  const glCount = list.filter(p => p.gitlab && p.gitlab.username).length
-  return {
-    total: list.length,
-    github: ghCount,
-    gitlab: glCount
-  }
-})
-
 const filtered = computed(() => {
-  // Start with field-filtered set (from full active list with absolute counts)
-  const fieldFilteredKeys = new Set(fieldFiltered.value.map(personKey))
-  let list = people.value.filter(p => p.status === 'active' && fieldFilteredKeys.has(personKey(p)))
+  let list = people.value.filter(p => p.status === 'active')
 
-  // orgType filter
-  if (selectedOrgType.value !== 'all') {
-    const targetType = selectedOrgType.value
-    list = list.filter(p => (p.orgType || 'engineering') === targetType)
-  }
-
-  if (selectedOrgs.value.length > 0) {
-    const orgSet = new Set(selectedOrgs.value)
-    list = list.filter(p => orgSet.has(p.orgRoot))
-  }
   if (selectedGeos.value.length > 0) {
     const geoSet = new Set(selectedGeos.value)
     list = list.filter(p => geoSet.has(p.geo))
@@ -235,7 +125,7 @@ const filtered = computed(() => {
     const term = search.value.toLowerCase()
     list = list.filter(p => {
       const searchable = [
-        p.name, p.email, p.uid, p.ldapUid,
+        p.name, p.email, p.ldapUid,
         p.github ? p.github.username : '',
         p.gitlab ? p.gitlab.username : '',
         personTeamDisplay(p)
@@ -244,39 +134,24 @@ const filtered = computed(() => {
     })
   }
 
-  list = [...list].sort((a, b) => {
-    let av, bv
-    if (sortField.value.startsWith('_field_')) {
-      const fieldId = sortField.value.slice(7)
-      av = personFieldValue(a, fieldId)
-      bv = personFieldValue(b, fieldId)
-    } else if (sortField.value === 'orgDisplayName') {
-      av = a.orgDisplayName || ''
-      bv = b.orgDisplayName || ''
-    } else if (sortField.value === 'teams') {
-      av = personTeamDisplay(a)
-      bv = personTeamDisplay(b)
-    } else {
-      av = a[sortField.value] || ''
-      bv = b[sortField.value] || ''
-    }
+  return [...list].sort((a, b) => {
+    const av = sortField.value === 'teams' ? personTeamDisplay(a) : a[sortField.value] || ''
+    const bv = sortField.value === 'teams' ? personTeamDisplay(b) : b[sortField.value] || ''
     const cmp = String(av).localeCompare(String(bv))
     return sortAsc.value ? cmp : -cmp
   })
-
-  return list
 })
 
-function personFieldValue(p, fieldId) {
-  const val = (p._appFields || {})[fieldId]
-  if (Array.isArray(val)) return val.join(', ')
-  return val || ''
-}
+const filteredStats = computed(() => {
+  const list = filtered.value
+  return {
+    total: list.length,
+    github: list.filter(p => p.github && p.github.username).length,
+    gitlab: list.filter(p => p.gitlab && p.gitlab.username).length
+  }
+})
 
 function personTeamDisplay(p) {
-  if ((p.orgType || 'engineering') === 'auxiliary') {
-    return (p.associatedTeamNames || []).join(', ')
-  }
   return (p.teams || []).join(', ')
 }
 
@@ -295,37 +170,19 @@ function sortIcon(field) {
 }
 
 function openPerson(p) {
-  if (isProjectRoster.value) {
-    nav.navigateTo('person-detail', { accountId: p.accountId })
-  } else {
-    nav.navigateTo('person-detail', { uid: p.uid })
-  }
+  nav.navigateTo('person-detail', { accountId: p.accountId })
 }
 
-
 function exportCsv() {
-  const fieldLabels = personFieldDefs.value.map(fd => fd.label)
   // Same availability gate as the stat tiles: omit the columns entirely when
   // unavailable, rather than exporting blanks that would read as "no identity".
-  const includeIdentityColumns = !isProjectRoster.value || enrichmentAvailable.value
-  const rows = isProjectRoster.value
-    ? [['Project', 'Name', 'Title', 'Geo', 'Location', 'Team(s)', ...(includeIdentityColumns ? ['GitHub', 'GitLab'] : [])]]
-    : [['Org', 'Name', 'UID', 'Email', 'Title', 'Geo', 'Location', 'Team(s)', 'GitHub', 'GitLab', 'Type', ...fieldLabels]]
+  const includeIdentityColumns = enrichmentAvailable.value
+  const rows = [['Project', 'Name', 'Title', 'Geo', 'Location', 'Team(s)', ...(includeIdentityColumns ? ['GitHub', 'GitLab'] : [])]]
   for (const p of filtered.value) {
-    const fieldValues = personFieldDefs.value.map(fd => personFieldValue(p, fd.id))
-    if (isProjectRoster.value) {
-      rows.push([
-        projectLabel.value, p.name, p.title || '', p.geo || '', p.location || '', personTeamDisplay(p),
-        ...(includeIdentityColumns ? [p.github ? p.github.username : '', p.gitlab ? p.gitlab.username : ''] : [])
-      ])
-    } else {
-      rows.push([
-        p.orgDisplayName || '', p.name, p.uid, p.email, p.title, p.geo || '',
-        p.location || '', personTeamDisplay(p),
-        p.github ? p.github.username : '', p.gitlab ? p.gitlab.username : '',
-        p.orgType || 'engineering', ...fieldValues
-      ])
-    }
+    rows.push([
+      projectLabel.value, p.name, p.title || '', p.geo || '', p.location || '', personTeamDisplay(p),
+      ...(includeIdentityColumns ? [p.github ? p.github.username : '', p.gitlab ? p.gitlab.username : ''] : [])
+    ])
   }
   const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
@@ -340,13 +197,7 @@ function exportCsv() {
 onMounted(loadData)
 watch(projectId, () => {
   search.value = ''
-  selectedOrgs.value = []
   selectedGeos.value = []
-  selectedOrgType.value = 'all'
-  people.value = []
-  stats.value = null
-  syncStatus.value = null
-  orgDisplayNames.value = {}
   projectRosterMessage.value = null
   loading.value = true
   loadData()
@@ -355,23 +206,23 @@ watch(projectId, () => {
 
 <template>
   <div>
-    <p v-if="isProjectRoster" class="mb-4 text-xs text-gray-500 dark:text-gray-400" role="status">
+    <p class="mb-4 text-xs text-gray-500 dark:text-gray-400" role="status">
       {{ projectRosterStatus }}
       <span v-if="projectRosterUpdatedAt"> · Updated {{ new Date(projectRosterUpdatedAt).toLocaleString() }}</span>
       <span v-if="enrichmentStatusNote"> · {{ enrichmentStatusNote }}</span>
     </p>
 
     <!-- Stats header -->
-    <div v-if="!loading && people.length > 0" class="grid gap-4 mb-6" :class="(!isProjectRoster || enrichmentAvailable) ? 'grid-cols-3' : 'grid-cols-1'">
+    <div v-if="!loading && people.length > 0" class="grid gap-4 mb-6" :class="enrichmentAvailable ? 'grid-cols-3' : 'grid-cols-1'">
       <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <div class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ filteredStats.total }}</div>
         <div class="text-xs text-gray-500 dark:text-gray-400">People</div>
       </div>
-      <div v-if="!isProjectRoster || enrichmentAvailable" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <div v-if="enrichmentAvailable" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <div class="text-2xl font-bold text-green-600">{{ filteredStats.github }} <span class="text-sm font-normal text-gray-400">/ {{ filteredStats.total }}</span></div>
         <div class="text-xs text-gray-500 dark:text-gray-400">GitHub IDs <span class="text-green-600 font-medium">{{ filteredStats.total ? Math.round(filteredStats.github / filteredStats.total * 100) : 0 }}%</span></div>
       </div>
-      <div v-if="!isProjectRoster || enrichmentAvailable" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <div v-if="enrichmentAvailable" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <div class="text-2xl font-bold text-orange-600">{{ filteredStats.gitlab }} <span class="text-sm font-normal text-gray-400">/ {{ filteredStats.total }}</span></div>
         <div class="text-xs text-gray-500 dark:text-gray-400">GitLab IDs <span class="text-orange-600 font-medium">{{ filteredStats.total ? Math.round(filteredStats.gitlab / filteredStats.total * 100) : 0 }}%</span></div>
       </div>
@@ -380,10 +231,10 @@ watch(projectId, () => {
     <!-- Empty state -->
     <div v-if="!loading && people.length === 0" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
       <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">
-        {{ isProjectRoster && projectRosterStatus === 'Unavailable' ? 'People roster unavailable' : isProjectRoster ? 'No People Published' : 'No People Yet' }}
+        {{ projectRosterStatus === 'Unavailable' ? 'People roster unavailable' : 'No People Published' }}
       </h3>
       <p class="text-sm text-gray-500 dark:text-gray-400">
-        {{ isProjectRoster ? (projectRosterMessage || 'The published project roster has no active people.') : 'Configure IPA org roots and run a sync in the module settings to populate the registry.' }}
+        {{ projectRosterMessage || 'The published project roster has no active people.' }}
       </p>
     </div>
 
@@ -402,42 +253,6 @@ watch(projectId, () => {
       </div>
 
       <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex flex-wrap items-start gap-6">
-        <!-- Type filter -->
-        <div v-if="!isProjectRoster">
-          <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Type</label>
-          <div class="flex gap-1">
-            <button
-              v-for="opt in visibleOrgTypeOptions"
-              :key="opt.value"
-              @click="selectedOrgType = opt.value"
-              class="px-2.5 py-1 text-xs rounded-md border transition-colors"
-              :class="selectedOrgType === opt.value
-                ? 'bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300 font-medium'
-                : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'"
-            >{{ opt.label }}</button>
-          </div>
-        </div>
-
-        <!-- Orgs -->
-        <div v-if="!isProjectRoster && orgs.length > 0">
-          <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Orgs</label>
-          <div class="space-y-1 max-h-48 overflow-y-auto">
-            <label
-              v-for="org in orgs"
-              :key="org.uid"
-              class="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
-            >
-              <input
-                type="checkbox"
-                :value="org.uid"
-                v-model="selectedOrgs"
-                class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
-              />
-              <span class="text-sm text-gray-700 dark:text-gray-300">{{ org.name }}</span>
-            </label>
-          </div>
-        </div>
-
         <!-- Geos -->
         <div v-if="geos.length > 0">
           <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Geo</label>
@@ -458,17 +273,6 @@ watch(projectId, () => {
           </div>
         </div>
 
-        <!-- Custom field filters -->
-        <FieldFilterPanel
-          v-if="personFieldDefs.length > 0"
-          :field-definitions="personFieldDefs"
-          :active-filters="fieldActiveFilters"
-          :filter-counts="fieldFilterCounts"
-          @update:filter="({ fieldId, values }) => setFieldFilter(fieldId, values)"
-          @clear:filter="clearFieldFilter"
-          @clear:all="clearAllFieldFilters"
-        />
-
         <span class="text-sm text-gray-500 dark:text-gray-400 self-center ml-auto">{{ filtered.length }} results</span>
       </div>
 
@@ -477,18 +281,12 @@ watch(projectId, () => {
           <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead class="bg-gray-50 dark:bg-gray-800/50">
               <tr>
-                <th @click="toggleSort('orgDisplayName')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200">{{ isProjectRoster ? 'Project' : 'Org' }}{{ sortIcon('orgDisplayName') }}</th>
+                <th @click="toggleSort('orgDisplayName')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200">Project{{ sortIcon('orgDisplayName') }}</th>
                 <th @click="toggleSort('name')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200">Name{{ sortIcon('name') }}</th>
                 <th @click="toggleSort('title')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden md:table-cell">Title{{ sortIcon('title') }}</th>
                 <th @click="toggleSort('geo')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden lg:table-cell">Geo{{ sortIcon('geo') }}</th>
                 <th @click="toggleSort('location')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden lg:table-cell">Location{{ sortIcon('location') }}</th>
-                <th @click="toggleSort('teams')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200" :class="isProjectRoster ? '' : 'hidden md:table-cell'">Team(s){{ sortIcon('teams') }}</th>
-                <th
-                  v-for="fd in personFieldDefs"
-                  :key="fd.id"
-                  @click="toggleSort('_field_' + fd.id)"
-                  class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden lg:table-cell"
-                >{{ fd.label }}{{ sortIcon('_field_' + fd.id) }}</th>
+                <th @click="toggleSort('teams')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200">Team(s){{ sortIcon('teams') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -498,19 +296,14 @@ watch(projectId, () => {
                 class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer"
                 @click="openPerson(p)"
               >
-                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ isProjectRoster ? projectLabel : p.orgDisplayName }}</td>
+                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ projectLabel }}</td>
                 <td class="px-4 py-3">
                   <span class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">{{ p.name }}</span>
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">{{ p.title || '—' }}</td>
                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden lg:table-cell">{{ p.geo || '—' }}</td>
                 <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden lg:table-cell">{{ p.location }}</td>
-                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400" :class="isProjectRoster ? '' : 'hidden md:table-cell'">{{ personTeamDisplay(p) || '\u2014' }}</td>
-                <td
-                  v-for="fd in personFieldDefs"
-                  :key="fd.id"
-                  class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden lg:table-cell"
-                >{{ personFieldValue(p, fd.id) }}</td>
+                <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">{{ personTeamDisplay(p) || '\u2014' }}</td>
               </tr>
             </tbody>
           </table>

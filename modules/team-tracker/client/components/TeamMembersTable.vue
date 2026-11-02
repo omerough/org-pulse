@@ -8,7 +8,7 @@
       <input
         v-model="searchQuery"
         type="text"
-        placeholder="Search by name, manager, role, component, location..."
+        placeholder="Search by name, manager, role, location..."
         class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
       />
     </div>
@@ -31,41 +31,6 @@
         <option :value="null">All Countries</option>
         <option v-for="country in uniqueCountries" :key="country" :value="country">{{ country }}</option>
       </select>
-    </div>
-
-    <!-- Custom field filters -->
-    <div v-for="field in visibleFilterFields" :key="field.id" class="mb-3 flex flex-wrap gap-2">
-      <button
-        @click="setMemberFieldFilter(field.id, [])"
-        class="px-3 py-1 rounded text-xs font-medium transition-colors border"
-        :class="!(memberFieldFilters[field.id] || []).length
-          ? 'bg-primary-600 text-white border-primary-600'
-          : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'"
-      >
-        All {{ field.label }}
-      </button>
-      <button
-        v-for="opt in (field.allowedValues || []).filter(v => (memberFieldFilterCounts[field.id] || {})[v] > 0)"
-        :key="opt"
-        @click="setMemberFieldFilter(field.id, (memberFieldFilters[field.id] || []).includes(opt) ? (memberFieldFilters[field.id] || []).filter(v => v !== opt) : [...(memberFieldFilters[field.id] || []), opt])"
-        class="px-3 py-1 rounded text-xs font-medium transition-colors border"
-        :class="(memberFieldFilters[field.id] || []).includes(opt)
-          ? 'bg-primary-600 text-white border-primary-600'
-          : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'"
-      >
-        {{ opt }} <span class="text-gray-400 dark:text-gray-500 ml-1">{{ (memberFieldFilterCounts[field.id] || {})[opt] || 0 }}</span>
-      </button>
-    </div>
-    <div v-if="hasMoreFilters" class="mb-3">
-      <button
-        class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
-        @click="showMoreFilters = !showMoreFilters"
-      >
-        {{ showMoreFilters ? 'Show fewer filters' : `More filters (${constrainedPersonFields.length - 2})` }}
-      </button>
-    </div>
-    <div v-if="isMemberFieldFilterActive" class="mb-3 text-sm text-gray-500 dark:text-gray-400">
-      Showing {{ sortedMembers.length }} of {{ props.members.length }} members
     </div>
 
     <!-- Filter by role -->
@@ -104,33 +69,23 @@
             {{ col.label }}
             <span v-if="sortKey === col.key" class="ml-1">{{ sortAsc ? '↑' : '↓' }}</span>
           </th>
-          <th v-if="canManage" class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-          </th>
         </tr>
       </thead>
       <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
         <tr
           v-for="(member, idx) in sortedMembers"
-          :key="rowKey(member)"
+          :key="member.accountId"
           class="hover:bg-gray-50 dark:hover:bg-gray-700/50"
-          :class="{ 'opacity-50': getStatus(member) === 'Not Confirmed' }"
         >
           <td class="px-4 py-3 text-sm whitespace-nowrap">
             <a
               :href="personLink(member)"
               :data-tour="idx === 0 ? 'first-member-link' : undefined"
-              :data-tour-person-uid="idx === 0 ? member.uid : undefined"
               class="text-primary-600 hover:underline"
               @click.stop
             >
               {{ member.name }}
             </a>
-            <span
-              v-if="getStatus(member) === 'Not Confirmed'"
-              class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400"
-            >
-              Unconfirmed
-            </span>
           </td>
           <td class="px-4 py-3 text-sm whitespace-nowrap">
             <a
@@ -142,18 +97,8 @@
             <span v-else class="text-gray-600 dark:text-gray-400">{{ getManagerName(member) }}</span>
           </td>
           <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ getSpecialty(member) }}</td>
-          <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{{ getComponent(member) }}</td>
-          <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ member.geo || member.region || '—' }}</td>
+          <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ member.geo || '—' }}</td>
           <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ getLocation(member) }}</td>
-          <td v-if="canManage" class="px-4 py-3 text-sm text-right whitespace-nowrap">
-            <button
-              v-if="member.uid"
-              @click.stop="emit('remove-member', member.uid)"
-              class="px-2.5 py-1 text-xs font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 transition-colors"
-            >
-              Remove from Team
-            </button>
-          </td>
         </tr>
       </tbody>
     </table>
@@ -165,82 +110,34 @@
 </template>
 
 <script setup>
-import { ref, computed, toRef } from 'vue'
+import { ref, computed } from 'vue'
 import { useModuleLink } from '@shared/client/composables/useModuleLink'
 import { useProjectId, projectParam } from '@shared/client/composables/useProjectId'
 import { useRoster } from '@shared/client/composables/useRoster'
-import { useFieldFilters } from '../composables/useFieldFilters'
 import {
   resolveMemberRole,
   resolveMemberManager,
   resolveMemberLocation,
-  memberCanonicalIdentity,
-  getCustomFieldByLabel,
   UNKNOWN_ROLE
 } from '../utils/member-resolution'
 
 const { linkTo } = useModuleLink()
-const { managerNames, people, auxiliaryManagers } = useRoster()
+const { people, auxiliaryManagers } = useRoster()
 const projectId = useProjectId()
 
 const props = defineProps({
   members: { type: Array, required: true },
   teamKey: { type: String, default: null },
-  fieldDefinitions: { type: Array, default: () => [] },
-  canManage: { type: Boolean, default: false },
-  teamId: { type: String, default: null },
   roleFilter: { type: String, default: null }
 })
 
-const emit = defineEmits(['remove-member', 'update:roleFilter'])
+const emit = defineEmits(['update:roleFilter'])
 
-const showMoreFilters = ref(false)
-
-const constrainedPersonFields = computed(() =>
-  (props.fieldDefinitions || []).filter(f => f.visible && !f.deleted && f.type === 'constrained')
-)
-
-// Only show filters for fields with 2+ distinct values among current members
-const relevantFilterFields = computed(() =>
-  constrainedPersonFields.value.filter(f => {
-    const counts = memberFieldFilterCounts.value[f.id] || {}
-    const nonZeroValues = Object.values(counts).filter(c => c > 0).length
-    return nonZeroValues >= 2
-  })
-)
-
-const visibleFilterFields = computed(() => {
-  if (showMoreFilters.value) return relevantFilterFields.value
-  return relevantFilterFields.value.slice(0, 2)
-})
-
-const hasMoreFilters = computed(() => relevantFilterFields.value.length > 2)
-
-const membersRef = toRef(props, 'members')
-const fieldDefsRef = computed(() => constrainedPersonFields.value)
-
-const {
-  activeFilters: memberFieldFilters,
-  setFilter: setMemberFieldFilter,
-  filtered: memberFieldFiltered,
-  filterCounts: memberFieldFilterCounts
-} = useFieldFilters(
-  membersRef,
-  fieldDefsRef,
-  (member) => member._appFields || {}
-)
-
-const isMemberFieldFilterActive = computed(() =>
-  Object.values(memberFieldFilters.value).some(v => v && v.length > 0)
-)
-
-// One resolver backs both registry (uid) and project-qualified (typed
-// managerRef) identities; names are never joined by display string. The
-// accountId lookup is built once so resolution is O(members + people).
+// Names are never joined by display string. The accountId lookup is built
+// once so resolution is O(members + people).
 const managerCtx = computed(() => ({
   peopleByAccountId: new Map((people?.value || []).map(p => [p.accountId, p])),
   auxiliaryManagers: auxiliaryManagers?.value || {},
-  managerNames: managerNames?.value || {},
   projectId: projectId.value
 }))
 
@@ -267,44 +164,17 @@ const columns = [
   { key: 'name', label: 'Name' },
   { key: 'manager', label: 'Manager' },
   { key: 'specialty', label: 'Role' },
-  { key: 'component', label: 'Component' },
   { key: 'geo', label: 'Region' },
   { key: 'location', label: 'Location' },
 ]
 
-// Id-less members get a stable per-object key so same-name legacy rows stay distinct.
-const syntheticRowKeys = new WeakMap()
-let syntheticRowKeySeq = 0
-function rowKey(member) {
-  const identity = memberCanonicalIdentity(member)
-  if (identity != null) return identity
-  if (!syntheticRowKeys.has(member)) syntheticRowKeys.set(member, `row-${++syntheticRowKeySeq}`)
-  return syntheticRowKeys.get(member)
-}
-
 function personLink(member) {
   const params = { ...projectParam(projectId.value), ...(props.teamKey && { teamKey: props.teamKey }) }
-  if (member.uid) {
-    return linkTo('team-tracker', 'person-detail', { ...params, uid: member.uid })
-  }
-  if (member.accountId) {
-    return linkTo('team-tracker', 'person-detail', { ...params, accountId: member.accountId })
-  }
-  return linkTo('team-tracker', 'person-detail', { ...params, person: member.name })
+  return linkTo('team-tracker', 'person-detail', { ...params, accountId: member.accountId })
 }
 
 function getSpecialty(member) {
-  return resolveMemberRole(member, props.fieldDefinitions) || '—'
-}
-
-function getStatus(member) {
-  const cf = member.customFields
-  return member.status || cf?.status || 'Confirmed'
-}
-
-function getComponent(member) {
-  return getCustomFieldByLabel(member, 'Component', props.fieldDefinitions)
-    || member.customFields?.component || member.customFields?.jiraComponent || member.component || '—'
+  return resolveMemberRole(member) || '—'
 }
 
 function getLocation(member) {
@@ -338,8 +208,7 @@ const uniqueRoles = computed(() => {
 const uniqueRegions = computed(() => {
   const regions = new Set()
   for (const m of props.members) {
-    const region = m.geo || m.region
-    if (region) regions.add(region)
+    if (m.geo) regions.add(m.geo)
   }
   return [...regions].sort()
 })
@@ -353,24 +222,23 @@ const uniqueCountries = computed(() => {
 })
 
 const sortedMembers = computed(() => {
-  let result = memberFieldFiltered.value
+  let result = props.members
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
     result = result.filter(m =>
       (m.name || '').toLowerCase().includes(q) ||
       getManagerName(m).toLowerCase().includes(q) ||
       getSpecialty(m).toLowerCase().includes(q) ||
-      getComponent(m).toLowerCase().includes(q) ||
-      (m.geo || m.region || '').toLowerCase().includes(q) ||
+      (m.geo || '').toLowerCase().includes(q) ||
       getLocation(m).toLowerCase().includes(q)
     )
   }
   if (props.roleFilter) {
     // Missing roles map to Unknown so the Headcount chart's Unknown bucket filters correctly.
-    result = result.filter(m => (resolveMemberRole(m, props.fieldDefinitions) || UNKNOWN_ROLE) === props.roleFilter)
+    result = result.filter(m => (resolveMemberRole(m) || UNKNOWN_ROLE) === props.roleFilter)
   }
   if (regionFilter.value) {
-    result = result.filter(m => (m.geo || m.region) === regionFilter.value)
+    result = result.filter(m => m.geo === regionFilter.value)
   }
   if (countryFilter.value) {
     result = result.filter(m => m.country === countryFilter.value)
@@ -381,15 +249,12 @@ const sortedMembers = computed(() => {
     if (sortKey.value === 'specialty') {
       aVal = getSpecialty(a)
       bVal = getSpecialty(b)
-    } else if (sortKey.value === 'component') {
-      aVal = getComponent(a)
-      bVal = getComponent(b)
     } else if (sortKey.value === 'manager') {
       aVal = getManagerName(a)
       bVal = getManagerName(b)
     } else if (sortKey.value === 'geo') {
-      aVal = a.geo || a.region
-      bVal = b.geo || b.region
+      aVal = a.geo
+      bVal = b.geo
     } else if (sortKey.value === 'location') {
       aVal = getLocation(a)
       bVal = getLocation(b)

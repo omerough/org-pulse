@@ -1,23 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
-import SprintStatusBadge from '../../client/components/SprintStatusBadge.vue'
 import MetricCard from '../../client/components/MetricCard.vue'
 import LoadingOverlay from '@shared/client/components/LoadingOverlay.vue'
 import MethodologyInfo from '../../client/components/MethodologyInfo.vue'
-
-describe('SprintStatusBadge', () => {
-  it('renders active state with green styling', () => {
-    const wrapper = mount(SprintStatusBadge, { props: { state: 'active' } })
-    expect(wrapper.text()).toBe('Active')
-    expect(wrapper.classes()).toContain('bg-green-100')
-  })
-
-  it('renders closed state with gray styling', () => {
-    const wrapper = mount(SprintStatusBadge, { props: { state: 'closed' } })
-    expect(wrapper.text()).toBe('Closed')
-    expect(wrapper.classes()).toContain('bg-gray-100')
-  })
-})
 
 describe('MetricCard', () => {
   it('displays label and value', () => {

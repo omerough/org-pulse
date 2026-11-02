@@ -1,52 +1,22 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { ref, readonly, nextTick } from 'vue'
 import TeamComparisonReport from '../../../client/reports/TeamComparisonReport.vue'
 import ReportChart from '../../../client/components/ReportChart.vue'
 import { useReportFilters } from '../../../client/composables/useReportFilters'
 
-const mockIsNormalizedModel = ref(false)
 const mockRosterTeams = ref([])
 
 vi.mock('@shared/client/composables/useRoster', () => ({
   useRoster: () => ({
-    orgs: ref([
-      {
-        key: 'org1',
-        displayName: 'Org One',
-        teams: {
-          'Team A': {
-            displayName: 'Team A',
-            members: [{ name: 'Alice', githubUsername: 'alice-gh' }]
-          }
-        }
-      }
-    ]),
     teams: mockRosterTeams,
-    isNormalizedModel: mockIsNormalizedModel,
-    selectedOrgKey: ref(null),
-    selectOrg: vi.fn(),
     loadRoster: vi.fn(),
   })
 }))
 
-const mockProjectId = ref('')
+const mockProjectId = ref('flightctl')
 vi.mock('@shared/client/composables/useProjectId.js', () => ({
   useProjectId: () => mockProjectId,
-}))
-
-vi.mock('@shared/client/composables/useGithubStats', () => ({
-  useGithubStats: () => ({
-    getContributions: vi.fn(() => ({ totalContributions: 100 })),
-    loadGithubStats: vi.fn(),
-  })
-}))
-
-vi.mock('@shared/client/composables/useGitlabStats', () => ({
-  useGitlabStats: () => ({
-    getContributions: vi.fn(() => ({ totalContributions: 50 })),
-    loadGitlabStats: vi.fn(),
-  })
 }))
 
 vi.mock('@shared/client/services/api', () => ({
@@ -59,15 +29,22 @@ vi.mock('@shared/client/services/api', () => ({
 describe('TeamComparisonReport', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockProjectId.value = ''
-    mockIsNormalizedModel.value = false
-    mockRosterTeams.value = []
-    useReportFilters().selectedTeamKeys.value = []
-    useReportFilters().selectedOrgKeys.value = []
+    mockProjectId.value = 'flightctl'
+    mockRosterTeams.value = [
+      { key: 'flightctl::team-1', displayName: 'Flight Team', members: [{ name: 'Bob' }] }
+    ]
+    useReportFilters().selectedTeamKeys.value = ['flightctl::team-1']
+  })
+
+  // mockProjectId is shared, so a leftover mounted report would keep reacting
+  // to later tests' project changes.
+  const mounted = []
+  afterEach(() => {
+    mounted.splice(0).forEach(wrapper => wrapper.unmount())
   })
 
   function createWrapper() {
-    return mount(TeamComparisonReport, {
+    const wrapper = mount(TeamComparisonReport, {
       global: {
         provide: {
           moduleNav: {
@@ -85,6 +62,8 @@ describe('TeamComparisonReport', () => {
         }
       }
     })
+    mounted.push(wrapper)
+    return wrapper
   }
 
   it('renders metric checkboxes', () => {
@@ -118,17 +97,8 @@ describe('TeamComparisonReport', () => {
     expect(runButton.attributes('disabled')).toBeDefined()
   })
 
-  describe('project mode', () => {
-    beforeEach(() => {
-      mockProjectId.value = 'flightctl'
-      mockIsNormalizedModel.value = true
-      mockRosterTeams.value = [
-        { key: 'flightctl::team-1', displayName: 'Flight Team', members: [{ name: 'Bob', githubUsername: null, gitlabUsername: null }] }
-      ]
-      useReportFilters().selectedTeamKeys.value = ['flightctl::team-1']
-    })
-
-    it('enables the GitHub checkboxes in project mode (contributions are connected)', () => {
+  describe('published project data', () => {
+    it('enables the GitHub checkboxes (contributions are connected)', () => {
       const wrapper = createWrapper()
       const checkbox = wrapper.find('input[value="githubContributions"]')
       expect(checkbox.exists()).toBe(true)
@@ -167,8 +137,6 @@ describe('TeamComparisonReport', () => {
       await nextTick()
       const chart = wrapper.findComponent(ReportChart)
       expect(chart.exists()).toBe(true)
-      // The default useGithubStats mock returns totalContributions: 100 per username
-      // lookup; asserting 88 proves the chart used aggregate.github, not that path.
       expect(chart.props('data')).toEqual([88])
     })
 
@@ -291,8 +259,8 @@ describe('TeamComparisonReport', () => {
 
     it('omits the lookback suffix when one of several active teams has an unknown window, even though the rest agree', async () => {
       mockRosterTeams.value = [
-        { key: 'flightctl::team-1', displayName: 'Flight Team', members: [{ name: 'Bob', githubUsername: null, gitlabUsername: null }] },
-        { key: 'flightctl::team-2', displayName: 'Flight Team 2', members: [{ name: 'Carol', githubUsername: null, gitlabUsername: null }] }
+        { key: 'flightctl::team-1', displayName: 'Flight Team', members: [{ name: 'Bob' }] },
+        { key: 'flightctl::team-2', displayName: 'Flight Team 2', members: [{ name: 'Carol' }] }
       ]
       useReportFilters().selectedTeamKeys.value = ['flightctl::team-1', 'flightctl::team-2']
       const { getTeamMetrics } = await import('@shared/client/services/api')

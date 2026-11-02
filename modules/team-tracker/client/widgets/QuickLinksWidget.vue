@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from 'vue'
 import { useModuleLink } from '@shared/client/composables/useModuleLink.js'
-import { useAuth } from '@shared/client/composables/useAuth.js'
 import { usePermissions } from '@shared/client/composables/usePermissions.js'
 import { useProjectId, projectParam } from '@shared/client/composables/useProjectId.js'
 
@@ -11,11 +10,7 @@ defineProps({
 
 const { navigateTo: crossNavigate } = useModuleLink()
 const projectId = useProjectId()
-const { isManager: isLegacyManager } = useAuth()
-const { isManager: isProjectManager } = usePermissions()
-
-// A project-only manager has no legacy manager flag.
-const isManager = computed(() => projectId.value ? isProjectManager.value : isLegacyManager.value)
+const { isManager } = usePermissions()
 
 const allLinks = [
   {

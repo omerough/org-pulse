@@ -7,13 +7,8 @@
         :has-filters="activeReport.filters.length > 0"
       >
         <template v-if="activeReport.filters.length > 0" #filters>
-          <OrgFilter
-            v-if="activeReport.filters.includes('org') && !isNormalizedModel"
-            v-model="selectedOrgKeys"
-            :orgs="orgs"
-          />
           <TeamFilter
-            v-if="activeReport.filters.includes('team') && showTeamFilter"
+            v-if="activeReport.filters.includes('team')"
             v-model="selectedTeamKeys"
             :teams="availableTeams"
             :show-count="activeReport.id === 'team-comparison'"
@@ -32,7 +27,7 @@
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <ReportCard
-          v-for="report in visibleReports"
+          v-for="report in reports"
           :key="report.id"
           :title="report.title"
           :description="report.description"
@@ -50,16 +45,11 @@ import { computed, inject, defineAsyncComponent, ref, watch, nextTick } from 'vu
 import { reports } from './registry'
 import ReportCard from './ReportCard.vue'
 import ReportShell from './ReportShell.vue'
-import OrgFilter from './filters/OrgFilter.vue'
 import TeamFilter from './filters/TeamFilter.vue'
 import { useReportFilters } from '../composables/useReportFilters'
-import { useRoster } from '@shared/client/composables/useRoster'
 
 const nav = inject('moduleNav')
-const { orgs, selectedOrgKeys, selectedTeamKeys, availableTeams } = useReportFilters()
-const { isNormalizedModel } = useRoster()
-
-const visibleReports = computed(() => reports.filter(r => !r.hidden))
+const { selectedTeamKeys, availableTeams } = useReportFilters()
 
 // Memoize defineAsyncComponent wrappers so they aren't recreated on every recomputation
 const componentCache = new Map()
@@ -77,15 +67,6 @@ const activeReportComponent = computed(() => {
     componentCache.set(id, defineAsyncComponent(activeReport.value.component))
   }
   return componentCache.get(id)
-})
-
-// Trends gates the team filter on an org being selected; project mode has no org concept.
-const showTeamFilter = computed(() => {
-  if (!activeReport.value) return false
-  if (activeReport.value.id === 'trends') {
-    return isNormalizedModel.value || selectedOrgKeys.value.length > 0
-  }
-  return activeReport.value.filters.includes('team')
 })
 
 const catalogHeading = ref(null)

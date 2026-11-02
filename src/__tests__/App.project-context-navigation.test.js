@@ -427,6 +427,7 @@ describe('shell project resolution during initialization and transitions', () =>
       ['#/team-tracker/trends', { report: 'trends' }, 'reports'],
       ['#/team-tracker/org-allocation', { report: 'allocation' }, 'reports'],
       ['#/team-tracker/dashboard', {}, 'home'],
+      ['#/team-tracker/org-explorer', {}, 'org-dashboard'],
       ['#/team-tracker/team-roster?teamKey=org%3A%3AFoo', { teamKey: 'org::Foo' }, 'team-detail'],
       ['#/org-roster/org-explorer', {}, 'org-dashboard']
     ]
@@ -450,6 +451,74 @@ describe('shell project resolution during initialization and transitions', () =>
       .toBe('#/team-tracker/person-detail?projectId=osac&teamKey=org%3A%3AFoo&person=jdoe'))
     await flushPromises()
     expect(unqualifiedProjectRequests(fetchMock)).toEqual([])
+    wrapper.unmount()
+  })
+})
+
+describe('an explicit unknown project is never replaced by the default', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    window.location.hash = ''
+    window.dispatchEvent(new Event('urlchange'))
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    window.location.hash = ''
+  })
+
+  const projectScopedUrls = fetchMock => fetchMock.mock.calls.map(([url]) => url)
+    .filter(url => /\/api\/roster|\/permissions\/me|\/api\/messages|\/ci-duty/.test(url))
+
+  it.each([
+    ['multi-project', twoProjects],
+    ['single-project', [twoProjects[0]]]
+  ])('keeps the URL, shows not-found and requests nothing for another project (%s)', async (_name, projects) => {
+    const fetchMock = stubBackend(projects)
+    const wrapper = await mountApp('#/team-tracker/people?projectId=nope')
+
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Project not found'))
+    await flushPromises()
+    expect(window.location.hash).toBe('#/team-tracker/people?projectId=nope')
+    expect(wrapper.findComponent({ name: 'StubView' }).exists()).toBe(false)
+    for (const url of projectScopedUrls(fetchMock)) {
+      expect(new URL(url, 'http://localhost').searchParams.get('projectId')).toBe('nope')
+    }
+    wrapper.unmount()
+  })
+
+  it('does not fall back to the default for a differently cased or padded project ID', async () => {
+    stubBackend(twoProjects)
+    const cased = await mountApp('#/team-tracker/people?projectId=OSAC')
+    await vi.waitFor(() => expect(cased.text()).toContain('Project not found'))
+    expect(window.location.hash).toBe('#/team-tracker/people?projectId=OSAC')
+    cased.unmount()
+  })
+
+  it('shell redirects and OSAC-only module links keep the unknown project', async () => {
+    stubBackend(twoProjects)
+    const wrapper = await mountApp('#/test-coverage/coverage?projectId=nope')
+
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/?projectId=nope'))
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Project not found'))
+    wrapper.unmount()
+  })
+
+  it('leaving an unknown project for a project-less URL resolves to the default and requests only that project', async () => {
+    const fetchMock = stubBackend(twoProjects)
+    const wrapper = await mountApp('#/team-tracker/people?projectId=nope')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Project not found'))
+    fetchMock.mockClear()
+
+    window.location.hash = '#/team-tracker/people'
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/team-tracker/people?projectId=osac'))
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Project not found')
+    for (const url of projectScopedUrls(fetchMock)) {
+      expect(new URL(url, 'http://localhost').searchParams.get('projectId')).toBe('osac')
+    }
     wrapper.unmount()
   })
 })

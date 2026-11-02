@@ -104,20 +104,14 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import ReportChart from '../components/ReportChart.vue'
-import { useGithubStats } from '@shared/client/composables/useGithubStats'
-import { useGitlabStats } from '@shared/client/composables/useGitlabStats'
 import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import { getTeamMetrics } from '@shared/client/services/api'
 import { useReportFilters } from '../composables/useReportFilters'
 
 const { selectedTeamKeys, availableTeams } = useReportFilters()
-const { getContributions } = useGithubStats()
-const { getContributions: getGitlabContributions } = useGitlabStats()
 const projectId = useProjectId()
-
-const isProjectMode = computed(() => !!projectId.value)
 
 const selectedMetrics = ref([])
 const chartType = ref('bar')
@@ -143,14 +137,14 @@ const METRICS_LIST = [
   { key: 'resolvedPerMember', label: 'Issues Resolved per Member' },
   { key: 'githubContributions', label: 'GitHub Contributions (1yr)' },
   { key: 'githubPerMember', label: 'Avg GitHub Contributions per Member (1yr)' },
-  // legacyOnly: GitLab has no project-qualified publication; Unsupported in project mode (see isMetricDisabled).
-  { key: 'gitlabContributions', label: 'GitLab Contributions (1yr)', legacyOnly: true },
-  { key: 'gitlabPerMember', label: 'Avg GitLab Contributions per Member (1yr)', legacyOnly: true },
+  // GitLab has no project-qualified publication; kept visible but disabled (see isMetricDisabled).
+  { key: 'gitlabContributions', label: 'GitLab Contributions (1yr)', unsupported: true },
+  { key: 'gitlabPerMember', label: 'Avg GitLab Contributions per Member (1yr)', unsupported: true },
 ]
 
 // Disabled, not removed, so the capability stays discoverable.
 function isMetricDisabled(metric) {
-  return isProjectMode.value && metric.legacyOnly
+  return Boolean(metric.unsupported)
 }
 
 const CHART_TYPES = [
@@ -219,8 +213,6 @@ const METRIC_DEFS = {
   },
   githubContributions: { label: 'GitHub Contributions (1yr)', unit: '', extract: null },
   githubPerMember: { label: 'Avg GitHub Contributions per Member (1yr)', unit: '', extract: null },
-  gitlabContributions: { label: 'GitLab Contributions (1yr)', unit: '', extract: null },
-  gitlabPerMember: { label: 'Avg GitLab Contributions per Member (1yr)', unit: '', extract: null },
 }
 
 let runVersion = 0
@@ -256,19 +248,16 @@ async function run() {
     }
 
     // Surface an unavailable Jira-metrics source once, not as a fabricated zero per team.
-    if (isProjectMode.value) {
-      const activeData = selectedTeamKeys.value.map(k => metricsData.value[k]).filter(Boolean)
-      const unavailableEntry = activeData.find(d => d.available === false)
-      if (unavailableEntry) {
-        metricsUnavailable.value = true
-        metricsUnavailableReason.value = PROJECT_UNAVAILABLE_MESSAGES[unavailableEntry.reason]
-          || 'Jira team metrics are not available for this project.'
-        charts.value = []
-        return
-      }
+    const activeData = selectedTeamKeys.value.map(k => metricsData.value[k]).filter(Boolean)
+    const unavailableEntry = activeData.find(d => d.available === false)
+    if (unavailableEntry) {
+      metricsUnavailable.value = true
+      metricsUnavailableReason.value = PROJECT_UNAVAILABLE_MESSAGES[unavailableEntry.reason]
+        || 'Jira team metrics are not available for this project.'
+      charts.value = []
+      return
     }
 
-    // Build team lookup from availableTeams (includes members for GitHub/GitLab metrics)
     const teamLookup = {}
     for (const t of availableTeams.value) {
       teamLookup[t.key] = t
@@ -284,97 +273,29 @@ async function run() {
       const def = METRIC_DEFS[metricKey]
 
       if (metricKey === 'githubPerMember') {
-        if (isProjectMode.value) {
-          const [availableKeys, unavailableKeys] = partitionByGithubAvailability(activeKeys)
-          newCharts.push({
-            metricKey,
-            title: def.label,
-            unit: '',
-            labels: availableKeys.map(k => teamLookup[k]?.displayName ?? k),
-            data: availableKeys.map(k => {
-              const github = metricsData.value[k].aggregate.github
-              return Math.round((github.total / github.contributorCount) * 10) / 10
-            }),
-            unavailableTeams: unavailableKeys.map(k => teamLookup[k]?.displayName ?? k),
-            coverageNote: githubCoverageNote(availableKeys, teamLookup, 'averaged over')
-          })
-        } else {
-          newCharts.push({
-            metricKey,
-            title: def.label,
-            unit: '',
-            labels: activeKeys.map(k => teamLookup[k]?.displayName ?? k),
-            data: activeKeys.map(k => {
-              const team = teamLookup[k]
-              if (!team?.members?.length) return 0
-              const total = team.members.reduce((sum, m) => {
-                const c = m.githubUsername ? getContributions(m.githubUsername) : null
-                return sum + (c?.totalContributions ?? 0)
-              }, 0)
-              return Math.round((total / team.members.length) * 10) / 10
-            })
-          })
-        }
-      } else if (metricKey === 'githubContributions') {
-        if (isProjectMode.value) {
-          const [availableKeys, unavailableKeys] = partitionByGithubAvailability(activeKeys)
-          newCharts.push({
-            metricKey,
-            title: def.label,
-            unit: def.unit,
-            labels: availableKeys.map(k => teamLookup[k]?.displayName ?? k),
-            data: availableKeys.map(k => metricsData.value[k].aggregate.github.total),
-            unavailableTeams: unavailableKeys.map(k => teamLookup[k]?.displayName ?? k),
-            coverageNote: githubCoverageNote(availableKeys, teamLookup, 'totals cover')
-          })
-        } else {
-          newCharts.push({
-            metricKey,
-            title: def.label,
-            unit: def.unit,
-            labels: activeKeys.map(k => teamLookup[k]?.displayName ?? k),
-            data: activeKeys.map(k => {
-              const team = teamLookup[k]
-              if (!team?.members) return 0
-              return team.members.reduce((sum, m) => {
-                const c = m.githubUsername ? getContributions(m.githubUsername) : null
-                return sum + (c?.totalContributions ?? 0)
-              }, 0)
-            })
-          })
-        }
-      } else if (metricKey === 'gitlabPerMember') {
+        const [availableKeys, unavailableKeys] = partitionByGithubAvailability(activeKeys)
         newCharts.push({
           metricKey,
           title: def.label,
           unit: '',
-          labels: activeKeys.map(k => teamLookup[k]?.displayName ?? k),
-          data: activeKeys.map(k => {
-            const team = teamLookup[k]
-            if (!team?.members?.length) return 0
-            const configured = team.members.filter(m => m.gitlabUsername)
-            if (configured.length === 0) return 0
-            const total = configured.reduce((sum, m) => {
-              const c = getGitlabContributions(m.gitlabUsername)
-              return sum + (c?.totalContributions ?? 0)
-            }, 0)
-            return Math.round((total / configured.length) * 10) / 10
-          })
+          labels: availableKeys.map(k => teamLookup[k]?.displayName ?? k),
+          data: availableKeys.map(k => {
+            const github = metricsData.value[k].aggregate.github
+            return Math.round((github.total / github.contributorCount) * 10) / 10
+          }),
+          unavailableTeams: unavailableKeys.map(k => teamLookup[k]?.displayName ?? k),
+          coverageNote: githubCoverageNote(availableKeys, teamLookup, 'averaged over')
         })
-      } else if (metricKey === 'gitlabContributions') {
+      } else if (metricKey === 'githubContributions') {
+        const [availableKeys, unavailableKeys] = partitionByGithubAvailability(activeKeys)
         newCharts.push({
           metricKey,
           title: def.label,
           unit: def.unit,
-          labels: activeKeys.map(k => teamLookup[k]?.displayName ?? k),
-          data: activeKeys.map(k => {
-            const team = teamLookup[k]
-            if (!team?.members) return 0
-            return team.members.reduce((sum, m) => {
-              const c = m.gitlabUsername ? getGitlabContributions(m.gitlabUsername) : null
-              return sum + (c?.totalContributions ?? 0)
-            }, 0)
-          })
+          labels: availableKeys.map(k => teamLookup[k]?.displayName ?? k),
+          data: availableKeys.map(k => metricsData.value[k].aggregate.github.total),
+          unavailableTeams: unavailableKeys.map(k => teamLookup[k]?.displayName ?? k),
+          coverageNote: githubCoverageNote(availableKeys, teamLookup, 'totals cover')
         })
       } else {
         const suffix = (metricKey === 'resolvedCount' || metricKey === 'resolvedPerMember')
