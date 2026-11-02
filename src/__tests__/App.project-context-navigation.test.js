@@ -288,4 +288,26 @@ describe('shell initial data and the project context', () => {
     expect(contributionRequests(fetchMock).sort()).toEqual(['/api/github/contributions', '/api/gitlab/contributions'])
     wrapper.unmount()
   })
+
+  it('a single-project deployment loads contribution stats once a project URL leaves the project', async () => {
+    const fetchMock = stubBackend([twoProjects[0]])
+    const wrapper = await mountApp('#/team-tracker/people?projectId=osac')
+    expect(contributionRequests(fetchMock)).toEqual([])
+
+    window.location.hash = '#/team-tracker/people'
+    await vi.waitFor(() => expect(contributionRequests(fetchMock).sort())
+      .toEqual(['/api/github/contributions', '/api/gitlab/contributions']))
+    wrapper.unmount()
+  })
+
+  it('a multi-project bare URL edit resolves the default project without loading contribution stats', async () => {
+    const fetchMock = stubBackend(twoProjects)
+    const wrapper = await mountApp('#/team-tracker/people?projectId=flightctl')
+
+    window.location.hash = '#/team-tracker/people'
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/team-tracker/people?projectId=osac'))
+    await flushPromises()
+    expect(contributionRequests(fetchMock)).toEqual([])
+    wrapper.unmount()
+  })
 })

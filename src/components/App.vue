@@ -534,6 +534,8 @@ export default {
       this.projectContextProjectId = context?.projectId || null
       if (this.projectContextStatus === 'ready') {
         this.redirectIfModuleOutOfScope()
+        // Startup may have skipped the stats for a project URL; the loaders are no-ops once cached.
+        if (this.initialDataStarted && !this.projectContextProjectId) this.loadLegacyContributionStats()
         this.startInitialDataIfReady()
       }
     },
