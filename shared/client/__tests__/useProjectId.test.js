@@ -5,8 +5,9 @@
  * urlchange signal the selector change never reaches any consumer).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { watch } from 'vue'
 
-let useProjectId, projectQuery
+let useProjectId, projectQuery, setDefaultProjectId, resolveProjectId
 
 describe('useProjectId', () => {
   beforeEach(async () => {
@@ -15,6 +16,8 @@ describe('useProjectId', () => {
     const mod = await import('@shared/client/composables/useProjectId.js')
     useProjectId = mod.useProjectId
     projectQuery = mod.projectQuery
+    setDefaultProjectId = mod.setDefaultProjectId
+    resolveProjectId = mod.resolveProjectId
   })
 
   it('reads the projectId hash param on init', () => {
@@ -58,5 +61,52 @@ describe('useProjectId', () => {
   it('encodes the project query suffix', () => {
     expect(projectQuery('flightctl')).toBe('?projectId=flightctl')
     expect(projectQuery('')).toBe('')
+  })
+
+  describe('default project', () => {
+    it('fills in a project-less URL and yields to an explicit URL project', () => {
+      const projectId = useProjectId()
+      setDefaultProjectId('osac')
+      expect(projectId.value).toBe('osac')
+
+      history.pushState(null, '', '#/people?projectId=flightctl')
+      window.dispatchEvent(new Event('urlchange'))
+      expect(projectId.value).toBe('flightctl')
+
+      history.pushState(null, '', '#/people')
+      window.dispatchEvent(new Event('urlchange'))
+      expect(projectId.value).toBe('osac')
+    })
+
+    it('never exposes an empty project to synchronous watchers once a default exists', () => {
+      window.location.hash = '#/people?projectId=osac'
+      const projectId = useProjectId()
+      setDefaultProjectId('osac')
+      const seen = []
+      watch(projectId, value => seen.push(value), { flush: 'sync' })
+
+      history.pushState(null, '', '#/people')
+      window.dispatchEvent(new Event('urlchange'))
+
+      expect(seen).toEqual([])
+      expect(projectId.value).toBe('osac')
+    })
+
+    it('stays empty until a default is published and again after it is cleared', () => {
+      const projectId = useProjectId()
+      expect(projectId.value).toBe('')
+      setDefaultProjectId('osac')
+      expect(projectId.value).toBe('osac')
+      setDefaultProjectId('')
+      expect(projectId.value).toBe('')
+    })
+
+    it('resolves a URL project against the default', () => {
+      expect(resolveProjectId(undefined)).toBe('')
+      setDefaultProjectId('osac')
+      expect(resolveProjectId(undefined)).toBe('osac')
+      expect(resolveProjectId('')).toBe('osac')
+      expect(resolveProjectId('flightctl')).toBe('flightctl')
+    })
   })
 })

@@ -19,6 +19,9 @@ watch(projectId, () => {
 async function fetchPermissions() {
   const requestId = ++requestSequence
   const requestedProjectId = projectId.value
+  // Permissions are project-qualified; the watcher refetches once the shell
+  // has resolved a project.
+  if (!requestedProjectId) return
   try {
     const data = await apiRequest(`/modules/team-tracker/permissions/me${projectQuery(requestedProjectId)}`)
     if (requestId !== requestSequence) return

@@ -20,6 +20,7 @@
 <script setup>
 import { inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { apiRequest } from '@shared/client/services/api.js'
+import { setDefaultProjectId } from '@shared/client/composables/useProjectId.js'
 
 const emit = defineEmits(['context-state'])
 const nav = inject('moduleNav', null)
@@ -97,14 +98,9 @@ function resolveProjectContext(projectId = currentProjectId()) {
   }
 
   const defaultProject = projects.value[0]
-  if (projects.value.length === 1 && defaultProject.projectId === 'osac') {
-    selectedProjectId.value = ''
-    setContextState('ready')
-    return
-  }
   selectedProjectId.value = defaultProject.projectId
   // The selector must set the context in the URL too; a visual default alone
-  // leaves every project-aware request unqualified.
+  // leaves the URL unqualified for bookmarks and shared links.
   nav?.updateParams({ projectId: defaultProject.projectId }, { push: false })
   setContextState('ready', defaultProject.projectId)
 }
@@ -139,6 +135,9 @@ async function loadProjects() {
       discoveryAbortController = null
       if (!isMounted) return
       projects.value = validateProjectsResponse(data)
+      // Published before resolving so a project-less URL never exposes an
+      // empty project to consumers, even while the URL rewrite is pending.
+      setDefaultProjectId(projects.value[0].projectId)
       // Read the route only after discovery completes so navigation during a
       // retry resolves against the latest project ID.
       resolveProjectContext()
@@ -168,6 +167,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   isMounted = false
+  setDefaultProjectId('')
   discoveryAbortController?.abort()
   discoveryAbortController = null
   cancelPendingRetry()

@@ -1013,6 +1013,23 @@ test.describe('People & Teams OSAC Canonical Roster @people-teams', () => {
     expect(page.errors).toHaveLength(0);
   });
 
+  test('a project-less deep link resolves to the default project without an unqualified request', async ({ page }) => {
+    const rosterUrls = trackRequests(page, ROSTER_URL);
+    const messageUrls = trackRequests(page, MESSAGES_URL);
+    const permissionUrls = trackRequests(page, /\/permissions\/me(?:\?|$)/);
+
+    await page.goto('/#/team-tracker/people');
+    await settle(page);
+
+    expect(page.url()).toContain(`#/team-tracker/people?projectId=${OSAC}`);
+    expectAllProjectQualified(rosterUrls, OSAC);
+    expectAllProjectQualified(messageUrls, OSAC);
+    expectAllProjectQualified(permissionUrls, OSAC);
+    await expect(mainContent(page)).toContainText('Alice Chen');
+
+    expect(page.errors).toHaveLength(0);
+  });
+
   test('Team Directory lists the published teams and opens Team Detail by canonical key', async ({ page }) => {
     await page.goto(`/#/team-tracker/home?projectId=${OSAC}`);
     await settle(page);

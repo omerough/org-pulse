@@ -92,8 +92,10 @@ non-empty `displayName`, a 16-character lowercase hexadecimal
 published profile whose ID, display name, and revision match the index.
 Missing, empty, malformed, or duplicate index-level discovery data is reported
 as unavailable instead of being treated as a projectless single-project
-deployment. A valid one-entry OSAC index keeps the existing single-project
-behavior, with no selector. The app never maintains a second source registry.
+deployment. A valid one-entry index (OSAC included) renders no selector, but
+the shell still qualifies every URL and request with that project's ID, exactly
+as in a multi-project deployment. The app never maintains a second source
+registry.
 Core demo mode includes a valid one-entry OSAC publication fixture.
 
 A single project's missing, invalid, or index-mismatched profile is isolated

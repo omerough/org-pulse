@@ -1,7 +1,7 @@
 /**
  * Shell project selector: the only visible UI addition for multi-project
- * support. Selecting a project sets the projectId hash param; single-project
- * deployments render nothing.
+ * support. Selecting a project sets the projectId hash param; every
+ * deployment, single-project included, resolves to a project-qualified URL.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -13,6 +13,7 @@ vi.mock('@shared/client/services/api.js', () => ({
 
 import { apiRequest } from '@shared/client/services/api.js'
 import ProjectSelector from '../components/ProjectSelector.vue'
+import { useProjectId, setDefaultProjectId } from '@shared/client/composables/useProjectId.js'
 
 function mountSelector(initialParams = {}) {
   const updateParams = vi.fn()
@@ -46,6 +47,7 @@ describe('ProjectSelector', () => {
   })
 
   afterEach(() => {
+    setDefaultProjectId('')
     vi.useRealTimers()
     vi.restoreAllMocks()
   })
@@ -60,7 +62,66 @@ describe('ProjectSelector', () => {
     const single = mountSelector()
     await flushPromises()
     expect(single.wrapper.find('select#project-selector').exists()).toBe(false)
-    expect(lastContextState(single.wrapper)).toMatchObject({ state: 'ready', projectId: null })
+  })
+
+  it.each([
+    ['a single OSAC project', { projects: [{ projectId: 'osac', displayName: 'OSAC' }] }, 'osac'],
+    ['a single non-OSAC project', { projects: [{ projectId: 'flightctl', displayName: 'Flight Control' }] }, 'flightctl'],
+    ['OSAC and Flight Control', twoProjects, 'osac']
+  ])('qualifies a project-less URL with the default project for %s', async (_name, response, expectedId) => {
+    apiRequest.mockResolvedValueOnce(response)
+    const { wrapper, updateParams } = mountSelector()
+    await flushPromises()
+
+    expect(updateParams).toHaveBeenCalledWith({ projectId: expectedId }, { push: false })
+    expect(lastContextState(wrapper)).toMatchObject({ state: 'ready', projectId: expectedId })
+    expect(wrapper.emitted('context-state').filter(([state]) => state.state === 'ready'))
+      .toEqual([[{ state: 'ready', projectId: expectedId }]])
+  })
+
+  it('does not rewrite a single-project URL that already names the project', async () => {
+    apiRequest.mockResolvedValueOnce({ projects: [twoProjects.projects[0]] })
+    const { wrapper, updateParams } = mountSelector({ projectId: 'osac' })
+    await flushPromises()
+
+    expect(updateParams).not.toHaveBeenCalled()
+    expect(lastContextState(wrapper)).toMatchObject({ state: 'ready', projectId: 'osac' })
+  })
+
+  it('treats an unknown project as not-found in a single-project deployment', async () => {
+    apiRequest.mockResolvedValueOnce({ projects: [twoProjects.projects[0]] })
+    const { wrapper, updateParams } = mountSelector({ projectId: 'nope' })
+    await flushPromises()
+
+    expect(updateParams).not.toHaveBeenCalled()
+    expect(lastContextState(wrapper)).toMatchObject({ state: 'not-found', projectId: 'nope' })
+  })
+
+  it('publishes the default project to consumers once discovery completes and clears it on unmount', async () => {
+    window.location.hash = '#/'
+    window.dispatchEvent(new Event('urlchange'))
+    const projectId = useProjectId()
+    expect(projectId.value).toBe('')
+
+    apiRequest.mockResolvedValueOnce({ projects: [twoProjects.projects[0]] })
+    const { wrapper } = mountSelector()
+    expect(projectId.value).toBe('')
+    await flushPromises()
+    expect(projectId.value).toBe('osac')
+
+    wrapper.unmount()
+    expect(projectId.value).toBe('')
+  })
+
+  it('leaves the project empty when discovery fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    window.location.hash = '#/'
+    window.dispatchEvent(new Event('urlchange'))
+    apiRequest.mockRejectedValueOnce(Object.assign(new Error('down'), { status: 500 }))
+    mountSelector()
+    await flushPromises()
+
+    expect(useProjectId().value).toBe('')
   })
 
   it.each([
