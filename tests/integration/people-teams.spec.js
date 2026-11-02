@@ -1172,6 +1172,7 @@ test.describe('People & Teams OSAC Legacy Deep Links @people-teams', () => {
 
 const LEGACY_ALLOCATION_ENDPOINT = /\/api\/modules\/team-tracker\/allocation\//;
 const LEGACY_FIELD_DEFINITIONS_ENDPOINT = /\/api\/modules\/team-tracker\/structure\/field-definitions/;
+const LEGACY_CONTRIBUTIONS_ENDPOINT = /\/api\/(?:github|gitlab)\/contributions/;
 
 test.describe('People & Teams Project Context Isolation @people-teams', () => {
   test.beforeEach(async ({ page }) => {
@@ -1198,6 +1199,32 @@ test.describe('People & Teams Project Context Isolation @people-teams', () => {
       expect(page.errors).toHaveLength(0);
     });
   }
+
+  for (const projectId of [OSAC, FLIGHTCTL_PROJECT]) {
+    test(`the ${projectId} People deep link loads no legacy contribution stats`, async ({ page }) => {
+      const contributionUrls = trackRequests(page, LEGACY_CONTRIBUTIONS_ENDPOINT);
+
+      await page.goto(`/#/team-tracker/people?projectId=${projectId}`);
+      await settle(page);
+
+      await expect(mainContent(page)).toBeVisible();
+      expect(contributionUrls).toHaveLength(0);
+
+      expect(page.errors).toHaveLength(0);
+    });
+  }
+
+  test('legacy bookmarks keep the project in the URL and make no unqualified roster request', async ({ page }) => {
+    const unqualifiedRosterUrls = trackRequests(page, /\/api\/roster$/);
+
+    await page.goto(`/#/people?projectId=${OSAC}`);
+    await settle(page);
+
+    await expect(page).toHaveURL(new RegExp(`#/team-tracker/people\\?projectId=${OSAC}`));
+    expect(unqualifiedRosterUrls).toHaveLength(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
 
   test('Team Detail deep link does not load legacy field definitions', async ({ page }) => {
     const definitionUrls = trackRequests(page, LEGACY_FIELD_DEFINITIONS_ENDPOINT);

@@ -64,10 +64,10 @@ function maybeLoad() {
   if (isManager.value) loadForCurrentProject()
 }
 
-onMounted(() => {
-  fetchDefinitions()
-  maybeLoad()
-})
+onMounted(maybeLoad)
+
+// Field definitions only feed legacy-roster badges; project rosters carry none.
+watch(projectId, id => { if (!id) fetchDefinitions() }, { immediate: true })
 
 // Clear stale manager data before reloading for the newly selected project.
 watch(projectId, () => {

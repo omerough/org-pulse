@@ -1,7 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount as vtuMount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import MyTeamsWidget from '../../../client/widgets/MyTeamsWidget.vue'
+
+// mockProjectId is shared module state, so a leftover mounted wrapper's watcher
+// would keep firing in later tests — track and unmount in afterEach.
+let mountedWrappers = []
+function mount(...args) {
+  const wrapper = vtuMount(...args)
+  mountedWrappers.push(wrapper)
+  return wrapper
+}
 
 const mockNavigateTo = vi.fn()
 
@@ -12,7 +21,7 @@ vi.mock('@shared/client/composables/useModuleLink', () => ({
   })
 }))
 
-const { mockProjectId } = vi.hoisted(() => ({ mockProjectId: { value: '' } }))
+const mockProjectId = ref('')
 vi.mock('@shared/client/composables/useProjectId.js', () => ({
   useProjectId: () => mockProjectId,
   projectParam: id => (id ? { projectId: id } : {})
@@ -47,11 +56,12 @@ vi.mock('@shared/client/composables/useRoster', () => ({
 
 const mockDefinitions = ref({ personFields: [], teamFields: [] })
 const mockDefsLoading = ref(false)
+const mockFetchDefinitions = vi.fn()
 vi.mock('@shared/client/composables/useFieldDefinitions', () => ({
   useFieldDefinitions: () => ({
     definitions: mockDefinitions,
     loading: mockDefsLoading,
-    fetchDefinitions: vi.fn()
+    fetchDefinitions: mockFetchDefinitions
   })
 }))
 
@@ -74,7 +84,13 @@ beforeEach(() => {
   mockDefinitions.value = { personFields: [], teamFields: [] }
   mockDefsLoading.value = false
   mockNavigateTo.mockClear()
+  mockFetchDefinitions.mockClear()
   mockProjectId.value = ''
+})
+
+afterEach(() => {
+  mountedWrappers.forEach(w => w.unmount())
+  mountedWrappers = []
 })
 
 describe('MyTeamsWidget', () => {
@@ -184,5 +200,29 @@ describe('MyTeamsWidget', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('API')
     expect(wrapper.text()).toContain('Auth')
+  })
+
+  describe('legacy field definitions', () => {
+    it('are fetched when no project is selected', async () => {
+      mount(MyTeamsWidget, { props: { size: 'half' } })
+      await flushPromises()
+      expect(mockFetchDefinitions).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['flightctl', 'osac'])('are not fetched in project context %s', async (projectId) => {
+      mockProjectId.value = projectId
+      mount(MyTeamsWidget, { props: { size: 'half' } })
+      await flushPromises()
+      expect(mockFetchDefinitions).not.toHaveBeenCalled()
+    })
+
+    it('are not fetched when switching between projects', async () => {
+      mockProjectId.value = 'flightctl'
+      mount(MyTeamsWidget, { props: { size: 'half' } })
+      await flushPromises()
+      mockProjectId.value = 'osac'
+      await flushPromises()
+      expect(mockFetchDefinitions).not.toHaveBeenCalled()
+    })
   })
 })

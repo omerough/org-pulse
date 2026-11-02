@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useAuth } from '@shared/client/composables/useAuth.js'
 import { useRoster } from '@shared/client/composables/useRoster.js'
 import { usePermissions } from '@shared/client/composables/usePermissions.js'
@@ -18,10 +18,10 @@ const { userUid } = usePermissions()
 const { teams: rosterTeams, loading: rosterLoading, loadRoster } = useRoster()
 const { definitions, loading: defsLoading, fetchDefinitions } = useFieldDefinitions()
 
-onMounted(() => {
-  loadRoster()
-  fetchDefinitions()
-})
+onMounted(loadRoster)
+
+// Field definitions only feed legacy-roster badges; project rosters carry none.
+watch(projectId, id => { if (!id) fetchDefinitions() }, { immediate: true })
 
 const engSpecFieldId = computed(() => {
   const pf = definitions.value?.personFields || []

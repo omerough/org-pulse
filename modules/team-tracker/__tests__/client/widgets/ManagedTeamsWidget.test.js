@@ -45,11 +45,12 @@ vi.mock('@shared/client/composables/usePermissions', () => ({
 }))
 
 const mockDefinitions = ref({ personFields: [], teamFields: [] })
+const mockFetchDefinitions = vi.fn()
 vi.mock('@shared/client/composables/useFieldDefinitions', () => ({
   useFieldDefinitions: () => ({
     definitions: mockDefinitions,
     loading: ref(false),
-    fetchDefinitions: vi.fn()
+    fetchDefinitions: mockFetchDefinitions
   })
 }))
 
@@ -87,6 +88,7 @@ beforeEach(() => {
   mockPermissionsLoading.value = false
   mockHierarchyAvailable.value = true
   mockNavigateTo.mockClear()
+  mockFetchDefinitions.mockClear()
   mockLoadManagerDashboard.mockClear()
   mockLoadManagerDashboard.mockImplementation(() => Promise.resolve())
   mockResetState.mockClear()
@@ -98,6 +100,30 @@ afterEach(() => {
 })
 
 describe('ManagedTeamsWidget', () => {
+  describe('legacy field definitions', () => {
+    it('are fetched when no project is selected', async () => {
+      mount(ManagedTeamsWidget, { props: { size: 'full' } })
+      await flushPromises()
+      expect(mockFetchDefinitions).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['flight-control', 'osac'])('are not fetched in project context %s', async (projectId) => {
+      mockProjectId.value = projectId
+      mount(ManagedTeamsWidget, { props: { size: 'full' } })
+      await flushPromises()
+      expect(mockFetchDefinitions).not.toHaveBeenCalled()
+    })
+
+    it('are not fetched when switching between projects', async () => {
+      mockProjectId.value = 'flight-control'
+      mount(ManagedTeamsWidget, { props: { size: 'full' } })
+      await flushPromises()
+      mockProjectId.value = 'osac'
+      await flushPromises()
+      expect(mockFetchDefinitions).not.toHaveBeenCalled()
+    })
+  })
+
   it('mounts with size prop and renders header', async () => {
     const wrapper = mount(ManagedTeamsWidget, { props: { size: 'full' } })
     await flushPromises()

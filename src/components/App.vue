@@ -273,6 +273,12 @@ export default {
     const { loadRoster, reloadRoster, teams, selectedOrgKey, selectOrg, rosterData } = useRoster()
     const { loadGithubStats, reloadGithubStats } = useGithubStats()
     const { loadGitlabStats, reloadGitlabStats } = useGitlabStats()
+    const projectId = useProjectId()
+
+    // Contribution stats are org-scoped; project rosters never read them.
+    function loadLegacyContributionStats() {
+      return projectId.value ? Promise.resolve() : Promise.all([loadGithubStats(), loadGitlabStats()])
+    }
     const { modulesData, loadModules, reloadModules, enabledBuiltInSlugs, loadEnabledBuiltInSlugs } = useModules()
     const { mode: themeMode, cycle: cycleTheme } = useTheme()
     const { messages: appMessages, fetchMessages, dismiss: dismissMessage } = useMessages()
@@ -284,8 +290,10 @@ export default {
 
     function handleBackendRecovery() {
       reloadRoster()
-      reloadGithubStats()
-      reloadGitlabStats()
+      if (!projectId.value) {
+        reloadGithubStats()
+        reloadGitlabStats()
+      }
       reloadModules()
       refreshAuth()
       refreshPermissions()
@@ -429,8 +437,7 @@ export default {
       jiraConfigChangedAt,
       fetchLastRefreshed,
       loadRoster,
-      loadGithubStats,
-      loadGitlabStats,
+      loadLegacyContributionStats,
       loadModules,
       loadEnabledBuiltInSlugs,
       enabledBuiltInSlugs,
@@ -560,8 +567,7 @@ export default {
         const allSlugs = this.allBuiltInManifests.map(m => m.slug)
         await Promise.all([
           this.loadRoster(),
-          this.loadGithubStats(),
-          this.loadGitlabStats(),
+          this.loadLegacyContributionStats(),
           this.loadModules(),
           this.fetchLastRefreshed(),
           this.loadEnabledBuiltInSlugs(allSlugs),
@@ -612,14 +618,15 @@ export default {
 
       // Backward compatibility redirects
       if (parts[0] === 'team' && parts[1]) {
-        const newHash = '#/team-tracker/team-detail?teamKey=' + encodeURIComponent(parts[1]) +
-          (parts[2] === 'person' && parts[3] ? '&person=' + encodeURIComponent(parts[3]) : '')
-        window.location.replace(newHash)
+        shellRedirect('team-tracker/team-detail', {
+          teamKey: parts[1],
+          ...(parts[2] === 'person' && parts[3] && { person: parts[3] })
+        })
         return
       }
-      if (parts[0] === 'people') { window.location.replace('#/team-tracker/people'); return }
-      if (parts[0] === 'trends') { window.location.replace('#/team-tracker/reports?report=trends'); return }
-      if (parts[0] === 'reports') { window.location.replace('#/team-tracker/reports'); return }
+      if (parts[0] === 'people') { shellRedirect('team-tracker/people'); return }
+      if (parts[0] === 'trends') { shellRedirect('team-tracker/reports', { report: 'trends' }); return }
+      if (parts[0] === 'reports') { shellRedirect('team-tracker/reports'); return }
       // Redirect any org-roster bookmarks to team-tracker (modules merged)
       if (parts[0] === 'org-roster') {
         const viewMap = { 'home': 'home', 'team-detail': 'team-detail', 'org-dashboard': 'org-dashboard', 'people': 'people', 'person-detail': 'person-detail', 'org-explorer': 'org-dashboard' }

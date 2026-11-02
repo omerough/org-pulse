@@ -3,7 +3,7 @@
  * useProjectId) with the real CiDutyWidget as the Home view, so a lost
  * projectId shows up as a CI Duty request without it.
  */
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
 vi.hoisted(() => {
@@ -28,6 +28,8 @@ vi.mock('../components/LandingPage.vue', async () => ({
 }))
 
 import App from '../components/App.vue'
+import { useGithubStats } from '@shared/client/composables/useGithubStats'
+import { useGitlabStats } from '@shared/client/composables/useGitlabStats'
 
 const twoProjects = [
   { projectId: 'osac', displayName: 'OSAC' },
@@ -68,8 +70,14 @@ function ciDutyRequests(fetchMock) {
   return fetchMock.mock.calls.map(([url]) => url).filter(url => url.includes('/ci-duty'))
 }
 
+function contributionRequests(fetchMock) {
+  return fetchMock.mock.calls.map(([url]) => url).filter(url => /\/(github|gitlab)\/contributions/.test(url))
+}
+
 async function mountApp(initialHash) {
   window.location.hash = initialHash
+  // A real page load initializes useProjectId from the URL; hashchange alone arrives too late here.
+  window.dispatchEvent(new Event('urlchange'))
   const wrapper = mount(App, { global: { stubs: { SettingsView: true, AboutView: true, ApiTokensView: true } } })
   await vi.waitFor(() => expect(wrapper.find('nav, aside').exists()).toBe(true))
   await flushPromises()
@@ -202,6 +210,82 @@ describe('shell navigation keeps the project context', () => {
 
     await vi.waitFor(() => expect(wrapper.text()).toContain('Osac Lead'))
     expect(window.location.hash).toBe('#/?projectId=osac')
+    wrapper.unmount()
+  })
+})
+
+describe('shell initial data and the project context', () => {
+  beforeEach(async () => {
+    // The contribution caches are module-level; empty them so each test sees its own requests.
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({}, 404)))
+    window.location.hash = ''
+    window.dispatchEvent(new Event('urlchange'))
+    await Promise.all([useGithubStats().reloadGithubStats(), useGitlabStats().reloadGitlabStats()])
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    window.location.hash = ''
+  })
+
+  it.each(['osac', 'flightctl'])('a %s deep link loads the project roster and no legacy contribution stats', async (projectId) => {
+    const fetchMock = stubBackend(twoProjects)
+    const wrapper = await mountApp(`#/team-tracker/people?projectId=${projectId}`)
+
+    const urls = fetchMock.mock.calls.map(([url]) => url)
+    expect(urls).toContain(`/api/roster?projectId=${projectId}`)
+    expect(urls).not.toContain('/api/roster')
+    expect(contributionRequests(fetchMock)).toEqual([])
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['#/people', '#/team-tracker/people?projectId=osac'],
+    ['#/trends', '#/team-tracker/reports?projectId=osac&report=trends'],
+    ['#/team/org%3A%3AFoo', '#/team-tracker/team-detail?projectId=osac&teamKey=org%3A%3AFoo']
+  ])('the legacy bookmark %s lands on the default project without an unqualified roster request', async (bookmark, expectedHash) => {
+    const fetchMock = stubBackend(twoProjects)
+    const wrapper = await mountApp(bookmark)
+
+    try {
+      await vi.waitFor(() => expect(window.location.hash).toBe(expectedHash))
+      expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain('/api/roster')
+      expect(contributionRequests(fetchMock)).toEqual([])
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('an unknown project shows not-found and issues no unqualified roster or contribution requests', async () => {
+    const fetchMock = stubBackend(twoProjects)
+    const wrapper = await mountApp('#/team-tracker/people?projectId=nope')
+
+    await vi.waitFor(() => expect(wrapper.find('[role="alert"]').exists()).toBe(true))
+    const urls = fetchMock.mock.calls.map(([url]) => url)
+    expect(urls).not.toContain('/api/roster')
+    expect(contributionRequests(fetchMock)).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('switching project keeps contribution stats unrequested', async () => {
+    const fetchMock = stubBackend(twoProjects)
+    const wrapper = await mountApp('#/team-tracker/people?projectId=osac')
+
+    await wrapper.find('select#project-selector').setValue('flightctl')
+    await flushPromises()
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toContain('/api/roster?projectId=flightctl')
+    expect(contributionRequests(fetchMock)).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('a single-project deployment without a project context still loads contribution stats', async () => {
+    const fetchMock = stubBackend([twoProjects[0]])
+    const wrapper = await mountApp('#/team-tracker/people')
+
+    expect(contributionRequests(fetchMock).sort()).toEqual(['/api/github/contributions', '/api/gitlab/contributions'])
     wrapper.unmount()
   })
 })
