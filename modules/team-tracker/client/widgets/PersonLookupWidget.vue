@@ -66,7 +66,7 @@ function selectPerson(person) {
   isOpen.value = false
   searchText.value = ''
   if (person.uid) {
-    crossNavigate('team-tracker', 'person-detail', { uid: person.uid, from: 'sotu' })
+    crossNavigate('team-tracker', 'person-detail', { ...projectParam(projectId.value), uid: person.uid, from: 'sotu' })
   } else if (person.accountId) {
     crossNavigate('team-tracker', 'person-detail', { ...projectParam(projectId.value), accountId: person.accountId, from: 'sotu' })
   }

@@ -123,7 +123,7 @@ describe('PersonLookupWidget', () => {
     expect(mockCrossNavigate).toHaveBeenCalledWith('team-tracker', 'person-detail', { uid: 'jsmith', from: 'sotu' })
   })
 
-  it('uid navigation stays legacy even when a projectId is set', async () => {
+  it('uid navigation keeps the projectId so Person Detail resolves it within the project', async () => {
     mockProjectId.value = 'flightctl'
     const wrapper = mount(PersonLookupWidget)
     const input = wrapper.find('input')
@@ -131,7 +131,7 @@ describe('PersonLookupWidget', () => {
     await input.trigger('input')
     const option = wrapper.find('li[role="option"]')
     await option.trigger('mousedown')
-    expect(mockCrossNavigate).toHaveBeenCalledWith('team-tracker', 'person-detail', { uid: 'jsmith', from: 'sotu' })
+    expect(mockCrossNavigate).toHaveBeenCalledWith('team-tracker', 'person-detail', { projectId: 'flightctl', uid: 'jsmith', from: 'sotu' })
   })
 
   it('navigates to person-detail with accountId preserving projectId when project-qualified', async () => {
