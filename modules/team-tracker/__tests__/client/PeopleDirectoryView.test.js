@@ -537,6 +537,20 @@ describe('PeopleDirectoryView', () => {
       expect(order()).toEqual(['Zed', 'Amy'])
     })
 
+    it('does not offer sorting on the Project column, which is constant for the selected project', async () => {
+      seed([person('a2', 'Zed'), person('a1', 'Amy')])
+      const wrapper = mountView()
+      await flushPromises()
+      const header = label => wrapper.findAll('th').find(th => th.text().startsWith(label))
+
+      await header('Name').trigger('click')
+      await header('Project').trigger('click')
+
+      expect(header('Project').text()).toBe('Project')
+      expect(header('Name').text()).toContain('\u25BC')
+      expect(wrapper.findAll('tbody tr').map(r => r.find('td:nth-child(2)').text())).toEqual(['Zed', 'Amy'])
+    })
+
     it('shows the unavailable state with the publication reason', async () => {
       seed([], { availability: 'unavailable', reason: 'No publication yet' })
       const wrapper = mountView()

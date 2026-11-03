@@ -91,7 +91,6 @@ async function loadData() {
       title: person.title,
       geo: person.geo,
       location: resolveMemberLocation(person),
-      orgDisplayName: requestedProjectId,
       teams: person.teamIds.map(id => teamNameById.get(id)).filter(Boolean),
       github: person.identities?.github ?? null,
       gitlab: person.identities?.gitlab ?? null
@@ -281,7 +280,7 @@ watch(projectId, () => {
           <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead class="bg-gray-50 dark:bg-gray-800/50">
               <tr>
-                <th @click="toggleSort('orgDisplayName')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200">Project{{ sortIcon('orgDisplayName') }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Project</th>
                 <th @click="toggleSort('name')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200">Name{{ sortIcon('name') }}</th>
                 <th @click="toggleSort('title')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden md:table-cell">Title{{ sortIcon('title') }}</th>
                 <th @click="toggleSort('geo')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 hidden lg:table-cell">Geo{{ sortIcon('geo') }}</th>
