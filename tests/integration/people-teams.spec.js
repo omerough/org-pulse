@@ -973,6 +973,33 @@ function trackRequests(page, pattern) {
   return urls;
 }
 
+function stackUrls(stack) {
+  const urls = [];
+  for (let frames = stack; frames; frames = frames.parent) {
+    for (const frame of frames.callFrames) urls.push(frame.url);
+  }
+  return urls;
+}
+
+// Records each matching request with the script URLs on its initiator stack.
+// Chromium-only (CDP), which matches the configured Playwright project.
+async function trackRequestInitiators(page, pattern) {
+  const requests = [];
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Network.enable');
+  cdp.on('Network.requestWillBeSent', ({ request, initiator }) => {
+    if (pattern.test(request.url)) requests.push({ url: request.url, initiatorUrls: stackUrls(initiator.stack) });
+  });
+  return requests;
+}
+
+// The shell mounts the landing page before it resolves a deep link, so AI Impact's
+// landing widgets can fetch field definitions even when another module is the target.
+const LANDING_WIDGET_INITIATOR = /\/(?:FeatureBoardWidget|RfeActionsWidget|PipelineStatsWidget)[-.]/;
+
+const requestsNotFromLandingWidgets = requests =>
+  requests.filter(({ initiatorUrls }) => !initiatorUrls.some(url => LANDING_WIDGET_INITIATOR.test(url)));
+
 function expectAllProjectQualified(urls, projectId) {
   expect(urls.length).toBeGreaterThan(0);
   for (const url of urls) {
@@ -1256,25 +1283,25 @@ test.describe('People & Teams Project Context Isolation @people-teams', () => {
   });
 
   test('Team Detail deep link does not load legacy field definitions', async ({ page }) => {
-    const definitionUrls = trackRequests(page, LEGACY_FIELD_DEFINITIONS_ENDPOINT);
+    const definitionRequests = await trackRequestInitiators(page, LEGACY_FIELD_DEFINITIONS_ENDPOINT);
 
     await page.goto(`/#/team-tracker/team-detail?projectId=${OSAC}&teamKey=${OSAC_PLATFORM_KEY}`);
     await settle(page);
 
     await expect(mainContent(page)).toContainText('Bob Smith');
-    expect(definitionUrls).toHaveLength(0);
+    expect(requestsNotFromLandingWidgets(definitionRequests)).toEqual([]);
 
     expect(page.errors).toHaveLength(0);
   });
 
   test('Person Profile deep link does not load legacy field definitions', async ({ page }) => {
-    const definitionUrls = trackRequests(page, LEGACY_FIELD_DEFINITIONS_ENDPOINT);
+    const definitionRequests = await trackRequestInitiators(page, LEGACY_FIELD_DEFINITIONS_ENDPOINT);
 
     await page.goto(`/#/team-tracker/person-detail?projectId=${OSAC}&accountId=osac-acc-1`);
     await settle(page);
 
     await expect(page.locator('[data-tour="person-profile-card"]')).toContainText('Alice Chen');
-    expect(definitionUrls).toHaveLength(0);
+    expect(requestsNotFromLandingWidgets(definitionRequests)).toEqual([]);
 
     expect(page.errors).toHaveLength(0);
   });
