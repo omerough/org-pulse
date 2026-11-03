@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch, inject } from 'vue'
+import { ref, computed, onMounted, watch, inject } from 'vue'
 import { apiRequest, getProjectPersonMetrics } from '@shared/client/services/api.js'
 import { useAuth } from '@shared/client/composables/useAuth.js'
 import { useRoster } from '@shared/client/composables/useRoster.js'
@@ -22,7 +22,6 @@ import {
 import { resolveMemberLocation } from '../utils/member-resolution.js'
 import { resolveLegacyPersonLink, resolveLegacyTeamKey } from '../utils/legacy-link-resolution.js'
 import PersonFieldEditor from '../components/PersonFieldEditor.vue'
-import { useManagerTutorial } from '../composables/useManagerTutorial'
 
 const nav = inject('moduleNav')
 const { isAdmin, refresh: refreshAuth } = useAuth()
@@ -41,7 +40,6 @@ const projectLabel = useProjectDisplayName()
 const { canEdit, refresh: refreshPermissions } = usePermissions()
 const { startImpersonating } = useImpersonation()
 const { definitions, fetchDefinitions } = useFieldDefinitions()
-const { resumeTourIfActive, destroyTour } = useManagerTutorial()
 
 const isInAppMode = computed(() => isLegacyPerson.value && rosterData.value?.teamDataSource === 'in-app')
 const visiblePersonFields = computed(() =>
@@ -649,11 +647,6 @@ onMounted(() => {
   loadPerson()
   if (isLegacyPerson.value) loadGitlabStats()
   if (!projectId.value) fetchDefinitions()
-  resumeTourIfActive('person-detail')
-})
-
-onBeforeUnmount(() => {
-  destroyTour()
 })
 </script>
 

@@ -88,19 +88,17 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount, inject, watch, nextTick } from 'vue'
+import { computed, ref, onMounted, inject, watch, nextTick } from 'vue'
 import TeamOverviewTab from '../components/TeamOverviewTab.vue'
 import TeamDeliveryTab from '../components/TeamDeliveryTab.vue'
 import TeamAutofixTab from '../components/autofix/TeamAutofixTab.vue'
 import { useRoster } from '@shared/client/composables/useRoster'
 import { getTeamMetrics } from '@shared/client/services/api'
-import { useManagerTutorial } from '../composables/useManagerTutorial'
 import { dedupeMembersByIdentity } from '../utils/member-resolution'
 import { resolveLegacyTeamKey } from '../utils/legacy-link-resolution'
 
 const nav = inject('moduleNav')
 const { teams: allTeams, rosterData, loading: rosterLoading } = useRoster()
-const { resumeTourIfActive, destroyTour } = useManagerTutorial()
 
 const fromSotu = computed(() => nav.params.value?.from === 'sotu')
 
@@ -224,11 +222,6 @@ function handleSelectPerson(member) {
 // --- Lifecycle ---
 onMounted(() => {
   fetchTeamMetrics()
-  resumeTourIfActive('team-detail')
-})
-
-onBeforeUnmount(() => {
-  destroyTour()
 })
 
 watch(() => nav.params.value?.teamKey, () => {

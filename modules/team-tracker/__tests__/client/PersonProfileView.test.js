@@ -70,10 +70,6 @@ vi.mock('@shared/client/composables/useFieldDefinitions.js', () => ({
   })
 }))
 
-vi.mock('../../client/composables/useManagerTutorial', () => ({
-  useManagerTutorial: () => ({ resumeTourIfActive: vi.fn(), destroyTour: vi.fn() })
-}))
-
 const UNAVAILABLE_JIRA_METRICS = {
   projectId: 'flightctl',
   accountId: null,
