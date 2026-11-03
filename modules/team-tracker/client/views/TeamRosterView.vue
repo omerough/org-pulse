@@ -36,7 +36,7 @@
             <div>
               <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ team.displayName }}</h2>
               <p class="text-sm text-gray-500 dark:text-gray-400">
-                {{ teamOrgName }}<span v-if="uniqueCount"> · {{ uniqueCount }} members</span>
+                {{ projectLabel }}<span v-if="uniqueCount"> · {{ uniqueCount }} members</span>
               </p>
             </div>
           </div>
@@ -95,6 +95,7 @@ import TeamAutofixTab from '../components/autofix/TeamAutofixTab.vue'
 import { useRoster } from '@shared/client/composables/useRoster'
 import { getTeamMetrics } from '@shared/client/services/api'
 import { dedupeMembersByIdentity } from '../utils/member-resolution'
+import { useProjectDisplayName } from '../composables/useProjectDisplayName'
 import { resolveLegacyTeamKey } from '../utils/legacy-link-resolution'
 
 const nav = inject('moduleNav')
@@ -135,11 +136,7 @@ const uniqueMembers = computed(() =>
 
 const uniqueCount = computed(() => uniqueMembers.value.length)
 
-const teamOrgName = computed(() => {
-  if (!team.value) return ''
-  const sepIdx = team.value.key.indexOf('::')
-  return sepIdx !== -1 ? team.value.key.substring(0, sepIdx) : ''
-})
+const projectLabel = useProjectDisplayName()
 
 // --- Delivery metrics ---
 const teamMetrics = ref(null)

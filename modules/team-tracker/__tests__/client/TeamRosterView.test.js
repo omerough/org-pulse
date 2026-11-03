@@ -55,6 +55,10 @@ vi.mock('@shared/client/services/api', () => ({
   apiRequest: vi.fn().mockResolvedValue({})
 }))
 
+vi.mock('../../client/composables/useProjectDisplayName', () => ({
+  useProjectDisplayName: () => ref('Open Source Agent Cloud')
+}))
+
 vi.mock('@shared/client/composables/useModuleLink', () => ({
   useModuleLink: () => ({
     linkTo: (moduleSlug, viewId, params = {}) => {
@@ -117,6 +121,14 @@ describe('TeamRosterView', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Model Serving')
     expect(wrapper.text()).toContain('2 members')
+  })
+
+  it('shows the project display name in the header, not the raw project key', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const header = wrapper.find('h2').element.parentElement.textContent
+    expect(header).toContain('Open Source Agent Cloud')
+    expect(header).not.toMatch(/\bosac\b/)
   })
 
   it('renders the visible tabs', async () => {
