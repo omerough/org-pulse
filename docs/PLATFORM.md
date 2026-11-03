@@ -149,7 +149,8 @@ module.exports = { classifyIssue, getJiraFields }
 1. Create `platform/allocation-strategy/manifest.json` with your categories
 2. Create `platform/allocation-strategy/classify.js` with classification logic
 3. Run `npm run validate:platform` to verify
-4. The allocation tab and report appear automatically
+4. People & Teams settings expose the allocation configuration; the team-detail
+   allocation tab and the Work Allocation report stay retired
 
 ## Dockerfile layering
 

@@ -97,6 +97,7 @@ import { getTeamMetrics } from '@shared/client/services/api'
 import { dedupeMembersByIdentity } from '../utils/member-resolution'
 import { useProjectDisplayName } from '../composables/useProjectDisplayName'
 import { resolveLegacyTeamKey } from '../utils/legacy-link-resolution'
+import { useKnownProjectIds } from '@shared/client/composables/useProjectId'
 
 const nav = inject('moduleNav')
 const { teams: allTeams, rosterData, loading: rosterLoading } = useRoster()
@@ -111,6 +112,8 @@ function handleBack() {
   }
 }
 
+const knownProjectIds = useKnownProjectIds()
+
 const team = computed(() => {
   const teamKey = nav.params.value?.teamKey
   if (!teamKey) return null
@@ -124,7 +127,7 @@ watch(
   ([teamKey]) => {
     const projectId = rosterData.value?.projectId
     if (!teamKey || team.value || rosterLoading.value || !projectId) return
-    const resolved = resolveLegacyTeamKey(rosterData.value, projectId, teamKey)
+    const resolved = resolveLegacyTeamKey(rosterData.value, projectId, teamKey, knownProjectIds.value)
     if (resolved.teamKey) nav.updateParams({ teamKey: resolved.teamKey }, { push: false })
   },
   { immediate: true }

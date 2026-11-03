@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch, inject } from 'vue'
 import { apiRequest, getProjectPersonMetrics } from '@shared/client/services/api.js'
 import { useAuth } from '@shared/client/composables/useAuth.js'
 import { useRoster } from '@shared/client/composables/useRoster.js'
-import { useProjectId } from '@shared/client/composables/useProjectId.js'
+import { useProjectId, useKnownProjectIds } from '@shared/client/composables/useProjectId.js'
 import { useProjectDisplayName } from '../composables/useProjectDisplayName'
 import { useGithubStats } from '@shared/client/composables/useGithubStats.js'
 import { useGitlabStats } from '@shared/client/composables/useGitlabStats.js'
@@ -36,6 +36,7 @@ const {
   auxiliaryManagers
 } = useRoster()
 const projectId = useProjectId()
+const knownProjectIds = useKnownProjectIds()
 const projectLabel = useProjectDisplayName()
 const { canEdit, refresh: refreshPermissions } = usePermissions()
 const { startImpersonating } = useImpersonation()
@@ -531,7 +532,7 @@ async function loadPerson() {
 const resolvedFromTeamKey = computed(() => {
   const key = fromTeamKey.value
   if (!key || !projectId.value || !Array.isArray(rosterData.value?.teams) || rosterData.value.projectId !== projectId.value) return key
-  return resolveLegacyTeamKey(rosterData.value, projectId.value, key).teamKey ?? null
+  return resolveLegacyTeamKey(rosterData.value, projectId.value, key, knownProjectIds.value).teamKey ?? null
 })
 
 const fromTeam = computed(() => {

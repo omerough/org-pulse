@@ -171,6 +171,49 @@ describe('resolveLegacyTeamKey', () => {
     expect(resolveLegacyTeamKey(model, 'osac', 'flightctl::Platform')).toEqual({ unresolved: true })
   })
 
+  describe('pre-convergence org-prefixed keys', () => {
+    const known = ['osac', 'flightctl']
+
+    it('resolves `<orgKey>::<teamName>` by the exact team name', () => {
+      expect(resolveLegacyTeamKey(model, 'osac', 'shgriffi::Platform', known)).toEqual({ teamKey: 'osac::t-1' })
+      expect(resolveLegacyTeamKey(model, 'osac', 'shgriffi::Data Pipeline', known)).toEqual({ teamKey: 'osac::t-3' })
+    })
+
+    it('never reads the suffix as a team ID', () => {
+      expect(resolveLegacyTeamKey(model, 'osac', 'shgriffi::t-1', known)).toEqual({ unresolved: true })
+    })
+
+    it('matches the team name exactly, including case', () => {
+      expect(resolveLegacyTeamKey(model, 'osac', 'shgriffi::platform', known)).toEqual({ unresolved: true })
+    })
+
+    it('is unresolved for an unknown team name', () => {
+      expect(resolveLegacyTeamKey(model, 'osac', 'shgriffi::Nope', known)).toEqual({ unresolved: true })
+    })
+
+    it('is unresolved when several teams share the name', () => {
+      const dup = { teams: [team('t-1', 'Platform'), team('t-2', 'Platform')] }
+      expect(resolveLegacyTeamKey(dup, 'osac', 'shgriffi::Platform', known)).toEqual({ unresolved: true })
+    })
+
+    it.each(['flightctl::Platform', 'FlightCtl::Platform'])('rejects the other published project prefix %s', key => {
+      expect(resolveLegacyTeamKey(model, 'osac', key, known)).toEqual({ unresolved: true })
+    })
+
+    it('rejects another project canonical key whose suffix is a team ID here', () => {
+      expect(resolveLegacyTeamKey(model, 'osac', 'flightctl::t-1', known)).toEqual({ unresolved: true })
+    })
+
+    it('fails closed when the published project list is unknown', () => {
+      expect(resolveLegacyTeamKey(model, 'osac', 'shgriffi::Platform')).toEqual({ unresolved: true })
+      expect(resolveLegacyTeamKey(model, 'osac', 'shgriffi::Platform', [])).toEqual({ unresolved: true })
+    })
+
+    it('keeps an exact canonical key regardless of the project list', () => {
+      expect(resolveLegacyTeamKey(model, 'osac', 'osac::t-1')).toEqual({ teamKey: 'osac::t-1' })
+    })
+  })
+
   it('is unresolved for an empty suffix', () => {
     expect(resolveLegacyTeamKey(model, 'osac', 'osac::')).toEqual({ unresolved: true })
   })

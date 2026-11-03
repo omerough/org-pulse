@@ -24,6 +24,7 @@ function readProjectIdFromHash() {
 let _projectId = null
 const _urlProjectId = ref('')
 const _defaultProjectId = ref('')
+const _knownProjectIds = ref([])
 
 export function useProjectId() {
   if (_projectId === null) {
@@ -44,6 +45,15 @@ export function useProjectId() {
 /** Published by the shell selector once the project list is known; '' clears it. */
 export function setDefaultProjectId(projectId) {
   _defaultProjectId.value = projectId || ''
+}
+
+/** Published by the shell selector with every project ID it discovered; [] clears it. */
+export function setKnownProjectIds(projectIds) {
+  _knownProjectIds.value = Array.isArray(projectIds) ? [...projectIds] : []
+}
+
+export function useKnownProjectIds() {
+  return _knownProjectIds
 }
 
 /** Resolves a URL-supplied project (possibly empty) against the default. */

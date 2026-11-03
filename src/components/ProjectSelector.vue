@@ -20,7 +20,7 @@
 <script setup>
 import { inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { apiRequest } from '@shared/client/services/api.js'
-import { setDefaultProjectId } from '@shared/client/composables/useProjectId.js'
+import { setDefaultProjectId, setKnownProjectIds } from '@shared/client/composables/useProjectId.js'
 
 const emit = defineEmits(['context-state'])
 const nav = inject('moduleNav', null)
@@ -138,6 +138,7 @@ async function loadProjects() {
       // Published before resolving so a project-less URL never exposes an
       // empty project to consumers, even while the URL rewrite is pending.
       setDefaultProjectId(projects.value[0].projectId)
+      setKnownProjectIds(projects.value.map(project => project.projectId))
       // Read the route only after discovery completes so navigation during a
       // retry resolves against the latest project ID.
       resolveProjectContext()
@@ -168,6 +169,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   isMounted = false
   setDefaultProjectId('')
+  setKnownProjectIds([])
   discoveryAbortController?.abort()
   discoveryAbortController = null
   cancelPendingRetry()

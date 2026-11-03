@@ -13,7 +13,7 @@ vi.mock('@shared/client/services/api.js', () => ({
 
 import { apiRequest } from '@shared/client/services/api.js'
 import ProjectSelector from '../components/ProjectSelector.vue'
-import { useProjectId, setDefaultProjectId } from '@shared/client/composables/useProjectId.js'
+import { useProjectId, setDefaultProjectId, setKnownProjectIds, useKnownProjectIds } from '@shared/client/composables/useProjectId.js'
 
 function mountSelector(initialParams = {}) {
   const updateParams = vi.fn()
@@ -48,6 +48,7 @@ describe('ProjectSelector', () => {
 
   afterEach(() => {
     setDefaultProjectId('')
+    setKnownProjectIds([])
     vi.useRealTimers()
     vi.restoreAllMocks()
   })
@@ -111,6 +112,17 @@ describe('ProjectSelector', () => {
 
     wrapper.unmount()
     expect(projectId.value).toBe('')
+  })
+
+  it('publishes every discovered project ID and clears them on unmount', async () => {
+    apiRequest.mockResolvedValueOnce(twoProjects)
+    const { wrapper } = mountSelector()
+    expect(useKnownProjectIds().value).toEqual([])
+    await flushPromises()
+    expect(useKnownProjectIds().value).toEqual(twoProjects.projects.map(project => project.projectId))
+
+    wrapper.unmount()
+    expect(useKnownProjectIds().value).toEqual([])
   })
 
   it('leaves the project empty when discovery fails', async () => {

@@ -1165,31 +1165,35 @@ test.describe('People & Teams OSAC Legacy Deep Links @people-teams', () => {
     expect(page.errors).toHaveLength(0);
   });
 
-  test('legacy team link osac::<TeamName> is rewritten to the canonical team key', async ({ page }) => {
+  for (const legacyKey of ['osac::Platform', 'achen::Platform']) {
+    test(`legacy team link ${legacyKey} is rewritten to the canonical team key and loads its members`, async ({ page }) => {
+      const metricsUrls = trackRequests(page, TEAM_METRICS_PATH);
+      const metricsResponse = page.waitForResponse(response =>
+        TEAM_METRICS_PATH.test(response.url())
+        && decodeURIComponent(response.url().match(TEAM_METRICS_PATH)[1]) === OSAC_PLATFORM_KEY);
+
+      await page.goto(`/#/team-tracker/team-detail?projectId=${OSAC}&teamKey=${legacyKey}`);
+      await expect.poll(() => decodeURIComponent(page.url())).toContain(`teamKey=${OSAC_PLATFORM_KEY}`);
+      await expect(mainContent(page)).toContainText('Alice Chen');
+      await expect(mainContent(page)).toContainText('Bob Smith');
+      await expect(page.getByTestId('team-not-found')).toHaveCount(0);
+      await page.getByRole('button', { name: 'Delivery' }).click();
+
+      const response = await metricsResponse;
+      expect(response.ok()).toBeTruthy();
+      expect(new URL(response.url()).searchParams.get('projectId')).toBe(OSAC);
+      for (const url of metricsUrls) {
+        expect(decodeURIComponent(url.match(TEAM_METRICS_PATH)[1])).toBe(OSAC_PLATFORM_KEY);
+      }
+
+      expect(page.errors).toHaveLength(0);
+    });
+  }
+
+  test('unknown and foreign-project legacy team links show the not-found state without a metrics call', async ({ page }) => {
     const metricsUrls = trackRequests(page, TEAM_METRICS_PATH);
-    const metricsResponse = page.waitForResponse(response =>
-      TEAM_METRICS_PATH.test(response.url())
-      && decodeURIComponent(response.url().match(TEAM_METRICS_PATH)[1]) === OSAC_PLATFORM_KEY);
 
-    await page.goto(`/#/team-tracker/team-detail?projectId=${OSAC}&teamKey=osac::Platform`);
-    await expect.poll(() => decodeURIComponent(page.url())).toContain(`teamKey=${OSAC_PLATFORM_KEY}`);
-    await expect(mainContent(page)).toContainText('Alice Chen');
-    await page.getByRole('button', { name: 'Delivery' }).click();
-
-    const response = await metricsResponse;
-    expect(response.ok()).toBeTruthy();
-    expect(new URL(response.url()).searchParams.get('projectId')).toBe(OSAC);
-    for (const url of metricsUrls) {
-      expect(decodeURIComponent(url.match(TEAM_METRICS_PATH)[1])).not.toBe('osac::Platform');
-    }
-
-    expect(page.errors).toHaveLength(0);
-  });
-
-  test('unmatched and foreign-prefixed legacy team links show the not-found state without a metrics call', async ({ page }) => {
-    const metricsUrls = trackRequests(page, TEAM_METRICS_PATH);
-
-    for (const teamKey of ['osac::Nonexistent', 'achen::Platform']) {
+    for (const teamKey of ['osac::Nonexistent', 'achen::Nonexistent', `${FLIGHTCTL_PROJECT}::Platform`]) {
       await page.goto(`/#/team-tracker/team-detail?projectId=${OSAC}&teamKey=${teamKey}`);
       await settle(page);
       await expect(page.getByTestId('team-not-found')).toBeVisible();

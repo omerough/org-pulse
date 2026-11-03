@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { watch } from 'vue'
 
-let useProjectId, projectQuery, setDefaultProjectId, resolveProjectId
+let useProjectId, projectQuery, setDefaultProjectId, resolveProjectId, setKnownProjectIds, useKnownProjectIds
 
 describe('useProjectId', () => {
   beforeEach(async () => {
@@ -18,6 +18,8 @@ describe('useProjectId', () => {
     projectQuery = mod.projectQuery
     setDefaultProjectId = mod.setDefaultProjectId
     resolveProjectId = mod.resolveProjectId
+    setKnownProjectIds = mod.setKnownProjectIds
+    useKnownProjectIds = mod.useKnownProjectIds
   })
 
   it('reads the projectId hash param on init', () => {
@@ -107,6 +109,25 @@ describe('useProjectId', () => {
       expect(resolveProjectId(undefined)).toBe('osac')
       expect(resolveProjectId('')).toBe('osac')
       expect(resolveProjectId('flightctl')).toBe('flightctl')
+    })
+  })
+
+  describe('known project IDs', () => {
+    it('is empty until the shell publishes the list and again after it is cleared', () => {
+      expect(useKnownProjectIds().value).toEqual([])
+      setKnownProjectIds(['osac', 'flightctl'])
+      expect(useKnownProjectIds().value).toEqual(['osac', 'flightctl'])
+      setKnownProjectIds([])
+      expect(useKnownProjectIds().value).toEqual([])
+    })
+
+    it('copies the published list and ignores non-arrays', () => {
+      const ids = ['osac']
+      setKnownProjectIds(ids)
+      ids.push('flightctl')
+      expect(useKnownProjectIds().value).toEqual(['osac'])
+      setKnownProjectIds(null)
+      expect(useKnownProjectIds().value).toEqual([])
     })
   })
 })

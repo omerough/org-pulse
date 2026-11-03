@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import TeamRosterView from '../../client/views/TeamRosterView.vue'
 import TeamMembersTable from '../../client/components/TeamMembersTable.vue'
 import { getTeamMetrics, apiRequest } from '@shared/client/services/api'
+import { setKnownProjectIds } from '@shared/client/composables/useProjectId'
 
 // The project context is shared module state, so a leftover mounted view would
 // keep reacting to later tests' project changes — track and unmount in afterEach.
@@ -529,11 +530,13 @@ describe('TeamRosterView — legacy team links in project context', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     rosterLoadingValue.value = false
+    setKnownProjectIds(['osac', 'flightctl'])
   })
 
   // Mounted views share the roster mocks and would react to later tests' state.
   afterEach(() => {
     for (const wrapper of mounted.splice(0)) wrapper.unmount()
+    setKnownProjectIds([])
   })
 
   it('rewrites a legacy name key to the canonical key before the metrics call', async () => {
@@ -547,6 +550,55 @@ describe('TeamRosterView — legacy team links in project context', () => {
     expect(getTeamMetrics).toHaveBeenCalledTimes(1)
     expect(getTeamMetrics).toHaveBeenCalledWith('osac::t-1', 'osac')
     expect(wrapper.text()).toContain('Platform')
+  })
+
+  describe('pre-convergence `<orgKey>::<teamName>` bookmarks', () => {
+    const member = (accountId, name) => ({ accountId, name, jiraDisplayName: name, customFields: {} })
+    const platform = { ...team('t-1', 'Platform'), members: [member('acc-1', 'Alice Chen'), member('acc-2', 'Bob Smith')] }
+    const infra = { ...team('t-2', 'Infrastructure'), members: [member('acc-3', 'Carol White')] }
+
+    it('loads the canonical team and its members, not just the URL rewrite', async () => {
+      setProjectTeams([platform, infra])
+
+      const { wrapper, nav } = mountWithKey('shgriffi::Platform')
+      await flushPromises()
+
+      expect(nav.updateParams).toHaveBeenCalledWith({ teamKey: 'osac::t-1' }, { push: false })
+      expect(getTeamMetrics).toHaveBeenCalledTimes(1)
+      expect(getTeamMetrics).toHaveBeenCalledWith('osac::t-1', 'osac')
+      expect(wrapper.find('[data-testid="team-not-found"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('Platform')
+      expect(wrapper.text()).toContain('Alice Chen')
+      expect(wrapper.text()).toContain('Bob Smith')
+      expect(wrapper.text()).not.toContain('Carol White')
+    })
+
+    it.each([
+      ['another published project prefix', 'flightctl::Platform'],
+      ['an unknown team under an org prefix', 'shgriffi::Nonexistent'],
+      ['a team ID under an org prefix', 'shgriffi::t-1']
+    ])('renders not-found and fetches nothing for %s', async (_label, teamKey) => {
+      setProjectTeams([platform, infra])
+
+      const { wrapper, nav } = mountWithKey(teamKey)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="team-not-found"]').exists()).toBe(true)
+      expect(nav.updateParams).not.toHaveBeenCalled()
+      expect(getTeamMetrics).not.toHaveBeenCalled()
+      expect(wrapper.text()).not.toContain('Alice Chen')
+    })
+
+    it('renders not-found for an ambiguous team name', async () => {
+      setProjectTeams([platform, { ...team('t-9', 'Platform'), members: [member('acc-9', 'Zed Zane')] }])
+
+      const { wrapper, nav } = mountWithKey('shgriffi::Platform')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="team-not-found"]').exists()).toBe(true)
+      expect(nav.updateParams).not.toHaveBeenCalled()
+      expect(getTeamMetrics).not.toHaveBeenCalled()
+    })
   })
 
   it('rewrites a case-variant display key', async () => {

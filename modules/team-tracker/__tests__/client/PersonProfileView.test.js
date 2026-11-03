@@ -16,9 +16,9 @@ const mockFetchDefinitions = vi.fn().mockResolvedValue({})
 
 // useProjectContributions calls useProjectId() at import time, so this ref must be
 // hoisted to exist before that eager call runs.
-const { projectIdValue } = vi.hoisted(() => {
+const { projectIdValue, knownProjectIdsValue } = vi.hoisted(() => {
   const { ref } = require('vue')
-  return { projectIdValue: ref('flightctl') }
+  return { projectIdValue: ref('flightctl'), knownProjectIdsValue: ref(['osac', 'flightctl']) }
 })
 
 vi.mock('@shared/client/composables/useRoster.js', () => ({
@@ -35,7 +35,8 @@ vi.mock('@shared/client/composables/useRoster.js', () => ({
 }))
 
 vi.mock('@shared/client/composables/useProjectId.js', () => ({
-  useProjectId: () => projectIdValue
+  useProjectId: () => projectIdValue,
+  useKnownProjectIds: () => knownProjectIdsValue
 }))
 
 const projectLabels = { osac: 'OSAC', flightctl: 'Flight Control' }
@@ -1567,6 +1568,32 @@ describe('PersonProfileView', () => {
       await wrapper.findAll('button').find(b => b.text() === 'Platform').trigger('click')
 
       expect(wrapper.nav.navigateTo).toHaveBeenCalledWith('team-detail', { teamKey: 'osac::t-1' })
+    })
+
+    it('sends back navigation from a pre-convergence org-prefixed team key to the canonical team', async () => {
+      setProjectRoster({
+        people: [projectPerson('acc-1', 'Alice Chen')],
+        teams: [{ key: 'osac::t-1', id: 't-1', displayName: 'Platform' }]
+      })
+
+      const wrapper = mountView({ accountId: 'acc-1', teamKey: 'shgriffi::Platform' })
+      await flushPromises()
+      await wrapper.findAll('button').find(b => b.text() === 'Platform').trigger('click')
+
+      expect(wrapper.nav.navigateTo).toHaveBeenCalledWith('team-detail', { teamKey: 'osac::t-1' })
+    })
+
+    it('sends back navigation to People for another published project team key', async () => {
+      setProjectRoster({
+        people: [projectPerson('acc-1', 'Alice Chen')],
+        teams: [{ key: 'osac::t-1', id: 't-1', displayName: 'Platform' }]
+      })
+
+      const wrapper = mountView({ accountId: 'acc-1', teamKey: 'flightctl::Platform' })
+      await flushPromises()
+      await wrapper.findAll('button').find(b => b.text() === 'People').trigger('click')
+
+      expect(wrapper.nav.navigateTo).toHaveBeenCalledWith('people')
     })
 
     it('sends back navigation to People when the legacy team key is ambiguous', async () => {
