@@ -702,7 +702,7 @@ export default {
           return
         }
         if (manifest.slug === 'team-tracker' && parts[1] === 'org-allocation') {
-          shellRedirect('team-tracker/reports', { report: 'allocation' })
+          shellRedirect('team-tracker/reports')
           return
         }
         if (manifest.slug === 'team-tracker' && parts[1] === 'org-explorer') {

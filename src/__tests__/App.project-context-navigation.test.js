@@ -425,7 +425,6 @@ describe('shell project resolution during initialization and transitions', () =>
       ['#/team-tracker/team/org%3A%3AFoo', { teamKey: 'org::Foo' }, 'team-detail'],
       ['#/team-tracker/team/org%3A%3AFoo/person/jdoe', { teamKey: 'org::Foo', person: 'jdoe' }, 'person-detail'],
       ['#/team-tracker/trends', { report: 'trends' }, 'reports'],
-      ['#/team-tracker/org-allocation', { report: 'allocation' }, 'reports'],
       ['#/team-tracker/dashboard', {}, 'home'],
       ['#/team-tracker/org-explorer', {}, 'org-dashboard'],
       ['#/team-tracker/team-roster?teamKey=org%3A%3AFoo', { teamKey: 'org::Foo' }, 'team-detail'],
@@ -441,6 +440,17 @@ describe('shell project resolution during initialization and transitions', () =>
       }
       wrapper.unmount()
     }
+  })
+
+  it.each(['osac', 'flightctl'])('the retired org-allocation bookmark opens the Reports catalog in the %s project', async (projectId) => {
+    stubBackend(twoProjects)
+    const wrapper = await mountApp(`#/team-tracker/org-allocation?projectId=${projectId}`)
+
+    await vi.waitFor(() => expect(window.location.hash).toContain('/team-tracker/reports?'))
+    const url = new URL(window.location.hash.slice(1), 'http://localhost')
+    expect(url.searchParams.get('projectId')).toBe(projectId)
+    expect(url.searchParams.has('report')).toBe(false)
+    wrapper.unmount()
   })
 
   it('a legacy in-module bookmark without a project lands on the default project', async () => {
