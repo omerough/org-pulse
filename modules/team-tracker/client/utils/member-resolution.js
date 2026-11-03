@@ -7,24 +7,17 @@ import { getAuxiliaryManager } from '@shared/client/composables/useManagerHierar
 
 export const UNKNOWN_ROLE = 'Unknown'
 
-// Resolves a custom field by display label across the sheets model (label keys)
-// and the in-app model (field-id keys); arrays are joined for display.
-export function getCustomFieldByLabel(member, label, fieldDefinitions = []) {
-  const cf = member?.customFields
-  if (!cf) return null
-  let val = cf[label]
-  if (!val) {
-    const def = fieldDefinitions.find(f => f.label?.toLowerCase() === label.toLowerCase())
-    if (def) val = cf[def.id]
-  }
+// Resolves a custom field by its display label; arrays are joined for display.
+export function getCustomFieldByLabel(member, label) {
+  const val = member?.customFields?.[label]
   if (val == null) return null
   return Array.isArray(val) ? val.join(', ') : val
 }
 
 // Canonical role, or null when none is published (callers bucket null as Unknown).
-export function resolveMemberRole(member, fieldDefinitions = []) {
+export function resolveMemberRole(member) {
   return (
-    getCustomFieldByLabel(member, 'Engineering Speciality', fieldDefinitions) ||
+    getCustomFieldByLabel(member, 'Engineering Speciality') ||
     member?.engineeringSpeciality ||
     member?.specialty ||
     member?.title ||
@@ -100,11 +93,11 @@ export function resolveMemberLocation(member) {
 
 // Headcount by Role derived from loaded members: deduplicated by stable
 // identity, missing roles bucketed as Unknown, total == unique membership.
-export function deriveHeadcountByRole(members = [], fieldDefinitions = []) {
+export function deriveHeadcountByRole(members = []) {
   const unique = dedupeMembersByIdentity(members)
   const byRole = {}
   for (const member of unique) {
-    const role = resolveMemberRole(member, fieldDefinitions) || UNKNOWN_ROLE
+    const role = resolveMemberRole(member) || UNKNOWN_ROLE
     byRole[role] = (byRole[role] || 0) + 1
   }
   return { byRole, totalHeadcount: unique.length }
