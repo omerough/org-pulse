@@ -39,7 +39,7 @@
     "express-session": "^1.19.0",
     "googleapis": "^182.0.0",
     "ldapjs": "^3.0.7",
-    "lucide-vue-next": "^0.577.0",
+    "lucide-vue-next": "^1.0.0",
     "marked": "^18.0.14",
     "mermaid": "^12.2.0",
     "node-fetch": "^3.3.2",
