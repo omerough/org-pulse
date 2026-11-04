@@ -1,9 +1,9 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch, inject } from 'vue'
+import { ref, computed, onMounted, watch, inject } from 'vue'
 import { apiRequest, getProjectPersonMetrics } from '@shared/client/services/api.js'
 import { useAuth } from '@shared/client/composables/useAuth.js'
 import { useRoster } from '@shared/client/composables/useRoster.js'
-import { useProjectId } from '@shared/client/composables/useProjectId.js'
+import { useProjectId, useKnownProjectIds } from '@shared/client/composables/useProjectId.js'
 import { useProjectDisplayName } from '../composables/useProjectDisplayName'
 import { useGithubStats } from '@shared/client/composables/useGithubStats.js'
 import { useGitlabStats } from '@shared/client/composables/useGitlabStats.js'
@@ -22,7 +22,6 @@ import {
 import { resolveMemberLocation } from '../utils/member-resolution.js'
 import { resolveLegacyPersonLink, resolveLegacyTeamKey } from '../utils/legacy-link-resolution.js'
 import PersonFieldEditor from '../components/PersonFieldEditor.vue'
-import { useManagerTutorial } from '../composables/useManagerTutorial'
 
 const nav = inject('moduleNav')
 const { isAdmin, refresh: refreshAuth } = useAuth()
@@ -37,11 +36,11 @@ const {
   auxiliaryManagers
 } = useRoster()
 const projectId = useProjectId()
+const knownProjectIds = useKnownProjectIds()
 const projectLabel = useProjectDisplayName()
 const { canEdit, refresh: refreshPermissions } = usePermissions()
 const { startImpersonating } = useImpersonation()
 const { definitions, fetchDefinitions } = useFieldDefinitions()
-const { resumeTourIfActive, destroyTour } = useManagerTutorial()
 
 const isInAppMode = computed(() => isLegacyPerson.value && rosterData.value?.teamDataSource === 'in-app')
 const visiblePersonFields = computed(() =>
@@ -533,7 +532,7 @@ async function loadPerson() {
 const resolvedFromTeamKey = computed(() => {
   const key = fromTeamKey.value
   if (!key || !projectId.value || !Array.isArray(rosterData.value?.teams) || rosterData.value.projectId !== projectId.value) return key
-  return resolveLegacyTeamKey(rosterData.value, projectId.value, key).teamKey ?? null
+  return resolveLegacyTeamKey(rosterData.value, projectId.value, key, knownProjectIds.value).teamKey ?? null
 })
 
 const fromTeam = computed(() => {
@@ -636,6 +635,10 @@ watch([uid, personName, accountId, ldapUidParam, projectId], loadPerson)
 watch(isAuxiliary, (val) => {
   if (!val && isLegacyPerson.value) loadGitlabStats()
 })
+// Field definitions are legacy-only; reload them if a selected project is cleared.
+watch(projectId, id => {
+  if (!id) fetchDefinitions()
+})
 // Re-resolve on every roster change: handles the deep-link case where the
 // roster is still loading, and avoids a stale person after a project switch.
 watch([rosterData, rosterLoading], () => {
@@ -644,12 +647,7 @@ watch([rosterData, rosterLoading], () => {
 onMounted(() => {
   loadPerson()
   if (isLegacyPerson.value) loadGitlabStats()
-  fetchDefinitions()
-  resumeTourIfActive('person-detail')
-})
-
-onBeforeUnmount(() => {
-  destroyTour()
+  if (!projectId.value) fetchDefinitions()
 })
 </script>
 

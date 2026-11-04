@@ -973,6 +973,33 @@ function trackRequests(page, pattern) {
   return urls;
 }
 
+function stackUrls(stack) {
+  const urls = [];
+  for (let frames = stack; frames; frames = frames.parent) {
+    for (const frame of frames.callFrames) urls.push(frame.url);
+  }
+  return urls;
+}
+
+// Records each matching request with the script URLs on its initiator stack.
+// Chromium-only (CDP), which matches the configured Playwright project.
+async function trackRequestInitiators(page, pattern) {
+  const requests = [];
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Network.enable');
+  cdp.on('Network.requestWillBeSent', ({ request, initiator }) => {
+    if (pattern.test(request.url)) requests.push({ url: request.url, initiatorUrls: stackUrls(initiator.stack) });
+  });
+  return requests;
+}
+
+// The shell mounts the landing page before it resolves a deep link, so AI Impact's
+// landing widgets can fetch field definitions even when another module is the target.
+const LANDING_WIDGET_INITIATOR = /\/(?:FeatureBoardWidget|RfeActionsWidget|PipelineStatsWidget)[-.]/;
+
+const requestsNotFromLandingWidgets = requests =>
+  requests.filter(({ initiatorUrls }) => !initiatorUrls.some(url => LANDING_WIDGET_INITIATOR.test(url)));
+
 function expectAllProjectQualified(urls, projectId) {
   expect(urls.length).toBeGreaterThan(0);
   for (const url of urls) {
@@ -1009,6 +1036,23 @@ test.describe('People & Teams OSAC Canonical Roster @people-teams', () => {
     await settle(page);
     expect(page.url()).toContain('accountId=osac-acc-2');
     expect(page.url()).not.toMatch(LEGACY_LINK_PARAM);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('a project-less deep link resolves to the default project without an unqualified request', async ({ page }) => {
+    const rosterUrls = trackRequests(page, ROSTER_URL);
+    const messageUrls = trackRequests(page, MESSAGES_URL);
+    const permissionUrls = trackRequests(page, /\/permissions\/me(?:\?|$)/);
+
+    await page.goto('/#/team-tracker/people');
+    await settle(page);
+
+    expect(page.url()).toContain(`#/team-tracker/people?projectId=${OSAC}`);
+    expectAllProjectQualified(rosterUrls, OSAC);
+    expectAllProjectQualified(messageUrls, OSAC);
+    expectAllProjectQualified(permissionUrls, OSAC);
+    await expect(mainContent(page)).toContainText('Alice Chen');
 
     expect(page.errors).toHaveLength(0);
   });
@@ -1121,31 +1165,35 @@ test.describe('People & Teams OSAC Legacy Deep Links @people-teams', () => {
     expect(page.errors).toHaveLength(0);
   });
 
-  test('legacy team link osac::<TeamName> is rewritten to the canonical team key', async ({ page }) => {
+  for (const legacyKey of ['osac::Platform', 'achen::Platform']) {
+    test(`legacy team link ${legacyKey} is rewritten to the canonical team key and loads its members`, async ({ page }) => {
+      const metricsUrls = trackRequests(page, TEAM_METRICS_PATH);
+      const metricsResponse = page.waitForResponse(response =>
+        TEAM_METRICS_PATH.test(response.url())
+        && decodeURIComponent(response.url().match(TEAM_METRICS_PATH)[1]) === OSAC_PLATFORM_KEY);
+
+      await page.goto(`/#/team-tracker/team-detail?projectId=${OSAC}&teamKey=${legacyKey}`);
+      await expect.poll(() => decodeURIComponent(page.url())).toContain(`teamKey=${OSAC_PLATFORM_KEY}`);
+      await expect(mainContent(page)).toContainText('Alice Chen');
+      await expect(mainContent(page)).toContainText('Bob Smith');
+      await expect(page.getByTestId('team-not-found')).toHaveCount(0);
+      await page.getByRole('button', { name: 'Delivery' }).click();
+
+      const response = await metricsResponse;
+      expect(response.ok()).toBeTruthy();
+      expect(new URL(response.url()).searchParams.get('projectId')).toBe(OSAC);
+      for (const url of metricsUrls) {
+        expect(decodeURIComponent(url.match(TEAM_METRICS_PATH)[1])).toBe(OSAC_PLATFORM_KEY);
+      }
+
+      expect(page.errors).toHaveLength(0);
+    });
+  }
+
+  test('unknown and foreign-project legacy team links show the not-found state without a metrics call', async ({ page }) => {
     const metricsUrls = trackRequests(page, TEAM_METRICS_PATH);
-    const metricsResponse = page.waitForResponse(response =>
-      TEAM_METRICS_PATH.test(response.url())
-      && decodeURIComponent(response.url().match(TEAM_METRICS_PATH)[1]) === OSAC_PLATFORM_KEY);
 
-    await page.goto(`/#/team-tracker/team-detail?projectId=${OSAC}&teamKey=osac::Platform`);
-    await expect.poll(() => decodeURIComponent(page.url())).toContain(`teamKey=${OSAC_PLATFORM_KEY}`);
-    await expect(mainContent(page)).toContainText('Alice Chen');
-    await page.getByRole('button', { name: 'Delivery' }).click();
-
-    const response = await metricsResponse;
-    expect(response.ok()).toBeTruthy();
-    expect(new URL(response.url()).searchParams.get('projectId')).toBe(OSAC);
-    for (const url of metricsUrls) {
-      expect(decodeURIComponent(url.match(TEAM_METRICS_PATH)[1])).not.toBe('osac::Platform');
-    }
-
-    expect(page.errors).toHaveLength(0);
-  });
-
-  test('unmatched and foreign-prefixed legacy team links show the not-found state without a metrics call', async ({ page }) => {
-    const metricsUrls = trackRequests(page, TEAM_METRICS_PATH);
-
-    for (const teamKey of ['osac::Nonexistent', 'achen::Platform']) {
+    for (const teamKey of ['osac::Nonexistent', 'achen::Nonexistent', `${FLIGHTCTL_PROJECT}::Platform`]) {
       await page.goto(`/#/team-tracker/team-detail?projectId=${OSAC}&teamKey=${teamKey}`);
       await settle(page);
       await expect(page.getByTestId('team-not-found')).toBeVisible();
@@ -1155,7 +1203,19 @@ test.describe('People & Teams OSAC Legacy Deep Links @people-teams', () => {
     expect(page.errors).toHaveLength(0);
   });
 
-  for (const viewId of ['manage', 'org-explorer', 'unassigned']) {
+  test('the retired org-explorer bookmark redirects to the Org Dashboard in the same project', async ({ page }) => {
+    const legacyUrls = trackRequests(page, LEGACY_ENDPOINT);
+
+    await page.goto(`/#/team-tracker/org-explorer?projectId=${OSAC}`);
+    await settle(page);
+
+    expect(page.url()).toContain(`#/team-tracker/org-dashboard?projectId=${OSAC}`);
+    expect(legacyUrls).toHaveLength(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  for (const viewId of ['manage', 'unassigned']) {
     test(`${viewId} shows the project-roster guard and makes no legacy fetch`, async ({ page }) => {
       const legacyUrls = trackRequests(page, LEGACY_ENDPOINT);
 
@@ -1168,6 +1228,87 @@ test.describe('People & Teams OSAC Legacy Deep Links @people-teams', () => {
       expect(page.errors).toHaveLength(0);
     });
   }
+});
+
+const LEGACY_ALLOCATION_ENDPOINT = /\/api\/modules\/team-tracker\/allocation\//;
+const LEGACY_FIELD_DEFINITIONS_ENDPOINT = /\/api\/modules\/team-tracker\/structure\/field-definitions/;
+const LEGACY_CONTRIBUTIONS_ENDPOINT = /\/api\/(?:github|gitlab)\/contributions/;
+
+test.describe('People & Teams Project Context Isolation @people-teams', () => {
+  test.beforeEach(async ({ page }) => {
+    setupErrorTracking(page);
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    logCapturedErrors(page, testInfo);
+  });
+
+  for (const projectId of [OSAC, FLIGHTCTL_PROJECT]) {
+    test(`the retired allocation report deep link for ${projectId} lands on the reports catalog and makes no legacy fetch`, async ({ page }) => {
+      const legacyUrls = trackRequests(page, LEGACY_ENDPOINT);
+      const allocationUrls = trackRequests(page, LEGACY_ALLOCATION_ENDPOINT);
+
+      await page.goto(`/#/team-tracker/reports?report=allocation&projectId=${projectId}`);
+      await settle(page);
+
+      await expect(page.getByRole('heading', { name: 'Reports' }).first()).toBeVisible();
+      await expect(page.locator('.cursor-pointer', { hasText: 'Work Allocation' })).toHaveCount(0);
+      expect(allocationUrls).toHaveLength(0);
+      expect(legacyUrls).toHaveLength(0);
+
+      expect(page.errors).toHaveLength(0);
+    });
+  }
+
+  for (const projectId of [OSAC, FLIGHTCTL_PROJECT]) {
+    test(`the ${projectId} People deep link loads no legacy contribution stats`, async ({ page }) => {
+      const contributionUrls = trackRequests(page, LEGACY_CONTRIBUTIONS_ENDPOINT);
+
+      await page.goto(`/#/team-tracker/people?projectId=${projectId}`);
+      await settle(page);
+
+      await expect(mainContent(page)).toBeVisible();
+      expect(contributionUrls).toHaveLength(0);
+
+      expect(page.errors).toHaveLength(0);
+    });
+  }
+
+  test('legacy bookmarks keep the project in the URL and make no unqualified roster request', async ({ page }) => {
+    const unqualifiedRosterUrls = trackRequests(page, /\/api\/roster$/);
+
+    await page.goto(`/#/people?projectId=${OSAC}`);
+    await settle(page);
+
+    await expect(page).toHaveURL(new RegExp(`#/team-tracker/people\\?projectId=${OSAC}`));
+    expect(unqualifiedRosterUrls).toHaveLength(0);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Team Detail deep link does not load legacy field definitions', async ({ page }) => {
+    const definitionRequests = await trackRequestInitiators(page, LEGACY_FIELD_DEFINITIONS_ENDPOINT);
+
+    await page.goto(`/#/team-tracker/team-detail?projectId=${OSAC}&teamKey=${OSAC_PLATFORM_KEY}`);
+    await settle(page);
+
+    await expect(mainContent(page)).toContainText('Bob Smith');
+    expect(requestsNotFromLandingWidgets(definitionRequests)).toEqual([]);
+
+    expect(page.errors).toHaveLength(0);
+  });
+
+  test('Person Profile deep link does not load legacy field definitions', async ({ page }) => {
+    const definitionRequests = await trackRequestInitiators(page, LEGACY_FIELD_DEFINITIONS_ENDPOINT);
+
+    await page.goto(`/#/team-tracker/person-detail?projectId=${OSAC}&accountId=osac-acc-1`);
+    await settle(page);
+
+    await expect(page.locator('[data-tour="person-profile-card"]')).toContainText('Alice Chen');
+    expect(requestsNotFromLandingWidgets(definitionRequests)).toEqual([]);
+
+    expect(page.errors).toHaveLength(0);
+  });
 });
 
 test.describe('People & Teams OSAC Project Switching @people-teams', () => {

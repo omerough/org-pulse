@@ -1,9 +1,10 @@
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 /**
- * Reactive project context from the shell project selector's hash query
- * param (projectId). The selector is the source of truth; an empty value
- * means the deployment has a single project or no explicit context yet.
+ * Reactive project context: the hash query param (projectId), falling back to
+ * the default project the shell publishes after project discovery. An empty
+ * value therefore means discovery has not finished (or failed), never a
+ * legacy unqualified context; the shell renders no project-aware view then.
  */
 function readProjectIdFromHash() {
   const raw = window.location.hash || '#/'
@@ -21,12 +22,16 @@ function readProjectIdFromHash() {
 }
 
 let _projectId = null
+const _urlProjectId = ref('')
+const _defaultProjectId = ref('')
+const _knownProjectIds = ref([])
 
 export function useProjectId() {
   if (_projectId === null) {
-    _projectId = ref(readProjectIdFromHash())
+    _urlProjectId.value = readProjectIdFromHash()
+    _projectId = computed(() => _urlProjectId.value || _defaultProjectId.value)
     const sync = () => {
-      _projectId.value = readProjectIdFromHash()
+      _urlProjectId.value = readProjectIdFromHash()
     }
     window.addEventListener('hashchange', sync)
     // The shell writes param-only changes via history.pushState/replaceState,
@@ -35,6 +40,25 @@ export function useProjectId() {
     window.addEventListener('urlchange', sync)
   }
   return _projectId
+}
+
+/** Published by the shell selector once the project list is known; '' clears it. */
+export function setDefaultProjectId(projectId) {
+  _defaultProjectId.value = projectId || ''
+}
+
+/** Published by the shell selector with every project ID it discovered; [] clears it. */
+export function setKnownProjectIds(projectIds) {
+  _knownProjectIds.value = Array.isArray(projectIds) ? [...projectIds] : []
+}
+
+export function useKnownProjectIds() {
+  return _knownProjectIds
+}
+
+/** Resolves a URL-supplied project (possibly empty) against the default. */
+export function resolveProjectId(urlProjectId) {
+  return urlProjectId || _defaultProjectId.value
 }
 
 export function projectQuery(projectId) {

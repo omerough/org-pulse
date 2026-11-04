@@ -23,7 +23,7 @@
           @change="toggle(team.key)"
           class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
         />
-        <span class="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap truncate">{{ displayLabel(team) }}</span>
+        <span class="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap truncate">{{ team.displayName }}</span>
         <span
           v-if="showCount"
           class="text-xs text-gray-400 dark:text-gray-500 ml-auto shrink-0"
@@ -34,36 +34,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-
 const props = defineProps({
   teams: { type: Array, required: true },
   modelValue: { type: Array, required: true },
   showCount: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue'])
-
-// Detect duplicate display names across orgs -- org-prefix when ambiguous
-const duplicateNames = computed(() => {
-  const nameOrgs = {}
-  for (const team of props.teams) {
-    const name = team.displayName
-    if (!nameOrgs[name]) nameOrgs[name] = new Set()
-    nameOrgs[name].add(team.orgKey)
-  }
-  const dupes = new Set()
-  for (const [name, orgs] of Object.entries(nameOrgs)) {
-    if (orgs.size > 1) dupes.add(name)
-  }
-  return dupes
-})
-
-function displayLabel(team) {
-  if (duplicateNames.value.has(team.displayName)) {
-    return `${team.orgDisplayName} - ${team.displayName}`
-  }
-  return team.displayName
-}
 
 function toggle(key) {
   const current = [...props.modelValue]

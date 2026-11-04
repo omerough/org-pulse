@@ -92,8 +92,10 @@ non-empty `displayName`, a 16-character lowercase hexadecimal
 published profile whose ID, display name, and revision match the index.
 Missing, empty, malformed, or duplicate index-level discovery data is reported
 as unavailable instead of being treated as a projectless single-project
-deployment. A valid one-entry OSAC index keeps the existing single-project
-behavior, with no selector. The app never maintains a second source registry.
+deployment. A valid one-entry index (OSAC included) renders no selector, but
+the shell still qualifies every URL and request with that project's ID, exactly
+as in a multi-project deployment. The app never maintains a second source
+registry.
 Core demo mode includes a valid one-entry OSAC publication fixture.
 
 A single project's missing, invalid, or index-mismatched profile is isolated
@@ -186,6 +188,7 @@ data); an unset `projectId` keeps returning the legacy response. The two shapes 
 - `title`, `geo`, `city`, `country`, `location`, `ldapUid`, `email`, and `identities` are `null`/`{}`, and `managerRef` is `null`, when not yet published by the project's roster/enrichment sources — never fabricated or inferred. `geo` is Geo/Region; `city`/`country`/`location` are physical location — the two are distinct and never substituted for each other. `ldapUid` is a verified IPA/LDAP uid for a matched person, never derived from name/email/Jira accountId.
 - `manager` is always `null`. It predates enrichment and is kept, unpopulated, for response compatibility; `managerRef` is the enrichment-joined field and the two are never conflated.
 - The project's roster publication (`sources/roster/registry.json`, see [Project-qualified publication envelope](#project-qualified-publication-envelope)) is the sole source for `key`/`accountId`/`displayName`/`active`/`email`/`teamIds`; there is no fallback to the legacy roster for a registered project, including when its publication is unavailable.
+- Legacy team bookmarks (`<orgKey>::<teamName>`, where `orgKey` was the org-root uid) are resolved client-side. The normalized team carries no org, so the prefix is not verified: any prefix that is not a published project ID is accepted, and only an exact, unique `displayName` match resolves. A key with another published project's prefix, an unknown or duplicated name, or a team ID under an org prefix shows Team Not Found. A bookmark whose team was renamed, or whose name now collides, cannot be mapped.
 - The legacy OSAC roster (`orgs`-based `RosterResponse`) remains a separate, parallel path used only when `projectId` is unset; it is not normalized to this shape.
 
 ### Roster-enrichment join (`sources/roster-enrichment/registry.json`)

@@ -68,9 +68,9 @@ standalone sections that render their own content.
 ## Allocation Strategy (`platform/allocation-strategy/`)
 
 The allocation tracker supports customizable work classification via
-`platform/allocation-strategy/`. When present, the allocation tab appears on
-team detail views and the Work Allocation report appears in the reports hub.
-When absent, allocation features are hidden entirely.
+`platform/allocation-strategy/`. When present, People & Teams settings expose
+the allocation configuration. The team-detail allocation tab and the Work
+Allocation report are not offered in project context.
 
 ### Manifest format
 
@@ -149,7 +149,8 @@ module.exports = { classifyIssue, getJiraFields }
 1. Create `platform/allocation-strategy/manifest.json` with your categories
 2. Create `platform/allocation-strategy/classify.js` with classification logic
 3. Run `npm run validate:platform` to verify
-4. The allocation tab and report appear automatically
+4. People & Teams settings expose the allocation configuration; the team-detail
+   allocation tab and the Work Allocation report stay retired
 
 ## Dockerfile layering
 

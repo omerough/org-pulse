@@ -1,24 +1,38 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount as vtuMount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import TeamRosterView from '../../client/views/TeamRosterView.vue'
 import TeamMembersTable from '../../client/components/TeamMembersTable.vue'
-import { getTeamMetrics } from '@shared/client/services/api'
+import { getTeamMetrics, apiRequest } from '@shared/client/services/api'
+import { setKnownProjectIds } from '@shared/client/composables/useProjectId'
 
-// Mock all external dependencies
-const legacyTeam = {
-  key: 'crobson::Model Serving',
-  displayKey: 'AAET::Model Serving',
-  displayName: 'Model Serving',
-  org: 'AI Platform',
-  members: [
-    { name: 'Alice', jiraDisplayName: 'Alice', githubUsername: 'alice', gitlabUsername: 'alice' },
-    { name: 'Bob', jiraDisplayName: 'Bob', githubUsername: 'bob', gitlabUsername: null },
-  ]
+// The project context is shared module state, so a leftover mounted view would
+// keep reacting to later tests' project changes — track and unmount in afterEach.
+let trackedWrappers = []
+function mount(...args) {
+  const wrapper = vtuMount(...args)
+  trackedWrappers.push(wrapper)
+  return wrapper
 }
-const rosterTeams = ref([legacyTeam])
-const rosterDataValue = ref({ teamDataSource: 'sheets' })
-const isNormalizedModelValue = ref(false)
+
+afterEach(() => {
+  trackedWrappers.splice(0).forEach(w => w.unmount())
+})
+
+const canonicalTeam = {
+  key: 'osac::team-1',
+  displayKey: null,
+  displayName: 'Model Serving',
+  members: [
+    { accountId: 'acc-1', name: 'Alice', customFields: {} },
+    { accountId: 'acc-2', name: 'Bob', customFields: {} },
+  ],
+  teamId: 'team-1',
+  metadata: {},
+  description: null
+}
+const rosterTeams = ref([canonicalTeam])
+const rosterDataValue = ref({ projectId: 'osac', teams: [], people: [] })
 const rosterLoadingValue = ref(false)
 const rosterPeopleValue = ref([])
 const rosterAuxiliaryManagersValue = ref({})
@@ -30,78 +44,16 @@ vi.mock('@shared/client/composables/useRoster', () => ({
     loading: rosterLoadingValue,
     multiTeamMembers: ref(new Set()),
     getTeamsForPerson: () => ['Model Serving'],
-    visibleFields: ref([]),
-    primaryDisplayField: ref(null),
     reloadRoster: vi.fn(),
-    isNormalizedModel: isNormalizedModelValue,
     people: rosterPeopleValue,
     auxiliaryManagers: rosterAuxiliaryManagersValue,
     managerNames: ref({})
   })
 }))
 
-vi.mock('@shared/client/composables/useGitlabStats', () => ({
-  useGitlabStats: () => ({
-    loadGitlabStats: vi.fn(),
-    getContributions: () => null
-  })
-}))
-
-vi.mock('@shared/client/composables/useAuth', () => ({
-  useAuth: () => ({ isAdmin: ref(false) })
-}))
-
-vi.mock('@shared/client/composables/usePermissions', () => ({
-  usePermissions: () => ({
-    canEditTeam: () => false,
-    canEdit: () => false,
-    isAdmin: ref(false),
-    isManager: ref(false),
-    tier: ref('user'),
-    managedUids: ref(new Set()),
-    userUid: ref(null),
-    loading: ref(false),
-    refresh: vi.fn()
-  })
-}))
-
-vi.mock('@shared/client/composables/useFieldDefinitions', () => ({
-  useFieldDefinitions: () => ({
-    definitions: ref({ personFields: [], teamFields: [] }),
-    loading: ref(false),
-    fetchDefinitions: vi.fn()
-  })
-}))
-
-const mockLoadTeamDetail = vi.fn()
-const mockLoadRfeConfig = vi.fn()
-
-function setupMockLoadTeamDetail(data) {
-  mockLoadTeamDetail.mockImplementation((_key, onData) => {
-    if (onData) onData(data)
-    return Promise.resolve(data)
-  })
-}
-
-vi.mock('../../client/composables/useOrgRoster', () => ({
-  useOrgRoster: () => ({
-    loadTeamDetail: mockLoadTeamDetail,
-    loadRfeConfig: mockLoadRfeConfig
-  })
-}))
-
 vi.mock('@shared/client/services/api', () => ({
-  refreshMetrics: vi.fn(),
   getTeamMetrics: vi.fn(),
   apiRequest: vi.fn().mockResolvedValue({})
-}))
-
-vi.mock('@shared/client/composables/useGithubStats', () => ({
-  useGithubStats: () => ({ getContributions: () => null })
-}))
-
-vi.mock('../../client/composables/useViewPreference', () => ({
-  useViewPreference: () => ({ viewPreference: ref('table') })
 }))
 
 vi.mock('@shared/client/composables/useModuleLink', () => ({
@@ -126,23 +78,6 @@ vi.mock('../../client/services/autofix-api.js', () => ({
   fetchAutofixData: vi.fn().mockResolvedValue({ issues: [], fetchedAt: null })
 }))
 
-vi.mock('../../client/composables/useAllocationStrategy', () => ({
-  useAllocationStrategy: () => ({
-    configured: { value: true },
-    strategyId: { value: 'ai-eng-40-40-20' },
-    name: { value: '40/40/20 Allocation' },
-    description: { value: '' },
-    categories: {
-      value: [
-        { key: 'tech-debt-quality', name: 'Tech Debt & Quality', color: 'amber', target: 40 },
-        { key: 'new-features', name: 'New Features', color: 'blue', target: 40 },
-        { key: 'learning-enablement', name: 'Learning & Enablement', color: 'green', target: 20 }
-      ]
-    },
-    settingsComponent: { value: null }
-  })
-}))
-
 // Mock chart dependencies
 vi.mock('vue-chartjs', () => ({
   Doughnut: { template: '<div></div>', props: ['data', 'options'] },
@@ -155,7 +90,7 @@ vi.mock('chart.js', () => ({
   CategoryScale: {}, LinearScale: {}, PointElement: {}, LineElement: {}, Filler: {}, Title: {}
 }))
 
-function mountView(teamKey = 'AAET::Model Serving', extraParams = {}) {
+function mountView(teamKey = 'osac::team-1', extraParams = {}) {
   return mount(TeamRosterView, {
     global: {
       provide: {
@@ -173,22 +108,9 @@ function mountView(teamKey = 'AAET::Model Serving', extraParams = {}) {
 describe('TeamRosterView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    rosterTeams.value = [legacyTeam]
-    isNormalizedModelValue.value = false
+    rosterTeams.value = [canonicalTeam]
     rosterLoadingValue.value = false
-    rosterDataValue.value = { teamDataSource: 'sheets' }
-    setupMockLoadTeamDetail({
-      name: 'Model Serving',
-      org: 'AI Platform',
-      productManagers: ['Jane Doe'],
-      engLeads: ['Alice B.'],
-      boards: [{ url: 'https://jira.example.com/boards/123', name: 'MS Board' }],
-      rfeCount: 5,
-      rfeIssues: [],
-      components: ['KServe'],
-      headcount: { totalHeadcount: 10, byRole: { SE: 7, QE: 3 } }
-    })
-    mockLoadRfeConfig.mockResolvedValue({ jiraHost: 'https://redhat.atlassian.net' })
+    rosterDataValue.value = { projectId: 'osac', teams: [], people: [] }
   })
 
   it('renders team header with name and member count', async () => {
@@ -198,32 +120,18 @@ describe('TeamRosterView', () => {
     expect(wrapper.text()).toContain('2 members')
   })
 
-  it('shows enriched header details from org-teams', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-    expect(wrapper.text()).toContain('PM:')
-    expect(wrapper.text()).toContain('Jane Doe')
-    expect(wrapper.text()).toContain('Eng Lead:')
-    expect(wrapper.text()).toContain('Alice B.')
-    expect(wrapper.text()).toContain('5 open PRDs')
-  })
-
   it('renders the visible tabs', async () => {
     const wrapper = mountView()
     await flushPromises()
-    const tabButtons = wrapper.findAll('nav button')
-    const tabLabels = tabButtons.map(b => b.text())
-    expect(tabLabels).toContain('Overview')
-    expect(tabLabels).toContain('Delivery')
+    const tabLabels = wrapper.findAll('nav button').map(b => b.text())
+    expect(tabLabels).toEqual(['Overview', 'Delivery'])
   })
 
-  // PRD Backlog, Allocation, and Autofix are temporarily hidden (HIDDEN_TAB_IDS in TeamRosterView.vue).
+  // Autofix is temporarily hidden (HIDDEN_TAB_IDS in TeamRosterView.vue).
   it('does not render the temporarily hidden tabs', async () => {
     const wrapper = mountView()
     await flushPromises()
     const tabLabels = wrapper.findAll('nav button').map(b => b.text())
-    expect(tabLabels).not.toContain('PRD Backlog')
-    expect(tabLabels).not.toContain('Allocation')
     expect(tabLabels).not.toContain('Autofix')
     expect(tabLabels).toHaveLength(2)
   })
@@ -232,66 +140,48 @@ describe('TeamRosterView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    // Default tab is Delivery
     const overviewTab = wrapper.findAll('nav button').find(b => b.text() === 'Overview')
     await overviewTab.trigger('click')
 
-    // Overview content should be visible
     expect(wrapper.text()).toContain('Team Members')
   })
 
-  it('falls back to Overview when a hidden tab is requested via a stale URL param', async () => {
-    const wrapper = mountView('AAET::Model Serving', { tab: 'backlog' })
+  it.each(['backlog', 'allocation', 'autofix'])('falls back to Overview when the removed or hidden %s tab is requested via a stale URL param', async (tab) => {
+    const wrapper = mountView('osac::team-1', { tab })
     await flushPromises()
 
-    // Overview content renders instead of leaving the view empty
     expect(wrapper.text()).toContain('Team Members')
     const activeLabel = wrapper.findAll('nav button').find(b => b.classes().some(c => c.includes('primary')))
     expect(activeLabel.text()).toBe('Overview')
   })
 
-  it('degrades gracefully when loadTeamDetail fails', async () => {
-    mockLoadTeamDetail.mockImplementation((_key, _onData) => {
-      return Promise.reject(new Error('Not found'))
-    })
+  it('exposes no admin or legacy write controls', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    // Header still shows roster data
-    expect(wrapper.text()).toContain('Model Serving')
-    expect(wrapper.text()).toContain('2 members')
-
-    // Enriched details not shown
-    expect(wrapper.text()).not.toContain('PM:')
-    expect(wrapper.text()).not.toContain('Eng Lead:')
+    const labels = wrapper.findAll('button').map(b => b.text())
+    expect(labels).not.toContain('Refresh')
+    expect(labels).not.toContain('Add Member')
+    expect(labels.join(' ')).not.toContain('Add board')
+    expect(wrapper.text()).not.toContain('Remove from Team')
   })
 
-  it('renders board links in header', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-    expect(wrapper.text()).toContain('Board:')
-    expect(wrapper.text()).toContain('MS Board')
-    const boardLink = wrapper.find('a[target="_blank"]')
-    expect(boardLink.attributes('href')).toContain('boards/123')
-  })
-
-  it('fetches team metrics and detail only once when team resolution and roster-loading both settle in the same tick', async () => {
+  it('fetches team metrics only once when team resolution and roster-loading both settle in the same tick', async () => {
     // A key unused by any other test in this file: earlier tests' mounted
     // instances are never unmounted and share these module-level refs, so a
     // key already in use would let their watchers answer too.
     const raceTeam = {
-      key: 'race::Team',
-      displayKey: 'RACE::Team',
+      key: 'osac::race-team',
+      displayKey: null,
       displayName: 'Race Team',
-      members: [{ name: 'Casey', jiraDisplayName: 'Casey' }]
+      members: [{ accountId: 'acc-9', name: 'Casey', customFields: {} }]
     }
     rosterTeams.value = []
     rosterLoadingValue.value = true
-    mountView('race::Team')
+    mountView('osac::race-team')
     await flushPromises()
 
     expect(getTeamMetrics).not.toHaveBeenCalled()
-    expect(mockLoadTeamDetail).not.toHaveBeenCalled()
 
     // Mirrors useRoster's fetchRoster(): rosterData/teams and loading flip
     // in the same synchronous turn, so both reactive effects land in one flush.
@@ -300,7 +190,6 @@ describe('TeamRosterView', () => {
     await flushPromises()
 
     expect(getTeamMetrics).toHaveBeenCalledTimes(1)
-    expect(mockLoadTeamDetail).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -320,7 +209,6 @@ describe('TeamRosterView — project-qualified team (normalized model)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     rosterTeams.value = [projectTeam]
-    isNormalizedModelValue.value = true
     rosterLoadingValue.value = false
     rosterDataValue.value = { projectId: 'flightctl', teams: [], people: [] }
   })
@@ -340,17 +228,15 @@ describe('TeamRosterView — project-qualified team (normalized model)', () => {
     })
   }
 
-  it('renders the project team and its members without calling legacy team detail/RFE endpoints', async () => {
+  it('renders the project team and its members without calling any legacy endpoint', async () => {
     const wrapper = mountProjectView()
     await flushPromises()
 
     expect(wrapper.text()).toContain('Core')
     expect(wrapper.text()).toContain('Ada Lovelace')
 
-    expect(mockLoadTeamDetail).not.toHaveBeenCalled()
-    expect(mockLoadRfeConfig).not.toHaveBeenCalled()
-    // Delivery metrics are canonical here, not legacy: fetched via the same
-    // endpoint, scoped by projectId rather than skipped.
+    expect(apiRequest).not.toHaveBeenCalled()
+    // Delivery metrics are scoped by the roster's project.
     expect(getTeamMetrics).toHaveBeenCalledWith('flightctl::team-1', 'flightctl')
   })
 
@@ -452,9 +338,7 @@ describe('TeamRosterView — project-qualified team (normalized model)', () => {
     })
   })
 
-  it('does not call legacy endpoints while the roster is still resolving mid project-switch', async () => {
-    // isNormalizedModel is still false (shape-based, ambiguous) while the roster clears.
-    isNormalizedModelValue.value = false
+  it('requests nothing while the roster is still resolving mid project-switch', async () => {
     rosterLoadingValue.value = true
     rosterDataValue.value = null
     rosterTeams.value = []
@@ -462,21 +346,17 @@ describe('TeamRosterView — project-qualified team (normalized model)', () => {
     const wrapper = mountProjectView()
     await flushPromises()
 
-    expect(mockLoadTeamDetail).not.toHaveBeenCalled()
-    expect(mockLoadRfeConfig).not.toHaveBeenCalled()
     expect(getTeamMetrics).not.toHaveBeenCalled()
 
-    // The project's roster resolves as normalized.
+    // The project's roster resolves.
     rosterLoadingValue.value = false
     rosterDataValue.value = { projectId: 'flightctl', teams: [], people: [] }
     rosterTeams.value = [projectTeam]
-    isNormalizedModelValue.value = true
     await flushPromises()
 
     expect(wrapper.text()).toContain('Core')
-    expect(mockLoadTeamDetail).not.toHaveBeenCalled()
-    expect(mockLoadRfeConfig).not.toHaveBeenCalled()
-    // Canonical delivery metrics are now fetched, scoped to the resolved project.
+    expect(apiRequest).not.toHaveBeenCalled()
+    // Delivery metrics are now fetched, scoped to the resolved project.
     expect(getTeamMetrics).toHaveBeenCalledWith('flightctl::team-1', 'flightctl')
   })
 })
@@ -495,26 +375,25 @@ describe('TeamRosterView — stale team metrics requests (OSAC-6322)', () => {
   })
 
   it('drops a stale response from the previously selected team when a newer team-switch request resolves first', async () => {
-    const teamA = { key: 'org::TeamA', displayKey: 'ORG::TeamA', displayName: 'Team A', members: [{ name: 'P1', jiraDisplayName: 'P1' }] }
-    const teamB = { key: 'org::TeamB', displayKey: 'ORG::TeamB', displayName: 'Team B', members: [{ name: 'P2', jiraDisplayName: 'P2' }] }
+    const teamA = { key: 'osac::team-a', displayKey: null, displayName: 'Team A', members: [{ accountId: 'p1', name: 'P1', customFields: {} }] }
+    const teamB = { key: 'osac::team-b', displayKey: null, displayName: 'Team B', members: [{ accountId: 'p2', name: 'P2', customFields: {} }] }
     rosterTeams.value = [teamA, teamB]
-    isNormalizedModelValue.value = false
     rosterLoadingValue.value = false
-    rosterDataValue.value = { teamDataSource: 'sheets' }
+    rosterDataValue.value = { projectId: 'osac', teams: [], people: [] }
 
     const deferredA = deferred()
     const deferredB = deferred()
     getTeamMetrics.mockImplementationOnce(() => deferredA.promise)
     getTeamMetrics.mockImplementationOnce(() => deferredB.promise)
 
-    const params = ref({ teamKey: 'ORG::TeamA' })
+    const params = ref({ teamKey: 'osac::team-a' })
     const wrapper = mount(TeamRosterView, {
       global: { provide: { moduleNav: { params, goBack: vi.fn(), navigateTo: vi.fn(), updateParams: vi.fn() } } }
     })
     await flushPromises()
 
     // Switch to Team B before Team A's (older) request has resolved.
-    params.value = { teamKey: 'ORG::TeamB' }
+    params.value = { teamKey: 'osac::team-b' }
     await flushPromises()
     expect(getTeamMetrics).toHaveBeenCalledTimes(2)
 
@@ -544,7 +423,6 @@ describe('TeamRosterView — stale team metrics requests (OSAC-6322)', () => {
       description: null
     }
     rosterTeams.value = [projectTeam]
-    isNormalizedModelValue.value = true
     rosterLoadingValue.value = false
     rosterDataValue.value = { projectId: 'flightctl', teams: [], people: [] }
 
@@ -590,17 +468,16 @@ describe('TeamRosterView — stale team metrics requests (OSAC-6322)', () => {
   })
 
   it('retries after a failed fetch once a later trigger fires for the same team/project', async () => {
-    const team = { key: 'org::TeamA', displayKey: 'ORG::TeamA', displayName: 'Team A', members: [{ name: 'P1', jiraDisplayName: 'P1' }] }
+    const team = { key: 'osac::team-a', displayKey: null, displayName: 'Team A', members: [{ accountId: 'p1', name: 'P1', customFields: {} }] }
     rosterTeams.value = [team]
-    isNormalizedModelValue.value = false
     rosterLoadingValue.value = false
-    rosterDataValue.value = { teamDataSource: 'sheets' }
+    rosterDataValue.value = { projectId: 'osac', teams: [], people: [] }
 
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     getTeamMetrics.mockRejectedValueOnce(new Error('network error'))
     getTeamMetrics.mockResolvedValueOnce({ available: true, memberCount: 1, aggregate: { resolvedCount: 42, resolvedPoints: 0, inProgressCount: 0, avgCycleTimeDays: null } })
 
-    const params = ref({ teamKey: 'ORG::TeamA' })
+    const params = ref({ teamKey: 'osac::team-a' })
     const wrapper = mount(TeamRosterView, {
       global: { provide: { moduleNav: { params, goBack: vi.fn(), navigateTo: vi.fn(), updateParams: vi.fn() } } }
     })
@@ -652,13 +529,14 @@ describe('TeamRosterView — legacy team links in project context', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    isNormalizedModelValue.value = true
     rosterLoadingValue.value = false
+    setKnownProjectIds(['osac', 'flightctl'])
   })
 
   // Mounted views share the roster mocks and would react to later tests' state.
   afterEach(() => {
     for (const wrapper of mounted.splice(0)) wrapper.unmount()
+    setKnownProjectIds([])
   })
 
   it('rewrites a legacy name key to the canonical key before the metrics call', async () => {
@@ -672,6 +550,55 @@ describe('TeamRosterView — legacy team links in project context', () => {
     expect(getTeamMetrics).toHaveBeenCalledTimes(1)
     expect(getTeamMetrics).toHaveBeenCalledWith('osac::t-1', 'osac')
     expect(wrapper.text()).toContain('Platform')
+  })
+
+  describe('pre-convergence `<orgKey>::<teamName>` bookmarks', () => {
+    const member = (accountId, name) => ({ accountId, name, jiraDisplayName: name, customFields: {} })
+    const platform = { ...team('t-1', 'Platform'), members: [member('acc-1', 'Alice Chen'), member('acc-2', 'Bob Smith')] }
+    const infra = { ...team('t-2', 'Infrastructure'), members: [member('acc-3', 'Carol White')] }
+
+    it('loads the canonical team and its members, not just the URL rewrite', async () => {
+      setProjectTeams([platform, infra])
+
+      const { wrapper, nav } = mountWithKey('shgriffi::Platform')
+      await flushPromises()
+
+      expect(nav.updateParams).toHaveBeenCalledWith({ teamKey: 'osac::t-1' }, { push: false })
+      expect(getTeamMetrics).toHaveBeenCalledTimes(1)
+      expect(getTeamMetrics).toHaveBeenCalledWith('osac::t-1', 'osac')
+      expect(wrapper.find('[data-testid="team-not-found"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('Platform')
+      expect(wrapper.text()).toContain('Alice Chen')
+      expect(wrapper.text()).toContain('Bob Smith')
+      expect(wrapper.text()).not.toContain('Carol White')
+    })
+
+    it.each([
+      ['another published project prefix', 'flightctl::Platform'],
+      ['an unknown team under an org prefix', 'shgriffi::Nonexistent'],
+      ['a team ID under an org prefix', 'shgriffi::t-1']
+    ])('renders not-found and fetches nothing for %s', async (_label, teamKey) => {
+      setProjectTeams([platform, infra])
+
+      const { wrapper, nav } = mountWithKey(teamKey)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="team-not-found"]').exists()).toBe(true)
+      expect(nav.updateParams).not.toHaveBeenCalled()
+      expect(getTeamMetrics).not.toHaveBeenCalled()
+      expect(wrapper.text()).not.toContain('Alice Chen')
+    })
+
+    it('renders not-found for an ambiguous team name', async () => {
+      setProjectTeams([platform, { ...team('t-9', 'Platform'), members: [member('acc-9', 'Zed Zane')] }])
+
+      const { wrapper, nav } = mountWithKey('shgriffi::Platform')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="team-not-found"]').exists()).toBe(true)
+      expect(nav.updateParams).not.toHaveBeenCalled()
+      expect(getTeamMetrics).not.toHaveBeenCalled()
+    })
   })
 
   it('rewrites a case-variant display key', async () => {
@@ -729,15 +656,15 @@ describe('TeamRosterView — legacy team links in project context', () => {
     expect(getTeamMetrics).toHaveBeenCalledWith('osac::Platform', 'osac')
   })
 
-  it('does not rewrite a missing team in a legacy (non-normalized) roster', async () => {
-    isNormalizedModelValue.value = false
-    rosterDataValue.value = { teamDataSource: 'sheets' }
+  it('does not rewrite or fetch metrics while no roster has loaded', async () => {
+    rosterDataValue.value = null
     rosterTeams.value = []
 
     const { wrapper, nav } = mountWithKey('osac::Platform')
     await flushPromises()
 
     expect(nav.updateParams).not.toHaveBeenCalled()
+    expect(getTeamMetrics).not.toHaveBeenCalled()
     expect(wrapper.find('[data-testid="team-not-found"]').exists()).toBe(true)
   })
 })

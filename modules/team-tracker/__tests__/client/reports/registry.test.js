@@ -1,19 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-
-vi.mock('@/platform-loader', () => ({
-  loadAllocationStrategy: () => ({
-    id: 'ai-eng-40-40-20',
-    name: '40/40/20 Allocation',
-    description: 'AI Engineering allocation strategy',
-    categories: [
-      { key: 'tech-debt-quality', name: 'Tech Debt & Quality', color: 'amber', target: 40 },
-      { key: 'new-features', name: 'New Features', color: 'blue', target: 40 },
-      { key: 'learning-enablement', name: 'Learning & Enablement', color: 'green', target: 20 }
-    ]
-  })
-}))
-
-const { reports } = await import('../../../client/reports/registry')
+import { describe, it, expect } from 'vitest'
+import { reports } from '../../../client/reports/registry'
 
 describe('Report Registry', () => {
   it('has at least one report', () => {
@@ -44,38 +30,14 @@ describe('Report Registry', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('contains expected reports when strategy is configured', () => {
+  it('contains the project-aware reports and no org-scoped allocation report', () => {
     const ids = reports.map(r => r.id)
-    expect(ids).toContain('trends')
-    expect(ids).toContain('team-comparison')
-    expect(ids).toContain('allocation')
+    expect(ids).toEqual(['trends', 'team-comparison'])
   })
 
-  it('trends report uses org and team filters', () => {
-    const trends = reports.find(r => r.id === 'trends')
-    expect(trends.filters).toEqual(['org', 'team'])
-  })
-
-  it('allocation report uses no shared filters', () => {
-    const allocation = reports.find(r => r.id === 'allocation')
-    expect(allocation.filters).toEqual([])
-  })
-
-  it('allocation report description includes strategy name', () => {
-    const allocation = reports.find(r => r.id === 'allocation')
-    expect(allocation.description).toContain('40/40/20 Allocation')
-  })
-})
-
-describe('Report Registry without strategy', () => {
-  it('excludes allocation report when no strategy configured', async () => {
-    vi.resetModules()
-    vi.doMock('@/platform-loader', () => ({
-      loadAllocationStrategy: () => null
-    }))
-    const { reports: reportsNoStrategy } = await import('../../../client/reports/registry')
-    const ids = reportsNoStrategy.map(r => r.id)
-    expect(ids).not.toContain('allocation')
-    vi.doUnmock('@/platform-loader')
+  it('reports filter by team only', () => {
+    for (const report of reports) {
+      expect(report.filters).toEqual(['team'])
+    }
   })
 })

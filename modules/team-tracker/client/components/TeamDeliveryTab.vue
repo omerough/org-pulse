@@ -33,39 +33,10 @@
         :subtitle="githubSubtitle"
       />
       <MetricCard
-        v-if="!isNormalizedModel"
-        label="GitLab Contributions"
-        :value="teamGitlabTotal"
-        :subtitle="gitlabConfiguredCount < uniqueCount ? `${gitlabConfiguredCount}/${uniqueCount} members configured` : 'Last year'"
-      >
-        <template v-if="Object.keys(teamGitlabByInstance).length > 1" #footer>
-          <div class="mt-1 space-y-0.5">
-            <div
-              v-for="(count, baseUrl) in teamGitlabByInstance"
-              :key="baseUrl"
-              class="flex justify-between text-xs text-gray-400 dark:text-gray-500"
-            >
-              <span class="truncate mr-2">{{ baseUrl.replace(/^https?:\/\//, '') }}</span>
-              <span class="font-medium tabular-nums">{{ count }}</span>
-            </div>
-          </div>
-        </template>
-      </MetricCard>
-      <MetricCard
-        v-else
         label="GitLab Contributions"
         value="Unsupported"
         tooltip="GitLab contributions are not yet published for canonical (project-qualified) teams."
       />
-    </div>
-
-    <div v-if="!isNormalizedModel" class="mb-4 pl-1">
-      <button
-        @click="openTeamHistory"
-        class="text-xs text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 font-medium"
-      >
-        View History
-      </button>
     </div>
 
     <!-- Export -->
@@ -85,15 +56,11 @@
     <!-- Content -->
     <PersonTable
       :members="uniqueMembers"
-      :multiTeamMembers="multiTeamMembers"
       :getTeamsForPerson="getTeamsForPerson"
       :memberMetrics="memberMetricsMap"
       :teamKey="team?.key"
-      :getGithubContribution="isNormalizedModel ? getProjectContribution : null"
-      :gitlabSupported="!isNormalizedModel"
-      :showHistory="!isNormalizedModel"
+      :getGithubContribution="getProjectContribution"
       @select="$emit('select-person', $event)"
-      @view-history="openPersonHistory"
     />
 
     <!-- In-Progress Issues Modal -->
@@ -112,14 +79,6 @@
       @close="showResolvedIssues = false"
     />
 
-    <SnapshotHistoryModal
-      v-if="showSnapshotHistory"
-      :title="snapshotHistoryTitle"
-      :snapshots="snapshotHistoryData"
-      :loading="snapshotHistoryLoading"
-      :mode="snapshotHistoryMode"
-      @close="showSnapshotHistory = false"
-    />
   </div>
 </template>
 
@@ -129,13 +88,9 @@ import PersonTable from './PersonTable.vue'
 import MetricCard from './MetricCard.vue'
 import ResolvedIssuesModal from './ResolvedIssuesModal.vue'
 import InProgressIssuesModal from './InProgressIssuesModal.vue'
-import SnapshotHistoryModal from './SnapshotHistoryModal.vue'
 import { useRoster } from '@shared/client/composables/useRoster'
 import { useProjectId } from '@shared/client/composables/useProjectId'
-import { useGithubStats } from '@shared/client/composables/useGithubStats'
-import { useGitlabStats } from '@shared/client/composables/useGitlabStats'
 import { useProjectContributions } from '@shared/client/composables/useProjectContributions'
-import { getTeamSnapshots, getPersonSnapshots } from '@shared/client/services/api'
 
 const props = defineProps({
   team: { type: Object, required: true },
@@ -145,9 +100,7 @@ const props = defineProps({
 
 defineEmits(['select-person'])
 
-const { multiTeamMembers, getTeamsForPerson, visibleFields, isNormalizedModel } = useRoster()
-const { getContributions } = useGithubStats()
-const { getContributions: getGitlabContributions } = useGitlabStats()
+const { getTeamsForPerson } = useRoster()
 const { getByAccountId: getProjectContribution, loadContributions: loadProjectContributions } = useProjectContributions()
 const projectId = useProjectId()
 
@@ -158,19 +111,12 @@ watch(projectId, loadProjectContributions)
 
 const showResolvedIssues = ref(false)
 const showInProgressIssues = ref(false)
-const showSnapshotHistory = ref(false)
-const snapshotHistoryData = ref([])
-const snapshotHistoryLoading = ref(false)
-const snapshotHistoryTitle = ref('')
-const snapshotHistoryMode = ref('team')
-
 const uniqueMembers = computed(() => {
   if (!props.team) return []
   const seen = new Set()
   return props.team.members.filter(m => {
-    const key = m.accountId || m.jiraDisplayName
-    if (seen.has(key)) return false
-    seen.add(key)
+    if (seen.has(m.accountId)) return false
+    seen.add(m.accountId)
     return true
   })
 })
@@ -182,7 +128,7 @@ const memberMetricsMap = computed(() => {
   if (props.teamMetrics?.members) {
     for (const m of props.teamMetrics.members) {
       if (m.metrics) {
-        map.set(m.accountId || m.jiraDisplayName, m.metrics)
+        map.set(m.accountId, m.metrics)
       }
     }
   }
@@ -192,14 +138,13 @@ const memberMetricsMap = computed(() => {
 const accountIdToName = computed(() => {
   const map = new Map()
   for (const m of uniqueMembers.value) {
-    if (m.accountId) map.set(m.accountId, m.name || m.jiraDisplayName)
+    map.set(m.accountId, m.name)
   }
   return map
 })
 
 // Canonical issues carry accountId, not a display name; resolve it here from the roster join.
 function withResolvedAssignee(issues) {
-  if (!isNormalizedModel.value) return issues
   return issues.map(issue => ({
     ...issue,
     assignee: accountIdToName.value.get(issue.accountId) || issue.accountId || null
@@ -209,14 +154,8 @@ function withResolvedAssignee(issues) {
 const resolvedIssuesForModal = computed(() => withResolvedAssignee(props.teamMetrics?.resolvedIssues || []))
 const inProgressIssuesForModal = computed(() => withResolvedAssignee(props.teamMetrics?.inProgressIssues || []))
 
-// Canonical total only counts members with a resolved identity; null (not 0) when none resolved.
+// The total only counts members with a resolved identity; null (not 0) when none resolved.
 const teamGithubTotal = computed(() => {
-  if (!isNormalizedModel.value) {
-    return uniqueMembers.value.reduce((sum, m) => {
-      const c = m.githubUsername ? getContributions(m.githubUsername) : null
-      return sum + (c?.totalContributions ?? 0)
-    }, 0)
-  }
   let sum = 0
   let any = false
   for (const m of uniqueMembers.value) {
@@ -250,94 +189,30 @@ const canonicalLookbackDays = computed(() => {
 })
 
 const deliveryWindowSubtitle = computed(() => {
-  if (!isNormalizedModel.value) return 'Last year'
   const days = canonicalLookbackDays.value
   if (days == null) return ''
   return days === 365 ? 'Last year' : `Last ${days} days`
 })
 
 const githubSubtitle = computed(() => {
-  if (!isNormalizedModel.value) return 'Last year'
   const availableCount = uniqueMembers.value.filter(m => typeof getProjectContribution(m.accountId)?.github?.totalContributions === 'number').length
   return availableCount < uniqueCount.value ? `${availableCount}/${uniqueCount.value} with data` : 'Last year'
 })
 
-const teamGitlabTotal = computed(() => {
-  return uniqueMembers.value.reduce((sum, m) => {
-    const c = m.gitlabUsername ? getGitlabContributions(m.gitlabUsername) : null
-    return sum + (c?.totalContributions ?? 0)
-  }, 0)
-})
-
-const gitlabConfiguredCount = computed(() => uniqueMembers.value.filter(m => m.gitlabUsername).length)
-
-const teamGitlabByInstance = computed(() => {
-  const totals = {}
-  for (const m of uniqueMembers.value) {
-    if (!m.gitlabUsername) continue
-    const instances = getGitlabContributions(m.gitlabUsername)?.instances || {}
-    for (const [baseUrl, data] of Object.entries(instances)) {
-      totals[baseUrl] = (totals[baseUrl] || 0) + (data.totalContributions || 0)
-    }
-  }
-  return totals
-})
-
-async function openPersonHistory(member) {
-  // Snapshot history is legacy-only; never call it for a canonical team.
-  if (isNormalizedModel.value) return
-  showSnapshotHistory.value = true
-  snapshotHistoryLoading.value = true
-  snapshotHistoryTitle.value = `${member.jiraDisplayName || member.name} - Metric History`
-  snapshotHistoryMode.value = 'person'
-  snapshotHistoryData.value = []
-  try {
-    const result = await getPersonSnapshots(props.team.key, member.jiraDisplayName || member.name)
-    snapshotHistoryData.value = result.snapshots || []
-  } catch (err) {
-    console.error('Failed to load person snapshots:', err)
-  } finally {
-    snapshotHistoryLoading.value = false
-  }
-}
-
-async function openTeamHistory() {
-  if (isNormalizedModel.value) return
-  showSnapshotHistory.value = true
-  snapshotHistoryLoading.value = true
-  snapshotHistoryTitle.value = `${props.teamDisplayName} - Metric History`
-  snapshotHistoryMode.value = 'team'
-  snapshotHistoryData.value = []
-  try {
-    const result = await getTeamSnapshots(props.team.key)
-    snapshotHistoryData.value = result.snapshots || []
-  } catch (err) {
-    console.error('Failed to load team snapshots:', err)
-  } finally {
-    snapshotHistoryLoading.value = false
-  }
-}
-
 function exportCsv() {
-  const customFieldHeaders = visibleFields.value.map(f => f.label)
-  const headers = ['Name', ...customFieldHeaders, 'Issues Resolved', 'Story Points', 'Avg Cycle Time (days)', 'In Progress', 'GitHub Contributions (1yr)', 'GitLab Contributions (1yr)', 'Teams']
+  const headers = ['Name', 'Issues Resolved', 'Story Points', 'Avg Cycle Time (days)', 'In Progress', 'GitHub Contributions (1yr)', 'GitLab Contributions (1yr)', 'Teams']
   const rows = uniqueMembers.value.map(member => {
-    const metrics = memberMetricsMap.value.get(member.accountId || member.jiraDisplayName)
-    const teamCount = getTeamsForPerson(member.accountId || member.jiraDisplayName).length
-    const ghCount = isNormalizedModel.value
-      ? (getProjectContribution(member.accountId)?.github?.totalContributions ?? '')
-      : (getContributions(member.githubUsername)?.totalContributions ?? '')
-    const glCount = isNormalizedModel.value ? 'Unsupported' : (getGitlabContributions(member.gitlabUsername)?.totalContributions ?? '')
-    const customFieldValues = visibleFields.value.map(f => member.customFields?.[f.key] || '')
+    const metrics = memberMetricsMap.value.get(member.accountId)
+    const teamCount = getTeamsForPerson(member.accountId).length
+    const ghCount = getProjectContribution(member.accountId)?.github?.totalContributions ?? ''
     return [
       member.name,
-      ...customFieldValues,
       metrics?.resolvedCount ?? '',
       metrics?.resolvedPoints ?? '',
       metrics?.avgCycleTimeDays ?? '',
       metrics?.inProgressCount ?? '',
       ghCount,
-      glCount,
+      'Unsupported',
       teamCount
     ]
   })

@@ -14,27 +14,26 @@ vi.mock('@shared/client/composables/useModuleLink', () => ({
   })
 }))
 
-const { mockProjectId } = vi.hoisted(() => ({ mockProjectId: { value: '' } }))
+const { mockProjectId } = vi.hoisted(() => ({ mockProjectId: { value: 'osac' } }))
 vi.mock('@shared/client/composables/useProjectId', () => ({
   useProjectId: () => mockProjectId,
   projectParam: (id) => (id ? { projectId: id } : {})
 }))
 
 const { mockRoster } = vi.hoisted(() => ({
-  mockRoster: { managerNames: { value: {} }, people: { value: [] }, auxiliaryManagers: { value: {} } }
+  mockRoster: { people: { value: [] }, auxiliaryManagers: { value: {} } }
 }))
 vi.mock('@shared/client/composables/useRoster', () => ({ useRoster: () => mockRoster }))
 
 function resetRoster() {
-  mockRoster.managerNames.value = {}
   mockRoster.people.value = []
   mockRoster.auxiliaryManagers.value = {}
 }
 
 const sampleMembers = [
-  { name: 'Alice Smith', title: 'Senior Software Engineer', geo: 'NA', country: 'USA' },
-  { name: 'Bob Jones', title: 'Senior Software Engineer', geo: 'NA', country: 'CAN' },
-  { name: 'Carla Diaz', title: 'Principal Software Engineer', geo: 'EMEA', country: 'ESP' },
+  { accountId: 'a-1', name: 'Alice Smith', title: 'Senior Software Engineer', geo: 'NA', country: 'USA' },
+  { accountId: 'a-2', name: 'Bob Jones', title: 'Senior Software Engineer', geo: 'NA', country: 'CAN' },
+  { accountId: 'a-3', name: 'Carla Diaz', title: 'Principal Software Engineer', geo: 'EMEA', country: 'ESP' },
 ]
 
 describe('TeamMembersTable region/country filters', () => {
@@ -93,7 +92,7 @@ describe('TeamMembersTable region/country filters', () => {
 
 describe('TeamMembersTable project context preservation (OSAC-5968)', () => {
   beforeEach(() => {
-    mockProjectId.value = ''
+    mockProjectId.value = 'osac'
   })
 
   it('preserves the selected project and uses accountId identity for a project-qualified member', () => {
@@ -107,20 +106,28 @@ describe('TeamMembersTable project context preservation (OSAC-5968)', () => {
     expect(href).not.toContain('person=')
   })
 
-  it('leaves legacy OSAC uid links unaffected when no project is selected', () => {
-    const member = { name: 'Alice Smith', uid: 'asmith' }
+  it('links by accountId even when a legacy uid is present', () => {
+    const member = { name: 'Alice Smith', accountId: 'acc-1', uid: 'asmith' }
     const wrapper = mount(TeamMembersTable, { props: { members: [member] } })
 
     const href = wrapper.find('a').attributes('href')
-    expect(href).toContain('uid=asmith')
-    expect(href).not.toContain('projectId=')
+    expect(href).toContain('accountId=acc-1')
+    expect(href).not.toContain('uid=')
+  })
+
+  it('renders no write controls or custom-field filters', () => {
+    const wrapper = mount(TeamMembersTable, { props: { members: sampleMembers } })
+
+    expect(wrapper.text()).not.toContain('Remove from Team')
+    expect(wrapper.text()).not.toContain('Component')
+    expect(wrapper.findAll('thead th').map(th => th.text())).toEqual(['Name ↑', 'Manager', 'Role', 'Region', 'Location'])
   })
 })
 
 describe('TeamMembersTable direct manager resolution', () => {
   beforeEach(() => {
     resetRoster()
-    mockProjectId.value = ''
+    mockProjectId.value = 'osac'
   })
 
   function managerCell(wrapper) {
@@ -165,26 +172,6 @@ describe('TeamMembersTable direct manager resolution', () => {
     expect(href).not.toContain('acc-9')
   })
 
-  it('shows an external manager as text when no project is selected', () => {
-    mockProjectId.value = ''
-    mockRoster.auxiliaryManagers.value = { 'ext-uid': { ldapUid: 'ext-uid', displayName: 'External Manager' } }
-    const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'external', ldapUid: 'ext-uid' } }
-    const cell = managerCell(mount(TeamMembersTable, { props: { members: [member] } }))
-
-    expect(cell.text()).toBe('External Manager')
-    expect(cell.find('a').exists()).toBe(false)
-  })
-
-  it('shows a roster manager as text when no project is selected', () => {
-    mockProjectId.value = ''
-    mockRoster.people.value = [{ accountId: 'mgr-1', displayName: 'Manager One' }]
-    const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'roster', accountId: 'mgr-1' } }
-    const cell = managerCell(mount(TeamMembersTable, { props: { members: [member] } }))
-
-    expect(cell.text()).toBe('Manager One')
-    expect(cell.find('a').exists()).toBe(false)
-  })
-
   it('shows an external manager as text when the ldapUid has no auxiliary record', () => {
     mockProjectId.value = 'osac'
     const member = { name: 'Alice', accountId: 'acc-1', managerRef: { kind: 'external', ldapUid: 'ghost' } }
@@ -209,15 +196,6 @@ describe('TeamMembersTable direct manager resolution', () => {
 
     expect(cell.text()).toBe('—')
   })
-
-  it('resolves a legacy OSAC uid via managerNames with a link', () => {
-    mockRoster.managerNames.value = { 'osac-mgr': 'Legacy Manager' }
-    const member = { name: 'Alice', uid: 'asmith', managerUid: 'osac-mgr' }
-    const cell = managerCell(mount(TeamMembersTable, { props: { members: [member] } }))
-
-    expect(cell.text()).toBe('Legacy Manager')
-    expect(cell.find('a').attributes('href')).toContain('uid=osac-mgr')
-  })
 })
 
 describe('TeamMembersTable display-name collisions', () => {
@@ -239,18 +217,5 @@ describe('TeamMembersTable display-name collisions', () => {
     // Each row keeps its own manager/role — rows are not collapsed by name.
     expect(rows[0].findAll('td')[1].text()).toBe('Manager A')
     expect(rows[1].findAll('td')[1].text()).toBe('Manager B')
-  })
-
-  it('renders distinct rows for id-less members sharing a display name', () => {
-    const members = [
-      { name: 'Alex Kim', title: 'QE' },
-      { name: 'Alex Kim', title: 'SWE' }
-    ]
-    const wrapper = mount(TeamMembersTable, { props: { members } })
-
-    const rows = wrapper.findAll('tbody tr')
-    expect(rows).toHaveLength(2)
-    const roles = rows.map(r => r.findAll('td')[2].text()).sort()
-    expect(roles).toEqual(['QE', 'SWE'])
   })
 })

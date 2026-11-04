@@ -3,14 +3,6 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref, readonly } from 'vue'
 import ReportsHub from '../../../client/reports/ReportsHub.vue'
 
-vi.mock('@/platform-loader', () => ({
-  loadAllocationStrategy: () => ({
-    id: 'ai-eng-40-40-20',
-    name: '40/40/20 Allocation',
-    categories: []
-  })
-}))
-
 // Replace the report `component` loaders with deterministic, instantly
 // resolving stubs. The real registry renders reports via
 // defineAsyncComponent(() => import(...)) through <component :is="...">,
@@ -30,17 +22,12 @@ vi.mock('../../../client/reports/registry', async (importOriginal) => {
   }
 })
 
-const mockIsNormalizedModel = ref(false)
 const mockRosterTeams = ref([])
 
 // Mock dependencies
 vi.mock('@shared/client/composables/useRoster', () => ({
   useRoster: () => ({
-    orgs: ref([]),
     teams: mockRosterTeams,
-    isNormalizedModel: mockIsNormalizedModel,
-    selectedOrgKey: ref(null),
-    selectOrg: vi.fn(),
     loadRoster: vi.fn(),
   })
 }))
@@ -52,8 +39,7 @@ describe('ReportsHub', () => {
   let wrapper
 
   beforeEach(() => {
-    mockIsNormalizedModel.value = false
-    mockRosterTeams.value = []
+    mockRosterTeams.value = [{ key: 'flightctl::team-1', displayName: 'Flight Team', members: [] }]
   })
 
   afterEach(() => {
@@ -85,7 +71,6 @@ describe('ReportsHub', () => {
   it('renders catalog with report cards when no report param', () => {
     const wrapper = createWrapper()
     const cards = wrapper.findAll('[data-testid="report-card"]')
-    // Allocation is configured by the mocked strategy but hidden from the catalog.
     expect(cards.length).toBe(2)
   })
 
@@ -109,33 +94,28 @@ describe('ReportsHub', () => {
     expect(wrapper.text()).toContain('Productivity Trends')
   })
 
-  it('still renders a hidden report directly via its report param', async () => {
-    // Allocation is hidden from the catalog, but its route stays functional.
+  it('lands a retired report id (legacy allocation bookmark) on the catalog without error', async () => {
     const wrapper = createWrapper({ report: 'allocation' })
     await flushPromises()
-    expect(wrapper.find('[data-testid="report-shell-back"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Work Allocation')
+    expect(wrapper.findAll('[data-testid="report-card"]').length).toBe(2)
+    expect(wrapper.find('[data-testid="report-shell-back"]').exists()).toBe(false)
   })
 
   it('renders catalog when report param does not match any report', () => {
     const wrapper = createWrapper({ report: 'nonexistent' })
-    const cards = wrapper.findAll('[data-testid="report-card"]')
-    expect(cards.length).toBe(2)
+    expect(wrapper.findAll('[data-testid="report-card"]').length).toBe(2)
   })
 
-  it('hides the org filter and shows the team filter for Trends in project mode, with no org selected', async () => {
-    mockIsNormalizedModel.value = true
-    mockRosterTeams.value = [{ key: 'flightctl::team-1', displayName: 'Flight Team', members: [] }]
+  it('shows the team filter, and no organization filter, for Trends', async () => {
     const wrapper = createWrapper({ report: 'trends' })
     await flushPromises()
     expect(wrapper.find('[aria-label="Organization filter"]').exists()).toBe(false)
     expect(wrapper.find('[aria-label="Team filter"]').exists()).toBe(true)
   })
 
-  it('keeps the org filter and the org-gated team filter for Trends in OSAC (legacy) mode', async () => {
-    const wrapper = createWrapper({ report: 'trends' })
+  it('shows the team filter for Team Comparison', async () => {
+    const wrapper = createWrapper({ report: 'team-comparison' })
     await flushPromises()
-    expect(wrapper.find('[aria-label="Organization filter"]').exists()).toBe(true)
-    expect(wrapper.find('[aria-label="Team filter"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Team filter"]').exists()).toBe(true)
   })
 })

@@ -17,7 +17,7 @@
       <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
         <tr
           v-for="member in sortedMembers"
-          :key="member.accountId || member.jiraDisplayName"
+          :key="member.accountId"
           class="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
           @click="$emit('select', member)"
         >
@@ -29,9 +29,6 @@
             >
               {{ member.name }}
             </a>
-          </td>
-          <td v-if="primaryDisplayField" class="px-4 py-3 text-sm whitespace-nowrap">
-            <DynamicFieldBadge :value="member.customFields?.[primaryDisplayField]" />
           </td>
           <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
             <span v-if="getMemberMetric(member, 'nameNotFound')" class="text-gray-400 dark:text-gray-500 italic">no Jira user</span>
@@ -51,12 +48,7 @@
             <span v-else class="text-gray-300 dark:text-gray-600 italic text-xs" title="GitHub data not available">no GitHub</span>
           </td>
           <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
-            <span v-if="!gitlabSupported" class="text-gray-400 dark:text-gray-500 italic text-xs" title="GitLab is not yet supported for canonical projects">Unsupported</span>
-            <template v-else-if="getGitlabContribCount(member) != null">
-              <span :title="getGitlabInstanceTooltip(member) || undefined">{{ getGitlabContribCount(member) }}</span>
-            </template>
-            <span v-else-if="member.gitlabUsername" class="text-gray-300 dark:text-gray-600">—</span>
-            <span v-else class="text-gray-300 dark:text-gray-600 italic text-xs" title="GitLab username not configured">no GitLab</span>
+            <span class="text-gray-400 dark:text-gray-500 italic text-xs" title="GitLab is not yet supported for canonical projects">Unsupported</span>
           </td>
           <td class="px-4 py-3 text-sm whitespace-nowrap">
             <span
@@ -67,14 +59,6 @@
             </span>
             <span v-else class="text-gray-400 dark:text-gray-500">1</span>
           </td>
-          <td v-if="showHistory" class="px-4 py-3 text-sm whitespace-nowrap">
-            <button
-              @click.stop="$emit('view-history', member)"
-              class="text-xs text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 font-medium"
-            >
-              View History
-            </button>
-          </td>
         </tr>
       </tbody>
     </table>
@@ -83,38 +67,25 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import DynamicFieldBadge from './DynamicFieldBadge.vue'
-import { useRoster } from '@shared/client/composables/useRoster'
 import { useModuleLink } from '@shared/client/composables/useModuleLink'
 import { useProjectId, projectParam } from '@shared/client/composables/useProjectId'
-import { useGithubStats } from '@shared/client/composables/useGithubStats'
-import { useGitlabStats } from '@shared/client/composables/useGitlabStats'
 
 const { linkTo } = useModuleLink()
-const { visibleFields, primaryDisplayField } = useRoster()
 const projectId = useProjectId()
-const { getContributions } = useGithubStats()
-const { getContributions: getGitlabContributions } = useGitlabStats()
 
 const props = defineProps({
   members: { type: Array, required: true },
-  multiTeamMembers: { type: Set, default: () => new Set() },
   getTeamsForPerson: { type: Function, default: () => () => [] },
   memberMetrics: { type: Map, default: () => new Map() },
   teamKey: { type: String, default: null },
-  // Canonical (project-qualified) accountId -> contribution record lookup;
-  // null means "use the legacy username-keyed composable" (see getGithubContribCount).
-  getGithubContribution: { type: Function, default: null },
-  gitlabSupported: { type: Boolean, default: true },
-  showHistory: { type: Boolean, default: true }
+  // accountId -> project-qualified contribution record (null when unpublished)
+  getGithubContribution: { type: Function, required: true }
 })
-defineEmits(['select', 'view-history'])
+defineEmits(['select'])
 
 function personLink(member) {
   const params = { ...projectParam(projectId.value), ...(props.teamKey && { teamKey: props.teamKey }) }
-  if (member.uid) return linkTo('team-tracker', 'person-detail', { ...params, uid: member.uid })
-  if (member.accountId) return linkTo('team-tracker', 'person-detail', { ...params, accountId: member.accountId })
-  return linkTo('team-tracker', 'person-detail', { ...params, person: member.name })
+  return linkTo('team-tracker', 'person-detail', { ...params, accountId: member.accountId })
 }
 
 // The lookback window shared by every displayed member, or null when
@@ -137,23 +108,15 @@ const pointsColumnLabel = computed(() =>
   commonLookbackDays.value != null ? `Points (${commonLookbackDays.value}d)` : 'Points'
 )
 
-const columns = computed(() => {
-  const cols = [{ key: 'name', label: 'Name' }]
-  if (primaryDisplayField.value) {
-    const pf = visibleFields.value.find(f => f.key === primaryDisplayField.value)
-    cols.push({ key: primaryDisplayField.value, label: pf?.label || primaryDisplayField.value })
-  }
-  cols.push(
-    { key: 'resolved', label: resolvedColumnLabel.value },
-    { key: 'points', label: pointsColumnLabel.value },
-    { key: 'cycleTime', label: 'Cycle Time' },
-    { key: 'github', label: 'GitHub (1yr)' },
-    { key: 'gitlab', label: 'GitLab (1yr)' },
-    { key: 'teams', label: 'Teams' }
-  )
-  if (props.showHistory) cols.push({ key: 'history', label: 'History' })
-  return cols
-})
+const columns = computed(() => [
+  { key: 'name', label: 'Name' },
+  { key: 'resolved', label: resolvedColumnLabel.value },
+  { key: 'points', label: pointsColumnLabel.value },
+  { key: 'cycleTime', label: 'Cycle Time' },
+  { key: 'github', label: 'GitHub (1yr)' },
+  { key: 'gitlab', label: 'GitLab (1yr)' },
+  { key: 'teams', label: 'Teams' }
+])
 
 const sortKey = ref('name')
 const sortAsc = ref(true)
@@ -168,41 +131,22 @@ function toggleSort(key) {
 }
 
 function getTeamCount(member) {
-  return props.getTeamsForPerson(member.accountId || member.jiraDisplayName).length || 1
+  return props.getTeamsForPerson(member.accountId).length || 1
 }
 
 function getMemberMetric(member, field) {
-  const m = props.memberMetrics.get(member.accountId || member.jiraDisplayName)
+  const m = props.memberMetrics.get(member.accountId)
   return m?.[field] ?? null
 }
 
 function getGithubContribCount(member) {
-  if (props.getGithubContribution) {
-    return props.getGithubContribution(member.accountId)?.github?.totalContributions ?? null
-  }
-  if (!member.githubUsername) return null
-  return getContributions(member.githubUsername)?.totalContributions ?? null
+  return props.getGithubContribution(member.accountId)?.github?.totalContributions ?? null
 }
 
 // Distinguishes "known identity, no number published yet" (shown as —) from
 // "no identity at all" (shown as "no GitHub") in the template.
 function hasGithubData(member) {
-  if (props.getGithubContribution) return props.getGithubContribution(member.accountId) != null
-  return !!member.githubUsername
-}
-
-function getGitlabContribCount(member) {
-  if (!member.gitlabUsername) return null
-  return getGitlabContributions(member.gitlabUsername)?.totalContributions ?? null
-}
-
-function getGitlabInstanceTooltip(member) {
-  if (!member.gitlabUsername) return ''
-  const instances = getGitlabContributions(member.gitlabUsername)?.instances
-  if (!instances || Object.keys(instances).length <= 1) return ''
-  return Object.entries(instances)
-    .map(([url, data]) => `${url.replace(/^https?:\/\//, '')}: ${data.totalContributions}`)
-    .join('\n')
+  return props.getGithubContribution(member.accountId) != null
 }
 
 const sortedMembers = computed(() => {
@@ -226,16 +170,11 @@ const sortedMembers = computed(() => {
     } else if (key === 'github') {
       va = getGithubContribCount(a) ?? -1
       vb = getGithubContribCount(b) ?? -1
-    } else if (key === 'gitlab') {
-      va = getGitlabContribCount(a) ?? -1
-      vb = getGitlabContribCount(b) ?? -1
-    } else if (key === 'name' || key === 'manager') {
-      va = (a[key] || '').toLowerCase()
-      vb = (b[key] || '').toLowerCase()
+    } else if (key === 'name') {
+      va = (a.name || '').toLowerCase()
+      vb = (b.name || '').toLowerCase()
     } else {
-      // Custom field sort
-      va = (a.customFields?.[key] || '').toLowerCase()
-      vb = (b.customFields?.[key] || '').toLowerCase()
+      return 0 // GitLab has no canonical value to order by
     }
     if (va < vb) return -1 * asc
     if (va > vb) return 1 * asc

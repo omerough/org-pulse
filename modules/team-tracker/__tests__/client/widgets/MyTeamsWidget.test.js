@@ -1,7 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount as vtuMount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import MyTeamsWidget from '../../../client/widgets/MyTeamsWidget.vue'
+
+// mockProjectId is shared module state, so a leftover mounted wrapper's watcher
+// would keep firing in later tests — track and unmount in afterEach.
+let mountedWrappers = []
+function mount(...args) {
+  const wrapper = vtuMount(...args)
+  mountedWrappers.push(wrapper)
+  return wrapper
+}
 
 const mockNavigateTo = vi.fn()
 
@@ -12,7 +21,7 @@ vi.mock('@shared/client/composables/useModuleLink', () => ({
   })
 }))
 
-const { mockProjectId } = vi.hoisted(() => ({ mockProjectId: { value: '' } }))
+const mockProjectId = ref('flightctl')
 vi.mock('@shared/client/composables/useProjectId.js', () => ({
   useProjectId: () => mockProjectId,
   projectParam: id => (id ? { projectId: id } : {})
@@ -27,14 +36,6 @@ vi.mock('@shared/client/composables/useAuth', () => ({
   })
 }))
 
-const mockUserUid = ref('jsmith')
-vi.mock('@shared/client/composables/usePermissions', () => ({
-  usePermissions: () => ({
-    userUid: mockUserUid,
-    loading: ref(false)
-  })
-}))
-
 const mockTeams = ref([])
 const mockRosterLoading = ref(false)
 vi.mock('@shared/client/composables/useRoster', () => ({
@@ -42,16 +43,6 @@ vi.mock('@shared/client/composables/useRoster', () => ({
     teams: mockTeams,
     loading: mockRosterLoading,
     loadRoster: vi.fn()
-  })
-}))
-
-const mockDefinitions = ref({ personFields: [], teamFields: [] })
-const mockDefsLoading = ref(false)
-vi.mock('@shared/client/composables/useFieldDefinitions', () => ({
-  useFieldDefinitions: () => ({
-    definitions: mockDefinitions,
-    loading: mockDefsLoading,
-    fetchDefinitions: vi.fn()
   })
 }))
 
@@ -68,13 +59,15 @@ function makeTeams(orgTeams) {
 
 beforeEach(() => {
   mockUser.value = { email: 'jsmith@redhat.com' }
-  mockUserUid.value = 'jsmith'
   mockTeams.value = []
   mockRosterLoading.value = false
-  mockDefinitions.value = { personFields: [], teamFields: [] }
-  mockDefsLoading.value = false
   mockNavigateTo.mockClear()
-  mockProjectId.value = ''
+  mockProjectId.value = 'flightctl'
+})
+
+afterEach(() => {
+  mountedWrappers.forEach(w => w.unmount())
+  mountedWrappers = []
 })
 
 describe('MyTeamsWidget', () => {
@@ -123,20 +116,6 @@ describe('MyTeamsWidget', () => {
     expect(wrapper.text()).not.toContain('Team B')
   })
 
-  it('navigates to team-detail with from=sotu on card click (legacy, no projectId)', async () => {
-    mockTeams.value = makeTeams([{
-      orgKey: 'org',
-      teams: {
-        TeamA: { displayName: 'Team A', members: [{ uid: 'jsmith', email: 'jsmith@redhat.com', name: 'Jane Smith', customFields: {} }], metadata: {} }
-      }
-    }])
-    const wrapper = mount(MyTeamsWidget, { props: { size: 'half' } })
-    await flushPromises()
-    const card = wrapper.findAll('button').find(b => b.text().includes('Team A'))
-    await card.trigger('click')
-    expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'team-detail', { teamKey: 'org::TeamA', from: 'sotu' })
-  })
-
   it('navigates to team-detail preserving projectId when project-qualified', async () => {
     mockProjectId.value = 'flightctl'
     mockTeams.value = makeTeams([{
@@ -152,37 +131,32 @@ describe('MyTeamsWidget', () => {
     expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'team-detail', { projectId: 'flightctl', teamKey: 'org::TeamA', from: 'sotu' })
   })
 
-  it('shows Engineering Speciality from primary display field', async () => {
-    mockDefinitions.value = {
-      personFields: [{ id: 'field_spec', label: 'Speciality', primaryDisplay: true, deleted: false }],
-      teamFields: []
-    }
+  it('navigates with the newly selected project after a project switch', async () => {
     mockTeams.value = makeTeams([{
       orgKey: 'org',
       teams: {
-        TeamA: { displayName: 'Team A', members: [{ uid: 'jsmith', email: 'jsmith@redhat.com', name: 'Jane Smith', customFields: { field_spec: 'Backend Engineer' } }], metadata: {} }
+        TeamA: { displayName: 'Team A', members: [{ email: 'jsmith@redhat.com', name: 'Jane Smith' }] }
       }
     }])
     const wrapper = mount(MyTeamsWidget, { props: { size: 'half' } })
     await flushPromises()
-    expect(wrapper.text()).toContain('Speciality')
-    expect(wrapper.text()).toContain('Backend Engineer')
+
+    mockProjectId.value = 'osac'
+    await flushPromises()
+    await wrapper.findAll('button').find(b => b.text().includes('Team A')).trigger('click')
+    expect(mockNavigateTo).toHaveBeenCalledWith('team-tracker', 'team-detail', { projectId: 'osac', teamKey: 'org::TeamA', from: 'sotu' })
   })
 
-  it('shows team components when component field is configured', async () => {
-    mockDefinitions.value = {
-      personFields: [],
-      teamFields: [{ id: 'field_comp', label: 'Component', optionsRef: 'component', deleted: false }]
-    }
+  it('does not request legacy field definitions or render legacy badges', async () => {
     mockTeams.value = makeTeams([{
       orgKey: 'org',
       teams: {
-        TeamA: { displayName: 'Team A', members: [{ uid: 'jsmith', email: 'jsmith@redhat.com', name: 'Jane', customFields: {} }], metadata: { field_comp: ['API', 'Auth'] } }
+        TeamA: { displayName: 'Team A', members: [{ email: 'jsmith@redhat.com', name: 'Jane Smith' }], metadata: { field_comp: ['API'] } }
       }
     }])
     const wrapper = mount(MyTeamsWidget, { props: { size: 'half' } })
     await flushPromises()
-    expect(wrapper.text()).toContain('API')
-    expect(wrapper.text()).toContain('Auth')
+    expect(wrapper.text()).toContain('Team A')
+    expect(wrapper.text()).not.toContain('API')
   })
 })

@@ -41,18 +41,6 @@ vi.mock('@shared/client/composables/useRoster.js', () => ({
   })
 }))
 
-const mockLoadOrgSummary = vi.fn()
-const mockLoadOrgs = vi.fn()
-const orgRosterOrgs = ref([])
-
-vi.mock('../../client/composables/useOrgRoster', () => ({
-  useOrgRoster: () => ({
-    loadOrgSummary: mockLoadOrgSummary,
-    loadOrgs: mockLoadOrgs,
-    orgs: orgRosterOrgs
-  })
-}))
-
 const navigateTo = vi.fn()
 let currentWrapper = null
 
@@ -101,36 +89,15 @@ describe('OrgDashboardView', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    projectId.value = ''
+    projectId.value = 'flightctl'
     rosterData.value = null
     rosterPeople.value = []
     rosterTeams.value = []
     rosterLoading.value = false
     rosterError.value = null
-    orgRosterOrgs.value = []
-    mockLoadOrgSummary.mockResolvedValue({
-      org: 'Legacy Org',
-      teamCount: 2,
-      headcount: 5,
-      roleBreakdown: { Engineer: 5 },
-      teams: [{ name: 'Team A', memberCount: 5, rfeCount: 1 }],
-      components: ['comp-a'],
-      totalRfeCount: 1
-    })
   })
 
-  it('legacy OSAC mode loads the org-summary endpoint and never touches the canonical roster', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    expect(mockLoadOrgSummary).toHaveBeenCalledWith('_all')
-    expect(mockLoadRoster).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Legacy Org Dashboard')
-    expect(wrapper.text()).toContain('Components')
-    expect(wrapper.text()).toContain('Open PRDs')
-  })
-
-  it('canonical project mode never calls the legacy org-summary endpoint', async () => {
+  it('loads the project roster and renders the project dashboard', async () => {
     projectId.value = 'flightctl'
     rosterData.value = flightctlRoster()
     rosterPeople.value = rosterData.value.people
@@ -143,8 +110,6 @@ describe('OrgDashboardView', () => {
     await flushPromises()
 
     expect(mockLoadRoster).toHaveBeenCalled()
-    expect(mockLoadOrgSummary).not.toHaveBeenCalled()
-    expect(mockLoadOrgs).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('Flight Control Dashboard')
   })
 
@@ -234,7 +199,7 @@ describe('OrgDashboardView', () => {
     expect(navigateTo).toHaveBeenCalledWith('team-detail', { teamKey: 'flightctl::team-1' })
   })
 
-  it('shows an unavailable state without calling the legacy endpoint', async () => {
+  it('shows an unavailable state', async () => {
     projectId.value = 'flightctl'
     rosterData.value = { projectId: 'flightctl', availability: 'unavailable', reason: 'not-collected', teams: [], people: [] }
     rosterPeople.value = []
@@ -244,7 +209,6 @@ describe('OrgDashboardView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('No current roster publication is available')
-    expect(mockLoadOrgSummary).not.toHaveBeenCalled()
   })
 
   it('shows an empty state when the roster has no active people', async () => {
@@ -259,7 +223,7 @@ describe('OrgDashboardView', () => {
     expect(wrapper.text()).toContain('No Active People Published')
   })
 
-  it('does not retain stale project data when switching Flight Control -> OSAC -> Flight Control', async () => {
+  it('does not retain stale project data when switching Flight Control -> Acme -> Flight Control', async () => {
     projectId.value = 'flightctl'
     rosterData.value = flightctlRoster()
     rosterPeople.value = rosterData.value.people
@@ -270,30 +234,60 @@ describe('OrgDashboardView', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.text()).toContain('Flight Control Dashboard')
+    mockLoadRoster.mockClear()
 
-    // Switch to OSAC: canonical state is cleared immediately (useRoster's own
-    // contract), the legacy summary loads, and no project panel remains.
-    projectId.value = ''
-    rosterData.value = null
-    rosterPeople.value = []
-    rosterTeams.value = []
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('Legacy Org Dashboard')
-    expect(wrapper.text()).not.toContain('Flight Control Dashboard')
-
-    // Switch back with a different headcount and confirm the old roster's
-    // count (3) never reappears alongside the new one (1).
-    projectId.value = 'flightctl'
+    // useRoster clears its state on switch before the new roster arrives; the
+    // stale flightctl roster must not render under the new project.
+    projectId.value = 'acme'
     rosterData.value = flightctlRoster()
-    rosterData.value.people = [
-      { accountId: 'acc-9', displayName: 'New Hire', active: true, title: 'Engineer', teamIds: [] }
-    ]
+    await flushPromises()
+    expect(mockLoadRoster).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('Acme Platform Dashboard')
+    expect(wrapper.text()).not.toContain('Core')
+    expect(wrapper.find('table').exists()).toBe(false)
+
+    // Back to flightctl with a different headcount; the old count (3) never reappears.
+    projectId.value = 'flightctl'
+    rosterData.value = {
+      ...flightctlRoster(),
+      people: [{ accountId: 'acc-9', displayName: 'New Hire', active: true, title: 'Engineer', teamIds: [] }]
+    }
     rosterPeople.value = rosterData.value.people
     rosterTeams.value = []
     await flushPromises()
 
     expect(wrapper.text()).toContain('Flight Control Dashboard')
     expect(wrapper.findAll('button p.text-3xl')[1].text()).toBe('1')
+  })
+
+  it('shows a loading spinner while the roster loads and no stale panel', async () => {
+    rosterLoading.value = true
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.animate-spin').exists()).toBe(true)
+    expect(wrapper.find('table').exists()).toBe(false)
+  })
+
+  it('shows the unavailable state on a roster error', async () => {
+    rosterError.value = 'boom'
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('No current roster publication is available')
+  })
+
+  it('navigates to the team directory and people list without legacy org params', async () => {
+    rosterData.value = flightctlRoster()
+    rosterPeople.value = rosterData.value.people
+    rosterTeams.value = []
+    const wrapper = mountView()
+    await flushPromises()
+
+    const [teamsTile, peopleTile] = wrapper.findAll('button').filter(b => b.find('p.text-3xl').exists())
+    await teamsTile.trigger('click')
+    await peopleTile.trigger('click')
+    expect(navigateTo).toHaveBeenNthCalledWith(1, 'home')
+    expect(navigateTo).toHaveBeenNthCalledWith(2, 'people')
   })
 })

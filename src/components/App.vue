@@ -215,7 +215,7 @@ import { Menu as MenuIcon, RefreshCw, ExternalLink as ExternalLinkIcon, Sun as S
 import LoadingOverlay from '@shared/client/components/LoadingOverlay.vue'
 import Toast from '@shared/client/components/Toast.vue'
 import RefreshModal from '@shared/client/components/RefreshModal.vue'
-import { useProjectId } from '@shared/client/composables/useProjectId.js'
+import { useProjectId, resolveProjectId } from '@shared/client/composables/useProjectId.js'
 import SettingsView from './SettingsView.vue'
 import AboutView from './AboutView.vue'
 import ApiTokensView from './ApiTokensView.vue'
@@ -232,8 +232,6 @@ import { onRecovery, offRecovery } from '@shared/client/composables/useBackendHe
 import { useMessages } from '@shared/client/composables/useMessages'
 import { usePermissions } from '@shared/client/composables/usePermissions'
 import { useRoster } from '@shared/client/composables/useRoster'
-import { useGithubStats } from '@shared/client/composables/useGithubStats'
-import { useGitlabStats } from '@shared/client/composables/useGitlabStats'
 import { useModules } from '../composables/useModules'
 import { useTheme } from '../composables/useTheme'
 import { createModuleNav, getDefaultViewId, buildShellHash } from '../composables/useModuleNav'
@@ -271,8 +269,6 @@ export default {
     const { isImpersonating, impersonatingUid: impersonatingUidRef, impersonatingName: impersonatingNameRef, stopImpersonating } = useImpersonation()
     const { isManager: authIsManager, hierarchyAvailable: authHierarchyAvailable, refresh: refreshPermissions } = usePermissions()
     const { loadRoster, reloadRoster, teams, selectedOrgKey, selectOrg, rosterData } = useRoster()
-    const { loadGithubStats, reloadGithubStats } = useGithubStats()
-    const { loadGitlabStats, reloadGitlabStats } = useGitlabStats()
     const { modulesData, loadModules, reloadModules, enabledBuiltInSlugs, loadEnabledBuiltInSlugs } = useModules()
     const { mode: themeMode, cycle: cycleTheme } = useTheme()
     const { messages: appMessages, fetchMessages, dismiss: dismissMessage } = useMessages()
@@ -284,8 +280,6 @@ export default {
 
     function handleBackendRecovery() {
       reloadRoster()
-      reloadGithubStats()
-      reloadGitlabStats()
       reloadModules()
       refreshAuth()
       refreshPermissions()
@@ -429,8 +423,6 @@ export default {
       jiraConfigChangedAt,
       fetchLastRefreshed,
       loadRoster,
-      loadGithubStats,
-      loadGitlabStats,
       loadModules,
       loadEnabledBuiltInSlugs,
       enabledBuiltInSlugs,
@@ -560,8 +552,6 @@ export default {
         const allSlugs = this.allBuiltInManifests.map(m => m.slug)
         await Promise.all([
           this.loadRoster(),
-          this.loadGithubStats(),
-          this.loadGitlabStats(),
           this.loadModules(),
           this.fetchLastRefreshed(),
           this.loadEnabledBuiltInSlugs(allSlugs),
@@ -606,26 +596,27 @@ export default {
       // Route state mirrors the URL on every route, shell views included, so
       // the selector never keeps a project the URL no longer carries.
       this.routeParams = { ...params }
-      // '' (not undefined) so a URL without a project never inherits the ambient one
-      const urlProjectId = params.projectId ?? ''
+      // A URL without a project resolves to the default project, never to the
+      // previously selected one or to an unqualified (legacy) context.
+      const urlProjectId = resolveProjectId(params.projectId)
       const shellRedirect = (path, extra) => window.location.replace(buildShellHash(path, extra, urlProjectId))
 
       // Backward compatibility redirects
       if (parts[0] === 'team' && parts[1]) {
-        const newHash = '#/team-tracker/team-detail?teamKey=' + encodeURIComponent(parts[1]) +
-          (parts[2] === 'person' && parts[3] ? '&person=' + encodeURIComponent(parts[3]) : '')
-        window.location.replace(newHash)
+        shellRedirect('team-tracker/team-detail', {
+          teamKey: parts[1],
+          ...(parts[2] === 'person' && parts[3] && { person: parts[3] })
+        })
         return
       }
-      if (parts[0] === 'people') { window.location.replace('#/team-tracker/people'); return }
-      if (parts[0] === 'trends') { window.location.replace('#/team-tracker/reports?report=trends'); return }
-      if (parts[0] === 'reports') { window.location.replace('#/team-tracker/reports'); return }
+      if (parts[0] === 'people') { shellRedirect('team-tracker/people'); return }
+      if (parts[0] === 'trends') { shellRedirect('team-tracker/reports', { report: 'trends' }); return }
+      if (parts[0] === 'reports') { shellRedirect('team-tracker/reports'); return }
       // Redirect any org-roster bookmarks to team-tracker (modules merged)
       if (parts[0] === 'org-roster') {
         const viewMap = { 'home': 'home', 'team-detail': 'team-detail', 'org-dashboard': 'org-dashboard', 'people': 'people', 'person-detail': 'person-detail', 'org-explorer': 'org-dashboard' }
         const view = viewMap[parts[1]] || parts[1] || 'home'
-        const paramStr = Object.entries(params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
-        window.location.replace(`#/team-tracker/${view}${paramStr ? '?' + paramStr : ''}`)
+        shellRedirect(`team-tracker/${view}`, params)
         return
       }
 
@@ -685,10 +676,9 @@ export default {
       if (manifest) {
         // Direct links to a module that does not apply to the selected project
         // fall back to the home page instead of rendering another project's data.
-        if (!moduleAppliesToProject(manifest, this.projectContextProjectId)) {
+        if (!moduleAppliesToProject(manifest, urlProjectId)) {
           this.setShellView('home')
-          const projectId = this.projectContextProjectId || params.projectId
-          window.location.replace(`#/${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`)
+          shellRedirect('')
           return
         }
         this.activeModuleSlugRef = manifest.slug
@@ -702,29 +692,29 @@ export default {
           if (parts[3] === 'person' && parts[4]) {
             legacyParams.person = parts[4]
           }
-          let newHash = `#/${manifest.slug}/${viewId}?` + Object.entries(legacyParams)
-            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-            .join('&')
-          window.location.replace(newHash)
+          shellRedirect(`${manifest.slug}/${viewId}`, legacyParams)
           return
         }
 
         // Legacy view redirects within team-tracker
         if (manifest.slug === 'team-tracker' && parts[1] === 'trends') {
-          window.location.replace('#/team-tracker/reports?report=trends')
+          shellRedirect('team-tracker/reports', { report: 'trends' })
           return
         }
         if (manifest.slug === 'team-tracker' && parts[1] === 'org-allocation') {
-          window.location.replace('#/team-tracker/reports?report=allocation')
+          shellRedirect('team-tracker/reports')
+          return
+        }
+        if (manifest.slug === 'team-tracker' && parts[1] === 'org-explorer') {
+          shellRedirect('team-tracker/org-dashboard', params)
           return
         }
         if (manifest.slug === 'team-tracker' && parts[1] === 'dashboard') {
-          window.location.replace('#/team-tracker/home')
+          shellRedirect('team-tracker/home')
           return
         }
         if (manifest.slug === 'team-tracker' && parts[1] === 'team-roster') {
-          const paramStr = Object.entries(params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
-          window.location.replace(`#/team-tracker/team-detail${paramStr ? '?' + paramStr : ''}`)
+          shellRedirect('team-tracker/team-detail', params)
           return
         }
 

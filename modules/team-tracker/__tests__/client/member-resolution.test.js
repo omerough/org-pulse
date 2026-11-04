@@ -109,10 +109,16 @@ describe('resolveMemberLocation', () => {
 
 describe('resolveMemberRole', () => {
   it('prefers Engineering Speciality, then flat fields, then title', () => {
-    const defs = [{ id: 'f1', label: 'Engineering Speciality' }]
-    expect(resolveMemberRole({ customFields: { f1: 'QE' }, title: 'Engineer' }, defs)).toBe('QE')
+    expect(resolveMemberRole({ customFields: { 'Engineering Speciality': 'QE' }, title: 'Engineer' })).toBe('QE')
+    expect(resolveMemberRole({ customFields: { 'Engineering Speciality': ['QE', 'SRE'] } })).toBe('QE, SRE')
+    expect(resolveMemberRole({ engineeringSpeciality: 'Frontend', specialty: 'Backend', title: 'Engineer' })).toBe('Frontend')
+    expect(resolveMemberRole({ specialty: 'Backend', title: 'Engineer' })).toBe('Backend')
     expect(resolveMemberRole({ title: 'Engineer' })).toBe('Engineer')
     expect(resolveMemberRole({ name: 'No Role' })).toBeNull()
+  })
+
+  it('ignores custom fields keyed by field id', () => {
+    expect(resolveMemberRole({ customFields: { f1: 'QE' }, title: 'Engineer' })).toBe('Engineer')
   })
 })
 

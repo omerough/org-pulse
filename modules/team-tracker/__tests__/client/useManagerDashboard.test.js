@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const { mockProjectId, apiRequest } = vi.hoisted(() => {
   const { ref: r } = require('vue')
-  return { mockProjectId: r(''), apiRequest: vi.fn() }
+  return { mockProjectId: r('osac'), apiRequest: vi.fn() }
 })
 vi.mock('@shared/client/composables/useProjectId.js', () => ({
   useProjectId: () => mockProjectId
@@ -14,21 +14,11 @@ vi.mock('@shared/client/services/api', () => ({
 import { useManagerDashboard } from '../../client/composables/useManagerDashboard'
 
 beforeEach(() => {
-  mockProjectId.value = ''
+  mockProjectId.value = 'osac'
   apiRequest.mockReset()
 })
 
 describe('useManagerDashboard', () => {
-  it('requests the legacy endpoint without a projectId param', async () => {
-    apiRequest.mockResolvedValue({ manager: { uid: 'm' }, directReports: [] })
-    const dash = useManagerDashboard()
-    dash.includeIndirect.value = false
-    await dash.load()
-
-    expect(apiRequest).toHaveBeenCalledWith('/modules/team-tracker/manager/dashboard')
-    expect(dash.isProjectMode.value).toBe(false)
-  })
-
   it('qualifies the request by project and carries includeIndirect', async () => {
     mockProjectId.value = 'flight-control'
     apiRequest.mockResolvedValue({
@@ -43,7 +33,6 @@ describe('useManagerDashboard', () => {
     await dash.load()
 
     expect(apiRequest).toHaveBeenCalledWith('/modules/team-tracker/manager/dashboard?projectId=flight-control&includeIndirect=true')
-    expect(dash.isProjectMode.value).toBe(true)
     expect(dash.availability.value).toBe('available')
     expect(dash.directReports.value).toHaveLength(1)
   })
@@ -56,7 +45,6 @@ describe('useManagerDashboard', () => {
     dash.includeIndirect.value = false
     const osacLoad = dash.load()
     expect(apiRequest).toHaveBeenCalledWith('/modules/team-tracker/manager/dashboard?projectId=osac')
-    expect(dash.isProjectMode.value).toBe(true)
 
     mockProjectId.value = 'flightctl'
     apiRequest.mockResolvedValueOnce({ manager: { accountId: 'fc-mgr' }, directReports: [{ accountId: 'fc-1' }] })

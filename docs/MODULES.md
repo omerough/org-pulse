@@ -120,8 +120,9 @@ Set `client.projectIds` when a module only applies to specific shell projects:
 While a different project is selected, the module's sidebar entry is hidden, its
 SOTU widgets are not offered or rendered (a saved layout keeps them for when the
 project is selected again), and a direct link to its routes falls back to the
-home page. No project selected (legacy single-project mode) keeps the module
-available. A module with its own OSAC-only data source must also reject a
+home page. Until the shell has resolved a project (the project list is still
+loading) the module stays listed; afterwards every deployment, single-project
+ones included, carries a project ID. A module with its own OSAC-only data source must also reject a
 non-OSAC `projectId` in its server routes — see the `osacOnlyDataGuard` pattern
 in `modules/product-builds/server/index.js`.
 

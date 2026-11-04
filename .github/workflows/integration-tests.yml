@@ -44,6 +44,10 @@ jobs:
               - 'tests/integration/system-health.spec.js'
             people-teams:
               - 'modules/team-tracker/**'
+              - 'shared/client/**'
+              - 'src/components/ProjectSelector.vue'
+              - 'src/components/App.vue'
+              - 'fixtures/projects/**'
               - 'tests/integration/people-teams.spec.js'
             upstream-pulse:
               - 'modules/upstream-pulse/**'
@@ -163,7 +167,7 @@ jobs:
           check_module "system-health" \
             "^(modules/system-health/|tests/integration/system-health\.spec\.js)"
           check_module "people-teams" \
-            "^(modules/team-tracker/|tests/integration/people-teams\.spec\.js)"
+            "^(modules/team-tracker/|shared/client/|src/components/(ProjectSelector|App)\.vue|fixtures/projects/|tests/integration/people-teams\.spec\.js)"
           check_module "upstream-pulse" \
             "^(modules/upstream-pulse/|tests/integration/upstream-pulse\.spec\.js)"
           check_module "package-analysis" \

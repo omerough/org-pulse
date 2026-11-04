@@ -1,9 +1,8 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useAuth } from '@shared/client/composables/useAuth.js'
 import { usePermissions } from '@shared/client/composables/usePermissions.js'
-import { useFieldDefinitions } from '@shared/client/composables/useFieldDefinitions.js'
 import { useModuleLink } from '@shared/client/composables/useModuleLink.js'
+import { projectParam } from '@shared/client/composables/useProjectId.js'
 import { useManagerDashboard } from '../composables/useManagerDashboard.js'
 
 defineProps({
@@ -11,14 +10,11 @@ defineProps({
 })
 
 const { navigateTo: crossNavigate } = useModuleLink()
-const { isManager: isLegacyManager } = useAuth()
-const { isManager: isProjectManager, loading: permissionsLoading, hierarchyAvailable } = usePermissions()
-const { definitions, fetchDefinitions } = useFieldDefinitions()
+const { isManager, loading: managerStatusLoading, hierarchyAvailable } = usePermissions()
 const {
   teams: managedTeams,
   loading: managerLoading,
   includeIndirect,
-  isProjectMode,
   projectId,
   load: loadManagerDashboard,
   resetState: resetManagerDashboard
@@ -26,29 +22,11 @@ const {
 
 const managerLoadFailed = ref(false)
 
-// A project-only manager has no legacy manager flag.
-const isManager = computed(() => isProjectMode.value ? isProjectManager.value : isLegacyManager.value)
-const managerStatusLoading = computed(() => isProjectMode.value && permissionsLoading.value)
-
 // isManager can be true despite an unavailable hierarchy if this account's
 // direct-report edge resolved; only an unverified viewer sees this message.
 const hierarchyUnavailable = computed(() =>
-  isProjectMode.value && !managerStatusLoading.value && !hierarchyAvailable.value && !isManager.value
+  !managerStatusLoading.value && !hierarchyAvailable.value && !isManager.value
 )
-
-const componentTeamFieldId = computed(() => {
-  const tf = definitions.value?.teamFields || []
-  const comp = tf.find(f => f.optionsRef === 'component' && !f.deleted)
-  return comp?.id || null
-})
-
-function getTeamComponents(metadata) {
-  if (!componentTeamFieldId.value || !metadata) return []
-  const val = metadata[componentTeamFieldId.value]
-  if (Array.isArray(val)) return val
-  if (typeof val === 'string') return val.split(',').map(s => s.trim()).filter(Boolean)
-  return []
-}
 
 function loadForCurrentProject() {
   managerLoadFailed.value = false
@@ -63,10 +41,7 @@ function maybeLoad() {
   if (isManager.value) loadForCurrentProject()
 }
 
-onMounted(() => {
-  fetchDefinitions()
-  maybeLoad()
-})
+onMounted(maybeLoad)
 
 // Clear stale manager data before reloading for the newly selected project.
 watch(projectId, () => {
@@ -74,8 +49,8 @@ watch(projectId, () => {
   maybeLoad()
 }, { flush: 'sync' })
 
-// Project-mode manager status resolves asynchronously via usePermissions;
-// load once it settles instead of only at mount/project-switch time.
+// Manager status resolves asynchronously via usePermissions; load once it
+// settles instead of only at mount/project-switch time.
 watch(managerStatusLoading, (isLoading, wasLoading) => {
   if (wasLoading && !isLoading) maybeLoad()
 })
@@ -87,22 +62,19 @@ const loading = computed(() => {
 })
 
 function teamKeyFor(team) {
-  return isProjectMode.value ? `${projectId.value}::${team.id}` : `${team.orgKey}::${team.name}`
+  return `${projectId.value}::${team.id}`
 }
 
 function teamDirectReportCount(team) {
-  if (isProjectMode.value) {
-    return team.directReportCount ?? team.directReportAccountIds?.length ?? 0
-  }
-  return team.directReportUids?.length || 0
+  return team.directReportCount ?? team.directReportAccountIds?.length ?? 0
 }
 
 function handleTeamClick(team) {
-  crossNavigate('team-tracker', 'team-detail', { teamKey: teamKeyFor(team), from: 'sotu' })
+  crossNavigate('team-tracker', 'team-detail', { ...projectParam(projectId.value), teamKey: teamKeyFor(team), from: 'sotu' })
 }
 
 function handleMyTeamsClick() {
-  crossNavigate('team-tracker', 'manager-dashboard', { from: 'sotu' })
+  crossNavigate('team-tracker', 'manager-dashboard', { ...projectParam(projectId.value), from: 'sotu' })
 }
 </script>
 
@@ -141,13 +113,6 @@ function handleMyTeamsClick() {
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
           {{ teamDirectReportCount(team) }} direct reports · {{ team.totalMemberCount || 0 }} total
         </p>
-        <div v-if="!isProjectMode && getTeamComponents(team.metadata).length > 0" class="flex flex-wrap gap-1">
-          <span
-            v-for="comp in getTeamComponents(team.metadata)"
-            :key="comp"
-            class="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300"
-          >{{ comp }}</span>
-        </div>
       </button>
     </div>
   </div>

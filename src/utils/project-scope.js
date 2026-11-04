@@ -2,8 +2,8 @@
  * Project scoping for built-in modules.
  *
  * A module that declares `client.projectIds` applies only to the listed shell
- * projects. An empty project ID is legacy single-project mode, where every
- * module keeps its today behavior and stays available.
+ * projects. An empty project ID means the shell has not resolved a project
+ * yet; every module stays listed until it does.
  */
 export function projectIdsAllow(projectIds, projectId) {
   if (!Array.isArray(projectIds) || projectIds.length === 0) return true

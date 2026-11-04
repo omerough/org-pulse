@@ -12,12 +12,6 @@ vi.mock('@shared/client/services/api', () => ({
   getTrends: vi.fn(),
   getTeamMetrics: vi.fn(),
 }))
-vi.mock('@shared/client/composables/useGithubStats', () => ({
-  useGithubStats: () => ({ getContributions: () => null }),
-}))
-vi.mock('@shared/client/composables/useGitlabStats', () => ({
-  useGitlabStats: () => ({ getContributions: () => null }),
-}))
 
 const PROJECTS = {
   alpha: { teams: [['alpha-1', 'Alpha One'], ['alpha-2', 'Alpha Two']] },
@@ -124,7 +118,6 @@ describe('report project isolation', () => {
     switchProject('alpha')
     await settle()
     filterState().selectedTeamKeys.value = []
-    filterState().selectedOrgKeys.value = []
   })
 
   describe('Trends', () => {

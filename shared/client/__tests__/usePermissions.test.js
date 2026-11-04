@@ -26,12 +26,17 @@ describe('usePermissions project awareness', () => {
     mocks.apiRequest.mockReset()
   })
 
-  it('requests the legacy endpoint without a projectId param', async () => {
+  it('issues no request until a project is resolved, then qualifies it', async () => {
     mocks.apiRequest.mockResolvedValue({ email: 'a@example.com', uid: 'u1', roles: ['user'], isManager: false, managedUids: [] })
-    await createPermissions('')
-    await vi.waitFor(() => expect(mocks.apiRequest).toHaveBeenCalled())
+    const perms = await createPermissions('')
+    await Promise.resolve()
 
-    expect(mocks.apiRequest).toHaveBeenCalledWith('/modules/team-tracker/permissions/me')
+    expect(mocks.apiRequest).not.toHaveBeenCalled()
+    expect(perms.loading.value).toBe(true)
+
+    mocks.projectId.value = 'osac'
+    await vi.waitFor(() => expect(mocks.apiRequest).toHaveBeenCalledTimes(1))
+    expect(mocks.apiRequest).toHaveBeenCalledWith('/modules/team-tracker/permissions/me?projectId=osac')
   })
 
   it('qualifies the request by projectId and reflects a verified manager', async () => {
@@ -102,7 +107,7 @@ describe('usePermissions project awareness', () => {
 
   it('treats a legacy response with no hierarchy field as available (no degraded UI)', async () => {
     mocks.apiRequest.mockResolvedValue({ email: 'a@example.com', uid: 'u1', roles: ['user'], isManager: false, managedUids: [] })
-    const perms = await createPermissions('')
+    const perms = await createPermissions('osac')
     await vi.waitFor(() => expect(mocks.apiRequest).toHaveBeenCalled())
 
     expect(perms.hierarchyStatus.value).toBeNull()
