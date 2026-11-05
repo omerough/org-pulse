@@ -204,7 +204,7 @@ function installExecuteApi(page, { delayOsacFeatures = false } = {}) {
 // The component dashboard tab is offered only for projects with a dashboard config (OSAC).
 async function expectSharedTabs(page, projectId) {
   const tabs = page.locator('nav[aria-label="Execute sub-tabs"] button');
-  const shared = ['Feature List', 'Hygiene', 'Feature Tracking', 'Epics by Release'];
+  const shared = ['Feature List', 'Feature Tracking', 'Epics by Release'];
   await expect(tabs).toHaveText(projectId === 'osac' ? [...shared, 'UI Epics by Component'] : shared);
 }
 

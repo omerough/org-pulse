@@ -73,7 +73,7 @@ function epicsFor(version) {
   return { version, fetchedAt: '2026-10-26T10:33:00Z', featureCount: features.length, state: features.length ? 'supported' : 'empty', features };
 }
 
-// Publishing only OSAC puts the shell in single-project mode, which leaves projectId empty.
+// Publishing only OSAC puts the shell in single-project mode, where OSAC is the default project.
 function installApi(page, { projects = [{ projectId: 'osac', displayName: 'OSAC' }] } = {}) {
   const requests = [];
   page.route('**/api/projects', route => route.fulfill({ json: { projects } }));
@@ -170,14 +170,13 @@ test.describe('Releases UI Epics by Component @releases', () => {
     expect(new Set(controls.map(rect => Math.round(rect.top))).size).toBeGreaterThan(1);
   });
 
-  test('scopes requests for the single-project shell: no projectId on Execute data, explicit on the registry', async ({ page }) => {
+  test('scopes every request to the default project in the single-project shell', async ({ page }) => {
     const requests = installApi(page);
     await openDashboard(page);
 
     const executeRequests = requests.filter(url => url.includes('/execution/'));
     expect(executeRequests.length).toBeGreaterThan(0);
-    for (const url of executeRequests) expect(url).not.toContain('projectId');
-    expect(requests.filter(url => url.includes('/registry')).every(url => url.includes('projectId=osac'))).toBe(true);
+    for (const url of requests) expect(new URL(url).searchParams.get('projectId')).toBe('osac');
     expect(page.errors).toHaveLength(0);
   });
 
@@ -292,7 +291,7 @@ test.describe('Releases UI Epics by Component @releases', () => {
     await expect(page.locator('[data-panel]')).toHaveCount(9);
 
     await page.goto(`${TAB_URL}&projectId=flightctl`);
-    await expect(tabs.getByRole('button', { name: 'Hygiene' })).toBeVisible();
+    await expect(tabs.getByRole('button', { name: 'Feature List' })).toBeVisible();
     await expect(tabs.getByRole('button', { name: 'UI Epics by Component' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'UI Epics by Component' })).toHaveCount(0);
   });
