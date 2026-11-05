@@ -52,14 +52,15 @@ test.describe('Releases Module @releases', () => {
     expect(page.errors).toHaveLength(0);
   });
 
-  test('Execute keeps the Hygiene tab available for the selected project', async ({ page }) => {
+  test('Execute no longer offers a Hygiene tab and falls back to Feature List for legacy links', async ({ page }) => {
     await mockProjectRoster(page, 'flightctl');
     await page.goto('/#/releases/execute?tab=feature-status&projectId=flightctl');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
     const executeTabs = page.getByRole('navigation', { name: 'Execute sub-tabs' });
-    await expect(executeTabs.getByRole('button', { name: 'Hygiene' })).toBeVisible();
+    await expect(executeTabs.getByRole('button', { name: 'Hygiene' })).toHaveCount(0);
+    await expect(executeTabs.getByRole('button', { name: 'Feature List' })).toBeVisible();
     expect(page.errors).toHaveLength(0);
   });
 
@@ -85,7 +86,8 @@ test.describe('Releases Module @releases', () => {
     await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
     const executeTabs = page.getByRole('navigation', { name: 'Execute sub-tabs' });
-    await expect(executeTabs.getByRole('button', { name: 'Hygiene' })).toBeVisible();
+    await expect(executeTabs.getByRole('button', { name: 'Hygiene' })).toHaveCount(0);
+    await expect(executeTabs.getByRole('button', { name: 'Feature List' })).toBeVisible();
     await expect(executeTabs.getByRole('button', { name: 'UI Epics by Component' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'UI Epics by Component' })).toHaveCount(0);
     expect(page.errors).toHaveLength(0);

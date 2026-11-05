@@ -9,7 +9,7 @@ vi.mock('@shared/client/composables/useProjectId.js', () => ({
 
 import ExecuteView from '../../../client/views/ExecuteView.vue'
 
-const BASE_TABS = ['Feature List', 'Hygiene', 'Feature Tracking', 'Epics by Release']
+const BASE_TABS = ['Feature List', 'Feature Tracking', 'Epics by Release']
 const ALL_TABS = [...BASE_TABS, 'UI Epics by Component']
 
 function mountView(projectId, tab = undefined) {
@@ -33,9 +33,9 @@ describe('shared Execute presentation', () => {
     expect(wrapper.find('overview-view-stub').exists()).toBe(true)
     expect(wrapper.find('project-execution-evidence-view-stub').exists()).toBe(false)
 
-    await wrapper.findAll('nav button')[3].trigger('click')
+    await wrapper.findAll('nav button')[2].trigger('click')
     expect(wrapper.find('epics-by-release-view-stub').exists()).toBe(true)
-    await wrapper.findAll('nav button')[4].trigger('click')
+    await wrapper.findAll('nav button')[3].trigger('click')
     expect(wrapper.find('epics-by-component-view-stub').exists()).toBe(true)
     wrapper.unmount()
   })
@@ -44,7 +44,7 @@ describe('shared Execute presentation', () => {
     const { wrapper } = mountView('flightctl')
 
     expect(tabLabels(wrapper)).toEqual(BASE_TABS)
-    await wrapper.findAll('nav button')[3].trigger('click')
+    await wrapper.findAll('nav button')[2].trigger('click')
     expect(wrapper.find('epics-by-release-view-stub').exists()).toBe(true)
     wrapper.unmount()
   })
@@ -61,15 +61,17 @@ describe('shared Execute presentation', () => {
     wrapper.unmount()
   })
 
-  it('restores a valid tab from the URL, including the established hygiene route id', async () => {
+  it('restores a valid tab from the URL', async () => {
     const { wrapper } = mountView('flightctl', 'epics-by-release')
     expect(wrapper.find('epics-by-release-view-stub').exists()).toBe(true)
     wrapper.unmount()
+  })
 
-    const hygiene = mountView('osac', 'feature-status').wrapper
-    expect(hygiene.find('hygiene-view-stub').exists()).toBe(true)
-    expect(hygiene.text()).toContain('Hygiene')
-    hygiene.unmount()
+  it('falls back to Feature List for the retired feature-status tab id', () => {
+    const { wrapper } = mountView('osac', 'feature-status')
+    expect(wrapper.find('overview-view-stub').exists()).toBe(true)
+    expect(tabLabels(wrapper)).not.toContain('Hygiene')
+    wrapper.unmount()
   })
 
   it('opens the UI Epics by Component tab from a deep link', () => {
