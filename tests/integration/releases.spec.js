@@ -61,6 +61,7 @@ test.describe('Releases Module @releases', () => {
     const executeTabs = page.getByRole('navigation', { name: 'Execute sub-tabs' });
     await expect(executeTabs.getByRole('button', { name: 'Hygiene' })).toHaveCount(0);
     await expect(executeTabs.getByRole('button', { name: 'Feature List' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Feature Execution Overview' })).toBeVisible();
     expect(page.errors).toHaveLength(0);
   });
 
