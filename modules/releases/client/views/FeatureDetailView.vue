@@ -177,7 +177,6 @@ const fromRfe = computed(() => nav.params.value.fromRfe)
 const fromFeatureReview = computed(() => nav.params.value.fromFeatureReview)
 const fromPlan = computed(() => nav.params.value.from === 'plan')
 const fromPlanFeatures = computed(() => nav.params.value.from === 'plan-features')
-const fromFeatureStatus = computed(() => nav.params.value.from === 'feature-status')
 const fromHygieneReport = computed(() => nav.params.value.from === 'hygiene-report')
 const fromForYou = computed(() => nav.params.value.from === 'sotu' || nav.params.value.from === 'state-of-the-union')
 
@@ -197,11 +196,6 @@ function goBack() {
     if (nav.params.value.product) params.product = nav.params.value.product
     if (nav.params.value.version) params.version = nav.params.value.version
     nav.navigateTo('reports', params)
-  } else if (fromFeatureStatus.value) {
-    const params = { tab: 'feature-status' }
-    if (nav.params.value.version) params.version = nav.params.value.version
-    if (nav.params.value.product) params.product = nav.params.value.product
-    nav.navigateTo('execute', params)
   } else {
     nav.navigateTo('execute')
   }
@@ -394,7 +388,7 @@ onMounted(() => {
       class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white flex items-center gap-1"
       @click="goBack"
     >
-      &larr; {{ fromForYou ? 'Back to State of the Union' : fromRfe ? 'Back to PRD Review' : fromFeatureReview ? 'Back to Design Review' : fromPlanFeatures ? 'Back to Features List' : fromPlan ? 'Back to Plan' : fromHygieneReport ? 'Back to Hygiene Report' : fromFeatureStatus ? 'Back to Hygiene' : 'Back to Execute' }}
+      &larr; {{ fromForYou ? 'Back to State of the Union' : fromRfe ? 'Back to PRD Review' : fromFeatureReview ? 'Back to Design Review' : fromPlanFeatures ? 'Back to Features List' : fromPlan ? 'Back to Plan' : fromHygieneReport ? 'Back to Hygiene Report' : 'Back to Execute' }}
     </button>
 
     <!-- Loading -->

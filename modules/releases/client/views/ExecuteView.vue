@@ -17,7 +17,6 @@
     </div>
     <div class="p-6">
       <OverviewView v-if="activeTab === 'feature-list'" />
-      <HygieneView v-else-if="activeTab === 'feature-status'" />
       <FeatureTrackingView v-else-if="activeTab === 'feature-tracking'" />
       <EpicsByReleaseView v-else-if="activeTab === 'epics-by-release'" />
       <EpicsByComponentView v-else-if="activeTab === 'ui-epics-by-component'" />
@@ -29,7 +28,6 @@
 import { ref, computed, watch, nextTick, inject } from 'vue'
 import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import OverviewView from '../execute/views/OverviewView.vue'
-import HygieneView from '../execute/views/HygieneView.vue'
 import FeatureTrackingView from '../execute/views/FeatureTrackingView.vue'
 import EpicsByReleaseView from '../execute/views/EpicsByReleaseView.vue'
 import EpicsByComponentView from '../execute/views/EpicsByComponentView.vue'
@@ -38,7 +36,6 @@ import { resolveComponentDashboard } from '../execute/utils/componentDashboardCo
 const nav = inject('moduleNav')
 const ALL_TABS = [
   { id: 'feature-list', label: 'Feature List' },
-  { id: 'feature-status', label: 'Hygiene' },
   { id: 'feature-tracking', label: 'Feature Tracking' },
   { id: 'epics-by-release', label: 'Epics by Release' },
   { id: 'ui-epics-by-component', label: 'UI Epics by Component', requiresComponentDashboard: true },
