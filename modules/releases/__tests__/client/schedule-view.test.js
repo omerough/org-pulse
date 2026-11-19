@@ -359,6 +359,7 @@ describe('ScheduleView release lifecycle and visibility', () => {
       fixVersions: [name],
       state: opts.state || 'active',
       lifecycle: opts.lifecycle,
+      jiraUrl: opts.jiraUrl,
       sourceFields: opts.released === undefined ? undefined : { released: opts.released },
       milestones: { ga: opts.ga, releaseStart: opts.releaseStart, codeFreeze: opts.codeFreeze }
     }
@@ -469,5 +470,23 @@ describe('ScheduleView release lifecycle and visibility', () => {
     expect(badge.attributes('title')).toBe('Confirmed by Jira')
     expect(rows[0].classes()).not.toContain('opacity-50')
     expect(rows[1].find('td:nth-child(2)').text()).toBe('—')
+  })
+
+  it('links a release to its published Jira version page and leaves others as plain text', async () => {
+    const jiraUrl = 'https://redhat.atlassian.net/projects/EDM/versions/68316'
+    const wrapper = await mountWith([
+      makeProjectRelease('1.4.0', { jiraUrl }),
+      makeProjectRelease('1.3.0'),
+      makeProjectRelease('1.2.0', { jiraUrl: 'javascript:alert(1)' })
+    ])
+    const rows = wrapper.findAll('tbody tr')
+    const link = rows[0].find('td a')
+    expect(link.attributes('href')).toBe(jiraUrl)
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toContain('noopener')
+    expect(link.text()).toBe('Proj 1.4.0')
+    expect(rows[1].find('td a').exists()).toBe(false)
+    expect(rows[2].find('td a').exists()).toBe(false)
+    expect(rows[2].find('td').text()).toBe('Proj 1.2.0')
   })
 })

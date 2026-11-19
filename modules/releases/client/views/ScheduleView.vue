@@ -133,7 +133,15 @@
                 :class="isReleased(r) ? 'opacity-50' : nextMilestoneUrgencyRow(r)"
               >
                 <td class="px-4 py-3">
-                  <span class="font-semibold text-gray-900 dark:text-gray-100">{{ r.displayName || r.id }}</span>
+                  <a
+                    v-if="releaseJiraUrl(r)"
+                    :href="releaseJiraUrl(r)"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="font-semibold text-gray-900 dark:text-gray-100 hover:text-primary-600 dark:hover:text-primary-400 hover:underline"
+                    :title="`Open ${r.displayName || r.id} in Jira`"
+                  >{{ r.displayName || r.id }}</a>
+                  <span v-else class="font-semibold text-gray-900 dark:text-gray-100">{{ r.displayName || r.id }}</span>
                 </td>
                 <td class="px-4 py-3">
                   <span
@@ -170,6 +178,7 @@ import {
   STATUS_LABELS,
   compareReleasesNewestFirst,
   isReleaseCandidate,
+  releaseJiraUrl,
   releaseStatus
 } from '../utils/releaseSchedule.js'
 

@@ -82,3 +82,14 @@ export function releaseStatus(release) {
   if (released === false) return { key: 'unreleased', confirmed: true }
   return null
 }
+
+/** Jira version page published by the registry; only https links are rendered. */
+export function releaseJiraUrl(release) {
+  const url = release.jiraUrl
+  if (typeof url !== 'string') return null
+  try {
+    return new URL(url).protocol === 'https:' ? url : null
+  } catch {
+    return null
+  }
+}

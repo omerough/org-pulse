@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   compareReleasesNewestFirst,
   isReleaseCandidate,
+  releaseJiraUrl,
   releaseStatus
 } from '../../client/utils/releaseSchedule.js'
 
@@ -76,5 +77,20 @@ describe('releaseStatus', () => {
   it('has no status for entries without lifecycle or Jira flag', () => {
     expect(releaseStatus({ milestones: { ga: '2026-01-01' } })).toBeNull()
     expect(releaseStatus({ sourceFields: { released: null } })).toBeNull()
+  })
+})
+
+describe('releaseJiraUrl', () => {
+  it('returns the published https Jira version link', () => {
+    const jiraUrl = 'https://redhat.atlassian.net/projects/EDM/versions/68316'
+    expect(releaseJiraUrl({ jiraUrl })).toBe(jiraUrl)
+  })
+
+  it('rejects missing, malformed and non-https links', () => {
+    expect(releaseJiraUrl({})).toBeNull()
+    expect(releaseJiraUrl({ jiraUrl: null })).toBeNull()
+    expect(releaseJiraUrl({ jiraUrl: 'not a url' })).toBeNull()
+    expect(releaseJiraUrl({ jiraUrl: 'javascript:alert(1)' })).toBeNull()
+    expect(releaseJiraUrl({ jiraUrl: 'http://redhat.atlassian.net/projects/EDM/versions/1' })).toBeNull()
   })
 })
