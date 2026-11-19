@@ -67,6 +67,13 @@ describe('shared Execute presentation', () => {
     wrapper.unmount()
   })
 
+  it('keeps Feature Tracking available and deep-linkable for a project without a dashboard config', () => {
+    const { wrapper } = mountView('flightctl', 'feature-tracking')
+    expect(tabLabels(wrapper)).toContain('Feature Tracking')
+    expect(wrapper.find('feature-tracking-view-stub').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
   it('falls back to Feature List for the retired feature-status tab id', () => {
     const { wrapper } = mountView('osac', 'feature-status')
     expect(wrapper.find('overview-view-stub').exists()).toBe(true)

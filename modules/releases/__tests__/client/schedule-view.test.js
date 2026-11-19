@@ -109,19 +109,21 @@ describe('ScheduleView', () => {
     expect(wrapper.text()).not.toContain('May 1, 2026')
   })
 
-  it('shows em-dash for missing milestone dates', async () => {
+  it('shows em-dash for missing values in displayed columns', async () => {
     apiRequest.mockResolvedValue({
       releases: [
-        makeRelease('rhoai-3.5', { ga: '2026-09-15' })
+        makeRelease('rhoai-3.5', { ga: '2026-09-15', releaseStart: '2026-07-01' }),
+        makeRelease('rhoai-3.4', { ga: '2026-03-15' })
       ]
     })
     const wrapper = mount(ScheduleView)
     await flushPromises()
 
-    const cells = wrapper.findAll('td')
-    const cellTexts = cells.map(c => c.text())
-    const dashCells = cellTexts.filter(t => t === '—')
-    expect(dashCells.length).toBe(2)
+    const rows = wrapper.findAll('tbody tr')
+    const missingStart = rows.find(row => row.text().includes('RHOAI-3.4'))
+    expect(missingStart.find('td:nth-child(3)').text()).toBe('—')
+    expect(missingStart.find('td:nth-child(2)').text()).toBe('—')
+    expect(wrapper.find('thead').text()).not.toContain('Code Freeze')
   })
 
   it('lists the newest version first', async () => {
@@ -170,8 +172,8 @@ describe('ScheduleView', () => {
     const rows = wrapper.findAll('tbody tr')
     const pastRow = rows.find(row => row.text().includes('RHOAI-3.4'))
     const futureRow = rows.find(row => row.text().includes('RHOAI-3.5'))
-    expect(pastRow.classes()).toContain('opacity-50')
-    expect(futureRow.classes()).not.toContain('opacity-50')
+    expect(pastRow.classes()).toContain('opacity-75')
+    expect(futureRow.classes()).not.toContain('opacity-75')
   })
 
   it('shows global next milestone banner', async () => {
@@ -442,7 +444,28 @@ describe('ScheduleView release lifecycle and visibility', () => {
   it('omits the Code Freeze column when no listed release has a code freeze', async () => {
     const wrapper = await mountWith([makeProjectRelease('0.2', { ga: '2026-06-01' })])
     expect(wrapper.find('thead').text()).not.toContain('Code Freeze')
-    expect(wrapper.findAll('thead th')).toHaveLength(4)
+    expect(wrapper.findAll('thead th')).toHaveLength(3)
+  })
+
+  it('omits the Release Start column when no listed release has a release start', async () => {
+    const wrapper = await mountWith([
+      makeProjectRelease('0.2', { ga: '2026-06-01', codeFreeze: '2026-05-01' }),
+      makeProjectRelease('0.1', { ga: '2026-01-01' })
+    ])
+    expect(wrapper.find('thead').text()).not.toContain('Release Start')
+    expect(wrapper.findAll('thead th').map(th => th.text())).toEqual(['Release', 'Status', 'Code Freeze', 'Release Date'])
+    expect(wrapper.findAll('tbody tr').every(row => row.findAll('td').length === 4)).toBe(true)
+  })
+
+  it('keeps the Release Start column, with blanks, when one release has a release start', async () => {
+    const wrapper = await mountWith([
+      makeProjectRelease('0.2', { ga: '2026-06-01', releaseStart: '2026-04-01' }),
+      makeProjectRelease('0.1', { ga: '2026-01-01' })
+    ])
+    expect(wrapper.find('thead').text()).toContain('Release Start')
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows[0].find('td:nth-child(3)').text()).toContain('Apr 1, 2026')
+    expect(rows[1].find('td:nth-child(3)').text()).toBe('—')
   })
 
   it('keeps the Code Freeze column when a release has one', async () => {
@@ -451,7 +474,7 @@ describe('ScheduleView release lifecycle and visibility', () => {
       makeProjectRelease('0.1', { ga: '2026-01-01' })
     ])
     expect(wrapper.find('thead').text()).toContain('Code Freeze')
-    expect(wrapper.findAll('thead th')).toHaveLength(5)
+    expect(wrapper.findAll('thead th')).toHaveLength(4)
   })
 
   it('shows Jira-released versions as confirmed', async () => {
@@ -466,8 +489,43 @@ describe('ScheduleView release lifecycle and visibility', () => {
       makeProjectRelease('0.2', { lifecycle: 'released', released: false, ga: '2026-06-01' })
     ])
     const badge = wrapper.find('tbody span[title]')
-    expect(badge.text()).toBe('Released (inferred)')
+    expect(badge.text()).toBe('Released')
     expect(badge.classes()).toContain('border-dashed')
+    expect(badge.attributes('title')).toBe('Inferred from milestone dates')
+  })
+
+  it('explains inferred statuses once instead of repeating the label per badge', async () => {
+    const wrapper = await mountWith([
+      makeProjectRelease('0.3', { lifecycle: 'upcoming', ga: '2099-06-01' }),
+      makeProjectRelease('0.2', { lifecycle: 'released', released: false, ga: '2026-06-01' }),
+      makeProjectRelease('0.1', { released: true, ga: '2026-01-01' })
+    ])
+    expect(wrapper.findAll('[data-testid="inferred-status-note"]')).toHaveLength(1)
+    expect(wrapper.get('[data-testid="inferred-status-note"]').text()).toContain('inferred from milestone dates')
+    expect(wrapper.text()).not.toContain('(inferred)')
+    const badges = wrapper.findAll('tbody span[title]')
+    expect(badges.map(badge => badge.classes().includes('border-dashed'))).toEqual([true, true, false])
+  })
+
+  it('omits the inferred-status note for projects using explicit Jira release state', async () => {
+    const wrapper = await mountWith([
+      makeProjectRelease('0.2', { released: false, ga: '2099-06-01' }),
+      makeProjectRelease('0.1', { released: true, ga: '2026-01-01' }),
+      makeProjectRelease('0.0', { ga: '2025-01-01' })
+    ])
+    expect(wrapper.find('[data-testid="inferred-status-note"]').exists()).toBe(false)
+  })
+
+  it('keeps past rows legible: dimmed by 25%, not stacked on faded text', async () => {
+    const wrapper = await mountWith([
+      makeProjectRelease('0.2', { released: true, ga: '2026-06-01' }),
+      makeProjectRelease('0.3', { released: false, ga: '2099-06-01' })
+    ])
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows[1].classes()).toContain('opacity-75')
+    expect(rows[1].classes()).not.toContain('opacity-50')
+    expect(rows[1].find('td:last-child span').classes()).toContain('dark:text-gray-300')
+    expect(rows[0].classes()).not.toContain('opacity-75')
   })
 
   it('does not infer a status when Jira has no released flag and no lifecycle is published', async () => {

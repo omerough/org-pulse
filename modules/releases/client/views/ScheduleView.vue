@@ -112,15 +112,24 @@
         No releases to show. Archived versions and release candidates are hidden.
       </div>
 
+      <p
+        v-if="hasInferredStatus"
+        class="mb-3 text-xs text-gray-500 dark:text-gray-400"
+        data-testid="inferred-status-note"
+      >
+        Status is inferred from milestone dates because Jira's released flag is not reliably maintained for this
+        project. Dashed badges are inferred; solid badges are confirmed by Jira.
+      </p>
+
       <!-- Releases table -->
-      <div v-else class="bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+      <div v-if="allSortedReleases.length" class="bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/50">
                 <th class="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Release</th>
                 <th class="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                <th class="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Release Start</th>
+                <th v-if="hasReleaseStart" class="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Release Start</th>
                 <th v-if="hasCodeFreeze" class="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Code Freeze</th>
                 <th class="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Release Date</th>
               </tr>
@@ -130,7 +139,7 @@
                 v-for="r in allSortedReleases"
                 :key="r.id"
                 class="border-b border-gray-100 dark:border-gray-800 last:border-0 transition-colors"
-                :class="isReleased(r) ? 'opacity-50' : nextMilestoneUrgencyRow(r)"
+                :class="isReleased(r) ? 'opacity-75' : nextMilestoneUrgencyRow(r)"
               >
                 <td class="px-4 py-3">
                   <a
@@ -152,7 +161,7 @@
                   >{{ statusBadge(r).text }}</span>
                   <span v-else class="text-gray-300 dark:text-gray-600">—</span>
                 </td>
-                <td class="px-4 py-3">
+                <td v-if="hasReleaseStart" class="px-4 py-3">
                   <MilestoneCell :date="getReleaseStartDate(r)" :muted="isReleased(r)" />
                 </td>
                 <td v-if="hasCodeFreeze" class="px-4 py-3">
@@ -310,6 +319,16 @@ const allSortedReleases = computed(() => {
 
 const hasCodeFreeze = computed(() => allSortedReleases.value.some(r => r.milestones?.codeFreeze))
 
+// Mirrors the cell's own value (including the planningFreeze alias); nothing is derived.
+const hasReleaseStart = computed(() => allSortedReleases.value.some(r => getReleaseStartDate(r)))
+
+const hasInferredStatus = computed(() =>
+  allSortedReleases.value.some(r => {
+    const status = releaseStatus(r)
+    return status !== null && !status.confirmed
+  })
+)
+
 // Archived rows shown via the toggle are history, not upcoming work.
 const globalNextMilestone = computed(() => {
   let best = null
@@ -339,8 +358,8 @@ const STATUS_CLASSES = {
 }
 const DEFAULT_STATUS_CLASS = 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'
 
-// Inferred statuses come from Jira dates, not from Jira's released flag, so
-// they are spelled out and drawn with a dashed border.
+// Inferred statuses come from milestone dates, not from Jira's released flag;
+// they are drawn with a dashed border and explained once by the table note.
 function statusBadge(release) {
   const status = releaseStatus(release)
   if (!status) return null
@@ -348,9 +367,9 @@ function statusBadge(release) {
   return status.confirmed
     ? { text: label, class: STATUS_CLASSES[status.key] || DEFAULT_STATUS_CLASS, title: 'Confirmed by Jira' }
     : {
-        text: `${label} (inferred)`,
+        text: label,
         class: `${STATUS_CLASSES[status.key] || DEFAULT_STATUS_CLASS} border-dashed`,
-        title: 'Inferred from Jira release dates'
+        title: 'Inferred from milestone dates'
       }
 }
 
@@ -377,13 +396,15 @@ const MilestoneCell = {
       const dateLabel = formatShort(props.date)
 
       const dateClass = props.muted
-        ? 'text-gray-500 dark:text-gray-400'
+        ? 'text-gray-600 dark:text-gray-300'
         : 'text-gray-900 dark:text-gray-100'
 
       let countdownEl = null
       if (days !== null) {
         let countdownClass = 'text-[11px] tabular-nums '
-        if (props.muted || days < 0) {
+        if (props.muted) {
+          countdownClass += 'text-gray-500 dark:text-gray-400'
+        } else if (days < 0) {
           countdownClass += 'text-gray-400 dark:text-gray-500'
         } else if (days === 0) {
           countdownClass += 'font-semibold text-blue-600 dark:text-blue-400'
