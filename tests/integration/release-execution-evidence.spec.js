@@ -17,7 +17,6 @@ const flightctlFeatureDetails = {
 };
 const osacFeature = osacIndex.features.find(feature => feature.key === 'TEST1-52');
 const osacRelease = 'rhoai-3.0';
-const flightctlRelease = '0.10.0';
 const screenshotDir = path.resolve(__dirname, '../../docs/onboarding/flightctl/shared-execute-verification-assets');
 
 function clone(value) {
@@ -201,11 +200,12 @@ function installExecuteApi(page, { delayOsacFeatures = false } = {}) {
   };
 }
 
-// The component dashboard tab is offered only for projects with a dashboard config (OSAC).
+// Feature Tracking, Epics by Release and UI Epics by Component are offered for OSAC only.
 async function expectSharedTabs(page, projectId) {
   const tabs = page.locator('nav[aria-label="Execute sub-tabs"] button');
-  const shared = ['Feature List', 'Feature Tracking', 'Epics by Release'];
-  await expect(tabs).toHaveText(projectId === 'osac' ? [...shared, 'UI Epics by Component'] : shared);
+  await expect(tabs).toHaveText(projectId === 'osac'
+    ? ['Feature List', 'Feature Tracking', 'Epics by Release', 'UI Epics by Component']
+    : ['Feature List']);
 }
 
 test.describe('Shared Releases Execute @releases', () => {
@@ -270,29 +270,19 @@ test.describe('Shared Releases Execute @releases', () => {
         await progressDrawer.getByRole('button', { name: 'Close detail panel' }).click();
       }
 
-      await page.getByRole('button', { name: 'Feature Tracking', exact: true }).click();
-      await expect(page.getByText("Features committed to each release's baseline scope, and what changed since.")).toBeVisible();
-      if (projectId === 'flightctl') {
-        await expect(page.getByText(/scope-baseline policy is not configured/i)).toBeVisible();
-        await expect(page.getByText('Team attribution is unknown for some features.')).toBeVisible();
-      } else {
+      if (projectId === 'osac') {
+        await page.getByRole('button', { name: 'Feature Tracking', exact: true }).click();
+        await expect(page.getByText("Features committed to each release's baseline scope, and what changed since.")).toBeVisible();
         await expect(page.getByRole('button', { name: 'RHOAI 2.14', exact: true })).toBeVisible();
-      }
-      await captureSharedExecuteScreenshot(page, projectId, 'feature-tracking');
+        await captureSharedExecuteScreenshot(page, projectId, 'feature-tracking');
 
-      await page.getByRole('button', { name: 'Epics by Release', exact: true }).click();
-      await expect(page.getByRole('heading', { name: 'Epics by Release' })).toBeVisible();
-      await expect(page.locator('#epics-by-release-version')).toHaveValue(projectId === 'flightctl' ? flightctlRelease : osacRelease);
-      if (projectId === 'flightctl') {
-        await expect(page.getByRole('link', { name: 'EDM-1001' }).first()).toBeVisible();
-        await expect(page.getByText('EDM-2001', { exact: true })).toBeVisible();
-        await expect(page.getByText('Jira child status only; this does not measure pipeline execution or release readiness.')).toBeVisible();
-        await expect(page.getByText(/2 Jira Epics observed;\s*Epics without a linked Feature:\s*1 \(not shown in the tree\)\./)).toBeVisible();
-      } else {
+        await page.getByRole('button', { name: 'Epics by Release', exact: true }).click();
+        await expect(page.getByRole('heading', { name: 'Epics by Release' })).toBeVisible();
+        await expect(page.locator('#epics-by-release-version')).toHaveValue(osacRelease);
         await expect(page.getByText(osacFeature.key, { exact: true })).toBeVisible();
         await expect(page.getByText('TEST2-33439', { exact: true })).toBeVisible();
+        await captureSharedExecuteScreenshot(page, projectId, 'epics-by-release');
       }
-      await captureSharedExecuteScreenshot(page, projectId, 'epics-by-release');
     }
 
     expect(api.requests.length).toBeGreaterThan(0);
