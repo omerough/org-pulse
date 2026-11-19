@@ -94,7 +94,7 @@ test.describe('Releases Module @releases', () => {
     expect(page.errors).toHaveLength(0);
   });
 
-  for (const view of ['deliver', 'plan', 'reports']) {
+  for (const view of ['deliver', 'release-plan', 'plan', 'reports']) {
     test(`OSAC-only ${view} deep link falls back to Execute for Flight Control`, async ({ page }) => {
       await mockProjectRoster(page, 'flightctl');
       await page.goto(`/#/releases/${view}?projectId=flightctl`);

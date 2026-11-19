@@ -5,6 +5,7 @@ import {
   projectIdsAllow,
   viewAppliesToProject
 } from '../utils/project-scope'
+import releasesManifest from '../../modules/releases/module.json'
 
 const osacOnly = { slug: 'test-coverage', client: { projectIds: ['osac'] } }
 const shared = { slug: 'team-tracker', client: {} }
@@ -95,5 +96,16 @@ describe('viewAppliesToProject', () => {
 
   it('applies the module scope first', () => {
     expect(viewAppliesToProject(osacOnly, 'coverage', 'flightctl')).toBe(false)
+  })
+})
+
+describe('shipped Releases manifest scoping', () => {
+  it.each(['schedule', 'execute', 'feature-detail', 'jira-hygiene'])('keeps %s available to every project', viewId => {
+    expect(viewAppliesToProject(releasesManifest, viewId, 'flightctl')).toBe(true)
+  })
+
+  it.each(['deliver', 'release-plan', 'plan', 'reports'])('limits %s to OSAC', viewId => {
+    expect(viewAppliesToProject(releasesManifest, viewId, 'osac')).toBe(true)
+    expect(viewAppliesToProject(releasesManifest, viewId, 'flightctl')).toBe(false)
   })
 })

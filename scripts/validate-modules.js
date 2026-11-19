@@ -37,6 +37,14 @@ function warn(msg) {
   console.warn(`  WARN: ${msg}`)
 }
 
+/** Route IDs declared by the client entry's `export const routes = { ... }`, or null when unreadable. */
+function readClientRouteIds(entryPath) {
+  if (!fs.existsSync(entryPath)) return null
+  const block = /export\s+const\s+routes\s*=\s*\{([\s\S]*?)\n\}/.exec(fs.readFileSync(entryPath, 'utf8'))
+  if (!block) return null
+  return [...block[1].matchAll(/^\s*['"]?([\w-]+)['"]?\s*:/gm)].map(match => match[1])
+}
+
 function serverUsesStorage(serverDir) {
   const files = []
   function collect(dir) {
@@ -298,7 +306,20 @@ function validate() {
       if (!viewProjectIds || typeof viewProjectIds !== 'object' || Array.isArray(viewProjectIds)) {
         error('client.viewProjectIds must be an object mapping view IDs to project ID arrays')
       } else {
+        // A misspelled view ID would silently leave that view unscoped.
+        const routeIds = manifest.client.entry
+          ? readClientRouteIds(path.join(MODULES_DIR, dir, manifest.client.entry))
+          : null
+        if (!routeIds) warn('client.viewProjectIds view IDs could not be checked: no readable `routes` export in the client entry')
+        const knownViewIds = new Set([
+          ...(routeIds || []),
+          ...(manifest.client.navItems || []).map(item => item.id),
+          ...Object.keys(manifest.client.hiddenRoutes || {})
+        ])
         for (const [viewId, projectIds] of Object.entries(viewProjectIds)) {
+          if (routeIds && !knownViewIds.has(viewId)) {
+            error(`client.viewProjectIds["${viewId}"] is not a view of this module (known: ${[...knownViewIds].join(', ')})`)
+          }
           checkProjectIds(`client.viewProjectIds["${viewId}"]`, projectIds)
         }
       }

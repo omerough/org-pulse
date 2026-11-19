@@ -614,11 +614,14 @@ describe('cross-module routing with a resolved project', () => {
   it('switching to a project the open view does not apply to returns to the module default view', async () => {
     stubBackend(twoProjects)
     const wrapper = await mountApp('#/releases/deliver?projectId=osac')
+    const historyLength = window.history.length
 
     await wrapper.find('select#project-selector').setValue('flightctl')
 
     await vi.waitFor(() => expect(window.location.hash).toBe('#/releases/execute?projectId=flightctl'))
     await vi.waitFor(() => expect(wrapper.vm.activeViewId).toBe('execute'))
+    // The selector adds one entry; the fallback replaces it, so Back cannot loop.
+    expect(window.history.length).toBe(historyLength + 1)
     wrapper.unmount()
   })
 

@@ -130,7 +130,9 @@ in `modules/product-builds/server/index.js`.
 To scope individual views instead, map view IDs to project IDs with
 `client.viewProjectIds`. It covers nav items and hidden routes alike: the nav item
 is hidden, and a direct link or project switch to that view falls back to the
-module's default view (or Home when that is scoped out too):
+module's default view (or Home when that is scoped out too). Each key must be a nav item,
+hidden route, or route exported by the client entry; `npm run validate:modules` rejects
+unknown IDs:
 
 ```json
 {

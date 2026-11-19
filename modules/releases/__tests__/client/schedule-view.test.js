@@ -409,6 +409,24 @@ describe('ScheduleView release lifecycle and visibility', () => {
     expect(rowNames(wrapper)).toEqual(['Proj 0.2', 'Proj 0.1'])
   })
 
+  it('keeps archived releases out of the next-milestone banner when they are shown', async () => {
+    const inDays = days => {
+      const date = new Date()
+      date.setDate(date.getDate() + days)
+      return date.toISOString().split('T')[0]
+    }
+    const wrapper = await mountWith([
+      makeProjectRelease('0.1', { state: 'archived', ga: inDays(2) }),
+      makeProjectRelease('0.2', { ga: inDays(20) })
+    ])
+    await wrapper.find('input[type="checkbox"]').setValue(true)
+
+    expect(rowNames(wrapper)).toEqual(['Proj 0.2', 'Proj 0.1'])
+    const banner = wrapper.find('div.mb-5.rounded-lg')
+    expect(banner.text()).toContain('Proj 0.2')
+    expect(banner.text()).not.toContain('Proj 0.1')
+  })
+
   it('omits the Code Freeze column when no listed release has a code freeze', async () => {
     const wrapper = await mountWith([makeProjectRelease('0.2', { ga: '2026-06-01' })])
     expect(wrapper.find('thead').text()).not.toContain('Code Freeze')

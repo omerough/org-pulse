@@ -25,12 +25,26 @@ const hygieneViolations = ref([])
 const hygieneAvailable = ref(true)
 const hygieneExpanded = ref(false)
 
+// Only the latest request may write results; resetHygiene invalidates in-flight ones.
+let hygieneRequestId = 0
+
+function resetHygiene() {
+  hygieneRequestId++
+  hygieneViolations.value = []
+  hygieneExpanded.value = false
+  hygieneAvailable.value = true
+  hygieneLoading.value = false
+}
+
 async function loadHygiene(version) {
+  resetHygiene()
   if (!version) { hygieneAvailable.value = false; return }
+  const requestId = hygieneRequestId
   hygieneLoading.value = true
   try {
     const projectParam = projectId.value ? `&projectId=${encodeURIComponent(projectId.value)}` : ''
     const data = await apiRequest(`/modules/releases/hygiene/features?version=${encodeURIComponent(version)}${projectParam}`)
+    if (requestId !== hygieneRequestId) return
     if (data?.state === 'unavailable') {
       hygieneAvailable.value = false
       return
@@ -47,9 +61,9 @@ async function loadHygiene(version) {
       hygieneExpanded.value = false
     }
   } catch {
-    hygieneAvailable.value = false
+    if (requestId === hygieneRequestId) hygieneAvailable.value = false
   } finally {
-    hygieneLoading.value = false
+    if (requestId === hygieneRequestId) hygieneLoading.value = false
   }
 }
 
@@ -371,21 +385,22 @@ watch(() => nav.params.value?.tab, (tabParam) => {
 // Load hygiene when feature data becomes available
 // Prefer the version URL param (matches hygiene storage key), fall back to fixVersions
 watch(feature, (feat) => {
+  if (!feat) return
   const versionParam = nav.params.value?.version
-  const version = versionParam || (feat?.fixVersions?.length ? feat.fixVersions[0] : null)
-  if (version) {
-    loadHygiene(version)
-  } else if (feat) {
-    hygieneAvailable.value = false
-  }
+  loadHygiene(versionParam || (feat.fixVersions?.length ? feat.fixVersions[0] : null))
 })
 
-onMounted(() => {
-  if (featureKey.value) {
-    loadFeature(featureKey.value)
-    loadAIReview(featureKey.value)
-  }
-})
+function loadForSelection() {
+  resetHygiene()
+  if (!featureKey.value) return
+  loadFeature(featureKey.value)
+  loadAIReview(featureKey.value)
+}
+
+onMounted(loadForSelection)
+
+// The view stays mounted when the feature or project changes.
+watch([featureKey, projectId], loadForSelection)
 </script>
 
 <template>

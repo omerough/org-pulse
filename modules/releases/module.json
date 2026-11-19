@@ -32,6 +32,7 @@
     "viewProjectIds": {
       "deliver": ["osac"],
       "plan": ["osac"],
+      "release-plan": ["osac"],
       "reports": ["osac"]
     }
   },

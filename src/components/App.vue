@@ -523,19 +523,20 @@ export default {
       }
     },
 
-    // A project-scoped module must not stay on screen after the selector
-    // moves to a project it does not apply to.
+    // A project-scoped module or view must not stay on screen after the
+    // selector moves to a project it does not apply to. The redirect replaces
+    // the history entry so Back does not return to the unsupported URL.
     redirectIfModuleOutOfScope() {
       const manifest = this.builtInManifests.find(m => m.slug === this.activeModule)
       if (!manifest) return
       const projectId = this.projectContextProjectId
       if (!moduleAppliesToProject(manifest, projectId)) {
         this.setShellView('home')
-        window.location.hash = projectId ? `#/?projectId=${encodeURIComponent(projectId)}` : '#/'
+        window.location.replace(buildShellHash('', {}, projectId))
         return
       }
       if (!viewAppliesToProject(manifest, this.activeViewId, projectId)) {
-        window.location.hash = this.unsupportedViewHash(manifest, projectId)
+        window.location.replace(this.unsupportedViewHash(manifest, projectId))
       }
     },
 

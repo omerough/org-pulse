@@ -301,10 +301,12 @@ const allSortedReleases = computed(() => {
 
 const hasCodeFreeze = computed(() => allSortedReleases.value.some(r => r.milestones?.codeFreeze))
 
+// Archived rows shown via the toggle are history, not upcoming work.
 const globalNextMilestone = computed(() => {
   let best = null
   for (let i = 0; i < allSortedReleases.value.length; i++) {
     const r = allSortedReleases.value[i]
+    if (r.state === 'archived') continue
     const nm = nextMilestone(r)
     if (nm && (best === null || nm.days < best.days)) {
       best = { releaseName: r.displayName || r.id, label: nm.label, type: nm.type, days: nm.days }
