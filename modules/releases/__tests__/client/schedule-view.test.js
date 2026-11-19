@@ -41,6 +41,17 @@ describe('ScheduleView', () => {
     expect(wrapper.text()).toContain('No releases found')
   })
 
+  it('shows an explicit error, not the empty state, when the publication is unavailable', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    apiRequest.mockRejectedValue(new Error('Project registry is unavailable'))
+    const wrapper = mount(ScheduleView)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Failed to load schedule')
+    expect(wrapper.text()).toContain('Project registry is unavailable')
+    expect(wrapper.text()).not.toContain('No releases found')
+    consoleError.mockRestore()
+  })
+
   it('renders releases table with milestone data (releaseStart contract)', async () => {
     apiRequest.mockResolvedValue({
       releases: [
