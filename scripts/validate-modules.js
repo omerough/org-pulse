@@ -37,12 +37,26 @@ function warn(msg) {
   console.warn(`  WARN: ${msg}`)
 }
 
-/** Route IDs declared by the client entry's `export const routes = { ... }`, or null when unreadable. */
+/**
+ * Route IDs of the client entry's `export const routes = { ... }`, which must hold one
+ * self-contained `'id': component` entry per line (the documented format).
+ * Returns null for any other shape so callers fail instead of guessing.
+ */
 function readClientRouteIds(entryPath) {
   if (!fs.existsSync(entryPath)) return null
-  const block = /export\s+const\s+routes\s*=\s*\{([\s\S]*?)\n\}/.exec(fs.readFileSync(entryPath, 'utf8'))
+  const block = /export\s+const\s+routes\s*=\s*\{\n([\s\S]*?)\n\};?[ \t]*$/m.exec(fs.readFileSync(entryPath, 'utf8'))
   if (!block) return null
-  return [...block[1].matchAll(/^\s*['"]?([\w-]+)['"]?\s*:/gm)].map(match => match[1])
+  const ids = []
+  for (const line of block[1].split('\n')) {
+    const text = line.trim()
+    if (!text || text.startsWith('//')) continue
+    const entry = /^['"]?([\w-]+)['"]?\s*:/.exec(text)
+    const openers = (text.match(/[({[]/g) || []).length
+    const closers = (text.match(/[)}\]]/g) || []).length
+    if (!entry || openers !== closers) return null
+    ids.push(entry[1])
+  }
+  return ids
 }
 
 function serverUsesStorage(serverDir) {
@@ -310,7 +324,7 @@ function validate() {
         const routeIds = manifest.client.entry
           ? readClientRouteIds(path.join(MODULES_DIR, dir, manifest.client.entry))
           : null
-        if (!routeIds) warn('client.viewProjectIds view IDs could not be checked: no readable `routes` export in the client entry')
+        if (!routeIds) error('client.viewProjectIds needs the client entry to export `routes` as one `\'id\': component` entry per line')
         const knownViewIds = new Set([
           ...(routeIds || []),
           ...(manifest.client.navItems || []).map(item => item.id),

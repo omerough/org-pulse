@@ -382,19 +382,22 @@ watch(() => nav.params.value?.tab, (tabParam) => {
   }
 }, { immediate: true })
 
-// Load hygiene when feature data becomes available
-// Prefer the version URL param (matches hygiene storage key), fall back to fixVersions
-watch(feature, (feat) => {
-  if (!feat) return
-  const versionParam = nav.params.value?.version
-  loadHygiene(versionParam || (feat.fixVersions?.length ? feat.fixVersions[0] : null))
-})
-
-function loadForSelection() {
+// One flow per selection: Hygiene is requested only after the feature itself loaded,
+// and only if no newer selection (resetHygiene) superseded this one while waiting.
+async function loadForSelection() {
   resetHygiene()
-  if (!featureKey.value) return
-  loadFeature(featureKey.value)
-  loadAIReview(featureKey.value)
+  const selection = hygieneRequestId
+  const key = featureKey.value
+  if (!key) return
+  loadAIReview(key)
+  await loadFeature(key)
+  if (selection !== hygieneRequestId) return
+  if (!feature.value) {
+    hygieneAvailable.value = false
+    return
+  }
+  // Prefer the version URL param (matches hygiene storage key), fall back to fixVersions
+  loadHygiene(nav.params.value?.version || feature.value.fixVersions?.[0] || null)
 }
 
 onMounted(loadForSelection)
