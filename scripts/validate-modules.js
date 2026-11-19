@@ -275,6 +275,17 @@ function validate() {
         }
         if (!item.label) warn(`NavItem "${item.id}" missing "label"`)
         if (!item.icon) warn(`NavItem "${item.id}" missing "icon"`)
+        if (item.projectIds !== undefined) {
+          if (!Array.isArray(item.projectIds) || item.projectIds.length === 0) {
+            error(`NavItem "${item.id}" projectIds must be a non-empty array of project ID strings`)
+          } else {
+            for (const projectId of item.projectIds) {
+              if (typeof projectId !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectId)) {
+                error(`NavItem "${item.id}" projectIds entry "${projectId}" must be a lowercase kebab-case project ID`)
+              }
+            }
+          }
+        }
       }
     }
 

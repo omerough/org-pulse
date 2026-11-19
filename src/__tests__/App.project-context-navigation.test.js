@@ -17,7 +17,12 @@ vi.mock('../module-loader', async (importOriginal) => {
     loadModuleManifests: () => [{
       slug: 'releases',
       name: 'Releases',
-      client: { navItems: [{ id: 'execute', label: 'Execute', default: true }] }
+      client: {
+        navItems: [
+          { id: 'execute', label: 'Execute', default: true },
+          { id: 'deliver', label: 'Deliver', projectIds: ['osac'] }
+        ]
+      }
     }, {
       slug: 'team-tracker',
       name: 'People & Teams',
@@ -28,7 +33,7 @@ vi.mock('../module-loader', async (importOriginal) => {
       client: { projectIds: ['osac'], navItems: [{ id: 'coverage', label: 'Coverage', default: true }] }
     }],
     loadModuleClient: async () => ({
-      routes: Object.fromEntries(['execute', 'overview', 'people', 'reports', 'team-detail', 'person-detail', 'coverage']
+      routes: Object.fromEntries(['execute', 'deliver', 'overview', 'people', 'reports', 'team-detail', 'person-detail', 'coverage']
         .map(viewId => [viewId, StubView]))
     })
   }
@@ -574,6 +579,36 @@ describe('cross-module routing with a resolved project', () => {
     window.location.hash = '#/test-coverage/coverage'
     await vi.waitFor(() => expect(window.location.hash).toBe('#/test-coverage/coverage?projectId=osac'))
     expect(wrapper.vm.activeModule).toBe('test-coverage')
+    wrapper.unmount()
+  })
+
+  it('a project-scoped view opens for its own project', async () => {
+    stubBackend(twoProjects)
+    const wrapper = await mountApp('#/releases/deliver?projectId=osac')
+
+    expect(wrapper.vm.activeViewId).toBe('deliver')
+    expect(window.location.hash).toBe('#/releases/deliver?projectId=osac')
+    wrapper.unmount()
+  })
+
+  it('a deep link to a view scoped to another project falls back to the module default view', async () => {
+    stubBackend(twoProjects)
+    const wrapper = await mountApp('#/releases/deliver?projectId=flightctl')
+
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/releases/execute?projectId=flightctl'))
+    expect(wrapper.vm.activeModule).toBe('releases')
+    expect(wrapper.vm.activeViewId).toBe('execute')
+    wrapper.unmount()
+  })
+
+  it('switching to a project the open view does not apply to returns to the module default view', async () => {
+    stubBackend(twoProjects)
+    const wrapper = await mountApp('#/releases/deliver?projectId=osac')
+
+    await wrapper.find('select#project-selector').setValue('flightctl')
+
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/releases/execute?projectId=flightctl'))
+    await vi.waitFor(() => expect(wrapper.vm.activeViewId).toBe('execute'))
     wrapper.unmount()
   })
 

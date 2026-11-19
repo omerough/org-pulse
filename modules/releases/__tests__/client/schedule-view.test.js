@@ -113,7 +113,7 @@ describe('ScheduleView', () => {
     expect(dashCells.length).toBe(2)
   })
 
-  it('sorts releases by GA date', async () => {
+  it('lists the newest version first', async () => {
     apiRequest.mockResolvedValue({
       releases: [
         makeRelease('rhoai-3.6', { ga: '2026-12-01' }),
@@ -125,12 +125,12 @@ describe('ScheduleView', () => {
     await flushPromises()
 
     const rows = wrapper.findAll('tbody tr')
-    expect(rows[0].text()).toContain('RHOAI-3.4')
+    expect(rows[0].text()).toContain('RHOAI-3.6')
     expect(rows[1].text()).toContain('RHOAI-3.5')
-    expect(rows[2].text()).toContain('RHOAI-3.6')
+    expect(rows[2].text()).toContain('RHOAI-3.4')
   })
 
-  it('filters by non-active state (only shows active)', async () => {
+  it('hides archived releases by default', async () => {
     apiRequest.mockResolvedValue({
       releases: [
         makeRelease('rhoai-3.5', { state: 'active', ga: '2026-09-15' }),
@@ -157,8 +157,10 @@ describe('ScheduleView', () => {
     await flushPromises()
 
     const rows = wrapper.findAll('tbody tr')
-    const pastRow = rows[0]
+    const pastRow = rows.find(row => row.text().includes('RHOAI-3.4'))
+    const futureRow = rows.find(row => row.text().includes('RHOAI-3.5'))
     expect(pastRow.classes()).toContain('opacity-50')
+    expect(futureRow.classes()).not.toContain('opacity-50')
   })
 
   it('shows global next milestone banner', async () => {
@@ -320,7 +322,7 @@ describe('ScheduleView', () => {
       expect(wrapper.text()).not.toContain('4d ago')
     })
 
-    it('keeps releases sorted by GA date correctly', async () => {
+    it('keeps newest-first ordering across dates', async () => {
       apiRequest.mockResolvedValue({
         releases: [
           makeRelease('rhoai-3.6', { ga: '2026-07-25' }),
@@ -331,8 +333,8 @@ describe('ScheduleView', () => {
       await flushPromises()
 
       const rows = wrapper.findAll('tbody tr')
-      expect(rows[0].text()).toContain('RHOAI-3.5')
-      expect(rows[1].text()).toContain('RHOAI-3.6')
+      expect(rows[0].text()).toContain('RHOAI-3.6')
+      expect(rows[1].text()).toContain('RHOAI-3.5')
     })
 
     it('still falls back from releaseStart to planningFreeze correctly', async () => {
@@ -346,5 +348,106 @@ describe('ScheduleView', () => {
       expect(wrapper.text()).toContain('Release Start')
       expect(wrapper.text()).not.toContain('Plan Freeze')
     })
+  })
+})
+
+describe('ScheduleView release lifecycle and visibility', () => {
+  function makeProjectRelease(name, opts = {}) {
+    return {
+      id: `proj-${name}`,
+      displayName: `Proj ${name}`,
+      fixVersions: [name],
+      state: opts.state || 'active',
+      lifecycle: opts.lifecycle,
+      sourceFields: opts.released === undefined ? undefined : { released: opts.released },
+      milestones: { ga: opts.ga, releaseStart: opts.releaseStart, codeFreeze: opts.codeFreeze }
+    }
+  }
+
+  async function mountWith(releases) {
+    apiRequest.mockResolvedValue({ releases })
+    const wrapper = mount(ScheduleView)
+    await flushPromises()
+    return wrapper
+  }
+
+  function rowNames(wrapper) {
+    return wrapper.findAll('tbody tr').map(row => row.find('td').text())
+  }
+
+  it('orders version families newest first, z releases and undated versions included', async () => {
+    const wrapper = await mountWith([
+      makeProjectRelease('0.9.0', { ga: '2026-03-01' }),
+      makeProjectRelease('0.10.0'),
+      makeProjectRelease('0.9.1', { ga: '2026-04-01' }),
+      makeProjectRelease('Backlog'),
+      makeProjectRelease('0.10.1', { ga: '2026-12-01' })
+    ])
+    expect(rowNames(wrapper)).toEqual(['Proj 0.10.1', 'Proj 0.10.0', 'Proj 0.9.1', 'Proj 0.9.0', 'Proj Backlog'])
+  })
+
+  it('hides release candidates and offers no toggle for them', async () => {
+    const wrapper = await mountWith([
+      makeProjectRelease('0.10.0', { ga: '2026-11-01' }),
+      makeProjectRelease('0.10.0-rc1', { ga: '2026-10-01' }),
+      makeProjectRelease('0.10.0-rc7', { ga: '2026-10-20' })
+    ])
+    expect(rowNames(wrapper)).toEqual(['Proj 0.10.0'])
+    expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false)
+  })
+
+  it('hides archived releases until the archived toggle is on', async () => {
+    const wrapper = await mountWith([
+      makeProjectRelease('0.2', { ga: '2026-06-01' }),
+      makeProjectRelease('0.1', { state: 'archived', ga: '2026-01-01' }),
+      makeProjectRelease('0.1-rc1', { state: 'archived', ga: '2025-12-01' })
+    ])
+    expect(rowNames(wrapper)).toEqual(['Proj 0.2'])
+    expect(wrapper.text()).toContain('Show archived (1)')
+
+    await wrapper.find('input[type="checkbox"]').setValue(true)
+    expect(rowNames(wrapper)).toEqual(['Proj 0.2', 'Proj 0.1'])
+  })
+
+  it('omits the Code Freeze column when no listed release has a code freeze', async () => {
+    const wrapper = await mountWith([makeProjectRelease('0.2', { ga: '2026-06-01' })])
+    expect(wrapper.find('thead').text()).not.toContain('Code Freeze')
+    expect(wrapper.findAll('thead th')).toHaveLength(4)
+  })
+
+  it('keeps the Code Freeze column when a release has one', async () => {
+    const wrapper = await mountWith([
+      makeProjectRelease('0.2', { ga: '2026-06-01', codeFreeze: '2026-05-01' }),
+      makeProjectRelease('0.1', { ga: '2026-01-01' })
+    ])
+    expect(wrapper.find('thead').text()).toContain('Code Freeze')
+    expect(wrapper.findAll('thead th')).toHaveLength(5)
+  })
+
+  it('shows Jira-released versions as confirmed', async () => {
+    const wrapper = await mountWith([makeProjectRelease('0.2', { released: true, ga: '2026-06-01' })])
+    const badge = wrapper.find('tbody span[title]')
+    expect(badge.text()).toBe('Released')
+    expect(badge.attributes('title')).toBe('Confirmed by Jira')
+  })
+
+  it('marks date-derived statuses as inferred', async () => {
+    const wrapper = await mountWith([
+      makeProjectRelease('0.2', { lifecycle: 'released', released: false, ga: '2026-06-01' })
+    ])
+    const badge = wrapper.find('tbody span[title]')
+    expect(badge.text()).toBe('Released (inferred)')
+    expect(badge.classes()).toContain('border-dashed')
+  })
+
+  it('does not infer a status when Jira has no released flag and no lifecycle is published', async () => {
+    const wrapper = await mountWith([
+      makeProjectRelease('0.2', { released: false, ga: '2020-01-01' }),
+      makeProjectRelease('0.1', { ga: '2020-01-01' })
+    ])
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows[0].text()).toContain('Unreleased')
+    expect(rows[0].classes()).not.toContain('opacity-50')
+    expect(rows[1].find('td:nth-child(2)').text()).toBe('—')
   })
 })

@@ -145,6 +145,31 @@ describe('AppSidebar project-scoped modules', () => {
     expect(wrapper.text()).not.toContain('Test Coverage')
   })
 
+  it('hides a nav item scoped to another project and keeps the rest', () => {
+    const manifest = {
+      slug: 'releases',
+      name: 'Releases',
+      icon: 'rocket',
+      client: {
+        navItems: [
+          { id: 'execute', label: 'Execute', icon: 'GitBranch', default: true },
+          { id: 'deliver', label: 'Deliver', icon: 'Rocket', projectIds: ['osac'] }
+        ]
+      }
+    }
+    const expanded = { collapsed: true, builtInManifests: [manifest] }
+    const osac = mountSidebar({ ...expanded, projectId: 'osac' })
+    expect(osac.find('button[aria-label="Execute"]').exists()).toBe(true)
+    expect(osac.find('button[aria-label="Deliver"]').exists()).toBe(true)
+
+    const flightctl = mountSidebar({ ...expanded, projectId: 'flightctl' })
+    expect(flightctl.find('button[aria-label="Execute"]').exists()).toBe(true)
+    expect(flightctl.find('button[aria-label="Deliver"]').exists()).toBe(false)
+
+    const legacy = mountSidebar({ ...expanded, projectId: '' })
+    expect(legacy.find('button[aria-label="Deliver"]').exists()).toBe(true)
+  })
+
   it('still renders a module without singlePage as a collapsible section', () => {
     const wrapper = mountSidebar({
       collapsed: false,

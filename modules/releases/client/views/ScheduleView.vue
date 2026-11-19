@@ -36,7 +36,7 @@
 
     <!-- Empty -->
     <div
-      v-else-if="!allSortedReleases.length"
+      v-else-if="!releases.length"
       class="text-center py-16 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
     >
       <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">No releases found</h3>
@@ -76,35 +76,52 @@
         </span>
       </div>
 
-      <!-- Product filter -->
-      <div v-if="products.length > 1" class="flex flex-wrap gap-2 mb-5">
-        <button
-          @click="selectedProduct = null"
-          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border"
-          :class="!selectedProduct
-            ? 'bg-primary-600 text-white border-primary-600'
-            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-primary-300 dark:hover:border-primary-600'"
-        >All</button>
-        <button
-          v-for="p in products"
-          :key="p"
-          @click="selectedProduct = p"
-          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border"
-          :class="selectedProduct === p
-            ? 'bg-primary-600 text-white border-primary-600'
-            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-primary-300 dark:hover:border-primary-600'"
-        >{{ p }}</button>
+      <div v-if="products.length > 1 || archivedCount" class="flex flex-wrap items-center gap-2 mb-5">
+        <!-- Product filter -->
+        <template v-if="products.length > 1">
+          <button
+            @click="selectedProduct = null"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border"
+            :class="!activeProduct
+              ? 'bg-primary-600 text-white border-primary-600'
+              : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-primary-300 dark:hover:border-primary-600'"
+          >All</button>
+          <button
+            v-for="p in products"
+            :key="p"
+            @click="selectedProduct = p"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border"
+            :class="activeProduct === p
+              ? 'bg-primary-600 text-white border-primary-600'
+              : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-primary-300 dark:hover:border-primary-600'"
+          >{{ p }}</button>
+        </template>
+        <label
+          v-if="archivedCount"
+          class="ml-auto inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer"
+        >
+          <input v-model="showArchived" type="checkbox" class="rounded border-gray-300 dark:border-gray-600" />
+          Show archived ({{ archivedCount }})
+        </label>
+      </div>
+
+      <div
+        v-if="!allSortedReleases.length"
+        class="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400"
+      >
+        No releases to show. Archived versions and release candidates are hidden.
       </div>
 
       <!-- Releases table -->
-      <div class="bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+      <div v-else class="bg-white dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/50">
                 <th class="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Release</th>
+                <th class="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                 <th class="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Release Start</th>
-                <th class="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Code Freeze</th>
+                <th v-if="hasCodeFreeze" class="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Code Freeze</th>
                 <th class="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Release Date</th>
               </tr>
             </thead>
@@ -119,9 +136,18 @@
                   <span class="font-semibold text-gray-900 dark:text-gray-100">{{ r.displayName || r.id }}</span>
                 </td>
                 <td class="px-4 py-3">
-                  <MilestoneCell :date="getReleaseStartDate(r)" :muted="isReleased(r)" />
+                  <span
+                    v-if="statusBadge(r)"
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border"
+                    :class="statusBadge(r).class"
+                    :title="statusBadge(r).title"
+                  >{{ statusBadge(r).text }}</span>
+                  <span v-else class="text-gray-300 dark:text-gray-600">—</span>
                 </td>
                 <td class="px-4 py-3">
+                  <MilestoneCell :date="getReleaseStartDate(r)" :muted="isReleased(r)" />
+                </td>
+                <td v-if="hasCodeFreeze" class="px-4 py-3">
                   <MilestoneCell :date="r.milestones?.codeFreeze" :muted="isReleased(r)" />
                 </td>
                 <td class="px-4 py-3">
@@ -140,6 +166,12 @@
 import { ref, computed, onMounted, watch, h } from 'vue'
 import { apiRequest } from '@shared/client/services/api.js'
 import { useProjectId, projectQuery } from '@shared/client/composables/useProjectId.js'
+import {
+  STATUS_LABELS,
+  compareReleasesNewestFirst,
+  isReleaseCandidate,
+  releaseStatus
+} from '../utils/releaseSchedule.js'
 
 // ── Data ──
 
@@ -147,13 +179,14 @@ const releases = ref([])
 const loading = ref(true)
 const error = ref(null)
 const selectedProduct = ref(null)
+const showArchived = ref(false)
 
 async function fetchRegistry() {
   loading.value = true
   error.value = null
   try {
     const data = await apiRequest(`/modules/releases/registry${projectQuery(useProjectId().value)}`)
-    releases.value = (data.releases || []).filter(function (r) { return r.state === 'active' })
+    releases.value = data.releases || []
   } catch (e) {
     error.value = e.message || 'Failed to load schedule data'
     console.error('[schedule] Failed to fetch registry:', e)
@@ -238,29 +271,35 @@ function nextMilestone(release) {
 
 // ── Computed ──
 
+// Release candidates stay in the registry but are never scheduled here.
+const scheduledReleases = computed(() => releases.value.filter(r => !isReleaseCandidate(r)))
+
+const archivedCount = computed(() => scheduledReleases.value.filter(r => r.state === 'archived').length)
+
+const listedReleases = computed(() =>
+  showArchived.value ? scheduledReleases.value : scheduledReleases.value.filter(r => r.state !== 'archived')
+)
+
 const products = computed(() => {
   const set = {}
-  for (let i = 0; i < releases.value.length; i++) {
-    set[getProduct(releases.value[i])] = true
+  for (let i = 0; i < listedReleases.value.length; i++) {
+    set[getProduct(listedReleases.value[i])] = true
   }
   return Object.keys(set).sort()
 })
 
-const filteredReleases = computed(() => {
-  if (!selectedProduct.value) return releases.value
-  return releases.value.filter(r => getProduct(r) === selectedProduct.value)
-})
+const activeProduct = computed(() => (products.value.includes(selectedProduct.value) ? selectedProduct.value : null))
 
 const allSortedReleases = computed(() => {
-  return filteredReleases.value.slice().sort((a, b) => {
-    const da = parseDate(getGaDate(a))
-    const db = parseDate(getGaDate(b))
-    if (!da && !db) return 0
-    if (!da) return 1
-    if (!db) return -1
-    return da.getTime() - db.getTime()
-  })
+  const filtered = activeProduct.value
+    ? listedReleases.value.filter(r => getProduct(r) === activeProduct.value)
+    : listedReleases.value
+  return filtered.slice().sort((a, b) =>
+    getProduct(a).localeCompare(getProduct(b)) || compareReleasesNewestFirst(a, b)
+  )
 })
+
+const hasCodeFreeze = computed(() => allSortedReleases.value.some(r => r.milestones?.codeFreeze))
 
 const globalNextMilestone = computed(() => {
   let best = null
@@ -275,10 +314,33 @@ const globalNextMilestone = computed(() => {
 })
 
 function isReleased(release) {
+  const status = releaseStatus(release)
+  if (status) return status.key === 'released'
   const ga = getGaDate(release)
   if (!ga) return false
   const days = daysFromNow(ga)
   return days !== null && days < 0
+}
+
+const STATUS_CLASSES = {
+  released: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700/50',
+  'in-progress': 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700/50'
+}
+const DEFAULT_STATUS_CLASS = 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'
+
+// Inferred statuses come from Jira dates, not from Jira's released flag, so
+// they are spelled out and drawn with a dashed border.
+function statusBadge(release) {
+  const status = releaseStatus(release)
+  if (!status) return null
+  const label = STATUS_LABELS[status.key] || status.key
+  return status.confirmed
+    ? { text: label, class: STATUS_CLASSES[status.key] || DEFAULT_STATUS_CLASS, title: 'Confirmed by Jira' }
+    : {
+        text: `${label} (inferred)`,
+        class: `${STATUS_CLASSES[status.key] || DEFAULT_STATUS_CLASS} border-dashed`,
+        title: 'Inferred from Jira release dates'
+      }
 }
 
 function nextMilestoneUrgencyRow(release) {

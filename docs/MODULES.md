@@ -86,6 +86,7 @@ modules/your-module/
 | `requireRole` | string | No | Only show item to users with this role (e.g., `"manager"`, `"team-admin"`, `"planning-manager"`) |
 | `requireCondition` | string | No | Only show when condition is met (e.g., `"in-app-mode"` — hides when roster is sheet-based) |
 | `separatorBefore` | boolean | No | Render a visual separator line above this item |
+| `projectIds` | string[] | No | Project IDs the item applies to. For other projects the item is hidden and a direct link to its view falls back to the module's default view. Omit to show it in every project |
 
 ### `hiddenRoutes`
 

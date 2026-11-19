@@ -239,7 +239,7 @@ import { refreshMetrics, getLastRefreshed, apiRequest, getSiteConfig } from '@sh
 import { loadModuleManifests, loadModuleClient } from '../module-loader'
 import { loadPlatformAboutTabs } from '../platform-loader'
 import { resolveIcon } from '../utils/icon-map'
-import { moduleAppliesToProject } from '../utils/project-scope'
+import { moduleAppliesToProject, viewAppliesToProject } from '../utils/project-scope'
 
 export default {
   name: 'App',
@@ -527,10 +527,26 @@ export default {
     // moves to a project it does not apply to.
     redirectIfModuleOutOfScope() {
       const manifest = this.builtInManifests.find(m => m.slug === this.activeModule)
-      if (!manifest || moduleAppliesToProject(manifest, this.projectContextProjectId)) return
-      this.setShellView('home')
+      if (!manifest) return
       const projectId = this.projectContextProjectId
-      window.location.hash = projectId ? `#/?projectId=${encodeURIComponent(projectId)}` : '#/'
+      if (!moduleAppliesToProject(manifest, projectId)) {
+        this.setShellView('home')
+        window.location.hash = projectId ? `#/?projectId=${encodeURIComponent(projectId)}` : '#/'
+        return
+      }
+      if (!viewAppliesToProject(manifest, this.activeViewId, projectId)) {
+        window.location.hash = this.unsupportedViewHash(manifest, projectId)
+      }
+    },
+
+    // A view scoped out for the project falls back to the module's default
+    // view, or to Home when that view is scoped out as well.
+    unsupportedViewHash(manifest, projectId) {
+      const defaultViewId = getDefaultViewId(manifest)
+      if (viewAppliesToProject(manifest, defaultViewId, projectId)) {
+        return buildShellHash(`${manifest.slug}/${defaultViewId}`, {}, projectId)
+      }
+      return buildShellHash('', {}, projectId)
     },
 
     startInitialDataIfReady() {
@@ -719,6 +735,10 @@ export default {
         }
 
         const viewId = parts[1] || getDefaultViewId(manifest)
+        if (!viewAppliesToProject(manifest, viewId, urlProjectId)) {
+          window.location.replace(this.unsupportedViewHash(manifest, urlProjectId))
+          return
+        }
         this.activeViewId = viewId
         await this.loadModuleView(manifest.slug, viewId)
 
