@@ -133,6 +133,17 @@ describe('ScheduleWidget', () => {
     expect(wrapper.text()).not.toContain('RHOAI-3.4')
   })
 
+  it('omits release candidates, as the Schedule view does', async () => {
+    const rc = { ...makeRelease('rhoai-3.5-rc1', { ga: futureDate(10) }), fixVersions: ['3.5-rc1'] }
+    apiRequest.mockResolvedValue({
+      releases: [rc, makeRelease('rhoai-3.5', { ga: futureDate(30) })]
+    })
+    const wrapper = mount(ScheduleWidget)
+    await flushPromises()
+    expect(wrapper.text()).toContain('RHOAI-3.5')
+    expect(wrapper.text()).not.toContain('RHOAI-3.5-RC1')
+  })
+
   it('excludes past milestones', async () => {
     const past = new Date()
     past.setDate(past.getDate() - 5)

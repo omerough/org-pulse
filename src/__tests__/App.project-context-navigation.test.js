@@ -20,8 +20,9 @@ vi.mock('../module-loader', async (importOriginal) => {
       client: {
         navItems: [
           { id: 'execute', label: 'Execute', default: true },
-          { id: 'deliver', label: 'Deliver', projectIds: ['osac'] }
-        ]
+          { id: 'deliver', label: 'Deliver' }
+        ],
+        viewProjectIds: { deliver: ['osac'], plan: ['osac'] }
       }
     }, {
       slug: 'team-tracker',
@@ -33,7 +34,7 @@ vi.mock('../module-loader', async (importOriginal) => {
       client: { projectIds: ['osac'], navItems: [{ id: 'coverage', label: 'Coverage', default: true }] }
     }],
     loadModuleClient: async () => ({
-      routes: Object.fromEntries(['execute', 'deliver', 'overview', 'people', 'reports', 'team-detail', 'person-detail', 'coverage']
+      routes: Object.fromEntries(['execute', 'deliver', 'plan', 'overview', 'people', 'reports', 'team-detail', 'person-detail', 'coverage']
         .map(viewId => [viewId, StubView]))
     })
   }
@@ -597,6 +598,15 @@ describe('cross-module routing with a resolved project', () => {
 
     await vi.waitFor(() => expect(window.location.hash).toBe('#/releases/execute?projectId=flightctl'))
     expect(wrapper.vm.activeModule).toBe('releases')
+    expect(wrapper.vm.activeViewId).toBe('execute')
+    wrapper.unmount()
+  })
+
+  it('a deep link to a hidden route scoped to another project falls back to the module default view', async () => {
+    stubBackend(twoProjects)
+    const wrapper = await mountApp('#/releases/plan?projectId=flightctl')
+
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/releases/execute?projectId=flightctl'))
     expect(wrapper.vm.activeViewId).toBe('execute')
     wrapper.unmount()
   })

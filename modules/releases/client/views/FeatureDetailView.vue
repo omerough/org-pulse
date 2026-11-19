@@ -4,6 +4,7 @@ import { useFeatureDetail } from '../execute/composables/useFeatureTraffic'
 import { useAIReview } from '../execute/composables/useAIReview.js'
 import { useModuleLink } from '@shared/client/composables/useModuleLink.js'
 import { apiRequest } from '@shared/client/services/api.js'
+import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import { getPrdReviewNavigationKey, getPrdReviewPrUrl } from '@shared/client/utils/feature-links.js'
 import StatusBadge from '../execute/components/StatusBadge.vue'
 import TrafficMap from '../execute/components/TrafficMap.vue'
@@ -13,6 +14,7 @@ import AIReviewSection from '../execute/components/AIReviewSection.vue'
 import HygieneViolations from '@shared/client/components/HygieneViolations.vue'
 
 const nav = inject('moduleNav')
+const projectId = useProjectId()
 const { feature, loading, error, loadFeature } = useFeatureDetail()
 const { aiReview, aiReviewLoading, aiReviewError, loadAIReview } = useAIReview()
 const { navigateTo: crossNavigate } = useModuleLink()
@@ -27,7 +29,12 @@ async function loadHygiene(version) {
   if (!version) { hygieneAvailable.value = false; return }
   hygieneLoading.value = true
   try {
-    const data = await apiRequest(`/modules/releases/hygiene/features?version=${encodeURIComponent(version)}`)
+    const projectParam = projectId.value ? `&projectId=${encodeURIComponent(projectId.value)}` : ''
+    const data = await apiRequest(`/modules/releases/hygiene/features?version=${encodeURIComponent(version)}${projectParam}`)
+    if (data?.state === 'unavailable') {
+      hygieneAvailable.value = false
+      return
+    }
     const featureResult = data?.features?.[featureKey.value]
     if (featureResult) {
       hygieneViolations.value = featureResult.violations || []

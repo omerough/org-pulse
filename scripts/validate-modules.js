@@ -275,29 +275,31 @@ function validate() {
         }
         if (!item.label) warn(`NavItem "${item.id}" missing "label"`)
         if (!item.icon) warn(`NavItem "${item.id}" missing "icon"`)
-        if (item.projectIds !== undefined) {
-          if (!Array.isArray(item.projectIds) || item.projectIds.length === 0) {
-            error(`NavItem "${item.id}" projectIds must be a non-empty array of project ID strings`)
-          } else {
-            for (const projectId of item.projectIds) {
-              if (typeof projectId !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectId)) {
-                error(`NavItem "${item.id}" projectIds entry "${projectId}" must be a lowercase kebab-case project ID`)
-              }
-            }
-          }
-        }
       }
     }
 
     // Project scoping and single-page rendering
+    const checkProjectIds = (label, projectIds) => {
+      if (!Array.isArray(projectIds) || projectIds.length === 0) {
+        error(`${label} must be a non-empty array of project ID strings`)
+        return
+      }
+      for (const projectId of projectIds) {
+        if (typeof projectId !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectId)) {
+          error(`${label} entry "${projectId}" must be a lowercase kebab-case project ID`)
+        }
+      }
+    }
     if (manifest.client?.projectIds !== undefined) {
-      if (!Array.isArray(manifest.client.projectIds) || manifest.client.projectIds.length === 0) {
-        error('client.projectIds must be a non-empty array of project ID strings')
+      checkProjectIds('client.projectIds', manifest.client.projectIds)
+    }
+    if (manifest.client?.viewProjectIds !== undefined) {
+      const viewProjectIds = manifest.client.viewProjectIds
+      if (!viewProjectIds || typeof viewProjectIds !== 'object' || Array.isArray(viewProjectIds)) {
+        error('client.viewProjectIds must be an object mapping view IDs to project ID arrays')
       } else {
-        for (const projectId of manifest.client.projectIds) {
-          if (typeof projectId !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectId)) {
-            error(`client.projectIds entry "${projectId}" must be a lowercase kebab-case project ID`)
-          }
+        for (const [viewId, projectIds] of Object.entries(viewProjectIds)) {
+          checkProjectIds(`client.viewProjectIds["${viewId}"]`, projectIds)
         }
       }
     }

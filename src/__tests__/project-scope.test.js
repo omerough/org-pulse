@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   moduleAppliesToProject,
   filterModulesForProject,
-  navItemAppliesToProject,
   projectIdsAllow,
   viewAppliesToProject
 } from '../utils/project-scope'
@@ -69,32 +68,28 @@ describe('filterModulesForProject', () => {
   })
 })
 
-describe('navItemAppliesToProject', () => {
-  it('scopes an item to its declared projects and keeps legacy unqualified access', () => {
-    const item = { id: 'deliver', projectIds: ['osac'] }
-    expect(navItemAppliesToProject(item, 'osac')).toBe(true)
-    expect(navItemAppliesToProject(item, 'flightctl')).toBe(false)
-    expect(navItemAppliesToProject(item, '')).toBe(true)
-  })
-
-  it('keeps an item without projectIds in every project', () => {
-    expect(navItemAppliesToProject({ id: 'execute' }, 'flightctl')).toBe(true)
-  })
-})
-
 describe('viewAppliesToProject', () => {
   const releases = {
     slug: 'releases',
-    client: { navItems: [{ id: 'execute' }, { id: 'deliver', projectIds: ['osac'] }] }
+    client: {
+      navItems: [{ id: 'execute' }, { id: 'deliver' }],
+      viewProjectIds: { deliver: ['osac'], plan: ['osac'] }
+    }
   }
 
-  it('follows the nav item scope', () => {
+  it('scopes a nav item to its declared projects', () => {
     expect(viewAppliesToProject(releases, 'deliver', 'osac')).toBe(true)
     expect(viewAppliesToProject(releases, 'deliver', 'flightctl')).toBe(false)
     expect(viewAppliesToProject(releases, 'execute', 'flightctl')).toBe(true)
   })
 
-  it('does not scope routes that have no nav item', () => {
+  it('scopes a hidden route that has no nav item', () => {
+    expect(viewAppliesToProject(releases, 'plan', 'osac')).toBe(true)
+    expect(viewAppliesToProject(releases, 'plan', 'flightctl')).toBe(false)
+  })
+
+  it('keeps legacy unqualified access and unlisted routes', () => {
+    expect(viewAppliesToProject(releases, 'plan', '')).toBe(true)
     expect(viewAppliesToProject(releases, 'feature-detail', 'flightctl')).toBe(true)
   })
 

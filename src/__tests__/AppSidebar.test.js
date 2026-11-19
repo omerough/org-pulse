@@ -153,8 +153,9 @@ describe('AppSidebar project-scoped modules', () => {
       client: {
         navItems: [
           { id: 'execute', label: 'Execute', icon: 'GitBranch', default: true },
-          { id: 'deliver', label: 'Deliver', icon: 'Rocket', projectIds: ['osac'] }
-        ]
+          { id: 'deliver', label: 'Deliver', icon: 'Rocket' }
+        ],
+        viewProjectIds: { deliver: ['osac'] }
       }
     }
     const expanded = { collapsed: true, builtInManifests: [manifest] }

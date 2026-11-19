@@ -71,6 +71,7 @@ modules/your-module/
 | `client.sotuWidgets` | No | Array of widget declarations for the SOTU dashboard (see below) |
 | `client.resetSectionOnProjectSwitch` | No | If `true`, switching the shell project resets navigation to the current section's root view (see below) |
 | `client.projectIds` | No | Project IDs the module applies to (see below). Omit to make it available in every project |
+| `client.viewProjectIds` | No | Map of view ID to the project IDs that view applies to, for nav items and hidden routes alike (see `projectIds` below) |
 | `client.singlePage` | No | If `true` and the module has one navItem, render it as a single sidebar entry named after the module |
 | `server.entry` | No | Path to backend entry point |
 
@@ -86,7 +87,6 @@ modules/your-module/
 | `requireRole` | string | No | Only show item to users with this role (e.g., `"manager"`, `"team-admin"`, `"planning-manager"`) |
 | `requireCondition` | string | No | Only show when condition is met (e.g., `"in-app-mode"` — hides when roster is sheet-based) |
 | `separatorBefore` | boolean | No | Render a visual separator line above this item |
-| `projectIds` | string[] | No | Project IDs the item applies to. For other projects the item is hidden and a direct link to its view falls back to the module's default view. Omit to show it in every project |
 
 ### `hiddenRoutes`
 
@@ -126,6 +126,19 @@ loading) the module stays listed; afterwards every deployment, single-project
 ones included, carries a project ID. A module with its own OSAC-only data source must also reject a
 non-OSAC `projectId` in its server routes — see the `osacOnlyDataGuard` pattern
 in `modules/product-builds/server/index.js`.
+
+To scope individual views instead, map view IDs to project IDs with
+`client.viewProjectIds`. It covers nav items and hidden routes alike: the nav item
+is hidden, and a direct link or project switch to that view falls back to the
+module's default view (or Home when that is scoped out too):
+
+```json
+{
+  "client": {
+    "viewProjectIds": { "deliver": ["osac"] }
+  }
+}
+```
 
 ### `singlePage`
 

@@ -94,18 +94,20 @@ test.describe('Releases Module @releases', () => {
     expect(page.errors).toHaveLength(0);
   });
 
-  test('Deliver is not offered for Flight Control and its deep link falls back to Execute', async ({ page }) => {
-    await mockProjectRoster(page, 'flightctl');
-    await page.goto('/#/releases/deliver?projectId=flightctl');
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
+  for (const view of ['deliver', 'plan', 'reports']) {
+    test(`OSAC-only ${view} deep link falls back to Execute for Flight Control`, async ({ page }) => {
+      await mockProjectRoster(page, 'flightctl');
+      await page.goto(`/#/releases/${view}?projectId=flightctl`);
+      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(DEFAULT_PAGE_WAIT_TIME);
 
-    await expect(page).toHaveURL(/#\/releases\/execute\?projectId=flightctl$/);
-    const executeTabs = page.getByRole('navigation', { name: 'Execute sub-tabs' });
-    await expect(executeTabs.getByRole('button', { name: 'Feature List' })).toBeVisible();
-    await expect(page.locator('aside nav button').filter({ hasText: 'Deliver' })).toHaveCount(0);
-    expect(page.errors).toHaveLength(0);
-  });
+      await expect(page).toHaveURL(/#\/releases\/execute\?projectId=flightctl$/);
+      const executeTabs = page.getByRole('navigation', { name: 'Execute sub-tabs' });
+      await expect(executeTabs.getByRole('button', { name: 'Feature List' })).toBeVisible();
+      await expect(page.locator('aside nav button').filter({ hasText: 'Deliver' })).toHaveCount(0);
+      expect(page.errors).toHaveLength(0);
+    });
+  }
 
   test('Schedule renders for OSAC without release candidates', async ({ page }) => {
     await page.goto('/#/releases/schedule?projectId=osac');

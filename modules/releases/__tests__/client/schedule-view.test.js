@@ -442,11 +442,13 @@ describe('ScheduleView release lifecycle and visibility', () => {
 
   it('does not infer a status when Jira has no released flag and no lifecycle is published', async () => {
     const wrapper = await mountWith([
-      makeProjectRelease('0.2', { released: false, ga: '2020-01-01' }),
+      makeProjectRelease('0.2', { released: false, lifecycle: null, ga: '2020-01-01' }),
       makeProjectRelease('0.1', { ga: '2020-01-01' })
     ])
     const rows = wrapper.findAll('tbody tr')
-    expect(rows[0].text()).toContain('Unreleased')
+    const badge = rows[0].find('span[title]')
+    expect(badge.text()).toBe('Unreleased')
+    expect(badge.attributes('title')).toBe('Confirmed by Jira')
     expect(rows[0].classes()).not.toContain('opacity-50')
     expect(rows[1].find('td:nth-child(2)').text()).toBe('—')
   })
