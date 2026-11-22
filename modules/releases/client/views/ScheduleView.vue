@@ -199,17 +199,30 @@ const error = ref(null)
 const selectedProduct = ref(null)
 const showArchived = ref(false)
 
+// Only the latest request may publish results, and `releases` always belong to
+// `releasesProjectId`, so a slow response never shows another project's data.
+let latestRequestId = 0
+let releasesProjectId = null
+
 async function fetchRegistry() {
+  const requestId = ++latestRequestId
+  const projectId = useProjectId().value
+  if (projectId !== releasesProjectId) {
+    releases.value = []
+    releasesProjectId = projectId
+  }
   loading.value = true
   error.value = null
   try {
-    const data = await apiRequest(`/modules/releases/registry${projectQuery(useProjectId().value)}`)
+    const data = await apiRequest(`/modules/releases/registry${projectQuery(projectId)}`)
+    if (requestId !== latestRequestId) return
     releases.value = data.releases || []
   } catch (e) {
+    if (requestId !== latestRequestId) return
     error.value = e.message || 'Failed to load schedule data'
     console.error('[schedule] Failed to fetch registry:', e)
   } finally {
-    loading.value = false
+    if (requestId === latestRequestId) loading.value = false
   }
 }
 

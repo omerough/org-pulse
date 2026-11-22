@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { nextTick } from 'vue'
 
 vi.mock('@shared/client/services/api.js', () => ({
   apiRequest: vi.fn()
 }))
 
 import { apiRequest } from '@shared/client/services/api.js'
+import { setDefaultProjectId } from '@shared/client/composables/useProjectId.js'
 import ScheduleView from '../../client/views/ScheduleView.vue'
 
 function makeRelease(id, opts = {}) {
@@ -557,5 +559,45 @@ describe('ScheduleView release lifecycle and visibility', () => {
     expect(rows[1].find('td a').exists()).toBe(false)
     expect(rows[2].find('td a').exists()).toBe(false)
     expect(rows[2].find('td').text()).toBe('Proj 1.2.0')
+  })
+})
+
+describe('ScheduleView project switching', () => {
+  afterEach(() => setDefaultProjectId(''))
+
+  it('ignores a stale response that resolves after a newer project request', async () => {
+    const deferred = () => {
+      let resolve
+      const promise = new Promise(r => { resolve = r })
+      return { promise, resolve }
+    }
+    const osac = deferred()
+    const flightctl = deferred()
+    const never = new Promise(() => {})
+    apiRequest.mockImplementation(url => {
+      if (url.includes('projectId=osac')) return osac.promise
+      if (url.includes('projectId=flightctl')) return flightctl.promise
+      return never
+    })
+
+    setDefaultProjectId('osac')
+    const wrapper = mount(ScheduleView)
+    setDefaultProjectId('flightctl')
+    await nextTick()
+
+    flightctl.resolve({ releases: [makeRelease('fc-1.0', { displayName: 'FC 1.0' })] })
+    await flushPromises()
+    osac.resolve({ releases: [makeRelease('osac-1.0', { displayName: 'OSAC 1.0' })] })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('FC 1.0')
+    expect(wrapper.text()).not.toContain('OSAC 1.0')
+    expect(wrapper.findAll('button').find(b => b.text() === 'Refresh')).toBeTruthy()
+
+    setDefaultProjectId('another-project')
+    await nextTick()
+
+    expect(wrapper.text()).not.toContain('FC 1.0')
+    expect(wrapper.text()).toContain('Loading schedule...')
   })
 })
