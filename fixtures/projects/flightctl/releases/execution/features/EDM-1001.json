@@ -140,6 +140,10 @@
         "unknown": 0
       },
       "reason": null
+    },
+    "workStatus": {
+      "source": "jira-feature-status",
+      "state": "in-progress"
     }
   }
 }

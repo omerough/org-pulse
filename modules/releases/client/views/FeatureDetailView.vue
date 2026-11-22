@@ -146,6 +146,8 @@ function renderStatusNotes(notes) {
 }
 
 const ownerStatusColor = computed(() => feature.value?.colorStatus || feature.value?.ownerStatusColor || null)
+// Only payloads that carry the Status color field can be missing it.
+const hasStatusColorField = computed(() => !!feature.value && 'colorStatus' in feature.value)
 
 const featureKey = computed(() => nav.params.value.key)
 
@@ -439,8 +441,13 @@ watch([featureKey, projectId], loadForSelection)
                 target="_blank"
               >{{ feature.key }}</a>
               <StatusBadge :status="feature.status" />
+              <span
+                v-if="feature.workStatus?.state === 'inactive'"
+                class="inline-block px-2 py-0.5 rounded border border-gray-300 dark:border-gray-600 text-xs font-medium text-gray-600 dark:text-gray-400"
+                title="Inactive in Jira. Epic or Story activity does not change the Feature's work status."
+              >Inactive</span>
               <StatusBadge v-if="ownerStatusColor" :health="ownerStatusColor">{{ ownerStatusColor }}</StatusBadge>
-              <StatusBadge v-else status="Status color missing" />
+              <StatusBadge v-else-if="hasStatusColorField" status="Status color missing" />
             </div>
             <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ feature.summary }}</h1>
             <div class="flex flex-wrap gap-3 mt-3 text-xs text-gray-500 dark:text-gray-400">

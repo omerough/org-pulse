@@ -1572,6 +1572,14 @@ Derived summary index of all features in the unified feature store. Rebuilt auto
   only when `state` is `supported`, `coverage` is `complete`, and `issueCount` is positive. It reports
   Jira child status; it must not populate `execution*` metrics or be presented as pipeline success,
   Feature completion, or release readiness. The same object is copied into the matching Feature Detail.
+- `workStatus` is an optional `{ source: "jira-feature-status", state }` emitted for Jira-backed
+  (non-legacy-store) projects, derived only from the Feature's own Jira `status` / `statusCategory`.
+  `state` is `not-started`, `in-progress`, `done`, `unknown`, or `inactive`; `inactive` applies to
+  statuses listed in the profile's `execution.workStatus.inactiveStatuses` (Flight Control: `Backlog`) and
+  is never changed by Epic or Story activity. The real `status` is always preserved (`Backlog`, `New`
+  and `To Do` stay distinct). When present, the Feature List lanes and filter follow `workStatus` and
+  `jiraChildProgress` is shown only as supporting progress; when absent, consumers keep the existing
+  lanes. It is independent of `preparationReadiness` and of release attribution, and it is not a health model.
 - `epicReleaseVersions` is the sorted union of `fixVersions` across a Feature's child Epics,
   pipeline-owned and copied verbatim from the collector's index output. Always present (possibly
   `[]`), and deliberately kept separate from the Feature's own `fixVersions` — a release filter needs
@@ -1720,7 +1728,7 @@ Unified per-feature file combining data from pipeline (GitLab CI), Jira enrichme
   fields above — see the Execution Index notes for the full semantics. org-pulse-data computes and
   owns this classification entirely; org-pulse consumes it read-only.
 
-**Epic provenance (`fixVersionSource`, `componentSource`):** each is one of `direct`, `via-parent-feature`, or `unknown`. Consumers must render `via-parent-feature` values with a visible inherited-source indicator — never as if they were the epic's own — and render `unknown` as an explicit unknown state rather than leaving it blank. `parentFeatureKey`, `issueCount`, `blockerCount`, and `pct`/`progress` (`progress` is an alias of `pct`) make each epic object self-contained for consumers, without a separate lookup into `metrics.epicMetrics[]`.
+**Epic provenance (`fixVersionSource`, `componentSource`):** each is one of `direct`, `via-parent-feature`, or `unknown`. Jira-backed projects that set `execution.versionAttribution.epic: "direct-or-parent-feature"` publish `via-parent-feature` for an Epic without its own Fix Versions, inheriting only the parent Feature's versions that exist in the project release registry (all of them, never a single pick), and `unknown` when none can be inherited. Consumers must render `via-parent-feature` values with a visible inherited-source indicator — never as if they were the epic's own — and render `unknown` as an explicit unknown state rather than leaving it blank. `parentFeatureKey`, `issueCount`, `blockerCount`, and `pct`/`progress` (`progress` is an alias of `pct`) make each epic object self-contained for consumers, without a separate lookup into `metrics.epicMetrics[]`.
 
 **Per-Epic execution counts and per-issue preparation flag:** each epic also carries
 `executionIssueCount`/`doneExecutionIssueCount` — the same Feature-level fields reused at Epic

@@ -243,16 +243,16 @@ test.describe('Shared Releases Execute @releases', () => {
         await expect(page.getByText(/does not establish Feature completion, pipeline success, or release readiness/)).toBeVisible();
         await expect(page.getByRole('button', { name: 'Board', exact: true })).toBeVisible();
         await page.getByRole('button', { name: 'Board', exact: true }).click();
-        await expect(page.getByText(/With Jira child status progress:/)).toBeVisible();
-        await expect(page.getByText(/Without complete Jira child status progress:/)).toBeVisible();
-        await expect(page.getByRole('heading', { name: 'Jira Children: Done' })).toBeVisible();
+        await expect(page.getByText(/With known work status:/)).toBeVisible();
+        await expect(page.getByText(/Unknown work status:/)).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'In Progress', exact: true })).toBeVisible();
         await expect(page.getByText(/1\/1 Jira Done/)).toBeVisible();
 
         await page.getByRole('button', { name: 'List', exact: true }).click();
         await page.getByLabel('Search').fill('EDM-1002');
         const row = page.getByRole('row').filter({ hasText: 'EDM-1002' });
         await expect(row).toBeVisible();
-        await expect(row.getByRole('cell').nth(3)).toContainText('No Eligible Jira Children');
+        await expect(row.getByRole('cell').nth(3)).toContainText('Not Started');
         await expect(row.getByRole('cell').nth(7)).toHaveText('0');
         await captureSharedExecuteScreenshot(page, projectId, 'feature-list');
         await page.getByRole('button', { name: 'Open details for EDM-1002', exact: true }).click();

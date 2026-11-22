@@ -98,6 +98,10 @@
         "unknown": 0
       },
       "reason": "no-matching-jira-children"
+    },
+    "workStatus": {
+      "source": "jira-feature-status",
+      "state": "not-started"
     }
   }
 }
