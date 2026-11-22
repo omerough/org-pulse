@@ -856,7 +856,7 @@ watch([featureKey, projectId], loadForSelection)
           Epic Breakdown
           <span class="text-sm font-normal text-gray-500 dark:text-gray-400">({{ (feature.epics || []).length }} epics)</span>
         </h2>
-        <EpicBreakdown :epics="feature.epics || []" />
+        <EpicBreakdown :epics="feature.epics || []" show-fix-version />
       </div>
 
       <!-- Source Code Tab -->

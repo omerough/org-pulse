@@ -179,17 +179,17 @@ describe('Feature List work status (Jira-backed project)', () => {
 })
 
 describe('Feature Detail header work status', () => {
-  const nav = { navigateTo: vi.fn(), goBack: vi.fn(), params: ref({ key: 'EDM-1' }) }
+  const nav = { navigateTo: vi.fn(), goBack: vi.fn(), updateParams: vi.fn(), params: ref({ key: 'EDM-1' }) }
 
-  async function mountDetail(detail) {
+  async function mountDetail(detail, stubs = { EpicBreakdown: true }) {
     mockApiRequest.mockResolvedValue({ features: [] })
     mockDetail.value = detail
     const wrapper = mount(FeatureDetailView, {
       global: {
         provide: { moduleNav: nav },
         stubs: {
-          TrafficMap: true, EpicBreakdown: true, SignoffSection: true, AIReviewSection: true,
-          HygieneViolations: true, Teleport: true
+          TrafficMap: true, SignoffSection: true, AIReviewSection: true,
+          HygieneViolations: true, Teleport: true, ...stubs
         }
       }
     })
@@ -214,6 +214,31 @@ describe('Feature Detail header work status', () => {
     })
     expect(wrapper.text()).toContain('New')
     expect(wrapper.text()).not.toContain('Inactive')
+  })
+
+  it('shows each Epic’s release with its provenance on the Epics tab', async () => {
+    const epic = (key, fixVersions, fixVersionSource) => ({
+      key, summary: key, status: 'New', statusCategory: 'To Do', priority: 'Normal', components: [], labels: [],
+      issues: [], fixVersions, fixVersionSource
+    })
+    const wrapper = await mountDetail({
+      key: 'EDM-1', summary: 'Feature', status: 'In Progress', statusCategory: 'In Progress',
+      fixVersions: ['0.9', '1.0'],
+      epics: [
+        epic('EDM-E1', ['0.9'], 'direct'),
+        epic('EDM-E2', ['0.9', '1.0'], 'via-parent-feature'),
+        epic('EDM-E3', [], 'unknown')
+      ],
+      workStatus: { source: 'jira-feature-status', state: 'in-progress' }
+    }, {})
+    await wrapper.findAll('button').find(b => b.text() === 'Epics').trigger('click')
+    const cards = wrapper.findAll('div.rounded-lg').filter(c => /EDM-E\d/.test(c.text()) && !c.text().includes('Epic Breakdown'))
+    const byKey = key => cards.find(c => c.text().includes(key)).text()
+    expect(byKey('EDM-E1')).not.toContain('inherited from Feature')
+    expect(byKey('EDM-E2')).toContain('inherited from Feature')
+    expect(byKey('EDM-E2')).toContain('1.0')
+    expect(byKey('EDM-E3')).toContain('Unknown')
+    expect(wrapper.text()).not.toContain('Parent Feature')
   })
 
   it('still reports a missing Status color for payloads that carry the field', async () => {
