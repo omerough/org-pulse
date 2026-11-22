@@ -28,6 +28,12 @@
     "settingsComponent": "./client/components/ReleasesSettings.vue",
     "hiddenRoutes": {
       "feature-detail": "execute"
+    },
+    "viewProjectIds": {
+      "deliver": ["osac"],
+      "plan": ["osac"],
+      "release-plan": ["osac"],
+      "reports": ["osac"]
     }
   },
   "server": {

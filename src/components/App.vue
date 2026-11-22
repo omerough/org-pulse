@@ -239,7 +239,7 @@ import { refreshMetrics, getLastRefreshed, apiRequest, getSiteConfig } from '@sh
 import { loadModuleManifests, loadModuleClient } from '../module-loader'
 import { loadPlatformAboutTabs } from '../platform-loader'
 import { resolveIcon } from '../utils/icon-map'
-import { moduleAppliesToProject } from '../utils/project-scope'
+import { moduleAppliesToProject, viewAppliesToProject } from '../utils/project-scope'
 
 export default {
   name: 'App',
@@ -523,14 +523,31 @@ export default {
       }
     },
 
-    // A project-scoped module must not stay on screen after the selector
-    // moves to a project it does not apply to.
+    // A project-scoped module or view must not stay on screen after the
+    // selector moves to a project it does not apply to. The redirect replaces
+    // the history entry so Back does not return to the unsupported URL.
     redirectIfModuleOutOfScope() {
       const manifest = this.builtInManifests.find(m => m.slug === this.activeModule)
-      if (!manifest || moduleAppliesToProject(manifest, this.projectContextProjectId)) return
-      this.setShellView('home')
+      if (!manifest) return
       const projectId = this.projectContextProjectId
-      window.location.hash = projectId ? `#/?projectId=${encodeURIComponent(projectId)}` : '#/'
+      if (!moduleAppliesToProject(manifest, projectId)) {
+        this.setShellView('home')
+        window.location.replace(buildShellHash('', {}, projectId))
+        return
+      }
+      if (!viewAppliesToProject(manifest, this.activeViewId, projectId)) {
+        window.location.replace(this.unsupportedViewHash(manifest, projectId))
+      }
+    },
+
+    // A view scoped out for the project falls back to the module's default
+    // view, or to Home when that view is scoped out as well.
+    unsupportedViewHash(manifest, projectId) {
+      const defaultViewId = getDefaultViewId(manifest)
+      if (viewAppliesToProject(manifest, defaultViewId, projectId)) {
+        return buildShellHash(`${manifest.slug}/${defaultViewId}`, {}, projectId)
+      }
+      return buildShellHash('', {}, projectId)
     },
 
     startInitialDataIfReady() {
@@ -591,6 +608,9 @@ export default {
     },
 
     async restoreFromHash() {
+      // A module client can finish loading after a newer navigation has started;
+      // only the latest navigation may render its component.
+      const navigationId = this._navigationId = (this._navigationId || 0) + 1
       const hash = window.location.hash || '#/'
       const { parts, params } = this.parseHash(hash)
       // Route state mirrors the URL on every route, shell views included, so
@@ -719,8 +739,13 @@ export default {
         }
 
         const viewId = parts[1] || getDefaultViewId(manifest)
+        if (!viewAppliesToProject(manifest, viewId, urlProjectId)) {
+          window.location.replace(this.unsupportedViewHash(manifest, urlProjectId))
+          return
+        }
         this.activeViewId = viewId
-        await this.loadModuleView(manifest.slug, viewId)
+        await this.loadModuleView(manifest.slug, viewId, navigationId)
+        if (navigationId !== this._navigationId) return
 
         // Usage tracking beacon — fire-and-forget
         if (!this._trackingDisabled) {
@@ -746,8 +771,9 @@ export default {
       this.setShellView('home')
     },
 
-    async loadModuleView(slug, viewId) {
+    async loadModuleView(slug, viewId, navigationId) {
       const client = await this.ensureModuleClient(slug)
+      if (navigationId !== this._navigationId) return
       if (!client) {
         console.error(`[App] Module client not found for "${slug}"`)
         this.activeComponent = null

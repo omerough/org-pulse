@@ -37,6 +37,28 @@ function warn(msg) {
   console.warn(`  WARN: ${msg}`)
 }
 
+/**
+ * Route IDs of the client entry's `export const routes = { ... }`, which must hold one
+ * self-contained `'id': component` entry per line (the documented format).
+ * Returns null for any other shape so callers fail instead of guessing.
+ */
+function readClientRouteIds(entryPath) {
+  if (!fs.existsSync(entryPath)) return null
+  const block = /export\s+const\s+routes\s*=\s*\{\n([\s\S]*?)\n\};?[ \t]*$/m.exec(fs.readFileSync(entryPath, 'utf8'))
+  if (!block) return null
+  const ids = []
+  for (const line of block[1].split('\n')) {
+    const text = line.trim()
+    if (!text || text.startsWith('//')) continue
+    const entry = /^['"]?([\w-]+)['"]?\s*:/.exec(text)
+    const openers = (text.match(/[({[]/g) || []).length
+    const closers = (text.match(/[)}\]]/g) || []).length
+    if (!entry || openers !== closers) return null
+    ids.push(entry[1])
+  }
+  return ids
+}
+
 function serverUsesStorage(serverDir) {
   const files = []
   function collect(dir) {
@@ -279,14 +301,40 @@ function validate() {
     }
 
     // Project scoping and single-page rendering
+    const checkProjectIds = (label, projectIds) => {
+      if (!Array.isArray(projectIds) || projectIds.length === 0) {
+        error(`${label} must be a non-empty array of project ID strings`)
+        return
+      }
+      for (const projectId of projectIds) {
+        if (typeof projectId !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectId)) {
+          error(`${label} entry "${projectId}" must be a lowercase kebab-case project ID`)
+        }
+      }
+    }
     if (manifest.client?.projectIds !== undefined) {
-      if (!Array.isArray(manifest.client.projectIds) || manifest.client.projectIds.length === 0) {
-        error('client.projectIds must be a non-empty array of project ID strings')
+      checkProjectIds('client.projectIds', manifest.client.projectIds)
+    }
+    if (manifest.client?.viewProjectIds !== undefined) {
+      const viewProjectIds = manifest.client.viewProjectIds
+      if (!viewProjectIds || typeof viewProjectIds !== 'object' || Array.isArray(viewProjectIds)) {
+        error('client.viewProjectIds must be an object mapping view IDs to project ID arrays')
       } else {
-        for (const projectId of manifest.client.projectIds) {
-          if (typeof projectId !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(projectId)) {
-            error(`client.projectIds entry "${projectId}" must be a lowercase kebab-case project ID`)
+        // A misspelled view ID would silently leave that view unscoped.
+        const routeIds = manifest.client.entry
+          ? readClientRouteIds(path.join(MODULES_DIR, dir, manifest.client.entry))
+          : null
+        if (!routeIds) error('client.viewProjectIds needs the client entry to export `routes` as one `\'id\': component` entry per line')
+        const knownViewIds = new Set([
+          ...(routeIds || []),
+          ...(manifest.client.navItems || []).map(item => item.id),
+          ...Object.keys(manifest.client.hiddenRoutes || {})
+        ])
+        for (const [viewId, projectIds] of Object.entries(viewProjectIds)) {
+          if (routeIds && !knownViewIds.has(viewId)) {
+            error(`client.viewProjectIds["${viewId}"] is not a view of this module (known: ${[...knownViewIds].join(', ')})`)
           }
+          checkProjectIds(`client.viewProjectIds["${viewId}"]`, projectIds)
         }
       }
     }

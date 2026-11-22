@@ -65,6 +65,22 @@ describe('readProjectRegistry', () => {
     expect(result.registry.publication).toHaveProperty('observedAt', null);
     expect(result.registry.publication).toHaveProperty('attemptedAt', null);
   });
+
+  const profile = { projectId: 'flightctl', profileRevision: 'flightctl-real-1' };
+  const readerFor = (artifact) => ({ get: () => profile, readArtifact: () => artifact });
+  const publication = (value) => ({ generationId: 'sha', value });
+
+  it.each([
+    ['no publication', readerFor(null), 404, 'Project registry is unavailable'],
+    ['artifact read failure', { get: () => profile, readArtifact: () => { throw new Error('read failed'); } }, 502, 'read failed'],
+    ['unsupported schema', readerFor(publication({ schemaVersion: 2, data: { releases: [] } })), 502, 'Unsupported project registry publication schema'],
+    ['envelope identity mismatch', readerFor(publication({ projectId: 'osac', data: { releases: [] } })), 502, 'Project registry identity mismatch'],
+    ['payload identity mismatch', readerFor(publication({ data: { projectId: 'osac', releases: [] } })), 502, 'Project registry payload identity mismatch'],
+    ['missing releases array', readerFor(publication({ schemaVersion: 1, data: { releases: 'nope' } })), 502, 'Invalid project registry publication'],
+    ['unavailable reader', null, 503, 'Project publication reader is unavailable']
+  ])('fails explicitly for %s without releases', (_name, projects, status, error) => {
+    expect(readProjectRegistry(projects, 'flightctl')).toEqual({ status, error });
+  });
 });
 
 describe('validateRelease', () => {

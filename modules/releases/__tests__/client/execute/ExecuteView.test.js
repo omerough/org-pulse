@@ -9,8 +9,8 @@ vi.mock('@shared/client/composables/useProjectId.js', () => ({
 
 import ExecuteView from '../../../client/views/ExecuteView.vue'
 
-const BASE_TABS = ['Feature List', 'Feature Tracking', 'Epics by Release']
-const ALL_TABS = [...BASE_TABS, 'UI Epics by Component']
+const FLIGHTCTL_TABS = ['Feature List']
+const ALL_TABS = ['Feature List', 'Feature Tracking', 'Epics by Release', 'UI Epics by Component']
 
 function mountView(projectId, tab = undefined) {
   mockProjectId.value = projectId
@@ -40,12 +40,11 @@ describe('shared Execute presentation', () => {
     wrapper.unmount()
   })
 
-  it('hides the UI Epics by Component tab for a project without a dashboard config', async () => {
+  it('shows only Feature List for Flight Control', () => {
     const { wrapper } = mountView('flightctl')
 
-    expect(tabLabels(wrapper)).toEqual(BASE_TABS)
-    await wrapper.findAll('nav button')[2].trigger('click')
-    expect(wrapper.find('epics-by-release-view-stub').exists()).toBe(true)
+    expect(tabLabels(wrapper)).toEqual(FLIGHTCTL_TABS)
+    expect(wrapper.find('overview-view-stub').exists()).toBe(true)
     wrapper.unmount()
   })
 
@@ -61,9 +60,22 @@ describe('shared Execute presentation', () => {
     wrapper.unmount()
   })
 
-  it('restores a valid tab from the URL', async () => {
-    const { wrapper } = mountView('flightctl', 'epics-by-release')
-    expect(wrapper.find('epics-by-release-view-stub').exists()).toBe(true)
+  it.each([
+    ['feature-tracking', 'feature-tracking-view-stub'],
+    ['epics-by-release', 'epics-by-release-view-stub']
+  ])('restores the %s tab from the URL for OSAC', (tab, stub) => {
+    const { wrapper } = mountView('osac', tab)
+    expect(wrapper.find(stub).exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['feature-tracking', 'feature-tracking-view-stub'],
+    ['epics-by-release', 'epics-by-release-view-stub']
+  ])('falls back to Feature List for a Flight Control deep link to %s', (tab, stub) => {
+    const { wrapper } = mountView('flightctl', tab)
+    expect(wrapper.find(stub).exists()).toBe(false)
+    expect(wrapper.find('overview-view-stub').exists()).toBe(true)
     wrapper.unmount()
   })
 
@@ -87,6 +99,19 @@ describe('shared Execute presentation', () => {
     wrapper.unmount()
   })
 
+  it.each(['feature-tracking', 'epics-by-release'])('leaves the %s tab when the project switches to Flight Control', async (tab) => {
+    const { wrapper } = mountView('osac', tab)
+    expect(wrapper.find(`${tab}-view-stub`).exists()).toBe(true)
+
+    mockProjectId.value = 'flightctl'
+    await nextTick()
+    await nextTick()
+
+    expect(tabLabels(wrapper)).toEqual(FLIGHTCTL_TABS)
+    expect(wrapper.find('overview-view-stub').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
   it('leaves the tab when the project switches to one without a dashboard config', async () => {
     const { wrapper } = mountView('osac', 'ui-epics-by-component')
     expect(wrapper.find('epics-by-component-view-stub').exists()).toBe(true)
@@ -95,7 +120,7 @@ describe('shared Execute presentation', () => {
     await nextTick()
     await nextTick()
 
-    expect(tabLabels(wrapper)).toEqual(BASE_TABS)
+    expect(tabLabels(wrapper)).toEqual(FLIGHTCTL_TABS)
     expect(wrapper.find('epics-by-component-view-stub').exists()).toBe(false)
     expect(wrapper.find('overview-view-stub').exists()).toBe(true)
     wrapper.unmount()

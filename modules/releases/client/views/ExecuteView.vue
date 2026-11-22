@@ -34,16 +34,21 @@ import EpicsByComponentView from '../execute/views/EpicsByComponentView.vue'
 import { resolveComponentDashboard } from '../execute/utils/componentDashboardConfig'
 
 const nav = inject('moduleNav')
+// `projectIds` limits a tab to the listed projects (an unresolved project lists every tab).
+// It is a product-exposure choice, not a statement about what the tab's APIs support.
 const ALL_TABS = [
   { id: 'feature-list', label: 'Feature List' },
-  { id: 'feature-tracking', label: 'Feature Tracking' },
-  { id: 'epics-by-release', label: 'Epics by Release' },
+  { id: 'feature-tracking', label: 'Feature Tracking', projectIds: ['osac'] },
+  { id: 'epics-by-release', label: 'Epics by Release', projectIds: ['osac'] },
   { id: 'ui-epics-by-component', label: 'UI Epics by Component', requiresComponentDashboard: true },
 ]
 
 const projectId = useProjectId()
 const hasComponentDashboard = computed(() => resolveComponentDashboard(projectId.value) !== null)
-const tabs = computed(() => ALL_TABS.filter(tab => !tab.requiresComponentDashboard || hasComponentDashboard.value))
+const tabs = computed(() => ALL_TABS.filter(tab =>
+  (!tab.requiresComponentDashboard || hasComponentDashboard.value)
+  && (!tab.projectIds || !projectId.value || tab.projectIds.includes(projectId.value))
+))
 const validTabs = computed(() => tabs.value.map(tab => tab.id))
 const DEFAULT_TAB = 'feature-list'
 const activeTab = ref(DEFAULT_TAB)

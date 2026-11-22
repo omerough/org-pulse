@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { apiRequest } from '@shared/client/services/api.js'
 import { useModuleLink } from '@shared/client/composables/useModuleLink.js'
 import { useProjectId, projectQuery } from '@shared/client/composables/useProjectId.js'
+import { isReleaseCandidate } from '../utils/releaseSchedule.js'
 
 defineProps({
   size: { type: String, default: 'half' }
@@ -20,7 +21,7 @@ async function fetchRegistry() {
   error.value = null
   try {
     const data = await apiRequest(`/modules/releases/registry${projectQuery(useProjectId().value)}`)
-    releases.value = (data.releases || []).filter(r => r.state === 'active')
+    releases.value = (data.releases || []).filter(r => r.state === 'active' && !isReleaseCandidate(r))
   } catch (e) {
     error.value = e.message || 'Failed to load'
   } finally {

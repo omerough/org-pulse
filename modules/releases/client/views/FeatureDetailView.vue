@@ -4,6 +4,7 @@ import { useFeatureDetail } from '../execute/composables/useFeatureTraffic'
 import { useAIReview } from '../execute/composables/useAIReview.js'
 import { useModuleLink } from '@shared/client/composables/useModuleLink.js'
 import { apiRequest } from '@shared/client/services/api.js'
+import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import { getPrdReviewNavigationKey, getPrdReviewPrUrl } from '@shared/client/utils/feature-links.js'
 import StatusBadge from '../execute/components/StatusBadge.vue'
 import TrafficMap from '../execute/components/TrafficMap.vue'
@@ -13,6 +14,7 @@ import AIReviewSection from '../execute/components/AIReviewSection.vue'
 import HygieneViolations from '@shared/client/components/HygieneViolations.vue'
 
 const nav = inject('moduleNav')
+const projectId = useProjectId()
 const { feature, loading, error, loadFeature } = useFeatureDetail()
 const { aiReview, aiReviewLoading, aiReviewError, loadAIReview } = useAIReview()
 const { navigateTo: crossNavigate } = useModuleLink()
@@ -23,11 +25,30 @@ const hygieneViolations = ref([])
 const hygieneAvailable = ref(true)
 const hygieneExpanded = ref(false)
 
+// Only the latest request may write results; resetHygiene invalidates in-flight ones.
+let hygieneRequestId = 0
+
+function resetHygiene() {
+  hygieneRequestId++
+  hygieneViolations.value = []
+  hygieneExpanded.value = false
+  hygieneAvailable.value = true
+  hygieneLoading.value = false
+}
+
 async function loadHygiene(version) {
+  resetHygiene()
   if (!version) { hygieneAvailable.value = false; return }
+  const requestId = hygieneRequestId
   hygieneLoading.value = true
   try {
-    const data = await apiRequest(`/modules/releases/hygiene/features?version=${encodeURIComponent(version)}`)
+    const projectParam = projectId.value ? `&projectId=${encodeURIComponent(projectId.value)}` : ''
+    const data = await apiRequest(`/modules/releases/hygiene/features?version=${encodeURIComponent(version)}${projectParam}`)
+    if (requestId !== hygieneRequestId) return
+    if (data?.state === 'unavailable') {
+      hygieneAvailable.value = false
+      return
+    }
     const featureResult = data?.features?.[featureKey.value]
     if (featureResult) {
       hygieneViolations.value = featureResult.violations || []
@@ -40,9 +61,9 @@ async function loadHygiene(version) {
       hygieneExpanded.value = false
     }
   } catch {
-    hygieneAvailable.value = false
+    if (requestId === hygieneRequestId) hygieneAvailable.value = false
   } finally {
-    hygieneLoading.value = false
+    if (requestId === hygieneRequestId) hygieneLoading.value = false
   }
 }
 
@@ -361,24 +382,28 @@ watch(() => nav.params.value?.tab, (tabParam) => {
   }
 }, { immediate: true })
 
-// Load hygiene when feature data becomes available
-// Prefer the version URL param (matches hygiene storage key), fall back to fixVersions
-watch(feature, (feat) => {
-  const versionParam = nav.params.value?.version
-  const version = versionParam || (feat?.fixVersions?.length ? feat.fixVersions[0] : null)
-  if (version) {
-    loadHygiene(version)
-  } else if (feat) {
+// One flow per selection: Hygiene is requested only after the feature itself loaded,
+// and only if no newer selection (resetHygiene) superseded this one while waiting.
+async function loadForSelection() {
+  resetHygiene()
+  const selection = hygieneRequestId
+  const key = featureKey.value
+  if (!key) return
+  loadAIReview(key)
+  await loadFeature(key)
+  if (selection !== hygieneRequestId) return
+  if (!feature.value) {
     hygieneAvailable.value = false
+    return
   }
-})
+  // Prefer the version URL param (matches hygiene storage key), fall back to fixVersions
+  loadHygiene(nav.params.value?.version || feature.value.fixVersions?.[0] || null)
+}
 
-onMounted(() => {
-  if (featureKey.value) {
-    loadFeature(featureKey.value)
-    loadAIReview(featureKey.value)
-  }
-})
+onMounted(loadForSelection)
+
+// The view stays mounted when the feature or project changes.
+watch([featureKey, projectId], loadForSelection)
 </script>
 
 <template>

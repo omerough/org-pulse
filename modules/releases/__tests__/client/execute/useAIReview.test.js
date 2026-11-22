@@ -5,11 +5,13 @@ vi.mock('@shared/client/services/api.js', () => ({
   apiRequest: (...args) => mockApiRequest(...args)
 }));
 
+import { setDefaultProjectId } from '@shared/client/composables/useProjectId.js';
 import { useAIReview } from '../../../client/execute/composables/useAIReview.js';
 
 describe('useAIReview', () => {
   beforeEach(() => {
     mockApiRequest.mockReset();
+    setDefaultProjectId('');
   });
 
   it('initializes with empty state', () => {
@@ -94,5 +96,81 @@ describe('useAIReview', () => {
     mockApiRequest.mockRejectedValue(err);
     await loadAIReview('RHAISTRAT-2');
     expect(aiReview.value).toBeNull();
+  });
+
+  describe('project isolation and request ordering', () => {
+    const deferred = () => {
+      let resolve, reject;
+      const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+      return { promise, resolve, reject };
+    };
+
+    it('qualifies the request with the selected project', async () => {
+      setDefaultProjectId('flightctl');
+      mockApiRequest.mockResolvedValue({ latest: { recommendation: 'approve' }, history: [] });
+
+      const { loadAIReview } = useAIReview();
+      await loadAIReview('EDM-1');
+
+      expect(mockApiRequest).toHaveBeenCalledWith('/modules/ai-impact/features/EDM-1?projectId=flightctl');
+    });
+
+    it('treats an unavailable project response as no review', async () => {
+      setDefaultProjectId('flightctl');
+      mockApiRequest.mockResolvedValue({ projectId: 'flightctl', state: 'unavailable', reason: 'osac-only-data-source', data: null });
+
+      const { aiReview, aiReviewError, aiReviewLoading, loadAIReview } = useAIReview();
+      await loadAIReview('EDM-1');
+
+      expect(aiReview.value).toBeNull();
+      expect(aiReviewError.value).toBeNull();
+      expect(aiReviewLoading.value).toBe(false);
+    });
+
+    it('ignores an older response that resolves after a newer request', async () => {
+      const first = deferred();
+      const second = deferred();
+      mockApiRequest.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+
+      const { aiReview, aiReviewLoading, loadAIReview } = useAIReview();
+      const firstLoad = loadAIReview('FC-1');
+      const secondLoad = loadAIReview('FC-2');
+
+      second.resolve({ latest: { key: 'FC-2' }, history: [] });
+      await secondLoad;
+      first.resolve({ latest: { key: 'FC-1' }, history: [] });
+      await firstLoad;
+
+      expect(aiReview.value.latest.key).toBe('FC-2');
+      expect(aiReviewLoading.value).toBe(false);
+    });
+
+    it('does not let an older failure surface after a newer success', async () => {
+      const first = deferred();
+      mockApiRequest.mockReturnValueOnce(first.promise).mockResolvedValueOnce({ latest: { key: 'FC-2' }, history: [] });
+
+      const { aiReview, aiReviewError, loadAIReview } = useAIReview();
+      const firstLoad = loadAIReview('FC-1');
+      await loadAIReview('FC-2');
+      first.reject(new Error('Server error'));
+      await firstLoad;
+
+      expect(aiReview.value.latest.key).toBe('FC-2');
+      expect(aiReviewError.value).toBeNull();
+    });
+
+    it('drops a response that arrives after the project changed', async () => {
+      setDefaultProjectId('osac');
+      const pending = deferred();
+      mockApiRequest.mockReturnValueOnce(pending.promise);
+
+      const { aiReview, loadAIReview } = useAIReview();
+      const load = loadAIReview('FC-1');
+      setDefaultProjectId('flightctl');
+      pending.resolve({ latest: { key: 'FC-1' }, history: [] });
+      await load;
+
+      expect(aiReview.value).toBeNull();
+    });
   });
 });

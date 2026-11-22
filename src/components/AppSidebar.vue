@@ -245,7 +245,7 @@ import {
 } from 'lucide-vue-next'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { resolveIcon } from '../utils/icon-map'
-import { filterModulesForProject } from '../utils/project-scope'
+import { filterModulesForProject, viewAppliesToProject } from '../utils/project-scope'
 
 const props = defineProps({
   collapsed: Boolean,
@@ -328,6 +328,7 @@ const navSections = computed(() => {
     const navItems = manifest.client?.navItems || []
     const items = navItems
       .filter(item => {
+        if (!viewAppliesToProject(manifest, item.id, props.projectId)) return false
         // Project rosters have no teamDataSource; a selected project satisfies this gate instead.
         const inProjectContext = Boolean(props.projectId)
         if (item.requireCondition === 'in-app-mode' && props.teamDataSource !== 'in-app' && !inProjectContext) return false
