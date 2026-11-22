@@ -59,7 +59,41 @@
     "effectiveExecutionState": "unavailable",
     "effectiveExecutionCoverage": "unavailable",
     "effectiveExecutionCoverageReason": "no-compatible-feature-producer",
-    "preparationReadiness": "unknown",
+    "preparationReadiness": "pending",
+    "readinessEvidence": {
+      "source": "sources/ep-review/features.json",
+      "requiredStatusFields": [
+        "designPrStatus"
+      ],
+      "statuses": {
+        "designPrStatus": "Open"
+      },
+      "lookup": "complete",
+      "lookupReason": null,
+      "designPr": {
+        "number": 80,
+        "url": "https://github.com/flightctl/design-docs/pull/80",
+        "status": "Open",
+        "draft": false,
+        "reviewStatus": "APPROVED",
+        "createdAt": "2026-09-20T09:00:00Z",
+        "updatedAt": "2026-10-02T09:00:00Z",
+        "mergedAt": null
+      },
+      "designPrs": [
+        {
+          "number": 80,
+          "url": "https://github.com/flightctl/design-docs/pull/80",
+          "status": "Open",
+          "draft": false,
+          "reviewStatus": "APPROVED",
+          "createdAt": "2026-09-20T09:00:00Z",
+          "updatedAt": "2026-10-02T09:00:00Z",
+          "mergedAt": null
+        }
+      ],
+      "approvalTiming": null
+    },
     "isBlocked": null,
     "aiReview": null,
     "dataQualityWarnings": [],

@@ -1580,6 +1580,17 @@ Derived summary index of all features in the unified feature store. Rebuilt auto
   and `To Do` stay distinct). When present, the Feature List lanes and filter follow `workStatus` and
   `jiraChildProgress` is shown only as supporting progress; when absent, consumers keep the existing
   lanes. It is independent of `preparationReadiness` and of release attribution, and it is not a health model.
+- `readinessEvidence` is an optional object emitted (index row and detail) by Jira-backed projects whose
+  profile configures `execution.readiness.policy: "pr-status-evidence"`; legacy-store rows such as OSAC's
+  carry none and keep their existing readiness wording. It supports `preparationReadiness` and holds
+  `requiredStatusFields` (e.g. `["designPrStatus"]`), `statuses`, `lookup` (`complete` | `unavailable`) with
+  `lookupReason`, `designPr` (governing PR: `number`, `url`, `status` `Merged` | `Open` | `Closed`, `draft`,
+  `reviewStatus`, `createdAt`, `updatedAt`, `mergedAt`) or `null`, `designPrs` (every matched Design PR), and
+  `approvalTiming`. `preparationReadiness` is `ready` only when every required status is `Merged`; an open or
+  approved-but-unmerged PR is `pending`; no verified PR, or an unavailable evidence source, is `unknown`
+  (`lookup: "unavailable"` means the PR was not searched, not that none exists). `approvalTiming` is
+  informational, present only for a merged Design PR, and is `on-time` / `late` only when the release start is
+  recorded; it never changes `preparationReadiness`, `workStatus`, or health.
 - `epicReleaseVersions` is the sorted union of `fixVersions` across a Feature's child Epics,
   pipeline-owned and copied verbatim from the collector's index output. Always present (possibly
   `[]`), and deliberately kept separate from the Feature's own `fixVersions` — a release filter needs

@@ -60,6 +60,20 @@
     "effectiveExecutionCoverage": "unavailable",
     "effectiveExecutionCoverageReason": "no-compatible-feature-producer",
     "preparationReadiness": "unknown",
+    "readinessEvidence": {
+      "source": "sources/ep-review/features.json",
+      "requiredStatusFields": [
+        "designPrStatus"
+      ],
+      "statuses": {
+        "designPrStatus": null
+      },
+      "lookup": "complete",
+      "lookupReason": null,
+      "designPr": null,
+      "designPrs": [],
+      "approvalTiming": null
+    },
     "isBlocked": null,
     "aiReview": null,
     "dataQualityWarnings": [],

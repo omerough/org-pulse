@@ -254,6 +254,7 @@ test.describe('Shared Releases Execute @releases', () => {
         await expect(row).toBeVisible();
         await expect(row.getByRole('cell').nth(3)).toContainText('Not Started');
         await expect(row.getByRole('cell').nth(7)).toHaveText('0');
+        await expect(row).toContainText('Unknown');
         await captureSharedExecuteScreenshot(page, projectId, 'feature-list');
         await page.getByRole('button', { name: 'Open details for EDM-1002', exact: true }).click();
         const drawer = page.getByRole('dialog', { name: 'Feature details for EDM-1002' });
@@ -262,6 +263,7 @@ test.describe('Shared Releases Execute @releases', () => {
         await drawer.getByRole('button', { name: 'Close detail panel' }).click();
 
         await page.getByLabel('Search').fill('EDM-1001');
+        await expect(page.getByRole('row').filter({ hasText: 'EDM-1001' })).toContainText('Pending');
         await page.getByRole('button', { name: 'Open details for EDM-1001', exact: true }).click();
         const progressDrawer = page.getByRole('dialog', { name: 'Feature details for EDM-1001' });
         await expect(progressDrawer.getByText('Jira Child Status Progress', { exact: true })).toBeVisible();

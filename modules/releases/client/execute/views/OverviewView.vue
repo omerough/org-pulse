@@ -37,7 +37,7 @@ import {
   effectiveExecutionIssueCount,
   effectiveDoneExecutionIssueCount
 } from '../utils/progress'
-import { preparationHelpText } from '../utils/readiness'
+import { readinessMeta } from '../utils/readiness'
 
 const {
   features,
@@ -350,15 +350,8 @@ function laneMeta(lane) {
 }
 const PAGE_SIZE = 12
 
-const READINESS_META = {
-  ready: { label: 'Ready', class: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' },
-  pending: { label: 'Pending', class: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-500/30' },
-  unknown: { label: 'Unknown', class: 'bg-gray-100 dark:bg-gray-500/15 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-500/30' },
-  'not-applicable': { label: 'N/A', class: 'bg-gray-50 dark:bg-gray-800/40 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700' }
-}
-function readinessMeta(r, featureKey) {
-  const key = READINESS_META[r] ? r : 'unknown'
-  return { ...READINESS_META[key], help: preparationHelpText(key, featureKey) }
+function readinessLabel(f) {
+  return readinessMeta(f.preparationReadiness, f.key, f.readinessEvidence)
 }
 
 // `complete` is state-driven 100%, not a done/total division — a
@@ -684,7 +677,7 @@ const decoratedFeatures = computed(() => filteredFeatures.value.map(f => ({
   feature: f,
   lane: laneKey(f),
   progress: executionSummary(f),
-  readiness: readinessMeta(f.preparationReadiness, f.key),
+  readiness: readinessLabel(f),
   cardLabels: featureCardLabels(f, selectedVersions.value, selectedComponents.value)
 })))
 
