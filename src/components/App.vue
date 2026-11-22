@@ -608,6 +608,9 @@ export default {
     },
 
     async restoreFromHash() {
+      // A module client can finish loading after a newer navigation has started;
+      // only the latest navigation may render its component.
+      const navigationId = this._navigationId = (this._navigationId || 0) + 1
       const hash = window.location.hash || '#/'
       const { parts, params } = this.parseHash(hash)
       // Route state mirrors the URL on every route, shell views included, so
@@ -741,7 +744,8 @@ export default {
           return
         }
         this.activeViewId = viewId
-        await this.loadModuleView(manifest.slug, viewId)
+        await this.loadModuleView(manifest.slug, viewId, navigationId)
+        if (navigationId !== this._navigationId) return
 
         // Usage tracking beacon — fire-and-forget
         if (!this._trackingDisabled) {
@@ -767,8 +771,9 @@ export default {
       this.setShellView('home')
     },
 
-    async loadModuleView(slug, viewId) {
+    async loadModuleView(slug, viewId, navigationId) {
       const client = await this.ensureModuleClient(slug)
+      if (navigationId !== this._navigationId) return
       if (!client) {
         console.error(`[App] Module client not found for "${slug}"`)
         this.activeComponent = null
