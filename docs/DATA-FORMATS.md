@@ -1535,6 +1535,12 @@ Derived summary index of all features in the unified feature store. Rebuilt auto
 
 **Notes:**
 - `assignee` is a string in the index (flattened from the detail object shape)
+- `assigneeAccountId` is the Jira assignee's `accountId`, or `null` when unassigned or when the source did not
+  publish one. It is the only key the Feature List's Assignee's Team filter joins on: the consumer reads
+  the project roster (`sources/roster/registry.json`, via the roster read model) at view time and maps the
+  assignee's active team memberships. The result is the assignee's membership, never Feature ownership or the
+  Jira Team field. An assigned Feature with no `assigneeAccountId` (older publications) matches no team option
+  and is neither Unassigned nor Not in Roster. Not in Roster applies only against a successfully loaded roster.
 - `colorStatus` and `ownerStatusColor` are identical (backward compat alias)
 - `pm` is flattened to a string from the detail object shape
 - `team` and `components` are Jira-sourced fields surfaced in the index for filtering

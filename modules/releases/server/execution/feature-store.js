@@ -420,6 +420,9 @@ async function rebuildIndex(storage) {
       assignee: feature.assignee
         ? (typeof feature.assignee === 'object' ? feature.assignee.displayName : feature.assignee)
         : null,
+      assigneeAccountId: feature.assignee && typeof feature.assignee === 'object'
+        ? feature.assignee.accountId || null
+        : null,
       fixVersions: feature.fixVersions || [],
       labels: feature.labels || [],
       // Derived from metrics

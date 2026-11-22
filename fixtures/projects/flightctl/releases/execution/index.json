@@ -41,7 +41,8 @@
         "status": "In Progress",
         "statusCategory": "In Progress",
         "priority": "Major",
-        "assignee": null,
+        "assignee": "Marco Liu",
+        "assigneeAccountId": "fc-acc-2",
         "fixVersions": [
           "0.10.0"
         ],
@@ -138,6 +139,7 @@
         "statusCategory": "To Do",
         "priority": "Major",
         "assignee": null,
+        "assigneeAccountId": null,
         "fixVersions": [
           "0.10.0"
         ],

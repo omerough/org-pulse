@@ -8,6 +8,7 @@ const osacTrackingData = require('../../fixtures/releases/execution/tracking-dat
 const flightctlIndexEnvelope = require('../../fixtures/projects/flightctl/releases/execution/index.json');
 const flightctlFeatureOneEnvelope = require('../../fixtures/projects/flightctl/releases/execution/features/EDM-1001.json');
 const flightctlFeatureTwoEnvelope = require('../../fixtures/projects/flightctl/releases/execution/features/EDM-1002.json');
+const flightctlRosterEnvelope = require('../../fixtures/projects/flightctl/sources/roster/registry.json');
 const flightctlTrackingEnvelope = require('../../fixtures/projects/flightctl/releases/execution/tracking-data-flightctl-0.10.0.json');
 
 const flightctlIndex = flightctlIndexEnvelope.data;
@@ -310,6 +311,50 @@ test.describe('Shared Releases Execute @releases', () => {
     await expect(page.getByRole('row').filter({ hasText: 'EDM-1002' })).toBeVisible();
     await expect(page.getByText('TEST1-52', { exact: true })).toHaveCount(0);
     expect(api.requests.some(request => request.pathname === '/features' && request.projectId === 'flightctl')).toBe(true);
+  });
+
+  test('filters Flight Control Features by the assignee’s team and hides the filter without a project roster', async ({ page }) => {
+    installExecuteApi(page);
+    const rosterData = flightctlRosterEnvelope.data;
+    await page.route('**/api/roster?**', route => {
+      const projectId = new URL(route.request().url()).searchParams.get('projectId');
+      if (projectId !== 'flightctl') {
+        return route.fulfill({ json: { projectId, availability: 'available', orgs: [], people: [] } });
+      }
+      return route.fulfill({ json: {
+        projectId,
+        availability: 'available',
+        teams: rosterData.teams.map(team => ({
+          key: `${projectId}::${team.id}`,
+          id: team.id,
+          displayName: team.name,
+          memberAccountIds: rosterData.people
+            .filter(person => person.active && person.teamIds.includes(team.id))
+            .map(person => person.accountId)
+        })),
+        people: rosterData.people
+      } });
+    });
+
+    await page.goto('/#/releases/execute?projectId=flightctl');
+    await page.getByRole('button', { name: 'List', exact: true }).click();
+    const rowFor = key => page.getByRole('row').filter({ hasText: key });
+    await expect(rowFor('EDM-1001')).toBeVisible();
+    await expect(rowFor('EDM-1002')).toBeVisible();
+
+    const filter = page.getByTestId('assignee-team-filter');
+    await filter.getByRole('button').click();
+    await filter.getByLabel('Flight Control UI').check();
+    await expect(rowFor('EDM-1001')).toBeVisible();
+    await expect(rowFor('EDM-1002')).toHaveCount(0);
+
+    await filter.getByLabel('Unassigned').check();
+    await expect(rowFor('EDM-1002')).toBeVisible();
+
+    await page.locator('#project-selector').selectOption('osac');
+    await expect(page).toHaveURL(/projectId=osac/);
+    await expect(page.getByRole('heading', { name: 'Feature Execution Overview' })).toBeVisible();
+    await expect(page.getByTestId('assignee-team-filter')).toHaveCount(0);
   });
 
   test('unknown project shows not found and does not load OSAC Execute data', async ({ page }) => {

@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import { useAuth } from '@shared/client/composables/useAuth.js'
+import { useRoster } from '@shared/client/composables/useRoster.js'
 import { useFeatureTraffic, useFeatureDetail, useVersions } from '../composables/useFeatureTraffic'
 import StatusBadge from '../components/StatusBadge.vue'
 import AIInfoBubble from '../components/AIInfoBubble.vue'
@@ -24,6 +25,12 @@ import {
   featureCardLabels,
   isClosedFeatureVisible
 } from '../composables/useUiUxFilter'
+import {
+  buildAssigneeTeamLookup,
+  collectAssigneeTeamOptions,
+  matchesAssigneeTeam,
+  assigneeTeamLabel
+} from '../utils/assigneeTeam'
 import { isClosedStatus } from '../utils/closedStatus'
 import { labelCategoryConfigFor } from '../utils/labelCategories'
 import {
@@ -96,6 +103,18 @@ function selectMeAssignee() {
   if (meAssignee.value) setAssignees([meAssignee.value])
 }
 
+const { rosterData, loadRoster } = useRoster()
+// Not persisted: a stored team selection must not outlive the roster that gives it meaning.
+const selectedAssigneeTeams = ref([])
+const assigneeTeamLookup = computed(() => buildAssigneeTeamLookup(rosterData.value, projectId.value))
+// A project-qualified roster is present but cannot currently support the join.
+const assigneeTeamRosterUnavailable = computed(() =>
+  !assigneeTeamLookup.value &&
+  !!projectId.value &&
+  rosterData.value?.projectId === projectId.value &&
+  Array.isArray(rosterData.value?.teams)
+)
+
 const selectedVersions = ref([])
 const selectedExecutionStates = ref([])
 const attentionBlockersOnly = ref(false)
@@ -114,7 +133,7 @@ function toggleLabelCategoryCollapse(category) {
   collapsedLabelCategories.value = next
 }
 
-const CLOSED_DROPDOWNS = { version: false, executionState: false, component: false, jiraStatus: false, assignee: false, label: false }
+const CLOSED_DROPDOWNS = { version: false, executionState: false, component: false, jiraStatus: false, assignee: false, assigneeTeam: false, label: false }
 const openDropdown = ref({ ...CLOSED_DROPDOWNS })
 
 function toggleDropdown(name) {
@@ -151,6 +170,16 @@ const componentFilterLabel = computed(() => multiFilterLabel(selectedComponents.
 const jiraStatusFilterLabel = computed(() => multiFilterLabel(selectedStatuses.value, 'All statuses'))
 const assigneeFilterLabel = computed(() => multiFilterLabel(selectedAssignees.value.map(assigneeDisplayLabel), 'All assignees'))
 const labelFilterLabel = computed(() => multiFilterLabel(selectedLabels.value, 'All labels'))
+const assigneeTeamFilterLabel = computed(() => multiFilterLabel(
+  selectedAssigneeTeams.value.map(v => assigneeTeamLabel(v, assigneeTeamLookup.value)),
+  'All teams'
+))
+
+function toggleAssigneeTeam(value) {
+  const idx = selectedAssigneeTeams.value.indexOf(value)
+  if (idx >= 0) selectedAssigneeTeams.value.splice(idx, 1)
+  else selectedAssigneeTeams.value.push(value)
+}
 
 const EXECUTION_STATE_FILTER_OPTIONS = [
   { value: 'no-tracked-work', label: 'No Tracked Work' },
@@ -567,6 +596,11 @@ const labelOptions = computed(() => {
   ])
   return collectAllLabelOptions(features.value, config).filter(o => keep.has(o.value.toLowerCase()))
 })
+const assigneeTeamOptions = computed(() => retainEligibleOptions(
+  collectAssigneeTeamOptions(features.value, assigneeTeamLookup.value),
+  collectAssigneeTeamOptions(eligibleFeatures.value, assigneeTeamLookup.value),
+  selectedAssigneeTeams.value
+))
 // Search only narrows what's rendered; selectedAssignees is never touched by it.
 const filteredAssigneeOptions = computed(() => {
   const q = assigneeSearch.value.trim().toLowerCase()
@@ -597,6 +631,7 @@ const isAnyFiltered = computed(() =>
   selectedExecutionStates.value.length > 0 ||
   attentionBlockersOnly.value ||
   !!searchQuery.value ||
+  selectedAssigneeTeams.value.length > 0 ||
   isComponentStatusFiltered.value ||
   isUiUxFiltered.value
 )
@@ -604,6 +639,7 @@ const isAnyFiltered = computed(() =>
 function clearAllFilters() {
   selectedVersions.value = []
   selectedExecutionStates.value = []
+  selectedAssigneeTeams.value = []
   attentionBlockersOnly.value = false
   searchQuery.value = ''
   clearComponentStatusFilters()
@@ -613,6 +649,7 @@ function clearAllFilters() {
 function resetOverviewFilters() {
   selectedVersions.value = []
   selectedExecutionStates.value = []
+  selectedAssigneeTeams.value = []
   attentionBlockersOnly.value = false
   searchQuery.value = ''
   viewMode.value = 'board'
@@ -665,10 +702,18 @@ const filteredFeatures = computed(() => {
       matchesAssignee(f.assignee, selectedAssignees.value)
     )
   }
+  if (selectedAssigneeTeams.value.length > 0) {
+    list = list.filter(f => matchesAssigneeTeam(f, assigneeTeamLookup.value, selectedAssigneeTeams.value))
+  }
   if (attentionBlockersOnly.value) {
     list = list.filter(f => Number.isInteger(f.blockerCount) && f.blockerCount > 0)
   }
   return list
+})
+
+// Without a usable roster the selection would silently hide every Feature.
+watch(assigneeTeamLookup, lookup => {
+  if (!lookup) selectedAssigneeTeams.value = []
 })
 
 // Precomputed once per feature so Board and List share identical presentation
@@ -788,6 +833,7 @@ onMounted(() => {
   restoreOverviewFilters()
   loadFeatures()
   loadVersions()
+  if (projectId.value) loadRoster()
   saveOverviewFilters()
 
   updateContentWidth()
@@ -1123,6 +1169,47 @@ onBeforeUnmount(() => {
               <span class="truncate">{{ assigneeDisplayLabel(a) }}</span>
             </label>
             <div v-if="filteredAssigneeOptions.length === 0" class="px-3 py-2 text-xs text-gray-400">No matches for "{{ assigneeSearch }}"</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Multi-select: Assignee's Team (assignee's roster membership, not Feature ownership) -->
+      <div
+        v-if="(assigneeTeamLookup && assigneeTeamOptions.length > 0) || assigneeTeamRosterUnavailable"
+        class="flex flex-col gap-0.5"
+        data-testid="assignee-team-filter"
+      >
+        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">Assignee's Team</label>
+        <div class="relative multi-select-dropdown">
+          <button
+            @click.stop="assigneeTeamLookup && toggleDropdown('assigneeTeam')"
+            :disabled="!assigneeTeamLookup"
+            :title="assigneeTeamLookup ? '' : 'The project roster is unavailable, so team membership cannot be resolved.'"
+            class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[140px] disabled:opacity-60 disabled:cursor-not-allowed"
+            :class="selectedAssigneeTeams.length > 0
+              ? 'border-primary-500 ring-1 ring-primary-500'
+              : 'border-gray-300 dark:border-gray-600'"
+          >
+            <span class="flex-1 text-left truncate">{{ assigneeTeamLookup ? assigneeTeamFilterLabel : 'Roster unavailable' }}</span>
+            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform" :class="{ 'rotate-180': openDropdown.assigneeTeam }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div
+            v-if="openDropdown.assigneeTeam && assigneeTeamLookup"
+            class="absolute z-20 mt-1 w-60 max-h-72 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1"
+          >
+            <label
+              v-for="value in assigneeTeamOptions"
+              :key="value"
+              class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedAssigneeTeams.includes(value)"
+                @change="toggleAssigneeTeam(value)"
+                class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+              />
+              <span class="truncate">{{ assigneeTeamLabel(value, assigneeTeamLookup) }}</span>
+            </label>
           </div>
         </div>
       </div>
