@@ -739,10 +739,12 @@ const decoratedFeatures = computed(() => filteredFeatures.value.map(f => ({
 // Requires both a recognized lane and validated progress, so a known lane
 // with invalid counts (or vice versa) lands in coverage, not neither total.
 // A Feature work status is its own evidence: child progress availability never
-// removes a Feature from its work-status column. A Feature without one needs validated progress.
+// removes a Feature from its work-status column. In work-status mode a Feature without one stays in
+// coverage: its fallback lane is not backed by its Jira status.
 function isBoardEligible(d) {
   if (!boardColumnIds.value.includes(d.lane)) return false
-  return workStatusLaneKey(d.feature) !== null || ['available', 'jira-status'].includes(d.progress.kind)
+  if (hasWorkStatus.value) return workStatusLaneKey(d.feature) !== null
+  return ['available', 'jira-status'].includes(d.progress.kind)
 }
 
 // Progress can be measurable yet sit in coverage (unknown lane), so the caption follows the progress source.

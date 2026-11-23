@@ -167,18 +167,43 @@ describe('Feature List work status (Jira-backed project)', () => {
     expect(wrapper.text()).toContain('EDM-UNKNOWN')
   })
 
-  it('keeps a Feature without its own work status off the board unless its progress is measurable', async () => {
+  describe('mixed coverage', () => {
+    const noWorkStatus = { workStatus: undefined }
     const mixed = [
       ...FEATURES,
-      feature('EDM-NOWS', 'In Progress', 'In Progress', 'in-progress', childProgress(0, 0, 0), {
-        workStatus: undefined, jiraChildProgress: undefined, executionState: 'in-progress'
+      feature('EDM-NOWS-CHILDREN', 'Triage', null, 'unknown', childProgress(1, 1, 2), noWorkStatus),
+      feature('EDM-NOWS-PIPELINE', 'Triage', null, 'unknown', childProgress(0, 0, 0), {
+        ...noWorkStatus, jiraChildProgress: undefined, executionState: 'in-progress',
+        executionCoverage: 'available', executionIssueCount: 4, doneExecutionIssueCount: 3
+      }),
+      feature('EDM-NOWS-UNAVAILABLE', 'Triage', null, 'unknown', childProgress(0, 0, 0), {
+        ...noWorkStatus, jiraChildProgress: undefined, executionState: 'in-progress'
       })
     ]
-    const wrapper = await mountOverview(mixed)
-    expect(wrapper.find('#execution-section-in-progress').text()).not.toContain('EDM-NOWS')
-    expect(wrapper.find('#execution-section-in-progress').text()).toContain('EDM-ACTIVE')
-    await wrapper.findAll('button').find(b => b.text().includes('Unknown work status')).trigger('click')
-    expect(wrapper.find('#coverage-panel').text()).toContain('EDM-NOWS')
+    const withoutWorkStatus = ['EDM-NOWS-CHILDREN', 'EDM-NOWS-PIPELINE', 'EDM-NOWS-UNAVAILABLE']
+
+    it('keeps Features without their own work status off every work-status column', async () => {
+      const wrapper = await mountOverview(mixed)
+      const board = wrapper.findAll('[id^="execution-section-"]').map(s => s.text()).join(' ')
+      for (const key of withoutWorkStatus) expect(board, key).not.toContain(key)
+      expect(wrapper.find('#execution-section-in-progress').text()).toContain('EDM-ACTIVE')
+    })
+
+    it('lists them in coverage with their available progress, measurable or not', async () => {
+      const wrapper = await mountOverview(mixed)
+      await wrapper.findAll('button').find(b => b.text().includes('Unknown work status')).trigger('click')
+      const panel = wrapper.find('#coverage-panel').text()
+      for (const key of withoutWorkStatus) expect(panel, key).toContain(key)
+      expect(panel).toContain('EDM-UNKNOWN')
+      expect(panel).toContain('1/4 Jira child issues Done')
+      expect(panel).toContain('3/4 issues Done')
+    })
+
+    it('keeps them in the overall inventory', async () => {
+      const wrapper = await mountOverview(mixed)
+      await wrapper.findAll('button').find(b => b.text() === 'List').trigger('click')
+      for (const key of withoutWorkStatus) expect(rowFor(wrapper, key), key).toBeTruthy()
+    })
   })
 
   it('drops a stored execution-state selection that the loaded option set does not offer', async () => {
@@ -216,6 +241,26 @@ describe('Feature List work status (Jira-backed project)', () => {
     expect(wrapper.findAll('h3').map(h => h.text())).toEqual([
       'Jira Children: To Do', 'Mixed Jira Child Statuses', 'Jira Children: Done'
     ])
+  })
+
+  it('keeps progress-based board eligibility when no Feature publishes a work status', async () => {
+    const legacy = [
+      feature('LEG-CHILDREN', 'Triage', null, 'unknown', childProgress(1, 1, 2), { workStatus: undefined }),
+      feature('LEG-PIPELINE', 'Triage', null, 'unknown', childProgress(0, 0, 0), {
+        workStatus: undefined, jiraChildProgress: undefined, executionState: 'in-progress',
+        executionCoverage: 'available', executionIssueCount: 4, doneExecutionIssueCount: 3
+      }),
+      feature('LEG-UNAVAILABLE', 'Triage', null, 'unknown', childProgress(0, 0, 0), {
+        workStatus: undefined, jiraChildProgress: undefined, executionState: 'in-progress'
+      })
+    ]
+    const wrapper = await mountOverview(legacy)
+    const inProgress = wrapper.find('#execution-section-in-progress').text()
+    expect(inProgress).toContain('LEG-CHILDREN')
+    expect(inProgress).toContain('LEG-PIPELINE')
+    expect(inProgress).not.toContain('LEG-UNAVAILABLE')
+    await wrapper.findAll('button').find(b => b.text().includes('Without')).trigger('click')
+    expect(wrapper.find('#coverage-panel').text()).toContain('LEG-UNAVAILABLE')
   })
 })
 
