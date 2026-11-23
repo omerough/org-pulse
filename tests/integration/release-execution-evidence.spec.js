@@ -349,7 +349,7 @@ test.describe('Shared Releases Execute @releases', () => {
     await expect(rowFor('EDM-1002')).toBeVisible();
 
     const filter = page.getByTestId('assignee-team-filter');
-    await filter.getByRole('button').click();
+    await filter.getByRole('button', { name: 'All teams' }).click();
     await filter.getByLabel('Flight Control UI').check();
     await expect(rowFor('EDM-1001')).toBeVisible();
     await expect(rowFor('EDM-1002')).toHaveCount(0);
