@@ -39,7 +39,7 @@ describe('FeatureExecutionDrawer', () => {
     expect(dialog.text()).toContain('Ready')
   })
 
-  it('renders unsupported feature metrics and absent team attribution as Unknown', () => {
+  it('renders unsupported feature metrics as Unknown and hides an unreported Jira Team', () => {
     const wrapper = mountDrawer({
       featureKey: 'EDM-100',
       card: makeCard({
@@ -62,11 +62,80 @@ describe('FeatureExecutionDrawer', () => {
       detail: { key: 'EDM-100', epics: [] }
     })
 
-    expect(wrapper.text()).toContain('Team')
+    expect(wrapper.findAll('dt').map(dt => dt.text())).not.toContain('Jira Team')
+    expect(wrapper.findAll('dt').map(dt => dt.text())).not.toContain('Team')
     expect(wrapper.text()).toContain('Unknown')
     expect(wrapper.text()).toContain('Total issues')
     expect(wrapper.text()).toContain('Blockers')
     expect(wrapper.text()).toContain('No compatible execution producer')
+  })
+
+  it('labels a reported Jira Team as Jira Team', () => {
+    const wrapper = mountDrawer({
+      featureKey: 'OSAC-100',
+      card: makeCard({ feature: { team: 'OSAC-Core' } }),
+      detail: { key: 'OSAC-100', epics: [] }
+    })
+    const teamTerm = wrapper.findAll('dt').find(dt => dt.text() === 'Jira Team')
+    expect(teamTerm.attributes('title')).toContain('not the assignee’s roster team')
+    expect(teamTerm.element.nextElementSibling.textContent.trim()).toBe('OSAC-Core')
+  })
+
+  it('marks Jira child progress as supporting the Feature’s own Work Status', () => {
+    const card = makeCard({
+      feature: { key: 'EDM-100', workStatus: { source: 'jira-feature-status', state: 'inactive' } },
+      progress: { kind: 'jira-status', pct: 50, done: 1, total: 2 }
+    })
+    const wrapper = mountDrawer({ featureKey: 'EDM-100', card, detail: { key: 'EDM-100', epics: [] } })
+    expect(wrapper.text()).toContain('Jira Child Progress')
+    expect(wrapper.text()).toContain('Work Status comes from its own Jira status and is not changed by child progress')
+    expect(wrapper.text()).toContain('1 of 2 configured Jira child issues are Done · 50%')
+  })
+
+  describe('Design PR evidence', () => {
+    function evidence(designPr, lookup = 'complete') {
+      return {
+        requiredStatusFields: ['designPrStatus'],
+        statuses: { designPrStatus: designPr ? designPr.status : null },
+        lookup,
+        designPr,
+        designPrs: designPr ? [designPr] : []
+      }
+    }
+    const openPr = {
+      number: 81, url: 'https://github.com/flightctl/design-docs/pull/81', status: 'Open',
+      draft: false, reviewStatus: 'AWAITING_REVIEW', createdAt: '2026-11-05T20:13:15Z', mergedAt: null
+    }
+    function mountWithEvidence(readinessEvidence) {
+      return mountDrawer({
+        featureKey: 'EDM-6377',
+        card: makeCard({ feature: { key: 'EDM-6377', readinessEvidence }, readiness: { label: 'Pending', class: 'bg-amber-100' } }),
+        detail: { key: 'EDM-6377', epics: [] }
+      })
+    }
+
+    it('links the governing Design PR with its current state', () => {
+      const pr = mountWithEvidence(evidence(openPr)).find('[data-testid="drawer-design-pr"]')
+      const link = pr.find('a')
+      expect(link.text()).toBe('#81')
+      expect(link.attributes('href')).toBe('https://github.com/flightctl/design-docs/pull/81')
+      expect(link.attributes('target')).toBe('_blank')
+      expect(pr.text()).toContain('Open, awaiting review')
+    })
+
+    it('keeps Unknown when no Design PR is verified or the source is unavailable', () => {
+      const none = mountWithEvidence(evidence(null)).find('[data-testid="drawer-design-pr"]')
+      expect(none.text()).toMatch(/^Design PR\s*Unknown$/)
+      expect(none.find('a').exists()).toBe(false)
+      expect(none.find('[title]').attributes('title')).toBe('No verified Design PR was found.')
+
+      const unavailable = mountWithEvidence(evidence(null, 'unavailable')).find('[data-testid="drawer-design-pr"]')
+      expect(unavailable.find('[title]').attributes('title')).toBe('Design PR evidence is currently unavailable.')
+    })
+
+    it('renders nothing for rows without readiness evidence', () => {
+      expect(mountWithEvidence(undefined).find('[data-testid="drawer-design-pr"]').exists()).toBe(false)
+    })
   })
 
   it('shows the loading state and hides epic content while loading', () => {
@@ -147,7 +216,9 @@ describe('FeatureExecutionDrawer', () => {
     const wrapper = mountDrawer({ featureKey: 'EDM-100', card, detail })
     const text = wrapper.text()
 
-    expect(text).toContain('Jira Child Status Progress')
+    expect(text).toContain('Jira Child Progress')
+    expect(text).not.toContain('Jira Child Status Progress')
+    expect(text).not.toContain('Work Status comes from its own Jira status')
     expect(text).toContain('1 of 2 configured Jira child issues are Done')
     expect(text).toContain('Jira child issues')
     expect(text).toContain('1/2 Jira Done')

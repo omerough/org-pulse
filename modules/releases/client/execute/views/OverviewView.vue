@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import { useAuth } from '@shared/client/composables/useAuth.js'
+import { useRoster } from '@shared/client/composables/useRoster.js'
 import { useFeatureTraffic, useFeatureDetail, useVersions } from '../composables/useFeatureTraffic'
 import StatusBadge from '../components/StatusBadge.vue'
 import AIInfoBubble from '../components/AIInfoBubble.vue'
@@ -24,6 +25,12 @@ import {
   featureCardLabels,
   isClosedFeatureVisible
 } from '../composables/useUiUxFilter'
+import {
+  buildAssigneeTeamLookup,
+  collectAssigneeTeamOptions,
+  matchesAssigneeTeam,
+  assigneeTeamLabel
+} from '../utils/assigneeTeam'
 import { isClosedStatus } from '../utils/closedStatus'
 import { labelCategoryConfigFor } from '../utils/labelCategories'
 import {
@@ -37,7 +44,7 @@ import {
   effectiveExecutionIssueCount,
   effectiveDoneExecutionIssueCount
 } from '../utils/progress'
-import { preparationHelpText } from '../utils/readiness'
+import { readinessMeta } from '../utils/readiness'
 
 const {
   features,
@@ -47,6 +54,7 @@ const {
   state: featureDataState,
   message: featureDataMessage,
   partial: featureDataPartial,
+  inactiveWorkStatuses,
   loadFeatures
 } = useFeatureTraffic()
 const projectId = useProjectId()
@@ -82,6 +90,15 @@ const hasUnknownBlockerCount = computed(() => features.value.some(f => !isKnownC
 const hasJiraChildProgress = computed(() => features.value.some(
   f => f.jiraChildProgress?.source === 'jira-child-status-rollup'
 ))
+// A published workStatus makes the Feature's own Jira status the lane; child progress stays supporting.
+const hasWorkStatus = computed(() => features.value.some(
+  f => f.workStatus?.source === 'jira-feature-status'
+))
+// Named after Backlog only when it is the sole configured inactive status; other mappings keep Inactive.
+const inactiveLaneTitle = computed(() => {
+  const statuses = inactiveWorkStatuses.value
+  return statuses?.length === 1 && statuses[0] === 'Backlog' ? 'Backlog' : 'Inactive'
+})
 const hasNoCompatibleProducer = computed(() => features.value.some(f => f.coverage?.pipelineMetrics === 'unavailable'))
 // Hides the UI/UX filters and badges entirely for a project with no uiUxEvidence config.
 const hasUiUxData = computed(() => features.value.some(f =>
@@ -91,6 +108,20 @@ const hasUiUxData = computed(() => features.value.some(f =>
 function selectMeAssignee() {
   if (meAssignee.value) setAssignees([meAssignee.value])
 }
+
+const { rosterData, error: rosterError, errorStatus: rosterErrorStatus, loadRoster } = useRoster()
+// Not persisted: a stored team selection must not outlive the roster that gives it meaning.
+const selectedAssigneeTeams = ref([])
+const TEAM_FILTER_HELP_TEXT =
+  'Teams the Jira assignee belongs to in the project roster. This is the assignee’s membership, not confirmed Feature ownership.'
+const assigneeTeamLookup = computed(() => buildAssigneeTeamLookup(rosterData.value, projectId.value))
+// A roster exists or was expected but cannot currently support the join. A 404 means the project
+// publishes no roster, which is unsupported rather than unavailable and keeps the filter hidden.
+const assigneeTeamRosterUnavailable = computed(() => {
+  if (assigneeTeamLookup.value || !projectId.value) return false
+  if (rosterError.value) return rosterErrorStatus.value !== 404
+  return rosterData.value?.projectId === projectId.value && Array.isArray(rosterData.value?.teams)
+})
 
 const selectedVersions = ref([])
 const selectedExecutionStates = ref([])
@@ -110,7 +141,7 @@ function toggleLabelCategoryCollapse(category) {
   collapsedLabelCategories.value = next
 }
 
-const CLOSED_DROPDOWNS = { version: false, executionState: false, component: false, jiraStatus: false, assignee: false, label: false }
+const CLOSED_DROPDOWNS = { version: false, executionState: false, component: false, jiraStatus: false, assignee: false, assigneeTeam: false, label: false }
 const openDropdown = ref({ ...CLOSED_DROPDOWNS })
 
 function toggleDropdown(name) {
@@ -147,6 +178,16 @@ const componentFilterLabel = computed(() => multiFilterLabel(selectedComponents.
 const jiraStatusFilterLabel = computed(() => multiFilterLabel(selectedStatuses.value, 'All statuses'))
 const assigneeFilterLabel = computed(() => multiFilterLabel(selectedAssignees.value.map(assigneeDisplayLabel), 'All assignees'))
 const labelFilterLabel = computed(() => multiFilterLabel(selectedLabels.value, 'All labels'))
+const assigneeTeamFilterLabel = computed(() => multiFilterLabel(
+  selectedAssigneeTeams.value.map(v => assigneeTeamLabel(v, assigneeTeamLookup.value)),
+  'All teams'
+))
+
+function toggleAssigneeTeam(value) {
+  const idx = selectedAssigneeTeams.value.indexOf(value)
+  if (idx >= 0) selectedAssigneeTeams.value.splice(idx, 1)
+  else selectedAssigneeTeams.value.push(value)
+}
 
 const EXECUTION_STATE_FILTER_OPTIONS = [
   { value: 'no-tracked-work', label: 'No Tracked Work' },
@@ -163,16 +204,28 @@ const JIRA_CHILD_STATUS_FILTER_OPTIONS = [
   { value: 'unavailable', label: 'Jira Child Status Partial or Unknown' },
   { value: 'inapplicable', label: 'Jira Child Status Not Applicable' }
 ]
-const executionStateFilterOptions = computed(() =>
-  hasJiraChildProgress.value ? JIRA_CHILD_STATUS_FILTER_OPTIONS : EXECUTION_STATE_FILTER_OPTIONS
-)
+const WORK_STATUS_FILTER_OPTIONS = [
+  { value: 'not-started', label: 'Not Started' },
+  { value: 'in-progress', label: 'In Progress' },
+  { value: 'complete', label: 'Done' },
+  { value: 'inactive', label: 'Inactive' },
+  { value: 'unavailable', label: 'Status Unknown' }
+]
+const executionStateFilterOptions = computed(() => {
+  if (hasWorkStatus.value) {
+    return WORK_STATUS_FILTER_OPTIONS.map(o => o.value === 'inactive' ? { ...o, label: inactiveLaneTitle.value } : o)
+  }
+  return hasJiraChildProgress.value ? JIRA_CHILD_STATUS_FILTER_OPTIONS : EXECUTION_STATE_FILTER_OPTIONS
+})
 const allowedExecutionStateFilterIds = new Set([
   ...EXECUTION_STATE_FILTER_OPTIONS.map(o => o.value),
-  ...JIRA_CHILD_STATUS_FILTER_OPTIONS.map(o => o.value)
+  ...JIRA_CHILD_STATUS_FILTER_OPTIONS.map(o => o.value),
+  ...WORK_STATUS_FILTER_OPTIONS.map(o => o.value)
 ])
 
 const executionStateFilterLabel = computed(() => {
   if (selectedExecutionStates.value.length === 0) {
+    if (hasWorkStatus.value) return 'All Work Statuses'
     return hasJiraChildProgress.value ? 'All Jira Child Statuses' : 'All Execution States'
   }
   if (selectedExecutionStates.value.length === 1) {
@@ -180,6 +233,16 @@ const executionStateFilterLabel = computed(() => {
     return opt ? opt.label : selectedExecutionStates.value[0]
   }
   return selectedExecutionStates.value.length + ' states'
+})
+
+// Option sets differ by data shape and restore runs before data loads; a selection missing
+// from the loaded set could not be unchecked.
+watch([executionStateFilterOptions, features], ([options]) => {
+  if (features.value.length === 0) return
+  const allowed = new Set(options.map(o => o.value))
+  if (selectedExecutionStates.value.some(id => !allowed.has(id))) {
+    selectedExecutionStates.value = selectedExecutionStates.value.filter(id => allowed.has(id))
+  }
 })
 
 // Close dropdowns on outside click
@@ -215,7 +278,22 @@ function jiraChildLaneKey(f) {
   return 'in-progress'
 }
 
+const WORK_STATE_LANES = {
+  inactive: 'inactive',
+  'not-started': 'not-started',
+  'in-progress': 'in-progress',
+  done: 'complete'
+}
+function workStatusLaneKey(f) {
+  if (f.workStatus?.source !== 'jira-feature-status') return null
+  return WORK_STATE_LANES[f.workStatus.state] || 'unavailable'
+}
+
 function laneKey(f) {
+  const workLane = workStatusLaneKey(f)
+  if (workLane !== null) return workLane
+  // With published work statuses, child or pipeline progress must not stand in for a missing one.
+  if (hasWorkStatus.value) return 'unavailable'
   const jiraLane = jiraChildLaneKey(f)
   if (jiraLane !== null) return jiraLane
   const state = effectiveExecutionState(f)
@@ -223,6 +301,15 @@ function laneKey(f) {
 }
 
 const LANE_META = {
+  inactive: {
+    title: 'Inactive',
+    subtitle: 'Feature is not active in Jira',
+    borderClass: 'border-gray-200 dark:border-gray-700',
+    bgClass: 'bg-gray-50 dark:bg-gray-800/40',
+    headerBg: 'bg-gray-100 dark:bg-gray-800',
+    textClass: 'text-gray-600 dark:text-gray-400',
+    dotClass: 'bg-gray-400'
+  },
   'no-tracked-work': {
     title: 'No Tracked Work',
     subtitle: 'No observed execution scope',
@@ -282,9 +369,27 @@ const LANE_META = {
 // and `unavailable` both fold into the separate coverage total instead of
 // being columns of their own.
 const BOARD_COLUMNS = ['not-started', 'in-progress', 'complete']
+// With a published work status, Inactive is a real column and only Unknown folds into coverage.
+const WORK_STATUS_BOARD_COLUMNS = [...BOARD_COLUMNS, 'inactive']
+const boardColumnIds = computed(() => hasWorkStatus.value ? WORK_STATUS_BOARD_COLUMNS : BOARD_COLUMNS)
+
+const WORK_STATUS_LABELS = {
+  'not-started': ['Not Started', 'Jira Feature status is in the To Do category and not inactive'],
+  'in-progress': ['In Progress', 'Jira Feature status is in the In Progress category'],
+  complete: ['Done', 'Jira Feature status is in the Done category'],
+  inactive: ['Inactive', 'Jira Feature status is configured as inactive; Epic or Story activity does not change it'],
+  unavailable: ['Status Unknown', 'Jira Feature status category is not recognized']
+}
 
 function laneMeta(lane) {
   const meta = LANE_META[lane]
+  if (hasWorkStatus.value) {
+    const [title, subtitle] = WORK_STATUS_LABELS[lane] || [meta.title, meta.subtitle]
+    if (lane === 'inactive' && inactiveLaneTitle.value === 'Backlog') {
+      return { ...meta, title: 'Backlog', subtitle: 'Jira Feature status is Backlog; Epic or Story activity does not change it' }
+    }
+    return { ...meta, title, subtitle }
+  }
   if (!hasJiraChildProgress.value) return meta
   const jiraLabels = {
     'no-tracked-work': ['No Eligible Jira Children', 'No configured direct Jira children were found under the linked Epics'],
@@ -299,15 +404,8 @@ function laneMeta(lane) {
 }
 const PAGE_SIZE = 12
 
-const READINESS_META = {
-  ready: { label: 'Ready', class: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' },
-  pending: { label: 'Pending', class: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-500/30' },
-  unknown: { label: 'Unknown', class: 'bg-gray-100 dark:bg-gray-500/15 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-500/30' },
-  'not-applicable': { label: 'N/A', class: 'bg-gray-50 dark:bg-gray-800/40 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700' }
-}
-function readinessMeta(r, featureKey) {
-  const key = READINESS_META[r] ? r : 'unknown'
-  return { ...READINESS_META[key], help: preparationHelpText(key, featureKey) }
+function readinessLabel(f) {
+  return readinessMeta(f.preparationReadiness, f.key, f.readinessEvidence)
 }
 
 // `complete` is state-driven 100%, not a done/total division — a
@@ -379,20 +477,27 @@ const WITH_PROGRESS_DATA_HELP =
   'Features with collected execution issues that can be used to calculate progress. Includes work that has not started.'
 const WITHOUT_PROGRESS_DATA_HELP =
   'Progress cannot be calculated because no execution issues were found, only planning issues were found, or issue details are missing. This does not necessarily mean work hasn’t started.'
-const withProgressDataLabel = computed(() =>
-  hasJiraChildProgress.value ? 'With Jira child status progress:' : 'With progress data:'
-)
-const withoutProgressDataLabel = computed(() =>
-  hasJiraChildProgress.value ? 'Without complete Jira child status progress:' : 'Without progress data:'
-)
-const withProgressDataHelp = computed(() =>
-  hasJiraChildProgress.value ? JIRA_CHILD_PROGRESS_HELP_TEXT : WITH_PROGRESS_DATA_HELP
-)
-const withoutProgressDataHelp = computed(() =>
-  hasJiraChildProgress.value
+const WORK_STATUS_KNOWN_HELP = 'Features whose own Jira status maps to a known work state.'
+const WORK_STATUS_UNKNOWN_HELP =
+  'The Feature’s Jira status category is not recognized, so no work state is shown. Jira child progress is shown separately.'
+const withProgressDataLabel = computed(() => {
+  if (hasWorkStatus.value) return 'With known work status:'
+  return hasJiraChildProgress.value ? 'With Jira child status progress:' : 'With progress data:'
+})
+const withoutProgressDataLabel = computed(() => {
+  if (hasWorkStatus.value) return 'Unknown work status:'
+  return hasJiraChildProgress.value ? 'Without complete Jira child status progress:' : 'Without progress data:'
+})
+const withProgressDataHelp = computed(() => {
+  if (hasWorkStatus.value) return WORK_STATUS_KNOWN_HELP
+  return hasJiraChildProgress.value ? JIRA_CHILD_PROGRESS_HELP_TEXT : WITH_PROGRESS_DATA_HELP
+})
+const withoutProgressDataHelp = computed(() => {
+  if (hasWorkStatus.value) return WORK_STATUS_UNKNOWN_HELP
+  return hasJiraChildProgress.value
     ? 'No complete Jira child-status ratio is available. The child inventory may be empty, partial, or missing recognized Jira status categories.'
     : WITHOUT_PROGRESS_DATA_HELP
-)
+})
 
 function progressIssueCount(feature) {
   const jiraProgress = feature.jiraChildProgress
@@ -516,6 +621,11 @@ const labelOptions = computed(() => {
   ])
   return collectAllLabelOptions(features.value, config).filter(o => keep.has(o.value.toLowerCase()))
 })
+const assigneeTeamOptions = computed(() => retainEligibleOptions(
+  collectAssigneeTeamOptions(features.value, assigneeTeamLookup.value),
+  collectAssigneeTeamOptions(eligibleFeatures.value, assigneeTeamLookup.value),
+  selectedAssigneeTeams.value
+))
 // Search only narrows what's rendered; selectedAssignees is never touched by it.
 const filteredAssigneeOptions = computed(() => {
   const q = assigneeSearch.value.trim().toLowerCase()
@@ -546,6 +656,7 @@ const isAnyFiltered = computed(() =>
   selectedExecutionStates.value.length > 0 ||
   attentionBlockersOnly.value ||
   !!searchQuery.value ||
+  selectedAssigneeTeams.value.length > 0 ||
   isComponentStatusFiltered.value ||
   isUiUxFiltered.value
 )
@@ -553,6 +664,7 @@ const isAnyFiltered = computed(() =>
 function clearAllFilters() {
   selectedVersions.value = []
   selectedExecutionStates.value = []
+  selectedAssigneeTeams.value = []
   attentionBlockersOnly.value = false
   searchQuery.value = ''
   clearComponentStatusFilters()
@@ -562,6 +674,7 @@ function clearAllFilters() {
 function resetOverviewFilters() {
   selectedVersions.value = []
   selectedExecutionStates.value = []
+  selectedAssigneeTeams.value = []
   attentionBlockersOnly.value = false
   searchQuery.value = ''
   viewMode.value = 'board'
@@ -614,10 +727,18 @@ const filteredFeatures = computed(() => {
       matchesAssignee(f.assignee, selectedAssignees.value)
     )
   }
+  if (selectedAssigneeTeams.value.length > 0) {
+    list = list.filter(f => matchesAssigneeTeam(f, assigneeTeamLookup.value, selectedAssigneeTeams.value))
+  }
   if (attentionBlockersOnly.value) {
     list = list.filter(f => Number.isInteger(f.blockerCount) && f.blockerCount > 0)
   }
   return list
+})
+
+// Without a usable roster the selection would silently hide every Feature.
+watch(assigneeTeamLookup, lookup => {
+  if (!lookup) selectedAssigneeTeams.value = []
 })
 
 // Precomputed once per feature so Board and List share identical presentation
@@ -626,24 +747,35 @@ const decoratedFeatures = computed(() => filteredFeatures.value.map(f => ({
   feature: f,
   lane: laneKey(f),
   progress: executionSummary(f),
-  readiness: readinessMeta(f.preparationReadiness, f.key),
+  readiness: readinessLabel(f),
   cardLabels: featureCardLabels(f, selectedVersions.value, selectedComponents.value)
 })))
 
 // Requires both a recognized lane and validated progress, so a known lane
 // with invalid counts (or vice versa) lands in coverage, not neither total.
+// A Feature work status is its own evidence: child progress availability never
+// removes a Feature from its work-status column. In work-status mode a Feature without one stays in
+// coverage: its fallback lane is not backed by its Jira status.
 function isBoardEligible(d) {
-  return BOARD_COLUMNS.includes(d.lane) && ['available', 'jira-status'].includes(d.progress.kind)
+  if (!boardColumnIds.value.includes(d.lane)) return false
+  if (hasWorkStatus.value) return workStatusLaneKey(d.feature) !== null
+  return ['available', 'jira-status'].includes(d.progress.kind)
+}
+
+// Progress can be measurable yet sit in coverage (unknown lane), so the caption follows the progress source.
+function coverageCaption(progress) {
+  if (progress.caption) return progress.caption
+  return `${progress.done}/${progress.total} ${progress.kind === 'jira-status' ? 'Jira child issues' : 'issues'} Done`
 }
 
 // Jira-only profiles reuse the same columns while labeling the lane as Jira
 // child status. They never receive a pipeline execution state from this view.
 const boardColumns = computed(() => {
-  const buckets = { 'not-started': [], 'in-progress': [], complete: [] }
+  const buckets = { 'not-started': [], 'in-progress': [], complete: [], inactive: [] }
   for (const d of decoratedFeatures.value) {
     if (isBoardEligible(d)) buckets[d.lane].push(d)
   }
-  return BOARD_COLUMNS.map(id => ({ id, ...laneMeta(id), items: buckets[id] }))
+  return boardColumnIds.value.map(id => ({ id, ...laneMeta(id), items: buckets[id] }))
 })
 
 // Exact complement of board membership.
@@ -652,7 +784,7 @@ const coverageFeatures = computed(() =>
 )
 const measurableCount = computed(() => decoratedFeatures.value.length - coverageFeatures.value.length)
 
-const columnPage = ref({ 'not-started': 1, 'in-progress': 1, complete: 1 })
+const columnPage = ref({ 'not-started': 1, 'in-progress': 1, complete: 1, inactive: 1 })
 const collapsedColumns = ref(new Set())
 const coveragePage = ref(1)
 const coveragePanelOpen = ref(false)
@@ -691,7 +823,7 @@ function toggleColumn(id) {
 }
 
 watch(filteredFeatures, () => {
-  columnPage.value = { 'not-started': 1, 'in-progress': 1, complete: 1 }
+  columnPage.value = { 'not-started': 1, 'in-progress': 1, complete: 1, inactive: 1 }
   coveragePage.value = 1
 })
 
@@ -734,6 +866,7 @@ onMounted(() => {
   restoreOverviewFilters()
   loadFeatures()
   loadVersions()
+  if (projectId.value) loadRoster()
   saveOverviewFilters()
 
   updateContentWidth()
@@ -768,7 +901,10 @@ onBeforeUnmount(() => {
       <div>
         <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">Feature Execution Overview</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          <template v-if="hasJiraChildProgress">
+          <template v-if="hasWorkStatus">
+            Work status comes from each Feature’s own Jira status. Jira child progress is supporting information. Neither reports pipeline execution or release readiness.
+          </template>
+          <template v-else-if="hasJiraChildProgress">
             Jira child status for configured issue types under linked Epics. It does not report pipeline execution or release readiness.
           </template>
           <template v-else>
@@ -887,12 +1023,12 @@ onBeforeUnmount(() => {
 
       <!-- Multi-select: Execution State -->
       <div class="flex flex-col gap-0.5">
-        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ hasJiraChildProgress ? 'Jira child status' : 'Execution state' }}</label>
+        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ hasWorkStatus ? 'Work status' : hasJiraChildProgress ? 'Jira child status' : 'Execution state' }}</label>
         <div class="relative multi-select-dropdown">
           <button
             @click.stop="toggleDropdown('executionState')"
             class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[160px]"
-            :title="hasJiraChildProgress ? JIRA_CHILD_PROGRESS_HELP_TEXT : 'Execution state reflects observed, normalized Jira issues only; recognized planning work is excluded.'"
+            :title="hasWorkStatus ? WORK_STATUS_KNOWN_HELP : hasJiraChildProgress ? JIRA_CHILD_PROGRESS_HELP_TEXT : 'Execution state reflects observed, normalized Jira issues only; recognized planning work is excluded.'"
             :class="selectedExecutionStates.length > 0
               ? 'border-primary-500 ring-1 ring-primary-500'
               : 'border-gray-300 dark:border-gray-600'"
@@ -1070,6 +1206,50 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <!-- Multi-select: Team (assignee's roster membership, not Feature ownership) -->
+      <div
+        v-if="(assigneeTeamLookup && assigneeTeamOptions.length > 0) || assigneeTeamRosterUnavailable"
+        class="flex flex-col gap-0.5"
+        data-testid="assignee-team-filter"
+      >
+        <span class="inline-flex items-center text-xs font-medium text-gray-600 dark:text-gray-400">
+          Team
+          <AIInfoBubble hoverable :text="TEAM_FILTER_HELP_TEXT" />
+        </span>
+        <div class="relative multi-select-dropdown">
+          <button
+            @click.stop="assigneeTeamLookup && toggleDropdown('assigneeTeam')"
+            :disabled="!assigneeTeamLookup"
+            :title="assigneeTeamLookup ? '' : 'The project roster is unavailable, so team membership cannot be resolved.'"
+            class="bg-white dark:bg-gray-800 border rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100 focus:outline-none flex items-center gap-1.5 min-w-[140px] disabled:opacity-60 disabled:cursor-not-allowed"
+            :class="selectedAssigneeTeams.length > 0
+              ? 'border-primary-500 ring-1 ring-primary-500'
+              : 'border-gray-300 dark:border-gray-600'"
+          >
+            <span class="flex-1 text-left truncate">{{ assigneeTeamLookup ? assigneeTeamFilterLabel : 'Roster unavailable' }}</span>
+            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform" :class="{ 'rotate-180': openDropdown.assigneeTeam }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div
+            v-if="openDropdown.assigneeTeam && assigneeTeamLookup"
+            class="absolute z-20 mt-1 w-60 max-h-72 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1"
+          >
+            <label
+              v-for="value in assigneeTeamOptions"
+              :key="value"
+              class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-900 dark:text-gray-100"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedAssigneeTeams.includes(value)"
+                @change="toggleAssigneeTeam(value)"
+                class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+              />
+              <span class="truncate">{{ assigneeTeamLabel(value, assigneeTeamLookup) }}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
       <!-- Blockers only toggle -->
       <label
         class="flex items-center gap-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm select-none"
@@ -1165,7 +1345,7 @@ onBeforeUnmount(() => {
           class="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/60 dark:bg-gray-800/20 p-3 mb-4"
         >
           <div v-if="coverageFeatures.length === 0" class="text-center py-6 text-gray-500 text-sm">
-            {{ hasJiraChildProgress ? 'No features without complete Jira child status progress.' : 'No features without measurable execution progress.' }}
+            {{ hasWorkStatus ? 'No features with an unknown work status.' : hasJiraChildProgress ? 'No features without complete Jira child status progress.' : 'No features without measurable execution progress.' }}
           </div>
           <template v-else>
             <div class="grid gap-2" :class="coverageGridClass">
@@ -1200,7 +1380,7 @@ onBeforeUnmount(() => {
                   </span>
                 </div>
                 <p class="text-sm text-gray-900 dark:text-gray-100 font-medium leading-snug mb-1">{{ d.feature.summary }}</p>
-                <p class="text-xs italic text-gray-500 dark:text-gray-400">{{ d.progress.caption }}</p>
+                <p class="text-xs italic text-gray-500 dark:text-gray-400">{{ coverageCaption(d.progress) }}</p>
                 <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500 dark:text-gray-400">
                   <span>{{ progressIssueCountLabel(d.feature) }}: <strong class="font-semibold text-gray-700 dark:text-gray-300">{{ displayCount(progressIssueCount(d.feature)) }}</strong></span>
                   <span>Blockers: <strong class="font-semibold text-gray-700 dark:text-gray-300">{{ displayCount(d.feature.blockerCount) }}</strong></span>
@@ -1423,7 +1603,7 @@ onBeforeUnmount(() => {
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Key</th>
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Summary</th>
                   <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Jira Status</th>
-                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">{{ hasJiraChildProgress ? 'Jira Child Status' : 'Execution State' }}</th>
+                  <th class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">{{ hasWorkStatus ? 'Work Status' : hasJiraChildProgress ? 'Jira Child Status' : 'Execution State' }}</th>
                   <th
                     class="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium"
                     :title="hasJiraChildProgress ? JIRA_CHILD_PROGRESS_HELP_TEXT : PROGRESS_SUPPORTING_TEXT"

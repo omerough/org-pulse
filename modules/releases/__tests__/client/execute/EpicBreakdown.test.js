@@ -106,6 +106,44 @@ describe('EpicBreakdown', () => {
     expect(wrapper.text()).not.toContain('Parent Feature')
   })
 
+  describe('showFixVersion (Feature Detail)', () => {
+    function mountFixVersion(epic) {
+      return mount(EpicBreakdown, { props: { showFixVersion: true, epics: [epic] } })
+    }
+
+    it('shows only the Fix Version row, without the parent Feature or component provenance', () => {
+      const wrapper = mountFixVersion(makeEpic({
+        fixVersions: ['0.4'], fixVersionSource: 'direct', parentFeatureKey: 'OSAC-100', components: []
+      }))
+      expect(wrapper.text()).toContain('0.4')
+      expect(wrapper.text()).not.toContain('inherited from Feature')
+      expect(wrapper.text()).not.toContain('Parent Feature')
+      expect(wrapper.text()).not.toContain('Components: Unknown')
+    })
+
+    it('tags inherited releases and keeps every assigned release', () => {
+      const wrapper = mountFixVersion(makeEpic({
+        fixVersions: ['0.9', '1.0'], fixVersionSource: 'via-parent-feature'
+      }))
+      expect(wrapper.text()).toContain('0.9')
+      expect(wrapper.text()).toContain('1.0')
+      expect(wrapper.text()).toContain('inherited from Feature')
+    })
+
+    it('omits the row when the payload publishes no release attribution', () => {
+      const wrapper = mountFixVersion(makeEpic())
+      expect(wrapper.text()).not.toContain('Fix Version')
+      expect(wrapper.text()).not.toContain('Unknown')
+    })
+
+    it('shows unknown attribution as Unknown, not as a release', () => {
+      const wrapper = mountFixVersion(makeEpic({ fixVersions: [], fixVersionSource: 'unknown' }))
+      expect(wrapper.text()).toContain('Fix Version')
+      expect(wrapper.text()).toContain('Unknown')
+      expect(wrapper.text()).not.toContain('inherited from Feature')
+    })
+  })
+
   it('shows a direct Fix Version with no inherited badge when showProvenance is on', () => {
     const wrapper = mount(EpicBreakdown, {
       props: {

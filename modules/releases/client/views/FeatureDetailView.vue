@@ -6,6 +6,7 @@ import { useModuleLink } from '@shared/client/composables/useModuleLink.js'
 import { apiRequest } from '@shared/client/services/api.js'
 import { useProjectId } from '@shared/client/composables/useProjectId.js'
 import { getPrdReviewNavigationKey, getPrdReviewPrUrl } from '@shared/client/utils/feature-links.js'
+import { designEvidenceSummary, readinessMeta } from '../execute/utils/readiness'
 import StatusBadge from '../execute/components/StatusBadge.vue'
 import TrafficMap from '../execute/components/TrafficMap.vue'
 import EpicBreakdown from '../execute/components/EpicBreakdown.vue'
@@ -146,6 +147,8 @@ function renderStatusNotes(notes) {
 }
 
 const ownerStatusColor = computed(() => feature.value?.colorStatus || feature.value?.ownerStatusColor || null)
+// Only payloads that carry the Status color field can be missing it.
+const hasStatusColorField = computed(() => !!feature.value && 'colorStatus' in feature.value)
 
 const featureKey = computed(() => nav.params.value.key)
 
@@ -342,6 +345,15 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString()
 }
 
+const planningReadiness = computed(() => {
+  const evidence = feature.value?.readinessEvidence
+  if (!evidence) return null
+  return {
+    meta: readinessMeta(feature.value.preparationReadiness, feature.value.key, evidence),
+    design: designEvidenceSummary(evidence)
+  }
+})
+
 // --- Tabs ---
 const activeTab = ref('ai-review')
 const tabActivated = ref({ 'ai-review': true, 'traffic-signals': false, epics: false, 'source-code': false })
@@ -439,8 +451,13 @@ watch([featureKey, projectId], loadForSelection)
                 target="_blank"
               >{{ feature.key }}</a>
               <StatusBadge :status="feature.status" />
+              <span
+                v-if="feature.workStatus?.state === 'inactive'"
+                class="inline-block px-2 py-0.5 rounded border border-gray-300 dark:border-gray-600 text-xs font-medium text-gray-600 dark:text-gray-400"
+                title="Inactive in Jira. Epic or Story activity does not change the Feature's work status."
+              >Inactive</span>
               <StatusBadge v-if="ownerStatusColor" :health="ownerStatusColor">{{ ownerStatusColor }}</StatusBadge>
-              <StatusBadge v-else status="Status color missing" />
+              <StatusBadge v-else-if="hasStatusColorField" status="Status color missing" />
             </div>
             <h1 class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ feature.summary }}</h1>
             <div class="flex flex-wrap gap-3 mt-3 text-xs text-gray-500 dark:text-gray-400">
@@ -500,6 +517,51 @@ watch([featureKey, projectId], loadForSelection)
                 :key="v"
                 class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
               >{{ v }}</span>
+            </div>
+            <div
+              v-if="planningReadiness"
+              class="mt-3 text-xs text-gray-600 dark:text-gray-400 space-y-1"
+              data-testid="planning-readiness"
+            >
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-medium text-gray-700 dark:text-gray-300">Planning readiness</span>
+                <span
+                  class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-semibold"
+                  :class="planningReadiness.meta.class"
+                >{{ planningReadiness.meta.label }}</span>
+                <span v-if="planningReadiness.meta.help">{{ planningReadiness.meta.help }}</span>
+              </div>
+              <div v-if="planningReadiness.design?.primary" data-testid="design-pr-primary">
+                Design PR
+                <a
+                  v-if="planningReadiness.design.primary.url"
+                  :href="planningReadiness.design.primary.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="font-mono text-primary-600 dark:text-blue-400 hover:underline"
+                >#{{ planningReadiness.design.primary.number }}</a>
+                <span v-else class="font-mono">#{{ planningReadiness.design.primary.number }}</span>
+                · {{ planningReadiness.design.primary.status }}
+                <template v-if="planningReadiness.design.primary.createdAt"> · opened {{ formatDate(planningReadiness.design.primary.createdAt) }}</template>
+                <template v-if="planningReadiness.design.primary.mergedAt"> · merged {{ formatDate(planningReadiness.design.primary.mergedAt) }}</template>
+              </div>
+              <div v-if="planningReadiness.design?.timingNote" data-testid="design-approval-timing">
+                {{ planningReadiness.design.timingNote }}
+              </div>
+              <div v-if="planningReadiness.design?.others.length" data-testid="design-pr-others">
+                Other Design PRs:
+                <template v-for="(pr, index) in planningReadiness.design.others" :key="pr.number">
+                  <a
+                    v-if="pr.url"
+                    :href="pr.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="font-mono text-primary-600 dark:text-blue-400 hover:underline"
+                  >#{{ pr.number }}</a>
+                  <span v-else class="font-mono">#{{ pr.number }}</span>
+                  ({{ pr.status }}){{ index < planningReadiness.design.others.length - 1 ? ', ' : '' }}
+                </template>
+              </div>
             </div>
           </div>
         </div>
@@ -849,7 +911,7 @@ watch([featureKey, projectId], loadForSelection)
           Epic Breakdown
           <span class="text-sm font-normal text-gray-500 dark:text-gray-400">({{ (feature.epics || []).length }} epics)</span>
         </h2>
-        <EpicBreakdown :epics="feature.epics || []" />
+        <EpicBreakdown :epics="feature.epics || []" show-fix-version />
       </div>
 
       <!-- Source Code Tab -->

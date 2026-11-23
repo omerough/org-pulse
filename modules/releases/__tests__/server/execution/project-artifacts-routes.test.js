@@ -93,6 +93,7 @@ function envelope(profile, generationId, artifactKey, data, overrides = {}) {
 
 function flightctlPublication(options = {}) {
   const project = makeProfile(options.projectId || 'flightctl', options.jiraProjectKey || 'EDM')
+  if (options.workStatus) project.execution.workStatus = options.workStatus
   const generationId = options.generationId || 'fc-generation-1'
   const root = `projects/${project.projectId}/generations/${generationId}`
   const feature = {
@@ -211,6 +212,17 @@ describe('project-qualified Execute publication routes', () => {
     expect(tree.body.features).toHaveLength(1)
     expect(tree.body.features[0]).toMatchObject({ key: 'EDM-100', team: null, coverage: { team: 'unknown' } })
     expect(tree.body.features[0].epics[0].key).toBe('EDM-200')
+  })
+
+  it('returns the profile’s configured inactive work statuses with the Feature list only when configured', () => {
+    function list(fixture) {
+      const response = makeResponse()
+      register(fixture.storage, fixture.projects)._routes.get['/features'].at(-1)({ query: { projectId: 'flightctl' } }, response)
+      return response.body
+    }
+    expect(list(flightctlPublication({ workStatus: { inactiveStatuses: ['Backlog'] } })).workStatusProfile)
+      .toEqual({ inactiveStatuses: ['Backlog'] })
+    expect(list(flightctlPublication())).not.toHaveProperty('workStatusProfile')
   })
 
   it('reads Feature Tracking using encoded release IDs within the selected project generation', () => {

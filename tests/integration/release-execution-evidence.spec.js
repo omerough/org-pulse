@@ -8,6 +8,7 @@ const osacTrackingData = require('../../fixtures/releases/execution/tracking-dat
 const flightctlIndexEnvelope = require('../../fixtures/projects/flightctl/releases/execution/index.json');
 const flightctlFeatureOneEnvelope = require('../../fixtures/projects/flightctl/releases/execution/features/EDM-1001.json');
 const flightctlFeatureTwoEnvelope = require('../../fixtures/projects/flightctl/releases/execution/features/EDM-1002.json');
+const flightctlRosterEnvelope = require('../../fixtures/projects/flightctl/sources/roster/registry.json');
 const flightctlTrackingEnvelope = require('../../fixtures/projects/flightctl/releases/execution/tracking-data-flightctl-0.10.0.json');
 
 const flightctlIndex = flightctlIndexEnvelope.data;
@@ -243,28 +244,36 @@ test.describe('Shared Releases Execute @releases', () => {
         await expect(page.getByText(/does not establish Feature completion, pipeline success, or release readiness/)).toBeVisible();
         await expect(page.getByRole('button', { name: 'Board', exact: true })).toBeVisible();
         await page.getByRole('button', { name: 'Board', exact: true }).click();
-        await expect(page.getByText(/With Jira child status progress:/)).toBeVisible();
-        await expect(page.getByText(/Without complete Jira child status progress:/)).toBeVisible();
-        await expect(page.getByRole('heading', { name: 'Jira Children: Done' })).toBeVisible();
+        await expect(page.getByText(/With known work status:/)).toBeVisible();
+        await expect(page.getByText(/Unknown work status:/)).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'In Progress', exact: true })).toBeVisible();
         await expect(page.getByText(/1\/1 Jira Done/)).toBeVisible();
 
         await page.getByRole('button', { name: 'List', exact: true }).click();
         await page.getByLabel('Search').fill('EDM-1002');
         const row = page.getByRole('row').filter({ hasText: 'EDM-1002' });
         await expect(row).toBeVisible();
-        await expect(row.getByRole('cell').nth(3)).toContainText('No Eligible Jira Children');
+        await expect(row.getByRole('cell').nth(3)).toContainText('Not Started');
         await expect(row.getByRole('cell').nth(7)).toHaveText('0');
+        await expect(row).toContainText('Unknown');
         await captureSharedExecuteScreenshot(page, projectId, 'feature-list');
         await page.getByRole('button', { name: 'Open details for EDM-1002', exact: true }).click();
         const drawer = page.getByRole('dialog', { name: 'Feature details for EDM-1002' });
         await expect(drawer).toBeVisible();
-        await expect(drawer.locator('dt:has-text("Team") + dd')).toHaveText('Unknown');
+        await expect(drawer.getByText('Jira Team', { exact: true })).toHaveCount(0);
+        await expect(drawer.getByTestId('drawer-design-pr')).toHaveText(/Design PR\s*Unknown/);
         await drawer.getByRole('button', { name: 'Close detail panel' }).click();
 
         await page.getByLabel('Search').fill('EDM-1001');
+        await expect(page.getByRole('row').filter({ hasText: 'EDM-1001' })).toContainText('Pending');
         await page.getByRole('button', { name: 'Open details for EDM-1001', exact: true }).click();
         const progressDrawer = page.getByRole('dialog', { name: 'Feature details for EDM-1001' });
-        await expect(progressDrawer.getByText('Jira Child Status Progress', { exact: true })).toBeVisible();
+        await expect(progressDrawer.getByText('Jira Child Progress', { exact: true })).toBeVisible();
+        await expect(progressDrawer.getByText(/Work Status comes from its own Jira status/)).toBeVisible();
+        const designPr = progressDrawer.getByTestId('drawer-design-pr');
+        await expect(designPr.getByRole('link', { name: 'Open Design PR #80 on GitHub' }))
+          .toHaveAttribute('href', 'https://github.com/flightctl/design-docs/pull/80');
+        await expect(designPr).toContainText('Open, approved — not yet merged');
         await expect(progressDrawer.getByText(/1 of 1 configured Jira child issues are Done/)).toBeVisible();
         await expect(progressDrawer.getByText(/does not establish Feature completion, pipeline success, or release readiness/)).toBeVisible();
         await progressDrawer.getByRole('button', { name: 'Close detail panel' }).click();
@@ -308,6 +317,50 @@ test.describe('Shared Releases Execute @releases', () => {
     await expect(page.getByRole('row').filter({ hasText: 'EDM-1002' })).toBeVisible();
     await expect(page.getByText('TEST1-52', { exact: true })).toHaveCount(0);
     expect(api.requests.some(request => request.pathname === '/features' && request.projectId === 'flightctl')).toBe(true);
+  });
+
+  test('filters Flight Control Features by the assignee’s team and hides the filter without a project roster', async ({ page }) => {
+    installExecuteApi(page);
+    const rosterData = flightctlRosterEnvelope.data;
+    await page.route('**/api/roster?**', route => {
+      const projectId = new URL(route.request().url()).searchParams.get('projectId');
+      if (projectId !== 'flightctl') {
+        return route.fulfill({ json: { projectId, availability: 'available', orgs: [], people: [] } });
+      }
+      return route.fulfill({ json: {
+        projectId,
+        availability: 'available',
+        teams: rosterData.teams.map(team => ({
+          key: `${projectId}::${team.id}`,
+          id: team.id,
+          displayName: team.name,
+          memberAccountIds: rosterData.people
+            .filter(person => person.active && person.teamIds.includes(team.id))
+            .map(person => person.accountId)
+        })),
+        people: rosterData.people
+      } });
+    });
+
+    await page.goto('/#/releases/execute?projectId=flightctl');
+    await page.getByRole('button', { name: 'List', exact: true }).click();
+    const rowFor = key => page.getByRole('row').filter({ hasText: key });
+    await expect(rowFor('EDM-1001')).toBeVisible();
+    await expect(rowFor('EDM-1002')).toBeVisible();
+
+    const filter = page.getByTestId('assignee-team-filter');
+    await filter.getByRole('button', { name: 'All teams' }).click();
+    await filter.getByLabel('Flight Control UI').check();
+    await expect(rowFor('EDM-1001')).toBeVisible();
+    await expect(rowFor('EDM-1002')).toHaveCount(0);
+
+    await filter.getByLabel('Unassigned').check();
+    await expect(rowFor('EDM-1002')).toBeVisible();
+
+    await page.locator('#project-selector').selectOption('osac');
+    await expect(page).toHaveURL(/projectId=osac/);
+    await expect(page.getByRole('heading', { name: 'Feature Execution Overview' })).toBeVisible();
+    await expect(page.getByTestId('assignee-team-filter')).toHaveCount(0);
   });
 
   test('unknown project shows not found and does not load OSAC Execute data', async ({ page }) => {

@@ -11,6 +11,7 @@ export function useFeatureTraffic() {
   const state = ref(null)
   const message = ref(null)
   const partial = ref(false)
+  const inactiveWorkStatuses = ref(null)
   const projectId = useProjectId()
   let latestRequestId = 0
 
@@ -22,6 +23,7 @@ export function useFeatureTraffic() {
     state.value = null
     message.value = null
     partial.value = false
+    inactiveWorkStatuses.value = null
     features.value = []
     featureCount.value = 0
     fetchedAt.value = null
@@ -46,6 +48,8 @@ export function useFeatureTraffic() {
       state.value = data.state || 'supported'
       message.value = data.message || data.error || null
       partial.value = data.partial === true
+      const inactiveStatuses = data.workStatusProfile?.inactiveStatuses
+      inactiveWorkStatuses.value = Array.isArray(inactiveStatuses) ? inactiveStatuses : null
     } catch (err) {
       if (requestId !== latestRequestId || projectId.value !== requestedProjectId) return
       error.value = err.message
@@ -54,7 +58,7 @@ export function useFeatureTraffic() {
     }
   }
 
-  return { features, featureCount, fetchedAt, loading, error, state, message, partial, loadFeatures }
+  return { features, featureCount, fetchedAt, loading, error, state, message, partial, inactiveWorkStatuses, loadFeatures }
 }
 
 export function useFeatureDetail() {

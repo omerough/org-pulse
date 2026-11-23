@@ -863,6 +863,19 @@ describe('rebuildIndex', () => {
     expect(index.features[1].assignee).toBe('Bob') // already string
   })
 
+  it('publishes the assignee accountId only when the detail carries one', async () => {
+    const storage = makeStorage({
+      'releases/execution/features/X-1.json': { key: 'X-1', assignee: { displayName: 'Alice', accountId: 'a-1' } },
+      'releases/execution/features/X-2.json': { key: 'X-2', assignee: 'Bob' },
+      'releases/execution/features/X-3.json': { key: 'X-3', assignee: null }
+    })
+
+    await rebuildIndex(storage)
+
+    const ids = storage._files['releases/execution/index.json'].features.map(f => f.assigneeAccountId)
+    expect(ids).toEqual(['a-1', null, null])
+  })
+
   it('writes empty index when no feature files exist', async () => {
     const storage = makeStorage({})
     await rebuildIndex(storage)

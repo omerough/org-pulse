@@ -54,6 +54,23 @@ describe('useRoster project migration', () => {
     expect(mocks.getRoster).toHaveBeenCalledTimes(1)
     expect(mocks.getRoster).toHaveBeenCalledWith('flightctl')
     expect(roster.error.value).toBe('Project roster publication is unavailable')
+    expect(roster.errorStatus.value).toBe(404)
+  })
+
+  it('reports no status for a failure without an HTTP response and clears it on success', async () => {
+    mocks.getRoster.mockRejectedValueOnce(new Error('Network down'))
+    const roster = await createRoster('flightctl')
+
+    await roster.loadRoster()
+    expect(roster.errorStatus.value).toBeNull()
+
+    mocks.getRoster.mockRejectedValueOnce(Object.assign(new Error('Boom'), { status: 503 }))
+    await roster.reloadRoster()
+    expect(roster.errorStatus.value).toBe(503)
+
+    mocks.getRoster.mockResolvedValueOnce({ projectId: 'flightctl', teams: [], people: [] })
+    await roster.reloadRoster()
+    expect(roster.errorStatus.value).toBeNull()
   })
 
   it('clears the roster on project switch and ignores a late response from the previous project', async () => {

@@ -1535,6 +1535,12 @@ Derived summary index of all features in the unified feature store. Rebuilt auto
 
 **Notes:**
 - `assignee` is a string in the index (flattened from the detail object shape)
+- `assigneeAccountId` is the Jira assignee's `accountId`, or `null` when unassigned or when the source did not
+  publish one. It is the only key the Feature List's Team filter (the assignee's team) joins on: the consumer reads
+  the project roster (`sources/roster/registry.json`, via the roster read model) at view time and maps the
+  assignee's active team memberships. The result is the assignee's membership, never Feature ownership or the
+  Jira Team field. An assigned Feature with no `assigneeAccountId` (older publications) matches no team option
+  and is neither Unassigned nor Not in Roster. Not in Roster applies only against a successfully loaded roster.
 - `colorStatus` and `ownerStatusColor` are identical (backward compat alias)
 - `pm` is flattened to a string from the detail object shape
 - `team` and `components` are Jira-sourced fields surfaced in the index for filtering
@@ -1572,6 +1578,27 @@ Derived summary index of all features in the unified feature store. Rebuilt auto
   only when `state` is `supported`, `coverage` is `complete`, and `issueCount` is positive. It reports
   Jira child status; it must not populate `execution*` metrics or be presented as pipeline success,
   Feature completion, or release readiness. The same object is copied into the matching Feature Detail.
+- `workStatus` is an optional `{ source: "jira-feature-status", state }` emitted for Jira-backed
+  (non-legacy-store) projects, derived only from the Feature's own Jira `status` / `statusCategory`.
+  `state` is `not-started`, `in-progress`, `done`, `unknown`, or `inactive`; `inactive` applies to
+  statuses listed in the profile's `execution.workStatus.inactiveStatuses` (Flight Control: `Backlog`) and
+  is never changed by Epic or Story activity. The real `status` is always preserved (`Backlog`, `New`
+  and `To Do` stay distinct). When present, the Feature List lanes and filter follow `workStatus` and
+  `jiraChildProgress` is shown only as supporting progress; when absent, consumers keep the existing
+  lanes. The list API returns the profile's configured statuses as `workStatusProfile.inactiveStatuses`;
+  the `inactive` lane and filter option read `Backlog` when that list is exactly `["Backlog"]` and
+  `Inactive` otherwise. It is independent of `preparationReadiness` and of release attribution, and it is not a health model.
+- `readinessEvidence` is an optional object emitted (index row and detail) by Jira-backed projects whose
+  profile configures `execution.readiness.policy: "pr-status-evidence"`; legacy-store rows such as OSAC's
+  carry none and keep their existing readiness wording. It supports `preparationReadiness` and holds
+  `requiredStatusFields` (e.g. `["designPrStatus"]`), `statuses`, `lookup` (`complete` | `unavailable`) with
+  `lookupReason`, `designPr` (governing PR: `number`, `url`, `status` `Merged` | `Open` | `Closed`, `draft`,
+  `reviewStatus`, `createdAt`, `updatedAt`, `mergedAt`) or `null`, `designPrs` (every matched Design PR), and
+  `approvalTiming`. `preparationReadiness` is `ready` only when every required status is `Merged`; an open or
+  approved-but-unmerged PR is `pending`; no verified PR, or an unavailable evidence source, is `unknown`
+  (`lookup: "unavailable"` means the PR was not searched, not that none exists). `approvalTiming` is
+  informational, present only for a merged Design PR, and is `on-time` / `late` only when the release start is
+  recorded; it never changes `preparationReadiness`, `workStatus`, or health.
 - `epicReleaseVersions` is the sorted union of `fixVersions` across a Feature's child Epics,
   pipeline-owned and copied verbatim from the collector's index output. Always present (possibly
   `[]`), and deliberately kept separate from the Feature's own `fixVersions` — a release filter needs
@@ -1720,7 +1747,7 @@ Unified per-feature file combining data from pipeline (GitLab CI), Jira enrichme
   fields above — see the Execution Index notes for the full semantics. org-pulse-data computes and
   owns this classification entirely; org-pulse consumes it read-only.
 
-**Epic provenance (`fixVersionSource`, `componentSource`):** each is one of `direct`, `via-parent-feature`, or `unknown`. Consumers must render `via-parent-feature` values with a visible inherited-source indicator — never as if they were the epic's own — and render `unknown` as an explicit unknown state rather than leaving it blank. `parentFeatureKey`, `issueCount`, `blockerCount`, and `pct`/`progress` (`progress` is an alias of `pct`) make each epic object self-contained for consumers, without a separate lookup into `metrics.epicMetrics[]`.
+**Epic provenance (`fixVersionSource`, `componentSource`):** each is one of `direct`, `via-parent-feature`, or `unknown`. Jira-backed projects that set `execution.versionAttribution.epic: "direct-or-parent-feature"` publish `via-parent-feature` for an Epic without its own Fix Versions, inheriting only the parent Feature's versions that exist in the project release registry (all of them, never a single pick), and `unknown` when none can be inherited. Consumers must render `via-parent-feature` values with a visible inherited-source indicator — never as if they were the epic's own — and render `unknown` as an explicit unknown state rather than leaving it blank. `parentFeatureKey`, `issueCount`, `blockerCount`, and `pct`/`progress` (`progress` is an alias of `pct`) make each epic object self-contained for consumers, without a separate lookup into `metrics.epicMetrics[]`.
 
 **Per-Epic execution counts and per-issue preparation flag:** each epic also carries
 `executionIssueCount`/`doneExecutionIssueCount` — the same Feature-level fields reused at Epic
