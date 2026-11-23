@@ -103,17 +103,17 @@ function selectMeAssignee() {
   if (meAssignee.value) setAssignees([meAssignee.value])
 }
 
-const { rosterData, loadRoster } = useRoster()
+const { rosterData, error: rosterError, errorStatus: rosterErrorStatus, loadRoster } = useRoster()
 // Not persisted: a stored team selection must not outlive the roster that gives it meaning.
 const selectedAssigneeTeams = ref([])
 const assigneeTeamLookup = computed(() => buildAssigneeTeamLookup(rosterData.value, projectId.value))
-// A project-qualified roster is present but cannot currently support the join.
-const assigneeTeamRosterUnavailable = computed(() =>
-  !assigneeTeamLookup.value &&
-  !!projectId.value &&
-  rosterData.value?.projectId === projectId.value &&
-  Array.isArray(rosterData.value?.teams)
-)
+// A roster exists or was expected but cannot currently support the join. A 404 means the project
+// publishes no roster, which is unsupported rather than unavailable and keeps the filter hidden.
+const assigneeTeamRosterUnavailable = computed(() => {
+  if (assigneeTeamLookup.value || !projectId.value) return false
+  if (rosterError.value) return rosterErrorStatus.value !== 404
+  return rosterData.value?.projectId === projectId.value && Array.isArray(rosterData.value?.teams)
+})
 
 const selectedVersions = ref([])
 const selectedExecutionStates = ref([])
@@ -223,6 +223,16 @@ const executionStateFilterLabel = computed(() => {
     return opt ? opt.label : selectedExecutionStates.value[0]
   }
   return selectedExecutionStates.value.length + ' states'
+})
+
+// Option sets differ by data shape and restore runs before data loads; a selection missing
+// from the loaded set could not be unchecked.
+watch([executionStateFilterOptions, features], ([options]) => {
+  if (features.value.length === 0) return
+  const allowed = new Set(options.map(o => o.value))
+  if (selectedExecutionStates.value.some(id => !allowed.has(id))) {
+    selectedExecutionStates.value = selectedExecutionStates.value.filter(id => allowed.has(id))
+  }
 })
 
 // Close dropdowns on outside click
@@ -729,10 +739,16 @@ const decoratedFeatures = computed(() => filteredFeatures.value.map(f => ({
 // Requires both a recognized lane and validated progress, so a known lane
 // with invalid counts (or vice versa) lands in coverage, not neither total.
 // A Feature work status is its own evidence: child progress availability never
-// removes a Feature from its work-status column.
+// removes a Feature from its work-status column. A Feature without one needs validated progress.
 function isBoardEligible(d) {
   if (!boardColumnIds.value.includes(d.lane)) return false
-  return hasWorkStatus.value || ['available', 'jira-status'].includes(d.progress.kind)
+  return workStatusLaneKey(d.feature) !== null || ['available', 'jira-status'].includes(d.progress.kind)
+}
+
+// Progress can be measurable yet sit in coverage (unknown lane), so the caption follows the progress source.
+function coverageCaption(progress) {
+  if (progress.caption) return progress.caption
+  return `${progress.done}/${progress.total} ${progress.kind === 'jira-status' ? 'Jira child issues' : 'issues'} Done`
 }
 
 // Jira-only profiles reuse the same columns while labeling the lane as Jira
@@ -1344,7 +1360,7 @@ onBeforeUnmount(() => {
                   </span>
                 </div>
                 <p class="text-sm text-gray-900 dark:text-gray-100 font-medium leading-snug mb-1">{{ d.feature.summary }}</p>
-                <p class="text-xs italic text-gray-500 dark:text-gray-400">{{ d.progress.caption || `${d.progress.done}/${d.progress.total} Jira child issues Done` }}</p>
+                <p class="text-xs italic text-gray-500 dark:text-gray-400">{{ coverageCaption(d.progress) }}</p>
                 <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500 dark:text-gray-400">
                   <span>{{ progressIssueCountLabel(d.feature) }}: <strong class="font-semibold text-gray-700 dark:text-gray-300">{{ displayCount(progressIssueCount(d.feature)) }}</strong></span>
                   <span>Blockers: <strong class="font-semibold text-gray-700 dark:text-gray-300">{{ displayCount(d.feature.blockerCount) }}</strong></span>

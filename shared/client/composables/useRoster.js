@@ -25,6 +25,8 @@ function _toNormalizedMember(person) {
 const rosterData = ref(null)
 const loading = ref(false)
 const error = ref(null)
+// HTTP status of the failed fetch; null when the failure had no response (network, identity mismatch).
+const errorStatus = ref(null)
 const selectedOrgKey = ref(null)
 const projectId = useProjectId()
 let rosterProjectId = projectId.value
@@ -36,6 +38,7 @@ watch(projectId, currentProjectId => {
   rosterData.value = null
   selectedOrgKey.value = null
   error.value = null
+  errorStatus.value = null
   loading.value = false
   requestSequence += 1
   pendingRosterRequest = null
@@ -55,6 +58,7 @@ function fetchRoster({ force = false } = {}) {
   rosterProjectId = requestedProjectId
   loading.value = true
   error.value = null
+  errorStatus.value = null
 
   const promise = (async () => {
     try {
@@ -70,6 +74,7 @@ function fetchRoster({ force = false } = {}) {
     } catch (err) {
       if (requestId === requestSequence && projectId.value === requestedProjectId) {
         error.value = err.message
+        errorStatus.value = Number.isInteger(err.status) ? err.status : null
         console.error('Failed to load roster:', err)
       }
       return null
@@ -234,6 +239,7 @@ export function useRoster() {
     teams,
     loading,
     error,
+    errorStatus,
     multiTeamMembers,
     getTeamsForPerson,
     uniqueMemberCount,

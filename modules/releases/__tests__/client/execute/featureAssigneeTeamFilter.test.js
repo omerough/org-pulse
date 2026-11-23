@@ -17,9 +17,13 @@ vi.mock('@shared/client/composables/useAuth.js', () => ({
 }))
 
 const mockRoster = ref(null)
+const mockRosterError = ref(null)
+const mockRosterErrorStatus = ref(null)
 const mockLoadRoster = vi.fn()
 vi.mock('@shared/client/composables/useRoster.js', () => ({
-  useRoster: () => ({ rosterData: mockRoster, loadRoster: mockLoadRoster })
+  useRoster: () => ({
+    rosterData: mockRoster, error: mockRosterError, errorStatus: mockRosterErrorStatus, loadRoster: mockLoadRoster
+  })
 }))
 
 const rosterFor = (projectId, overrides = {}) => ({
@@ -96,6 +100,8 @@ describe('Feature List Assignee’s Team filter', () => {
     mockLoadRoster.mockReset()
     sessionStorage.clear()
     mockRoster.value = rosterFor('flightctl')
+    mockRosterError.value = null
+    mockRosterErrorStatus.value = null
   })
 
   it('offers published teams plus explicit Unassigned and Not in Roster options', async () => {
@@ -167,13 +173,26 @@ describe('Feature List Assignee’s Team filter', () => {
     expect(visibleKeys(wrapper)).toHaveLength(FEATURES.length)
   })
 
-  it('is hidden when no project-qualified roster is available (legacy or failed load)', async () => {
+  it('is hidden for a legacy roster or a project that publishes no roster', async () => {
     mockRoster.value = { orgs: {} }
     const wrapper = await mountOverview()
     expect(filterRoot(wrapper).exists()).toBe(false)
     mockRoster.value = null
+    mockRosterError.value = 'Project roster publication is unavailable'
+    mockRosterErrorStatus.value = 404
     await flushPromises()
     expect(filterRoot(wrapper).exists()).toBe(false)
+    expect(visibleKeys(wrapper)).toHaveLength(FEATURES.length)
+  })
+
+  it.each([[500], [null]])('shows the control as unavailable when the roster fetch fails (status %s)', async status => {
+    mockRoster.value = null
+    mockRosterError.value = 'Roster request failed'
+    mockRosterErrorStatus.value = status
+    const wrapper = await mountOverview()
+    const button = filterRoot(wrapper).find('button')
+    expect(button.element.disabled).toBe(true)
+    expect(button.text()).toBe('Roster unavailable')
     expect(visibleKeys(wrapper)).toHaveLength(FEATURES.length)
   })
 

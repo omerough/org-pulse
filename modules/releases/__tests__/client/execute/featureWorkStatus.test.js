@@ -167,6 +167,47 @@ describe('Feature List work status (Jira-backed project)', () => {
     expect(wrapper.text()).toContain('EDM-UNKNOWN')
   })
 
+  it('keeps a Feature without its own work status off the board unless its progress is measurable', async () => {
+    const mixed = [
+      ...FEATURES,
+      feature('EDM-NOWS', 'In Progress', 'In Progress', 'in-progress', childProgress(0, 0, 0), {
+        workStatus: undefined, jiraChildProgress: undefined, executionState: 'in-progress'
+      })
+    ]
+    const wrapper = await mountOverview(mixed)
+    expect(wrapper.find('#execution-section-in-progress').text()).not.toContain('EDM-NOWS')
+    expect(wrapper.find('#execution-section-in-progress').text()).toContain('EDM-ACTIVE')
+    await wrapper.findAll('button').find(b => b.text().includes('Unknown work status')).trigger('click')
+    expect(wrapper.find('#coverage-panel').text()).toContain('EDM-NOWS')
+  })
+
+  it('drops a stored execution-state selection that the loaded option set does not offer', async () => {
+    sessionStorage.setItem('releases:feature-list-filters:flightctl', JSON.stringify({
+      selectedExecutionStates: ['no-tracked-work', 'inactive']
+    }))
+    const wrapper = await mountOverview()
+    const trigger = wrapper.findAll('button').find(b => b.attributes('title')?.includes('Features whose own Jira status'))
+    expect(trigger.text()).toBe('Inactive')
+  })
+
+  it('labels coverage progress by its source', async () => {
+    const unknownWorkStatus = { state: 'unknown', source: 'jira-feature-status' }
+    const features = [
+      feature('EDM-ACTIVE', 'In Progress', 'In Progress', 'in-progress', childProgress(0, 0, 2)),
+      feature('EDM-CHILDREN', 'Triage', null, 'unknown', childProgress(1, 1, 2)),
+      feature('EDM-PIPELINE', 'Triage', null, 'unknown', childProgress(0, 0, 0), {
+        workStatus: unknownWorkStatus, jiraChildProgress: undefined, executionState: 'in-progress',
+        executionCoverage: 'available', executionIssueCount: 4, doneExecutionIssueCount: 3
+      })
+    ]
+    const wrapper = await mountOverview(features)
+    await wrapper.findAll('button').find(b => b.text().includes('Unknown work status')).trigger('click')
+    const panel = wrapper.find('#coverage-panel').text()
+    expect(panel).toContain('1/4 Jira child issues Done')
+    expect(panel).toContain('3/4 issues Done')
+    expect(panel).not.toContain('undefined')
+  })
+
   it('keeps the legacy Jira child-status lanes when no work status is published', async () => {
     const legacy = FEATURES.slice(2, 3).map(f => ({ ...f, workStatus: undefined }))
     const wrapper = await mountOverview(legacy)
