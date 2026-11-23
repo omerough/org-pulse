@@ -104,9 +104,18 @@ describe('Feature List Assignee’s Team filter', () => {
     mockRosterErrorStatus.value = null
   })
 
+  it('is labelled Team and explains that it is assignee membership, not Feature ownership', async () => {
+    const wrapper = await mountOverview()
+    const root = filterRoot(wrapper)
+    expect(root.text()).toMatch(/^Team/)
+    expect(root.text()).not.toContain('Assignee')
+    expect(root.findComponent({ name: 'AIInfoBubble' }).props('text'))
+      .toBe('Teams the Jira assignee belongs to in the project roster. This is the assignee’s membership, not confirmed Feature ownership.')
+  })
+
   it('offers published teams plus explicit Unassigned and Not in Roster options', async () => {
     const wrapper = await mountOverview()
-    await filterRoot(wrapper).find('button').trigger('click')
+    await filterRoot(wrapper).find('.multi-select-dropdown > button').trigger('click')
     const labels = filterRoot(wrapper).findAll('label').filter(l => l.find('input').exists()).map(l => l.text())
     expect(labels).toEqual(['Core Team', 'Ops Team', 'UI Team', 'Unassigned', 'Not in Roster'])
   })
@@ -167,7 +176,7 @@ describe('Feature List Assignee’s Team filter', () => {
     await pick(wrapper, 'All teams', 'Core Team')
     mockRoster.value = rosterFor('flightctl', { availability: 'unavailable', teams: [], people: [] })
     await flushPromises()
-    const button = filterRoot(wrapper).find('button')
+    const button = filterRoot(wrapper).find('.multi-select-dropdown > button')
     expect(button.element.disabled).toBe(true)
     expect(button.text()).toBe('Roster unavailable')
     expect(visibleKeys(wrapper)).toHaveLength(FEATURES.length)
@@ -190,7 +199,7 @@ describe('Feature List Assignee’s Team filter', () => {
     mockRosterError.value = 'Roster request failed'
     mockRosterErrorStatus.value = status
     const wrapper = await mountOverview()
-    const button = filterRoot(wrapper).find('button')
+    const button = filterRoot(wrapper).find('.multi-select-dropdown > button')
     expect(button.element.disabled).toBe(true)
     expect(button.text()).toBe('Roster unavailable')
     expect(visibleKeys(wrapper)).toHaveLength(FEATURES.length)
@@ -209,7 +218,7 @@ describe('Feature List Assignee’s Team filter', () => {
     mockRoster.value = rosterFor('osac')
     await flushPromises()
     await wrapper.findAll('button').find(b => b.text() === 'List').trigger('click')
-    expect(filterRoot(wrapper).find('button').text()).toBe('All teams')
+    expect(filterRoot(wrapper).find('.multi-select-dropdown > button').text()).toBe('All teams')
     expect(visibleKeys(wrapper)).toHaveLength(FEATURES.length)
   })
 

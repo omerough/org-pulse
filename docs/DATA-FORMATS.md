@@ -1536,7 +1536,7 @@ Derived summary index of all features in the unified feature store. Rebuilt auto
 **Notes:**
 - `assignee` is a string in the index (flattened from the detail object shape)
 - `assigneeAccountId` is the Jira assignee's `accountId`, or `null` when unassigned or when the source did not
-  publish one. It is the only key the Feature List's Assignee's Team filter joins on: the consumer reads
+  publish one. It is the only key the Feature List's Team filter (the assignee's team) joins on: the consumer reads
   the project roster (`sources/roster/registry.json`, via the roster read model) at view time and maps the
   assignee's active team memberships. The result is the assignee's membership, never Feature ownership or the
   Jira Team field. An assigned Feature with no `assigneeAccountId` (older publications) matches no team option
@@ -1585,7 +1585,9 @@ Derived summary index of all features in the unified feature store. Rebuilt auto
   is never changed by Epic or Story activity. The real `status` is always preserved (`Backlog`, `New`
   and `To Do` stay distinct). When present, the Feature List lanes and filter follow `workStatus` and
   `jiraChildProgress` is shown only as supporting progress; when absent, consumers keep the existing
-  lanes. It is independent of `preparationReadiness` and of release attribution, and it is not a health model.
+  lanes. The list API returns the profile's configured statuses as `workStatusProfile.inactiveStatuses`;
+  the `inactive` lane and filter option read `Backlog` when that list is exactly `["Backlog"]` and
+  `Inactive` otherwise. It is independent of `preparationReadiness` and of release attribution, and it is not a health model.
 - `readinessEvidence` is an optional object emitted (index row and detail) by Jira-backed projects whose
   profile configures `execution.readiness.policy: "pr-status-evidence"`; legacy-store rows such as OSAC's
   carry none and keep their existing readiness wording. It supports `preparationReadiness` and holds

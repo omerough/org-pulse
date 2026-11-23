@@ -54,6 +54,7 @@ const {
   state: featureDataState,
   message: featureDataMessage,
   partial: featureDataPartial,
+  inactiveWorkStatuses,
   loadFeatures
 } = useFeatureTraffic()
 const projectId = useProjectId()
@@ -93,6 +94,11 @@ const hasJiraChildProgress = computed(() => features.value.some(
 const hasWorkStatus = computed(() => features.value.some(
   f => f.workStatus?.source === 'jira-feature-status'
 ))
+// Named after Backlog only when it is the sole configured inactive status; other mappings keep Inactive.
+const inactiveLaneTitle = computed(() => {
+  const statuses = inactiveWorkStatuses.value
+  return statuses?.length === 1 && statuses[0] === 'Backlog' ? 'Backlog' : 'Inactive'
+})
 const hasNoCompatibleProducer = computed(() => features.value.some(f => f.coverage?.pipelineMetrics === 'unavailable'))
 // Hides the UI/UX filters and badges entirely for a project with no uiUxEvidence config.
 const hasUiUxData = computed(() => features.value.some(f =>
@@ -106,6 +112,8 @@ function selectMeAssignee() {
 const { rosterData, error: rosterError, errorStatus: rosterErrorStatus, loadRoster } = useRoster()
 // Not persisted: a stored team selection must not outlive the roster that gives it meaning.
 const selectedAssigneeTeams = ref([])
+const TEAM_FILTER_HELP_TEXT =
+  'Teams the Jira assignee belongs to in the project roster. This is the assignee’s membership, not confirmed Feature ownership.'
 const assigneeTeamLookup = computed(() => buildAssigneeTeamLookup(rosterData.value, projectId.value))
 // A roster exists or was expected but cannot currently support the join. A 404 means the project
 // publishes no roster, which is unsupported rather than unavailable and keeps the filter hidden.
@@ -204,7 +212,9 @@ const WORK_STATUS_FILTER_OPTIONS = [
   { value: 'unavailable', label: 'Status Unknown' }
 ]
 const executionStateFilterOptions = computed(() => {
-  if (hasWorkStatus.value) return WORK_STATUS_FILTER_OPTIONS
+  if (hasWorkStatus.value) {
+    return WORK_STATUS_FILTER_OPTIONS.map(o => o.value === 'inactive' ? { ...o, label: inactiveLaneTitle.value } : o)
+  }
   return hasJiraChildProgress.value ? JIRA_CHILD_STATUS_FILTER_OPTIONS : EXECUTION_STATE_FILTER_OPTIONS
 })
 const allowedExecutionStateFilterIds = new Set([
@@ -373,6 +383,9 @@ function laneMeta(lane) {
   const meta = LANE_META[lane]
   if (hasWorkStatus.value) {
     const [title, subtitle] = WORK_STATUS_LABELS[lane] || [meta.title, meta.subtitle]
+    if (lane === 'inactive' && inactiveLaneTitle.value === 'Backlog') {
+      return { ...meta, title: 'Backlog', subtitle: 'Jira Feature status is Backlog; Epic or Story activity does not change it' }
+    }
     return { ...meta, title, subtitle }
   }
   if (!hasJiraChildProgress.value) return meta
@@ -1191,13 +1204,16 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Multi-select: Assignee's Team (assignee's roster membership, not Feature ownership) -->
+      <!-- Multi-select: Team (assignee's roster membership, not Feature ownership) -->
       <div
         v-if="(assigneeTeamLookup && assigneeTeamOptions.length > 0) || assigneeTeamRosterUnavailable"
         class="flex flex-col gap-0.5"
         data-testid="assignee-team-filter"
       >
-        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">Assignee's Team</label>
+        <span class="inline-flex items-center text-xs font-medium text-gray-600 dark:text-gray-400">
+          Team
+          <AIInfoBubble hoverable :text="TEAM_FILTER_HELP_TEXT" />
+        </span>
         <div class="relative multi-select-dropdown">
           <button
             @click.stop="assigneeTeamLookup && toggleDropdown('assigneeTeam')"

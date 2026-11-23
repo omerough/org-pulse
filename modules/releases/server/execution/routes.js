@@ -82,7 +82,9 @@ function epicDirectlyMatchesVersion(epic, normalizedFilter) {
  *         schema: { type: string }
  *     responses:
  *       200:
- *         description: Feature list
+ *         description: >-
+ *           Feature list. `workStatusProfile.inactiveStatuses` is present when the project profile
+ *           configures `execution.workStatus.inactiveStatuses`.
  */
 
 /**
@@ -357,11 +359,13 @@ module.exports = function registerExecutionRoutes(router, context) {
       return String(aVal || '').localeCompare(String(bVal || '')) * sortDir;
     });
 
+    const inactiveStatuses = selected.scope.profile?.execution?.workStatus?.inactiveStatuses;
     res.json({
       ...publication.meta,
       fetchedAt: publication.meta.fetchedAt || index.fetchedAt || null,
       featureCount: features.length,
       totalFeatureCount: index.features.length,
+      ...(Array.isArray(inactiveStatuses) ? { workStatusProfile: { inactiveStatuses: [...inactiveStatuses] } } : {}),
       features
     });
   });

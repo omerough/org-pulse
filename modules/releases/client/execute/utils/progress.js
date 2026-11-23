@@ -66,3 +66,6 @@ export const PROGRESS_HELP_TEXT =
 
 export const JIRA_CHILD_PROGRESS_HELP_TEXT =
   'Counts the configured Jira issue types directly under linked Epics. This reports Jira child status only; it does not establish Feature completion, pipeline success, or release readiness.'
+
+export const JIRA_CHILD_PROGRESS_SUPPLEMENTARY_TEXT =
+  'Supporting evidence only. The Feature’s Work Status comes from its own Jira status and is not changed by child progress.'

@@ -67,13 +67,13 @@ const FEATURES = [
   feature('EDM-UNKNOWN', 'Triage', null, 'unknown', childProgress(0, 1, 0))
 ]
 
-async function mountOverview(features = FEATURES) {
+async function mountOverview(features = FEATURES, listExtras = {}) {
   window.location.hash = '#/releases/execute?projectId=flightctl'
   window.dispatchEvent(new Event('urlchange'))
   mockApiRequest.mockImplementation(url => {
     if (url.includes('/versions')) return Promise.resolve({ projectId: 'flightctl', versions: ['1.0.0'] })
     return Promise.resolve({
-      projectId: 'flightctl', state: 'supported', partial: false, features, featureCount: features.length
+      projectId: 'flightctl', state: 'supported', partial: false, features, featureCount: features.length, ...listExtras
     })
   })
   const wrapper = mount(OverviewView, {
@@ -102,6 +102,34 @@ describe('Feature List work status (Jira-backed project)', () => {
     expect(wrapper.text()).toContain('Work status comes from each Feature’s own Jira status')
     expect(wrapper.text()).toContain('With known work status:')
     expect(wrapper.text()).toContain('Unknown work status:')
+  })
+
+  describe('inactive lane name from the configured inactive statuses', () => {
+    const backlogOnly = { workStatusProfile: { inactiveStatuses: ['Backlog'] } }
+
+    it('names the lane, list cell and filter option Backlog when Backlog is the only inactive status', async () => {
+      const wrapper = await mountOverview(FEATURES, backlogOnly)
+      expect(wrapper.findAll('h3').map(h => h.text())).toEqual(['Not Started', 'In Progress', 'Done', 'Backlog'])
+      expect(wrapper.find('#execution-section-inactive').text()).toContain('EDM-BACKLOG-EPICS')
+
+      await wrapper.findAll('button').find(b => b.text() === 'List').trigger('click')
+      await wrapper.findAll('button').find(b => b.text().includes('All Work Statuses')).trigger('click')
+      const optionLabels = wrapper.findAll('label').filter(l => l.find('input[type="checkbox"]').exists()).map(l => l.text())
+      expect(optionLabels).toContain('Backlog')
+      expect(optionLabels).not.toContain('Inactive')
+      await wrapper.findAll('label').find(l => l.text() === 'Backlog').find('input').setValue(true)
+      expect(wrapper.findAll('tbody tr')).toHaveLength(2)
+      expect(rowFor(wrapper, 'EDM-BACKLOG-EPICS').text()).toContain('Backlog')
+      expect(rowFor(wrapper, 'EDM-BACKLOG-EMPTY')).toBeTruthy()
+    })
+
+    it('keeps Inactive for a broader or different inactive mapping', async () => {
+      for (const inactiveStatuses of [['Backlog', 'On Hold'], ['On Hold']]) {
+        const wrapper = await mountOverview(FEATURES, { workStatusProfile: { inactiveStatuses } })
+        expect(wrapper.findAll('h3').map(h => h.text()), inactiveStatuses.join()).toEqual(['Not Started', 'In Progress', 'Done', 'Inactive'])
+        wrapper.unmount()
+      }
+    })
   })
 
   it('places each Feature by its own Jira status in list view and keeps real status names', async () => {

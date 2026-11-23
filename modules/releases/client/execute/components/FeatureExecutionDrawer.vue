@@ -10,8 +10,10 @@ import {
   isValidProgressCount,
   PROGRESS_SUPPORTING_TEXT,
   PROGRESS_HELP_TEXT,
-  JIRA_CHILD_PROGRESS_HELP_TEXT
+  JIRA_CHILD_PROGRESS_HELP_TEXT,
+  JIRA_CHILD_PROGRESS_SUPPLEMENTARY_TEXT
 } from '../utils/progress'
+import { designEvidenceSummary } from '../utils/readiness'
 
 const props = defineProps({
   featureKey: { type: String, default: null },
@@ -101,6 +103,14 @@ function featureIssueCount(feature) {
 function featureIssueCountLabel(feature) {
   return feature.jiraChildProgress?.source === 'jira-child-status-rollup' ? 'Jira child issues' : 'Total issues'
 }
+
+// Null for rows without published readiness evidence, which keep the Planning badge alone.
+const designEvidence = computed(() => designEvidenceSummary(props.card?.feature?.readinessEvidence))
+
+const hasWorkStatus = computed(() => props.card?.feature?.workStatus?.source === 'jira-feature-status')
+
+// The Jira Team field, not the assignee's roster team; hidden when the source cannot report it.
+const showJiraTeam = computed(() => !['unknown', 'unavailable'].includes(props.card?.feature?.coverage?.team))
 
 const completedViaStatusEpicCount = computed(() =>
   Array.isArray(props.detail?.epics) ? props.detail.epics.filter(e => e.completedViaStatus).length : 0
@@ -196,6 +206,25 @@ function basisLabel(entry) {
                   :class="card.readiness.class"
                 >{{ card.readiness.label }}</span>
               </span>
+              <span v-if="designEvidence" class="inline-flex items-center gap-1 text-[11px] text-gray-600 dark:text-gray-300" data-testid="drawer-design-pr">
+                <span class="text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Design PR</span>
+                <template v-if="designEvidence.primary">
+                  <a
+                    v-if="designEvidence.primary.url"
+                    :href="designEvidence.primary.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    :aria-label="`Open Design PR #${designEvidence.primary.number} on GitHub`"
+                    class="font-mono text-primary-600 dark:text-blue-400 hover:underline"
+                  >#{{ designEvidence.primary.number }}</a>
+                  <span v-else class="font-mono">#{{ designEvidence.primary.number }}</span>
+                  <span>&middot; {{ designEvidence.primary.status }}</span>
+                </template>
+                <span
+                  v-else
+                  :title="designEvidence.lookupUnavailable ? 'Design PR evidence is currently unavailable.' : 'No verified Design PR was found.'"
+                >Unknown</span>
+              </span>
             </div>
           </div>
 
@@ -205,8 +234,11 @@ function basisLabel(entry) {
             <!-- Execution Progress or explicitly labeled Jira child status -->
             <section class="px-4 py-4">
               <p class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3 flex items-center">
-                {{ card.progress.kind.startsWith('jira-') ? 'Jira Child Status Progress' : 'Execution Progress' }}
+                {{ card.progress.kind.startsWith('jira-') ? 'Jira Child Progress' : 'Execution Progress' }}
                 <AIInfoBubble hoverable :text="card.progress.kind.startsWith('jira-') ? JIRA_CHILD_PROGRESS_HELP_TEXT : PROGRESS_HELP_TEXT" />
+              </p>
+              <p v-if="hasWorkStatus && card.progress.kind.startsWith('jira-')" class="text-[11px] text-gray-500 dark:text-gray-400 -mt-1 mb-3">
+                {{ JIRA_CHILD_PROGRESS_SUPPLEMENTARY_TEXT }}
               </p>
               <template v-if="card.progress.kind === 'available'">
                 <div class="flex items-center gap-2">
@@ -242,10 +274,10 @@ function basisLabel(entry) {
                 <dt class="text-gray-400 dark:text-gray-500">Assignee</dt>
                 <dd class="text-gray-700 dark:text-gray-300">{{ card.feature.assignee || 'Unassigned' }}</dd>
 
-                <dt class="text-gray-400 dark:text-gray-500">Team</dt>
-                <dd class="text-gray-700 dark:text-gray-300">
-                  {{ card.feature.coverage?.team === 'unknown' || card.feature.coverage?.team === 'unavailable' ? 'Unknown' : (card.feature.team || 'Unassigned') }}
-                </dd>
+                <template v-if="showJiraTeam">
+                  <dt class="text-gray-400 dark:text-gray-500" title="The Feature’s Jira Team field, not the assignee’s roster team">Jira Team</dt>
+                  <dd class="text-gray-700 dark:text-gray-300">{{ card.feature.team || 'Unassigned' }}</dd>
+                </template>
 
                 <dt class="text-gray-400 dark:text-gray-500 self-start">Components</dt>
                 <dd>

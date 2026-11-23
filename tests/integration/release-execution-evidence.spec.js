@@ -260,14 +260,20 @@ test.describe('Shared Releases Execute @releases', () => {
         await page.getByRole('button', { name: 'Open details for EDM-1002', exact: true }).click();
         const drawer = page.getByRole('dialog', { name: 'Feature details for EDM-1002' });
         await expect(drawer).toBeVisible();
-        await expect(drawer.locator('dt:has-text("Team") + dd')).toHaveText('Unknown');
+        await expect(drawer.getByText('Jira Team', { exact: true })).toHaveCount(0);
+        await expect(drawer.getByTestId('drawer-design-pr')).toHaveText(/Design PR\s*Unknown/);
         await drawer.getByRole('button', { name: 'Close detail panel' }).click();
 
         await page.getByLabel('Search').fill('EDM-1001');
         await expect(page.getByRole('row').filter({ hasText: 'EDM-1001' })).toContainText('Pending');
         await page.getByRole('button', { name: 'Open details for EDM-1001', exact: true }).click();
         const progressDrawer = page.getByRole('dialog', { name: 'Feature details for EDM-1001' });
-        await expect(progressDrawer.getByText('Jira Child Status Progress', { exact: true })).toBeVisible();
+        await expect(progressDrawer.getByText('Jira Child Progress', { exact: true })).toBeVisible();
+        await expect(progressDrawer.getByText(/Work Status comes from its own Jira status/)).toBeVisible();
+        const designPr = progressDrawer.getByTestId('drawer-design-pr');
+        await expect(designPr.getByRole('link', { name: 'Open Design PR #80 on GitHub' }))
+          .toHaveAttribute('href', 'https://github.com/flightctl/design-docs/pull/80');
+        await expect(designPr).toContainText('Open, approved — not yet merged');
         await expect(progressDrawer.getByText(/1 of 1 configured Jira child issues are Done/)).toBeVisible();
         await expect(progressDrawer.getByText(/does not establish Feature completion, pipeline success, or release readiness/)).toBeVisible();
         await progressDrawer.getByRole('button', { name: 'Close detail panel' }).click();
