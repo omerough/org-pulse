@@ -292,6 +292,8 @@ function workStatusLaneKey(f) {
 function laneKey(f) {
   const workLane = workStatusLaneKey(f)
   if (workLane !== null) return workLane
+  // With published work statuses, child or pipeline progress must not stand in for a missing one.
+  if (hasWorkStatus.value) return 'unavailable'
   const jiraLane = jiraChildLaneKey(f)
   if (jiraLane !== null) return jiraLane
   const state = effectiveExecutionState(f)

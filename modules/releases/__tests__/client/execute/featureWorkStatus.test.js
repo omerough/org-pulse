@@ -232,6 +232,36 @@ describe('Feature List work status (Jira-backed project)', () => {
       await wrapper.findAll('button').find(b => b.text() === 'List').trigger('click')
       for (const key of withoutWorkStatus) expect(rowFor(wrapper, key), key).toBeTruthy()
     })
+
+    it('labels them Status Unknown in the list instead of a progress-derived lane', async () => {
+      const wrapper = await mountOverview(mixed)
+      await wrapper.findAll('button').find(b => b.text() === 'List').trigger('click')
+      for (const key of withoutWorkStatus) {
+        expect(rowFor(wrapper, key).text(), key).toContain('Status Unknown')
+        expect(rowFor(wrapper, key).text(), key).not.toContain('In Progress')
+      }
+      expect(rowFor(wrapper, 'EDM-ACTIVE').text()).toContain('In Progress')
+    })
+
+    async function filterListBy(wrapper, optionLabel) {
+      await wrapper.findAll('button').find(b => b.text() === 'List').trigger('click')
+      await wrapper.findAll('button').find(b => b.text().includes('All Work Statuses')).trigger('click')
+      const option = wrapper.findAll('label').find(l => l.text() === optionLabel)
+      await option.find('input[type="checkbox"]').setValue(true)
+      return wrapper.findAll('tbody tr').map(row => row.text())
+    }
+
+    it('includes them when filtering by Status Unknown', async () => {
+      const rows = await filterListBy(await mountOverview(mixed), 'Status Unknown')
+      for (const key of [...withoutWorkStatus, 'EDM-UNKNOWN']) expect(rows.some(r => r.includes(key)), key).toBe(true)
+      expect(rows).toHaveLength(withoutWorkStatus.length + 1)
+    })
+
+    it('excludes them when filtering by In Progress', async () => {
+      const rows = await filterListBy(await mountOverview(mixed), 'In Progress')
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toContain('EDM-ACTIVE')
+    })
   })
 
   it('drops a stored execution-state selection that the loaded option set does not offer', async () => {
