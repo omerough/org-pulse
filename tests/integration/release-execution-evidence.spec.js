@@ -8,13 +8,22 @@ const osacTrackingData = require('../../fixtures/releases/execution/tracking-dat
 const flightctlIndexEnvelope = require('../../fixtures/projects/flightctl/releases/execution/index.json');
 const flightctlFeatureOneEnvelope = require('../../fixtures/projects/flightctl/releases/execution/features/EDM-1001.json');
 const flightctlFeatureTwoEnvelope = require('../../fixtures/projects/flightctl/releases/execution/features/EDM-1002.json');
+const flightctlClosedFeatureEnvelopes = ['EDM-1003', 'EDM-1004', 'EDM-1005'].map(key =>
+  require(`../../fixtures/projects/flightctl/releases/execution/features/${key}.json`));
+const flightctlProfile = require('../../fixtures/projects/flightctl/profile.json');
 const flightctlRosterEnvelope = require('../../fixtures/projects/flightctl/sources/roster/registry.json');
 const flightctlTrackingEnvelope = require('../../fixtures/projects/flightctl/releases/execution/tracking-data-flightctl-0.10.0.json');
 
 const flightctlIndex = flightctlIndexEnvelope.data;
 const flightctlFeatureDetails = {
   'EDM-1001': flightctlFeatureOneEnvelope.data,
-  'EDM-1002': flightctlFeatureTwoEnvelope.data
+  'EDM-1002': flightctlFeatureTwoEnvelope.data,
+  ...Object.fromEntries(flightctlClosedFeatureEnvelopes.map(envelope => [envelope.data.key, envelope.data]))
+};
+// The list route derives these from the project profile.
+const flightctlPolicy = {
+  terminalOutcomeProfile: flightctlProfile.execution.workStatus.terminalOutcomes,
+  closedFeatureVisibility: flightctlProfile.execution.inventory.closedFeatureVisibility
 };
 const osacFeature = osacIndex.features.find(feature => feature.key === 'TEST1-52');
 const osacRelease = 'rhoai-3.0';
@@ -108,6 +117,7 @@ function installExecuteApi(page, { delayOsacFeatures = false } = {}) {
         fetchedAt: projectId === 'flightctl' ? flightctlIndex.fetchedAt : osacIndex.fetchedAt,
         featureCount: features.length,
         totalFeatureCount: features.length,
+        ...(projectId === 'flightctl' ? flightctlPolicy : { closedFeatureVisibility: 'release-scoped' }),
         features
       } });
     }
@@ -248,6 +258,18 @@ test.describe('Shared Releases Execute @releases', () => {
         await expect(page.getByText(/Unknown work status:/)).toBeVisible();
         await expect(page.getByRole('heading', { name: 'In Progress', exact: true })).toBeVisible();
         await expect(page.getByText(/1\/1 Jira Done/)).toBeVisible();
+
+        // Versionless Closed Features are reachable without a Release; only confirmed completion is Done.
+        const doneSection = page.locator('#execution-section-complete');
+        await expect(doneSection).toContainText('EDM-1003');
+        await expect(doneSection).not.toContainText('EDM-1004');
+        await expect(doneSection).not.toContainText('EDM-1005');
+        await page.getByRole('button', { name: /^Closed without delivery:/ }).click();
+        const withoutDelivery = page.locator('#closed-without-delivery-panel');
+        await expect(withoutDelivery).toContainText('EDM-1004');
+        await expect(withoutDelivery).toContainText("Won't Do");
+        await page.getByRole('button', { name: /^Closed, outcome unknown:/ }).click();
+        await expect(page.locator('#closed-outcome-unknown-panel')).toContainText('EDM-1005');
 
         await page.getByRole('button', { name: 'List', exact: true }).click();
         await page.getByLabel('Search').fill('EDM-1002');

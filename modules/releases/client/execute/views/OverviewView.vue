@@ -55,6 +55,8 @@ const {
   message: featureDataMessage,
   partial: featureDataPartial,
   inactiveWorkStatuses,
+  terminalOutcomeProfile,
+  closedFeatureVisibility,
   loadFeatures
 } = useFeatureTraffic()
 const projectId = useProjectId()
@@ -99,6 +101,9 @@ const inactiveLaneTitle = computed(() => {
   const statuses = inactiveWorkStatuses.value
   return statuses?.length === 1 && statuses[0] === 'Backlog' ? 'Backlog' : 'Inactive'
 })
+// With a terminal-outcome policy, only a producer-confirmed completion counts as Done; a missing
+// classification (older publication) is unknown, never completion.
+const hasTerminalOutcomes = computed(() => hasWorkStatus.value && !!terminalOutcomeProfile.value)
 const hasNoCompatibleProducer = computed(() => features.value.some(f => f.coverage?.pipelineMetrics === 'unavailable'))
 // Hides the UI/UX filters and badges entirely for a project with no uiUxEvidence config.
 const hasUiUxData = computed(() => features.value.some(f =>
@@ -208,12 +213,16 @@ const WORK_STATUS_FILTER_OPTIONS = [
   { value: 'not-started', label: 'Not Started' },
   { value: 'in-progress', label: 'In Progress' },
   { value: 'complete', label: 'Done' },
+  { value: 'closed-without-delivery', label: 'Closed without delivery', requiresOutcomes: true },
+  { value: 'closed-outcome-unknown', label: 'Closed, outcome unknown', requiresOutcomes: true },
   { value: 'inactive', label: 'Inactive' },
   { value: 'unavailable', label: 'Status Unknown' }
 ]
 const executionStateFilterOptions = computed(() => {
   if (hasWorkStatus.value) {
-    return WORK_STATUS_FILTER_OPTIONS.map(o => o.value === 'inactive' ? { ...o, label: inactiveLaneTitle.value } : o)
+    return WORK_STATUS_FILTER_OPTIONS
+      .filter(o => !o.requiresOutcomes || hasTerminalOutcomes.value)
+      .map(o => o.value === 'inactive' ? { ...o, label: inactiveLaneTitle.value } : o)
   }
   return hasJiraChildProgress.value ? JIRA_CHILD_STATUS_FILTER_OPTIONS : EXECUTION_STATE_FILTER_OPTIONS
 })
@@ -284,9 +293,12 @@ const WORK_STATE_LANES = {
   'in-progress': 'in-progress',
   done: 'complete'
 }
+const TERMINAL_OUTCOME_LANES = { completed: 'complete', 'non-delivery': 'closed-without-delivery' }
 function workStatusLaneKey(f) {
   if (f.workStatus?.source !== 'jira-feature-status') return null
-  return WORK_STATE_LANES[f.workStatus.state] || 'unavailable'
+  const lane = WORK_STATE_LANES[f.workStatus.state] || 'unavailable'
+  if (lane !== 'complete' || !terminalOutcomeProfile.value) return lane
+  return TERMINAL_OUTCOME_LANES[f.terminalOutcome?.state] || 'closed-outcome-unknown'
 }
 
 function laneKey(f) {
@@ -346,6 +358,24 @@ const LANE_META = {
     textClass: 'text-emerald-700 dark:text-emerald-400',
     dotClass: 'bg-emerald-500'
   },
+  'closed-without-delivery': {
+    title: 'Closed without delivery',
+    subtitle: 'Jira Feature is closed with a non-delivery resolution',
+    borderClass: 'border-dashed border-gray-300 dark:border-gray-600',
+    bgClass: 'bg-gray-50/60 dark:bg-gray-800/20',
+    headerBg: 'bg-gray-100/80 dark:bg-gray-800/60',
+    textClass: 'text-gray-600 dark:text-gray-400',
+    dotClass: 'bg-gray-400'
+  },
+  'closed-outcome-unknown': {
+    title: 'Closed, outcome unknown',
+    subtitle: 'Jira Feature is closed but its resolution is missing or not classified',
+    borderClass: 'border-dashed border-amber-300 dark:border-amber-500/40',
+    bgClass: 'bg-amber-50/40 dark:bg-amber-500/5',
+    headerBg: 'bg-amber-50 dark:bg-amber-500/10',
+    textClass: 'text-amber-700 dark:text-amber-400',
+    dotClass: 'bg-amber-400'
+  },
   unavailable: {
     title: 'Execution Data Unavailable',
     subtitle: 'Execution state could not be determined for these features',
@@ -377,6 +407,8 @@ const WORK_STATUS_LABELS = {
   'not-started': ['Not Started', 'Jira Feature status is in the To Do category and not inactive'],
   'in-progress': ['In Progress', 'Jira Feature status is in the In Progress category'],
   complete: ['Done', 'Jira Feature status is in the Done category'],
+  'closed-without-delivery': ['Closed without delivery', 'Jira Feature is closed with a non-delivery resolution'],
+  'closed-outcome-unknown': ['Closed, outcome unknown', 'Jira Feature is closed but its resolution is missing or not classified'],
   inactive: ['Inactive', 'Jira Feature status is configured as inactive; Epic or Story activity does not change it'],
   unavailable: ['Status Unknown', 'Jira Feature status category is not recognized']
 }
@@ -385,6 +417,9 @@ function laneMeta(lane) {
   const meta = LANE_META[lane]
   if (hasWorkStatus.value) {
     const [title, subtitle] = WORK_STATUS_LABELS[lane] || [meta.title, meta.subtitle]
+    if (lane === 'complete' && hasTerminalOutcomes.value) {
+      return { ...meta, title, subtitle: 'Jira Feature status is Done with a successful resolution' }
+    }
     if (lane === 'inactive' && inactiveLaneTitle.value === 'Backlog') {
       return { ...meta, title: 'Backlog', subtitle: 'Jira Feature status is Backlog; Epic or Story activity does not change it' }
     }
@@ -589,7 +624,7 @@ watch(
 // Options come from Features visible under the Closed rule (Release-dependent only), not from
 // other filters; active selections stay listed so they can always be undone.
 const eligibleFeatures = computed(() =>
-  features.value.filter(f => isClosedFeatureVisible(f, selectedVersions.value))
+  features.value.filter(f => isClosedFeatureVisible(f, selectedVersions.value, closedFeatureVisibility.value))
 )
 
 function retainEligibleOptions(allOptions, eligibleOptions, selected) {
@@ -763,6 +798,10 @@ function isBoardEligible(d) {
 }
 
 // Progress can be measurable yet sit in coverage (unknown lane), so the caption follows the progress source.
+function resolutionLabel(feature) {
+  return feature.resolution?.name || 'None'
+}
+
 function coverageCaption(progress) {
   if (progress.caption) return progress.caption
   return `${progress.done}/${progress.total} ${progress.kind === 'jira-status' ? 'Jira child issues' : 'issues'} Done`
@@ -778,16 +817,48 @@ const boardColumns = computed(() => {
   return boardColumnIds.value.map(id => ({ id, ...laneMeta(id), items: buckets[id] }))
 })
 
-// Exact complement of board membership.
+// Closed lanes sit in their own collapsed sections rather than board columns or coverage.
+const CLOSED_LANES = ['closed-without-delivery', 'closed-outcome-unknown']
+
+// Board, closed sections and coverage partition the filtered population.
 const coverageFeatures = computed(() =>
-  decoratedFeatures.value.filter(d => !isBoardEligible(d))
+  decoratedFeatures.value.filter(d => !isBoardEligible(d) && !CLOSED_LANES.includes(d.lane))
 )
 const measurableCount = computed(() => decoratedFeatures.value.length - coverageFeatures.value.length)
 
+// Unknown outcomes appear only when present; non-delivery always shows so its count is explicit.
+const closedPanels = computed(() => {
+  if (!hasTerminalOutcomes.value) return []
+  return CLOSED_LANES
+    .map(lane => ({ lane, items: decoratedFeatures.value.filter(d => d.lane === lane) }))
+    .filter(p => p.lane === 'closed-without-delivery' || p.items.length > 0)
+    .map(({ lane, items }) => ({
+      id: lane,
+      label: laneMeta(lane).title + ':',
+      help: laneMeta(lane).subtitle,
+      emptyText: 'No features.',
+      items
+    }))
+})
+const sidePanels = computed(() => [
+  {
+    id: 'coverage',
+    label: withoutProgressDataLabel.value,
+    help: withoutProgressDataHelp.value,
+    emptyText: hasWorkStatus.value
+      ? 'No features with an unknown work status.'
+      : hasJiraChildProgress.value
+        ? 'No features without complete Jira child status progress.'
+        : 'No features without measurable execution progress.',
+    items: coverageFeatures.value
+  },
+  ...closedPanels.value
+])
+
 const columnPage = ref({ 'not-started': 1, 'in-progress': 1, complete: 1, inactive: 1 })
 const collapsedColumns = ref(new Set())
-const coveragePage = ref(1)
-const coveragePanelOpen = ref(false)
+const panelPage = ref({})
+const openPanels = ref(new Set())
 
 // Measured content width, not viewport width — the sidebar can leave a "wide" viewport narrow.
 const rootEl = ref(null)
@@ -815,6 +886,15 @@ function pageCount(items) {
 function setColumnPage(id, page) {
   columnPage.value = { ...columnPage.value, [id]: page }
 }
+function togglePanel(id) {
+  const next = new Set(openPanels.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  openPanels.value = next
+}
+function setPanelPage(id, page) {
+  panelPage.value = { ...panelPage.value, [id]: page }
+}
 function toggleColumn(id) {
   const next = new Set(collapsedColumns.value)
   if (next.has(id)) next.delete(id)
@@ -824,7 +904,7 @@ function toggleColumn(id) {
 
 watch(filteredFeatures, () => {
   columnPage.value = { 'not-started': 1, 'in-progress': 1, complete: 1, inactive: 1 }
-  coveragePage.value = 1
+  panelPage.value = {}
 })
 
 const expandedLabelCards = ref(new Set())
@@ -1325,32 +1405,33 @@ onBeforeUnmount(() => {
             {{ withProgressDataLabel }} <strong class="text-gray-900 dark:text-gray-100 ml-1">{{ measurableCount }}</strong>
             <AIInfoBubble hoverable :text="withProgressDataHelp" />
           </span>
-          <span class="inline-flex items-center">
+          <span v-for="panel in sidePanels" :key="panel.id" class="inline-flex items-center">
             <button
               type="button"
               class="text-gray-600 dark:text-gray-300 underline decoration-dotted underline-offset-2 hover:text-gray-900 dark:hover:text-white"
-              :aria-expanded="coveragePanelOpen"
-              aria-controls="coverage-panel"
-              @click="coveragePanelOpen = !coveragePanelOpen"
+              :aria-expanded="openPanels.has(panel.id)"
+              :aria-controls="panel.id + '-panel'"
+              @click="togglePanel(panel.id)"
             >
-              {{ withoutProgressDataLabel }} <strong class="text-gray-900 dark:text-gray-100">{{ coverageFeatures.length }}</strong>
+              {{ panel.label }} <strong class="text-gray-900 dark:text-gray-100">{{ panel.items.length }}</strong>
             </button>
-            <AIInfoBubble hoverable :text="withoutProgressDataHelp" />
+            <AIInfoBubble hoverable :text="panel.help" />
           </span>
         </div>
 
+        <template v-for="panel in sidePanels" :key="panel.id">
         <div
-          v-if="coveragePanelOpen"
-          id="coverage-panel"
+          v-if="openPanels.has(panel.id)"
+          :id="panel.id + '-panel'"
           class="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/60 dark:bg-gray-800/20 p-3 mb-4"
         >
-          <div v-if="coverageFeatures.length === 0" class="text-center py-6 text-gray-500 text-sm">
-            {{ hasWorkStatus ? 'No features with an unknown work status.' : hasJiraChildProgress ? 'No features without complete Jira child status progress.' : 'No features without measurable execution progress.' }}
+          <div v-if="panel.items.length === 0" class="text-center py-6 text-gray-500 text-sm">
+            {{ panel.emptyText }}
           </div>
           <template v-else>
             <div class="grid gap-2" :class="coverageGridClass">
               <div
-                v-for="d in pageSlice(coverageFeatures, coveragePage)"
+                v-for="d in pageSlice(panel.items, panelPage[panel.id] || 1)"
                 :key="d.feature.key"
                 class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200/80 dark:border-gray-700/80 cursor-pointer hover:shadow-md dark:hover:border-gray-600 transition-all p-3"
                 @click="handleSelect(d, $event)"
@@ -1380,7 +1461,10 @@ onBeforeUnmount(() => {
                   </span>
                 </div>
                 <p class="text-sm text-gray-900 dark:text-gray-100 font-medium leading-snug mb-1">{{ d.feature.summary }}</p>
-                <p class="text-xs italic text-gray-500 dark:text-gray-400">{{ coverageCaption(d.progress) }}</p>
+                <p v-if="panel.id === 'coverage'" class="text-xs italic text-gray-500 dark:text-gray-400">{{ coverageCaption(d.progress) }}</p>
+                <p v-else class="text-xs text-gray-600 dark:text-gray-300">
+                  Jira resolution: <strong class="font-semibold">{{ resolutionLabel(d.feature) }}</strong>
+                </p>
                 <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500 dark:text-gray-400">
                   <span>{{ progressIssueCountLabel(d.feature) }}: <strong class="font-semibold text-gray-700 dark:text-gray-300">{{ displayCount(progressIssueCount(d.feature)) }}</strong></span>
                   <span>Blockers: <strong class="font-semibold text-gray-700 dark:text-gray-300">{{ displayCount(d.feature.blockerCount) }}</strong></span>
@@ -1388,19 +1472,20 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            <div v-if="pageCount(coverageFeatures) > 1" class="flex items-center justify-center gap-3 mt-3 text-xs text-gray-500 dark:text-gray-400">
+            <div v-if="pageCount(panel.items) > 1" class="flex items-center justify-center gap-3 mt-3 text-xs text-gray-500 dark:text-gray-400">
               <button
                 type="button" class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40"
-                :disabled="coveragePage <= 1" @click="coveragePage--"
+                :disabled="(panelPage[panel.id] || 1) <= 1" @click="setPanelPage(panel.id, (panelPage[panel.id] || 1) - 1)"
               >Prev</button>
-              <span>Page {{ coveragePage }} of {{ pageCount(coverageFeatures) }}</span>
+              <span>Page {{ panelPage[panel.id] || 1 }} of {{ pageCount(panel.items) }}</span>
               <button
                 type="button" class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40"
-                :disabled="coveragePage >= pageCount(coverageFeatures)" @click="coveragePage++"
+                :disabled="(panelPage[panel.id] || 1) >= pageCount(panel.items)" @click="setPanelPage(panel.id, (panelPage[panel.id] || 1) + 1)"
               >Next</button>
             </div>
           </template>
         </div>
+        </template>
 
         <!-- Vertically stacked execution sections -->
         <div class="grid grid-cols-1 gap-4">
@@ -1481,7 +1566,7 @@ onBeforeUnmount(() => {
                   <template v-if="['available', 'jira-status'].includes(d.progress.kind)">
                     <div class="flex items-center gap-2">
                       <div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                        <div class="h-full rounded-full" :class="d.progress.kind === 'jira-status' ? 'bg-slate-500' : 'bg-primary-500'" :style="{ width: d.progress.pct + '%' }" />
+                        <div class="h-full rounded-full bg-primary-500" :style="{ width: d.progress.pct + '%' }" />
                       </div>
                       <span class="text-xs font-semibold text-gray-600 dark:text-gray-300 w-32 text-right">
                         {{ d.progress.done }}/{{ d.progress.total }}<template v-if="d.progress.kind === 'jira-status'"> Jira Done</template> &middot; {{ d.progress.pct }}%
@@ -1635,7 +1720,10 @@ onBeforeUnmount(() => {
                     >{{ d.feature.key }}</button>
                   </td>
                   <td class="px-3 py-2 text-gray-900 dark:text-gray-100 max-w-xs truncate">{{ d.feature.summary }}</td>
-                  <td class="px-3 py-2"><StatusBadge :status="d.feature.status" /></td>
+                  <td class="px-3 py-2">
+                    <StatusBadge :status="d.feature.status" />
+                    <span v-if="d.feature.resolution?.name" class="block text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{{ d.feature.resolution.name }}</span>
+                  </td>
                   <td class="px-3 py-2">
                     <span class="inline-flex items-center gap-1.5">
                       <span class="w-2 h-2 rounded-full" :class="laneMeta(d.lane).dotClass" />
@@ -1646,7 +1734,7 @@ onBeforeUnmount(() => {
                     <template v-if="['available', 'jira-status'].includes(d.progress.kind)">
                       <div class="flex items-center gap-2">
                         <div class="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                          <div class="h-full rounded-full" :class="d.progress.kind === 'jira-status' ? 'bg-slate-500' : 'bg-primary-500'" :style="{ width: d.progress.pct + '%' }" />
+                          <div class="h-full rounded-full bg-primary-500" :style="{ width: d.progress.pct + '%' }" />
                         </div>
                         <span class="text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">
                           {{ d.progress.done }}/{{ d.progress.total }}<template v-if="d.progress.kind === 'jira-status'"> Jira Done</template> &middot; {{ d.progress.pct }}%

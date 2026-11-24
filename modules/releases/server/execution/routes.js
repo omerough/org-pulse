@@ -84,7 +84,9 @@ function epicDirectlyMatchesVersion(epic, normalizedFilter) {
  *       200:
  *         description: >-
  *           Feature list. `workStatusProfile.inactiveStatuses` is present when the project profile
- *           configures `execution.workStatus.inactiveStatuses`.
+ *           configures `execution.workStatus.inactiveStatuses`; `terminalOutcomeProfile` when it
+ *           configures `execution.workStatus.terminalOutcomes`. `closedFeatureVisibility` is `all`
+ *           or `release-scoped` (default) from `execution.inventory.closedFeatureVisibility`.
  */
 
 /**
@@ -359,13 +361,17 @@ module.exports = function registerExecutionRoutes(router, context) {
       return String(aVal || '').localeCompare(String(bVal || '')) * sortDir;
     });
 
-    const inactiveStatuses = selected.scope.profile?.execution?.workStatus?.inactiveStatuses;
+    const execution = selected.scope.profile?.execution;
+    const inactiveStatuses = execution?.workStatus?.inactiveStatuses;
+    const terminalOutcomes = execution?.workStatus?.terminalOutcomes;
     res.json({
       ...publication.meta,
       fetchedAt: publication.meta.fetchedAt || index.fetchedAt || null,
       featureCount: features.length,
       totalFeatureCount: index.features.length,
       ...(Array.isArray(inactiveStatuses) ? { workStatusProfile: { inactiveStatuses: [...inactiveStatuses] } } : {}),
+      ...(terminalOutcomes && typeof terminalOutcomes === 'object' ? { terminalOutcomeProfile: terminalOutcomes } : {}),
+      closedFeatureVisibility: execution?.inventory?.closedFeatureVisibility === 'all' ? 'all' : 'release-scoped',
       features
     });
   });

@@ -33,7 +33,7 @@
     "generationId": "flightctl-fixture-generation-jira-progress-1",
     "fetchedAt": "2026-10-05T00:00:00Z",
     "observedAt": "2026-10-05T00:00:00Z",
-    "featureCount": 2,
+    "featureCount": 5,
     "features": [
       {
         "key": "EDM-1001",
@@ -130,7 +130,9 @@
         "workStatus": {
           "source": "jira-feature-status",
           "state": "in-progress"
-        }
+        },
+        "resolution": null,
+        "terminalOutcome": null
       },
       {
         "key": "EDM-1002",
@@ -207,6 +209,254 @@
         "workStatus": {
           "source": "jira-feature-status",
           "state": "not-started"
+        },
+        "resolution": null,
+        "terminalOutcome": null
+      },
+      {
+        "key": "EDM-1003",
+        "summary": "Example Feature closed as completed",
+        "status": "Closed",
+        "statusCategory": "Done",
+        "priority": "Major",
+        "assignee": null,
+        "assigneeAccountId": null,
+        "fixVersions": [],
+        "labels": [],
+        "components": [
+          "FlightCtl-Core"
+        ],
+        "created": "2026-02-01T00:00:00Z",
+        "updated": "2026-09-29T00:00:00Z",
+        "team": null,
+        "jiraUrl": "https://redhat.atlassian.net/browse/EDM-1003",
+        "completionPct": null,
+        "epicCount": 0,
+        "issueCount": null,
+        "blockerCount": null,
+        "health": null,
+        "executionIssueCount": null,
+        "doneExecutionIssueCount": null,
+        "executionState": "unavailable",
+        "executionCoverage": "unavailable",
+        "executionCoverageReason": "no-compatible-feature-producer",
+        "effectiveExecutionIssueCount": null,
+        "effectiveDoneExecutionIssueCount": null,
+        "effectiveExecutionState": "unavailable",
+        "effectiveExecutionCoverage": "unavailable",
+        "effectiveExecutionCoverageReason": "no-compatible-feature-producer",
+        "preparationReadiness": "unknown",
+        "readinessEvidence": {
+          "source": "sources/ep-review/features.json",
+          "requiredStatusFields": [
+            "designPrStatus"
+          ],
+          "statuses": {
+            "designPrStatus": null
+          },
+          "lookup": "complete",
+          "lookupReason": null,
+          "designPr": null,
+          "designPrs": [],
+          "approvalTiming": null
+        },
+        "isBlocked": null,
+        "coverage": {
+          "team": "unknown",
+          "pipelineMetrics": "unavailable",
+          "featureReadiness": "unconfigured",
+          "scopeBaseline": "unconfigured",
+          "issueStatus": "complete"
+        },
+        "jiraChildProgress": {
+          "source": "jira-child-status-rollup",
+          "method": "direct-children-of-parented-epics",
+          "state": "empty",
+          "coverage": "complete",
+          "issueCount": 0,
+          "knownStatusIssueCount": 0,
+          "statusCounts": {
+            "done": 0,
+            "inProgress": 0,
+            "toDo": 0,
+            "unknown": 0
+          },
+          "reason": "no-matching-jira-children"
+        },
+        "workStatus": {
+          "source": "jira-feature-status",
+          "state": "done"
+        },
+        "resolution": {
+          "id": "10000",
+          "name": "Done"
+        },
+        "terminalOutcome": {
+          "source": "jira-resolution",
+          "state": "completed"
+        }
+      },
+      {
+        "key": "EDM-1004",
+        "summary": "Example Feature closed without delivery",
+        "status": "Closed",
+        "statusCategory": "Done",
+        "priority": "Major",
+        "assignee": null,
+        "assigneeAccountId": null,
+        "fixVersions": [],
+        "labels": [],
+        "components": [
+          "FlightCtl-Core"
+        ],
+        "created": "2026-02-01T00:00:00Z",
+        "updated": "2026-09-29T00:00:00Z",
+        "team": null,
+        "jiraUrl": "https://redhat.atlassian.net/browse/EDM-1004",
+        "completionPct": null,
+        "epicCount": 0,
+        "issueCount": null,
+        "blockerCount": null,
+        "health": null,
+        "executionIssueCount": null,
+        "doneExecutionIssueCount": null,
+        "executionState": "unavailable",
+        "executionCoverage": "unavailable",
+        "executionCoverageReason": "no-compatible-feature-producer",
+        "effectiveExecutionIssueCount": null,
+        "effectiveDoneExecutionIssueCount": null,
+        "effectiveExecutionState": "unavailable",
+        "effectiveExecutionCoverage": "unavailable",
+        "effectiveExecutionCoverageReason": "no-compatible-feature-producer",
+        "preparationReadiness": "unknown",
+        "readinessEvidence": {
+          "source": "sources/ep-review/features.json",
+          "requiredStatusFields": [
+            "designPrStatus"
+          ],
+          "statuses": {
+            "designPrStatus": null
+          },
+          "lookup": "complete",
+          "lookupReason": null,
+          "designPr": null,
+          "designPrs": [],
+          "approvalTiming": null
+        },
+        "isBlocked": null,
+        "coverage": {
+          "team": "unknown",
+          "pipelineMetrics": "unavailable",
+          "featureReadiness": "unconfigured",
+          "scopeBaseline": "unconfigured",
+          "issueStatus": "complete"
+        },
+        "jiraChildProgress": {
+          "source": "jira-child-status-rollup",
+          "method": "direct-children-of-parented-epics",
+          "state": "empty",
+          "coverage": "complete",
+          "issueCount": 0,
+          "knownStatusIssueCount": 0,
+          "statusCounts": {
+            "done": 0,
+            "inProgress": 0,
+            "toDo": 0,
+            "unknown": 0
+          },
+          "reason": "no-matching-jira-children"
+        },
+        "workStatus": {
+          "source": "jira-feature-status",
+          "state": "done"
+        },
+        "resolution": {
+          "id": "10001",
+          "name": "Won't Do"
+        },
+        "terminalOutcome": {
+          "source": "jira-resolution",
+          "state": "non-delivery"
+        }
+      },
+      {
+        "key": "EDM-1005",
+        "summary": "Example Feature closed without a resolution",
+        "status": "Closed",
+        "statusCategory": "Done",
+        "priority": "Major",
+        "assignee": null,
+        "assigneeAccountId": null,
+        "fixVersions": [],
+        "labels": [],
+        "components": [
+          "FlightCtl-Core"
+        ],
+        "created": "2026-02-01T00:00:00Z",
+        "updated": "2026-09-29T00:00:00Z",
+        "team": null,
+        "jiraUrl": "https://redhat.atlassian.net/browse/EDM-1005",
+        "completionPct": null,
+        "epicCount": 0,
+        "issueCount": null,
+        "blockerCount": null,
+        "health": null,
+        "executionIssueCount": null,
+        "doneExecutionIssueCount": null,
+        "executionState": "unavailable",
+        "executionCoverage": "unavailable",
+        "executionCoverageReason": "no-compatible-feature-producer",
+        "effectiveExecutionIssueCount": null,
+        "effectiveDoneExecutionIssueCount": null,
+        "effectiveExecutionState": "unavailable",
+        "effectiveExecutionCoverage": "unavailable",
+        "effectiveExecutionCoverageReason": "no-compatible-feature-producer",
+        "preparationReadiness": "unknown",
+        "readinessEvidence": {
+          "source": "sources/ep-review/features.json",
+          "requiredStatusFields": [
+            "designPrStatus"
+          ],
+          "statuses": {
+            "designPrStatus": null
+          },
+          "lookup": "complete",
+          "lookupReason": null,
+          "designPr": null,
+          "designPrs": [],
+          "approvalTiming": null
+        },
+        "isBlocked": null,
+        "coverage": {
+          "team": "unknown",
+          "pipelineMetrics": "unavailable",
+          "featureReadiness": "unconfigured",
+          "scopeBaseline": "unconfigured",
+          "issueStatus": "complete"
+        },
+        "jiraChildProgress": {
+          "source": "jira-child-status-rollup",
+          "method": "direct-children-of-parented-epics",
+          "state": "empty",
+          "coverage": "complete",
+          "issueCount": 0,
+          "knownStatusIssueCount": 0,
+          "statusCounts": {
+            "done": 0,
+            "inProgress": 0,
+            "toDo": 0,
+            "unknown": 0
+          },
+          "reason": "no-matching-jira-children"
+        },
+        "workStatus": {
+          "source": "jira-feature-status",
+          "state": "done"
+        },
+        "resolution": null,
+        "terminalOutcome": {
+          "source": "jira-resolution",
+          "state": "unknown"
         }
       }
     ],

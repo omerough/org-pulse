@@ -154,7 +154,7 @@ const epicData = computed(() =>
         <template v-else-if="stats.issueStatusCoverage === 'complete'">
           <div class="flex items-center gap-2" :title="`${stats.done} of ${stats.total} observed Jira child issues have Done status`">
             <div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div class="h-full rounded-full bg-slate-500" :style="{ width: stats.pct + '%' }" />
+              <div class="h-full rounded-full bg-primary-500" :style="{ width: stats.pct + '%' }" />
             </div>
             <span class="text-xs font-semibold text-gray-600 dark:text-gray-300 w-28 text-right">{{ stats.done }}/{{ stats.total }} Jira Done</span>
           </div>

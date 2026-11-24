@@ -3,6 +3,7 @@
   "summary": "Closed feature whose only release signal is on a child Epic",
   "status": "Closed",
   "statusCategory": "Done",
+  "resolution": { "id": "10000", "name": "Done" },
   "priority": "Normal",
   "assignee": {
     "displayName": "Frank Jansen",

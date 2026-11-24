@@ -117,6 +117,8 @@
     "workStatus": {
       "source": "jira-feature-status",
       "state": "not-started"
-    }
+    },
+    "resolution": null,
+    "terminalOutcome": null
   }
 }

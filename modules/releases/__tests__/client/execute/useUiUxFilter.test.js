@@ -284,6 +284,24 @@ describe('isClosedFeatureVisible', () => {
   it.each(['Release Pending', 'In Progress', undefined])('keeps non-terminal status %s visible', (status) => {
     expect(isClosedFeatureVisible({ status, fixVersions: ['0.3'] }, [])).toBe(true)
   })
+
+  describe("with 'all' visibility", () => {
+    it('lists Closed Features without a Release, including versionless ones', () => {
+      expect(isClosedFeatureVisible({ status: 'Closed', fixVersions: [] }, [], 'all')).toBe(true)
+      expect(isClosedFeatureVisible({ status: 'Closed', fixVersions: ['0.3'] }, undefined, 'all')).toBe(true)
+    })
+
+    it('still constrains Closed Features once a Release is selected', () => {
+      expect(isClosedFeatureVisible({ status: 'Closed', fixVersions: [] }, ['0.3'], 'all')).toBe(false)
+      expect(isClosedFeatureVisible({ status: 'Closed', fixVersions: ['0.3'] }, ['0.3'], 'all')).toBe(true)
+      expect(isClosedFeatureVisible({ status: 'Closed', fixVersions: ['0.2'], epicReleaseVersions: ['0.3'] }, ['0.3'], 'all')).toBe(true)
+    })
+
+    it('defaults to release-scoped for any other value', () => {
+      expect(isClosedFeatureVisible({ status: 'Closed', fixVersions: [] }, [], 'release-scoped')).toBe(false)
+      expect(isClosedFeatureVisible({ status: 'Closed', fixVersions: [] }, [], 'bogus')).toBe(false)
+    })
+  })
 })
 
 describe('uiUxStatusForContext', () => {

@@ -138,6 +138,35 @@ describe('FeatureExecutionDrawer', () => {
     })
   })
 
+  it('shows the raw Jira resolution, including None for a closed lane without one', () => {
+    const resolved = mountDrawer({
+      featureKey: 'EDM-1',
+      card: makeCard({ feature: { resolution: { id: '1', name: "Won't Do" } }, lane: 'closed-without-delivery' }),
+      detail: { key: 'EDM-1', epics: [] }
+    })
+    expect(resolved.find('[data-testid="drawer-resolution"]').text()).toContain("Won't Do")
+
+    const missing = mountDrawer({
+      featureKey: 'EDM-2', card: makeCard({ lane: 'closed-outcome-unknown' }), detail: { key: 'EDM-2', epics: [] }
+    })
+    expect(missing.find('[data-testid="drawer-resolution"]').text()).toContain('None')
+
+    const open = mountDrawer({ featureKey: 'EDM-3', card: makeCard({ lane: 'in-progress' }), detail: { key: 'EDM-3', epics: [] } })
+    expect(open.find('[data-testid="drawer-resolution"]').exists()).toBe(false)
+  })
+
+  it('fills Jira child progress bars with the primary blue for every source', () => {
+    for (const kind of ['available', 'jira-status']) {
+      const wrapper = mountDrawer({
+        featureKey: 'EDM-4',
+        card: makeCard({ progress: { kind, pct: 50, done: 1, total: 2 } }),
+        detail: { key: 'EDM-4', epics: [] }
+      })
+      expect(wrapper.html()).toContain('bg-primary-500')
+      expect(wrapper.html()).not.toContain('bg-slate-500')
+    }
+  })
+
   it('shows the loading state and hides epic content while loading', () => {
     const wrapper = mountDrawer({ featureKey: 'OSAC-100', card: makeCard(), loading: true })
     expect(wrapper.text()).toContain('Loading epics')

@@ -26,10 +26,11 @@ export function matchesSelectedRelease(feature, selectedVersions) {
 }
 
 // Features in a terminal status (Closed/Done/Resolved/Cancelled) are hidden
-// unless the selected Release matches them.
-export function isClosedFeatureVisible(feature, selectedVersions) {
+// unless the selected Release matches them; a project with 'all' visibility lists
+// them without a Release, and a selected Release still constrains them.
+export function isClosedFeatureVisible(feature, selectedVersions, visibility = 'release-scoped') {
   if (!isClosedStatus(feature?.status)) return true
-  if (!selectedVersions || selectedVersions.length === 0) return false
+  if (!selectedVersions || selectedVersions.length === 0) return visibility === 'all'
   return matchesSelectedRelease(feature, selectedVersions)
 }
 

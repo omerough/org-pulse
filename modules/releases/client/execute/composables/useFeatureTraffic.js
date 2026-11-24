@@ -12,6 +12,8 @@ export function useFeatureTraffic() {
   const message = ref(null)
   const partial = ref(false)
   const inactiveWorkStatuses = ref(null)
+  const terminalOutcomeProfile = ref(null)
+  const closedFeatureVisibility = ref('release-scoped')
   const projectId = useProjectId()
   let latestRequestId = 0
 
@@ -24,6 +26,8 @@ export function useFeatureTraffic() {
     message.value = null
     partial.value = false
     inactiveWorkStatuses.value = null
+    terminalOutcomeProfile.value = null
+    closedFeatureVisibility.value = 'release-scoped'
     features.value = []
     featureCount.value = 0
     fetchedAt.value = null
@@ -50,6 +54,8 @@ export function useFeatureTraffic() {
       partial.value = data.partial === true
       const inactiveStatuses = data.workStatusProfile?.inactiveStatuses
       inactiveWorkStatuses.value = Array.isArray(inactiveStatuses) ? inactiveStatuses : null
+      terminalOutcomeProfile.value = data.terminalOutcomeProfile || null
+      closedFeatureVisibility.value = data.closedFeatureVisibility === 'all' ? 'all' : 'release-scoped'
     } catch (err) {
       if (requestId !== latestRequestId || projectId.value !== requestedProjectId) return
       error.value = err.message
@@ -58,7 +64,8 @@ export function useFeatureTraffic() {
     }
   }
 
-  return { features, featureCount, fetchedAt, loading, error, state, message, partial, inactiveWorkStatuses, loadFeatures }
+  return { features, featureCount, fetchedAt, loading, error, state, message, partial, inactiveWorkStatuses,
+    terminalOutcomeProfile, closedFeatureVisibility, loadFeatures }
 }
 
 export function useFeatureDetail() {

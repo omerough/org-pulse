@@ -94,6 +94,7 @@ function envelope(profile, generationId, artifactKey, data, overrides = {}) {
 function flightctlPublication(options = {}) {
   const project = makeProfile(options.projectId || 'flightctl', options.jiraProjectKey || 'EDM')
   if (options.workStatus) project.execution.workStatus = options.workStatus
+  if (options.inventory) project.execution.inventory = options.inventory
   const generationId = options.generationId || 'fc-generation-1'
   const root = `projects/${project.projectId}/generations/${generationId}`
   const feature = {
@@ -223,6 +224,27 @@ describe('project-qualified Execute publication routes', () => {
     expect(list(flightctlPublication({ workStatus: { inactiveStatuses: ['Backlog'] } })).workStatusProfile)
       .toEqual({ inactiveStatuses: ['Backlog'] })
     expect(list(flightctlPublication())).not.toHaveProperty('workStatusProfile')
+  })
+
+  it('returns terminal-outcome and Closed-visibility policy with the Feature list', () => {
+    function list(fixture) {
+      const response = makeResponse()
+      register(fixture.storage, fixture.projects)._routes.get['/features'].at(-1)({ query: { projectId: 'flightctl' } }, response)
+      return response.body
+    }
+    const terminalOutcomes = { completed: ['Done'], nonDelivery: ["Won't Do"] }
+    const configured = list(flightctlPublication({
+      workStatus: { terminalOutcomes },
+      inventory: { closedFeatureVisibility: 'all' }
+    }))
+    expect(configured.terminalOutcomeProfile).toEqual(terminalOutcomes)
+    expect(configured.closedFeatureVisibility).toBe('all')
+
+    const defaults = list(flightctlPublication())
+    expect(defaults).not.toHaveProperty('terminalOutcomeProfile')
+    expect(defaults.closedFeatureVisibility).toBe('release-scoped')
+    expect(list(flightctlPublication({ inventory: { closedFeatureVisibility: 'bogus' } })).closedFeatureVisibility)
+      .toBe('release-scoped')
   })
 
   it('reads Feature Tracking using encoded release IDs within the selected project generation', () => {

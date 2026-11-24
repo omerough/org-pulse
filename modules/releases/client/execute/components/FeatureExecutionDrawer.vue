@@ -196,6 +196,10 @@ function basisLabel(entry) {
                 <span class="text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Jira status</span>
                 <StatusBadge :status="card.feature.status" />
               </span>
+              <span v-if="card.feature.resolution?.name || card.lane?.startsWith('closed-')" class="inline-flex items-center gap-1" data-testid="drawer-resolution">
+                <span class="text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Resolution</span>
+                <span class="text-[11px] font-medium text-gray-700 dark:text-gray-300">{{ card.feature.resolution?.name || 'None' }}</span>
+              </span>
               <span class="inline-flex items-center gap-1">
                 <span class="inline-flex items-center text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
                   Planning
@@ -252,7 +256,7 @@ function basisLabel(entry) {
               <template v-else-if="card.progress.kind === 'jira-status'">
                 <div class="flex items-center gap-2">
                   <div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div class="h-full rounded-full bg-slate-500" :style="{ width: card.progress.pct + '%' }" />
+                    <div class="h-full rounded-full bg-primary-500" :style="{ width: card.progress.pct + '%' }" />
                   </div>
                 </div>
                 <p class="text-xs font-semibold text-gray-600 dark:text-gray-300 mt-2">{{ card.progress.done }} of {{ card.progress.total }} configured Jira child issues are Done &middot; {{ card.progress.pct }}%</p>
@@ -474,7 +478,7 @@ function basisLabel(entry) {
                     <template v-if="['available', 'jira-status'].includes(epicProgress(epic).kind)">
                       <div class="flex items-center gap-2">
                         <div class="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                          <div class="h-full rounded-full" :class="epicProgress(epic).kind === 'jira-status' ? 'bg-slate-500' : 'bg-primary-500'" :style="{ width: epicProgress(epic).pct + '%' }" />
+                          <div class="h-full rounded-full bg-primary-500" :style="{ width: epicProgress(epic).pct + '%' }" />
                         </div>
                         <span class="text-[11px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
                           {{ epicProgress(epic).done }}/{{ epicProgress(epic).total }}<template v-if="epicProgress(epic).kind === 'jira-status'"> Jira Done</template> &middot; {{ epicProgress(epic).pct }}%<template v-if="epic.completedViaStatus"> (actual)</template>

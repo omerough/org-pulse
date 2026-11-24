@@ -179,6 +179,8 @@
     "workStatus": {
       "source": "jira-feature-status",
       "state": "in-progress"
-    }
+    },
+    "resolution": null,
+    "terminalOutcome": null
   }
 }
