@@ -245,9 +245,14 @@ const executionStateFilterLabel = computed(() => {
 })
 
 // Option sets differ by data shape and restore runs before data loads; a selection missing
-// from the loaded set could not be unchecked.
-watch([executionStateFilterOptions, features], ([options]) => {
-  if (features.value.length === 0) return
+// from the loaded set could not be unchecked. Pruning waits for a successful load (an empty
+// inventory included) so a valid saved selection survives loading and transient failures.
+const featureListSettled = computed(() =>
+  !loading.value && !error.value && !!featureDataState.value &&
+  !['error', 'unavailable', 'inaccessible', 'source-only'].includes(featureDataState.value)
+)
+watch([executionStateFilterOptions, featureListSettled], ([options, settled]) => {
+  if (!settled) return
   const allowed = new Set(options.map(o => o.value))
   if (selectedExecutionStates.value.some(id => !allowed.has(id))) {
     selectedExecutionStates.value = selectedExecutionStates.value.filter(id => allowed.has(id))
@@ -824,7 +829,7 @@ const CLOSED_LANES = ['closed-without-delivery', 'closed-outcome-unknown']
 const coverageFeatures = computed(() =>
   decoratedFeatures.value.filter(d => !isBoardEligible(d) && !CLOSED_LANES.includes(d.lane))
 )
-const measurableCount = computed(() => decoratedFeatures.value.length - coverageFeatures.value.length)
+const measurableCount = computed(() => decoratedFeatures.value.filter(isBoardEligible).length)
 
 // Unknown outcomes appear only when present; non-delivery always shows so its count is explicit.
 const closedPanels = computed(() => {

@@ -1598,7 +1598,9 @@ Derived summary index of all features in the unified feature store. Rebuilt auto
   never treated as completion). When the list API returns `terminalOutcomeProfile` (the profile's policy), the
   Feature List places only `completed` Features in Done, a Feature with `non-delivery` in a collapsed "Closed
   without delivery" section, and everything else (including a missing `terminalOutcome`, as on an older
-  publication) in "Closed, outcome unknown". Without the policy (OSAC) Done placement is unchanged.
+  publication) in "Closed, outcome unknown". Without the policy (OSAC) Done placement is unchanged. The list API
+  applies the producer's policy validation (both lists present, at least one resolution, lists disjoint); an invalid
+  policy returns `state: "unavailable"`, `reason: "invalid-terminal-outcome-profile"` and no Features.
 - The list API also returns `closedFeatureVisibility` from the profile's `execution.inventory.closedFeatureVisibility`:
   `release-scoped` (default) lists a Closed Feature only when a selected Release matches it; `all` lists every
   Closed Feature when no Release is selected (including versionless ones) while a selected Release still constrains them.

@@ -137,6 +137,26 @@ describe('Done and Closed-without-delivery (terminal outcome policy)', () => {
     expect(wont.text()).toContain('Closed without delivery')
   })
 
+  it('partitions the header counts: known, unknown work status and both closed sections add up to Features', async () => {
+    const withUnknownState = [...FEATURES, feature('F-WEIRD', 'Odd', 'Odd', 'mystery', { outcome: null })]
+    const wrapper = await mountOverview(withUnknownState)
+    const count = label => Number(new RegExp(`${label}:\\s*(\\d+)`).exec(wrapper.text())[1])
+
+    const parts = [
+      count('With known work status'), count('Unknown work status'),
+      count('Closed without delivery'), count('Closed, outcome unknown')
+    ]
+    expect(parts).toEqual([4, 1, 2, 2])
+    expect(count('Features')).toBe(parts.reduce((a, b) => a + b, 0))
+  })
+
+  it('counts no Feature as known work status when only closed lanes are filtered in', async () => {
+    const wrapper = await mountOverview(FEATURES, POLICY, { selectedExecutionStates: ['closed-without-delivery'] })
+    expect(wrapper.text()).toMatch(/With known work status:\s*0(?!\d)/)
+    expect(wrapper.text()).toMatch(/Closed without delivery:\s*2(?!\d)/)
+    expect(wrapper.text()).toMatch(/Features:\s*2(?!\d)/)
+  })
+
   it('filters non-delivery and unknown outcomes in List view', async () => {
     const wrapper = await mountOverview(FEATURES, POLICY, { viewMode: 'list', selectedExecutionStates: ['closed-without-delivery'] })
     expect(listKeys(wrapper).sort()).toEqual(['F-DUP', 'F-WONT'])
@@ -155,6 +175,67 @@ describe('Done and Closed-without-delivery (terminal outcome policy)', () => {
     expect(scoped.text()).toContain('Features: 3')
     expect(button(scoped, 'Closed without delivery:').text()).toContain('1')
     expect(keysIn(scoped.find('#execution-section-complete'))).toEqual(['F-DONE-1'])
+  })
+
+  describe('saved lane selections', () => {
+    const FC_KEY = 'releases:feature-list-filters:flightctl'
+    const OSAC_KEY = 'releases:feature-list-filters'
+    const savedLanes = key => JSON.parse(sessionStorage.getItem(key)).selectedExecutionStates
+
+    it('drops a closed-lane selection the loaded project does not offer, keeping valid ones', async () => {
+      const wrapper = await mountOverview(FEATURES, {}, {
+        selectedExecutionStates: ['closed-without-delivery', 'in-progress']
+      })
+      expect(savedLanes(FC_KEY)).toEqual(['in-progress'])
+      expect(wrapper.text()).toMatch(/Features:\s*1(?!\d)/)
+    })
+
+    it('drops an unsupported selection when the inventory is empty', async () => {
+      const wrapper = await mountOverview([], POLICY, { selectedExecutionStates: ['closed-outcome-unknown', 'not-started'] })
+      expect(savedLanes(FC_KEY)).toEqual(['not-started'])
+      expect(wrapper.text()).not.toContain('1 states')
+    })
+
+    it('keeps a valid selection while the Feature list is still loading', async () => {
+      let resolveFeatures
+      mockApiRequest.mockImplementation(url => {
+        if (url.includes('/versions')) return Promise.resolve({ projectId: 'flightctl', versions: [] })
+        return new Promise(resolve => { resolveFeatures = resolve })
+      })
+      window.location.hash = '#/releases/execute?projectId=flightctl'
+      window.dispatchEvent(new Event('urlchange'))
+      sessionStorage.setItem(FC_KEY, JSON.stringify({ viewMode: 'list', selectedExecutionStates: ['closed-without-delivery'] }))
+      const wrapper = mount(OverviewView, {
+        global: {
+          provide: { moduleNav: { navigateTo: vi.fn(), goBack: vi.fn(), updateParams: vi.fn(), params: ref({}) } },
+          stubs: { Teleport: true, Transition: true }
+        }
+      })
+      await flushPromises()
+      expect(savedLanes(FC_KEY)).toEqual(['closed-without-delivery'])
+
+      resolveFeatures({ projectId: 'flightctl', state: 'supported', partial: false, features: FEATURES, featureCount: FEATURES.length, ...POLICY })
+      await flushPromises()
+      expect(savedLanes(FC_KEY)).toEqual(['closed-without-delivery'])
+      expect(listKeys(wrapper).sort()).toEqual(['F-DUP', 'F-WONT'])
+    })
+
+    it('does not carry a closed-lane selection into a project that lacks the policy', async () => {
+      const wrapper = await mountOverview(FEATURES)
+      mockApiRequest.mockImplementation(url => {
+        if (url.includes('/versions')) return Promise.resolve({ projectId: 'osac', versions: [] })
+        return Promise.resolve({
+          projectId: 'osac', state: 'supported', partial: false, features: FEATURES, featureCount: FEATURES.length
+        })
+      })
+      sessionStorage.setItem(OSAC_KEY, JSON.stringify({ selectedExecutionStates: ['closed-without-delivery'] }))
+      window.location.hash = '#/releases/execute?projectId=osac'
+      window.dispatchEvent(new Event('urlchange'))
+      await flushPromises()
+
+      expect(savedLanes(OSAC_KEY)).toEqual([])
+      expect(wrapper.text()).not.toMatch(/Features:\s*0(?!\d)/)
+    })
   })
 
   it('keeps release-scoped visibility and Done placement when no outcome policy is published', async () => {
