@@ -38,6 +38,34 @@ function stripZStream(value) {
   return String(value).replace(/\.z\b/gi, '')
 }
 
+const foldResolution = value => value.trim().toLowerCase().replace(/’/g, "'");
+
+// Same contract the producer enforces: both lists of non-empty strings, at least one
+// resolution overall, no resolution in both lists (case- and apostrophe-insensitive).
+// Returns { profile } (null when unconfigured) or { error }.
+function normalizeTerminalOutcomeProfile(config) {
+  if (config === undefined || config === null) return { profile: null };
+  if (typeof config !== 'object' || Array.isArray(config)) {
+    return { error: 'execution.workStatus.terminalOutcomes must be an object' };
+  }
+  const profile = {};
+  for (const name of ['completed', 'nonDelivery']) {
+    const values = config[name];
+    if (!Array.isArray(values) || values.some(value => typeof value !== 'string' || !value.trim())) {
+      return { error: `execution.workStatus.terminalOutcomes.${name} must be a list of non-empty strings` };
+    }
+    profile[name] = [...values];
+  }
+  if (profile.completed.length + profile.nonDelivery.length === 0) {
+    return { error: 'execution.workStatus.terminalOutcomes must list at least one resolution' };
+  }
+  const completed = new Set(profile.completed.map(foldResolution));
+  if (profile.nonDelivery.some(value => completed.has(foldResolution(value)))) {
+    return { error: 'execution.workStatus.terminalOutcomes lists must not overlap' };
+  }
+  return { profile };
+}
+
 function matchesVersion(feature, normalizedFilter) {
   return !!(feature.fixVersions && feature.fixVersions.some(v => stripZStream(v) === normalizedFilter));
 }
@@ -84,7 +112,11 @@ function epicDirectlyMatchesVersion(epic, normalizedFilter) {
  *       200:
  *         description: >-
  *           Feature list. `workStatusProfile.inactiveStatuses` is present when the project profile
- *           configures `execution.workStatus.inactiveStatuses`.
+ *           configures `execution.workStatus.inactiveStatuses`; `terminalOutcomeProfile` when it
+ *           configures a valid `execution.workStatus.terminalOutcomes`; an invalid policy returns
+ *           `state: unavailable` with `reason: invalid-terminal-outcome-profile` and no Features.
+ *           `closedFeatureVisibility` is `all` or `release-scoped` (default) from
+ *           `execution.inventory.closedFeatureVisibility`.
  */
 
 /**
@@ -325,6 +357,22 @@ module.exports = function registerExecutionRoutes(router, context) {
     }
     const index = publication.data;
 
+    const execution = selected.scope.profile?.execution;
+    const terminalOutcomes = normalizeTerminalOutcomeProfile(execution?.workStatus?.terminalOutcomes);
+    if (terminalOutcomes.error) {
+      return res.json({
+        ...publication.meta,
+        state: 'unavailable',
+        partial: true,
+        reason: 'invalid-terminal-outcome-profile',
+        error: terminalOutcomes.error,
+        featureCount: 0,
+        totalFeatureCount: 0,
+        features: [],
+        message: 'The project profile defines an invalid terminal-outcome policy, so the Feature inventory is unavailable.'
+      });
+    }
+
     // Optional filters
     let features = index.features;
 
@@ -359,13 +407,15 @@ module.exports = function registerExecutionRoutes(router, context) {
       return String(aVal || '').localeCompare(String(bVal || '')) * sortDir;
     });
 
-    const inactiveStatuses = selected.scope.profile?.execution?.workStatus?.inactiveStatuses;
+    const inactiveStatuses = execution?.workStatus?.inactiveStatuses;
     res.json({
       ...publication.meta,
       fetchedAt: publication.meta.fetchedAt || index.fetchedAt || null,
       featureCount: features.length,
       totalFeatureCount: index.features.length,
       ...(Array.isArray(inactiveStatuses) ? { workStatusProfile: { inactiveStatuses: [...inactiveStatuses] } } : {}),
+      ...(terminalOutcomes.profile ? { terminalOutcomeProfile: terminalOutcomes.profile } : {}),
+      closedFeatureVisibility: execution?.inventory?.closedFeatureVisibility === 'all' ? 'all' : 'release-scoped',
       features
     });
   });

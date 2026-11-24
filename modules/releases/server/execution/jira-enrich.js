@@ -18,7 +18,7 @@ const THROTTLE_MS = 1000;
 
 // Fields to fetch for enrichment (matches hygiene Pass 1 + priority + parent)
 const ENRICH_FIELDS = [
-  'summary', 'status', 'assignee', 'fixVersions', 'components',
+  'summary', 'status', 'resolution', 'assignee', 'fixVersions', 'components',
   'labels', 'priority', 'issuelinks', 'created', 'updated', 'parent',
   CUSTOM_FIELDS.team,
   CUSTOM_FIELDS.releaseType,
@@ -195,6 +195,9 @@ function transformForEnrichment(rawIssue) {
     status: fields.status ? fields.status.name : null,
     statusCategory: fields.status && fields.status.statusCategory
       ? fields.status.statusCategory.name
+      : null,
+    resolution: fields.resolution && fields.resolution.name
+      ? { id: fields.resolution.id || null, name: fields.resolution.name }
       : null,
     colorStatus,
     ownerStatusColor: colorStatus, // backward compat alias

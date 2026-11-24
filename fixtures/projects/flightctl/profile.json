@@ -416,7 +416,8 @@
     "schemaVersion": 1,
     "inventory": {
       "source": "jira-issues",
-      "artifact": "sources/jira-issues/issues.json"
+      "artifact": "sources/jira-issues/issues.json",
+      "closedFeatureVisibility": "all"
     },
     "featureIssueTypes": [
       "Feature"
@@ -438,7 +439,18 @@
     "workStatus": {
       "inactiveStatuses": [
         "Backlog"
-      ]
+      ],
+      "terminalOutcomes": {
+        "completed": [
+          "Done"
+        ],
+        "nonDelivery": [
+          "Won't Do",
+          "Duplicate",
+          "Obsolete",
+          "Not a Bug"
+        ]
+      }
     },
     "metrics": {
       "producer": null,

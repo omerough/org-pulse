@@ -14,7 +14,7 @@ let storeWriteInProgress = false;
 // 'epics' is deliberately excluded: it is merged per-Epic in mergeEpics() below,
 // not wholesale-owned by either source.
 const JIRA_FIELDS = [
-  'status', 'statusCategory', 'colorStatus', 'ownerStatusColor',
+  'status', 'statusCategory', 'resolution', 'colorStatus', 'ownerStatusColor',
   'statusSummary', 'assignee', 'pm', 'labels', 'fixVersions',
   'targetVersions', 'components', 'priority', 'team', 'releaseType',
   'docsRequired', 'targetEnd', 'riceScore', 'riceStatus', 'isBlocked',
@@ -415,6 +415,7 @@ async function rebuildIndex(storage) {
       summary: feature.summary || '',
       status: feature.status || null,
       statusCategory: feature.statusCategory || null,
+      resolution: feature.resolution || null,
       priority: feature.priority || null,
       // Index uses string assignee (detail has object)
       assignee: feature.assignee

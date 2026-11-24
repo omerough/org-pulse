@@ -94,6 +94,7 @@ function envelope(profile, generationId, artifactKey, data, overrides = {}) {
 function flightctlPublication(options = {}) {
   const project = makeProfile(options.projectId || 'flightctl', options.jiraProjectKey || 'EDM')
   if (options.workStatus) project.execution.workStatus = options.workStatus
+  if (options.inventory) project.execution.inventory = options.inventory
   const generationId = options.generationId || 'fc-generation-1'
   const root = `projects/${project.projectId}/generations/${generationId}`
   const feature = {
@@ -112,7 +113,8 @@ function flightctlPublication(options = {}) {
     executionCoverageReason: 'no-compatible-feature-producer',
     preparationReadiness: 'unknown',
     team: null,
-    coverage: { team: 'unknown', pipelineMetrics: 'unavailable', featureReadiness: 'unconfigured' }
+    coverage: { team: 'unknown', pipelineMetrics: 'unavailable', featureReadiness: 'unconfigured' },
+    ...(options.featureExtras || {})
   }
   const epic = {
     key: 'EDM-200',
@@ -223,6 +225,90 @@ describe('project-qualified Execute publication routes', () => {
     expect(list(flightctlPublication({ workStatus: { inactiveStatuses: ['Backlog'] } })).workStatusProfile)
       .toEqual({ inactiveStatuses: ['Backlog'] })
     expect(list(flightctlPublication())).not.toHaveProperty('workStatusProfile')
+  })
+
+  it('returns terminal-outcome and Closed-visibility policy with the Feature list', () => {
+    function list(fixture) {
+      const response = makeResponse()
+      register(fixture.storage, fixture.projects)._routes.get['/features'].at(-1)({ query: { projectId: 'flightctl' } }, response)
+      return response.body
+    }
+    const terminalOutcomes = { completed: ['Done'], nonDelivery: ["Won't Do"] }
+    const configured = list(flightctlPublication({
+      workStatus: { terminalOutcomes },
+      inventory: { closedFeatureVisibility: 'all' }
+    }))
+    expect(configured.terminalOutcomeProfile).toEqual(terminalOutcomes)
+    expect(configured.closedFeatureVisibility).toBe('all')
+
+    const defaults = list(flightctlPublication())
+    expect(defaults).not.toHaveProperty('terminalOutcomeProfile')
+    expect(defaults.closedFeatureVisibility).toBe('release-scoped')
+    expect(list(flightctlPublication({ inventory: { closedFeatureVisibility: 'bogus' } })).closedFeatureVisibility)
+      .toBe('release-scoped')
+  })
+
+  it('passes producer-published resolution and terminalOutcome through the project-qualified list unchanged', () => {
+    const featureExtras = {
+      resolution: { id: '10000', name: 'Done' },
+      terminalOutcome: { source: 'jira-resolution', state: 'completed' }
+    }
+    const fixture = flightctlPublication({
+      featureExtras,
+      workStatus: { terminalOutcomes: { completed: ['Done'], nonDelivery: ["Won't Do"] } }
+    })
+    const response = makeResponse()
+    register(fixture.storage, fixture.projects)._routes.get['/features'].at(-1)({ query: { projectId: 'flightctl' } }, response)
+    expect(response.body.features[0]).toMatchObject(featureExtras)
+  })
+
+  describe('terminalOutcomes profile validation', () => {
+    function list(terminalOutcomes) {
+      const fixture = flightctlPublication({ workStatus: { terminalOutcomes } })
+      const response = makeResponse()
+      register(fixture.storage, fixture.projects)._routes.get['/features'].at(-1)({ query: { projectId: 'flightctl' } }, response)
+      return response.body
+    }
+
+    it.each([
+      ['an array', []],
+      ['a string', 'Done'],
+      ['an empty object', {}],
+      ['a missing nonDelivery list', { completed: ['Done'] }],
+      ['a non-list completed value', { completed: 'Done', nonDelivery: [] }],
+      ['a blank resolution', { completed: ['Done', ' '], nonDelivery: [] }],
+      ['a non-string resolution', { completed: ['Done'], nonDelivery: [1] }],
+      ['both lists empty', { completed: [], nonDelivery: [] }],
+      ['overlapping lists', { completed: ['Done'], nonDelivery: ['done'] }],
+      ['overlap across apostrophe styles', { completed: ["Won't Do"], nonDelivery: ['Won’t Do'] }]
+    ])('reports the publication unavailable for %s', (_label, terminalOutcomes) => {
+      const body = list(terminalOutcomes)
+      expect(body).toMatchObject({
+        projectId: 'flightctl',
+        state: 'unavailable',
+        partial: true,
+        reason: 'invalid-terminal-outcome-profile',
+        featureCount: 0,
+        features: []
+      })
+      expect(body.error).toContain('execution.workStatus.terminalOutcomes')
+      expect(body).not.toHaveProperty('terminalOutcomeProfile')
+    })
+
+    it('publishes a normalized copy of a valid policy, allowing one empty list', () => {
+      const body = list({ completed: ['Done'], nonDelivery: [], ignored: true })
+      expect(body.terminalOutcomeProfile).toEqual({ completed: ['Done'], nonDelivery: [] })
+      expect(body.features).toHaveLength(1)
+      expect(list({ completed: [], nonDelivery: ["Won't Do"] }).terminalOutcomeProfile)
+        .toEqual({ completed: [], nonDelivery: ["Won't Do"] })
+    })
+
+    it('keeps legacy behavior when no policy is configured', () => {
+      const body = list(undefined)
+      expect(body).not.toHaveProperty('terminalOutcomeProfile')
+      expect(body.features).toHaveLength(1)
+      expect(list(null)).not.toHaveProperty('terminalOutcomeProfile')
+    })
   })
 
   it('reads Feature Tracking using encoded release IDs within the selected project generation', () => {
