@@ -92,8 +92,9 @@ const hasUnknownBlockerCount = computed(() => features.value.some(f => !isKnownC
 const hasJiraChildProgress = computed(() => features.value.some(
   f => f.jiraChildProgress?.source === 'jira-child-status-rollup'
 ))
-// A published workStatus makes the Feature's own Jira status the lane; child progress stays supporting.
-const hasWorkStatus = computed(() => features.value.some(
+// A published workStatus or terminal-outcome policy makes the Feature's own Jira status the lane;
+// child progress stays supporting and never stands in for a missing status.
+const hasWorkStatus = computed(() => !!terminalOutcomeProfile.value || features.value.some(
   f => f.workStatus?.source === 'jira-feature-status'
 ))
 // Named after Backlog only when it is the sole configured inactive status; other mappings keep Inactive.
@@ -103,7 +104,7 @@ const inactiveLaneTitle = computed(() => {
 })
 // With a terminal-outcome policy, only a producer-confirmed completion counts as Done; a missing
 // classification (older publication) is unknown, never completion.
-const hasTerminalOutcomes = computed(() => hasWorkStatus.value && !!terminalOutcomeProfile.value)
+const hasTerminalOutcomes = computed(() => !!terminalOutcomeProfile.value)
 const hasNoCompatibleProducer = computed(() => features.value.some(f => f.coverage?.pipelineMetrics === 'unavailable'))
 // Hides the UI/UX filters and badges entirely for a project with no uiUxEvidence config.
 const hasUiUxData = computed(() => features.value.some(f =>

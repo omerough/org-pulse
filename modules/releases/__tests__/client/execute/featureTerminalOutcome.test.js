@@ -190,10 +190,15 @@ describe('Done and Closed-without-delivery (terminal outcome policy)', () => {
       expect(wrapper.text()).toMatch(/Features:\s*1(?!\d)/)
     })
 
-    it('drops an unsupported selection when the inventory is empty', async () => {
-      const wrapper = await mountOverview([], POLICY, { selectedExecutionStates: ['closed-outcome-unknown', 'not-started'] })
+    it('drops an unsupported selection when the inventory is empty and no policy is published', async () => {
+      const wrapper = await mountOverview([], {}, { selectedExecutionStates: ['closed-outcome-unknown', 'not-started'] })
       expect(savedLanes(FC_KEY)).toEqual(['not-started'])
       expect(wrapper.text()).not.toContain('1 states')
+    })
+
+    it('keeps a closed-lane selection when the inventory is empty and a policy is published', async () => {
+      await mountOverview([], POLICY, { selectedExecutionStates: ['closed-outcome-unknown', 'not-started'] })
+      expect(savedLanes(FC_KEY)).toEqual(['closed-outcome-unknown', 'not-started'])
     })
 
     it('keeps a valid selection while the Feature list is still loading', async () => {
@@ -235,6 +240,67 @@ describe('Done and Closed-without-delivery (terminal outcome policy)', () => {
 
       expect(savedLanes(OSAC_KEY)).toEqual([])
       expect(wrapper.text()).not.toMatch(/Features:\s*0(?!\d)/)
+    })
+  })
+
+  describe('published policy without Feature workStatus', () => {
+    // Child rollup and pipeline both report completion; neither may stand in for a Jira status.
+    const completedProgress = {
+      source: 'jira-child-status-rollup', state: 'supported', coverage: 'complete', issueCount: 2,
+      statusCounts: { done: 2, inProgress: 0, toDo: 0, unknown: 0 }
+    }
+    const noWorkStatus = (key, status = 'Closed', category = 'Done') => {
+      const { workStatus: _workStatus, ...rest } = feature(key, status, category, 'done')
+      return { ...rest, jiraChildProgress: completedProgress, executionState: 'complete' }
+    }
+    const count = (wrapper, label) => Number(new RegExp(`${label}:\\s*(\\d+)`).exec(wrapper.text())[1])
+
+    it('shows Status Unknown, never child-derived Done, when no Feature has workStatus', async () => {
+      const wrapper = await mountOverview([noWorkStatus('F-A'), noWorkStatus('F-B')])
+      expect(wrapper.find('#execution-section-complete').text()).toContain('No features')
+      expect(wrapper.findAll('h3').map(h => h.text())).toEqual(['Not Started', 'In Progress', 'Done', 'Inactive'])
+      expect(count(wrapper, 'Unknown work status')).toBe(2)
+      expect(count(wrapper, 'With known work status')).toBe(0)
+      expect(wrapper.text()).toContain('All Work Statuses')
+      expect(wrapper.text()).not.toContain('Jira Children: Done')
+    })
+
+    it('lists and filters those Features as Status Unknown', async () => {
+      const wrapper = await mountOverview([noWorkStatus('F-A'), noWorkStatus('F-B')], POLICY, {
+        viewMode: 'list', selectedExecutionStates: ['unavailable']
+      })
+      expect(listKeys(wrapper).sort()).toEqual(['F-A', 'F-B'])
+      expect(wrapper.find('tbody').text()).toContain('Status Unknown')
+    })
+
+    it('classifies a mixed inventory per Feature', async () => {
+      const mixed = [
+        closed('F-DONE', 'Done', 'completed'),
+        closed('F-NO-OUTCOME', 'Done', undefined),
+        noWorkStatus('F-NO-STATUS')
+      ]
+      const wrapper = await mountOverview(mixed)
+      expect(keysIn(wrapper.find('#execution-section-complete'))).toEqual(['F-DONE'])
+      expect(count(wrapper, 'Closed, outcome unknown')).toBe(1)
+      expect(count(wrapper, 'Unknown work status')).toBe(1)
+      expect(count(wrapper, 'Features')).toBe(3)
+    })
+
+    it('activates work-status semantics for an empty inventory', async () => {
+      const wrapper = await mountOverview([])
+      expect(wrapper.text()).toContain('All Work Statuses')
+      expect(wrapper.text()).toMatch(/Features:\s*0(?!\d)/)
+    })
+
+    it('keeps child and pipeline derived lanes when no policy is published', async () => {
+      const legacy = ['F-A', 'F-B'].map(key => {
+        const { workStatus: _workStatus, terminalOutcome: _terminalOutcome, ...rest } = noWorkStatus(key, 'In Progress', 'In Progress')
+        return rest
+      })
+      const wrapper = await mountOverview(legacy, {})
+      expect(keysIn(wrapper.find('#execution-section-complete')).sort()).toEqual(['F-A', 'F-B'])
+      expect(wrapper.text()).not.toContain('All Work Statuses')
+      expect(wrapper.text()).not.toContain('Status Unknown')
     })
   })
 
