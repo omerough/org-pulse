@@ -64,6 +64,32 @@ describe('FeatureComponentPanel', () => {
     expect(text).toContain('OSAC-9')
   })
 
+  it('aligns every source Epic into the same fixed columns under labelled headers', () => {
+    const wrapper = mountPanel([card('OSAC-1', {
+      sources: [sourceRow('OSAC-9'), sourceRow('OSAC-10', { epicType: 'bootstrap', fixVersions: [] })]
+    })])
+    expect(wrapper.findAll('thead th').map(th => th.text())).toEqual(['Epic', 'Type', 'Status', 'Assignee', 'Priority', 'Release', 'UX / UI'])
+    const rows = wrapper.findAll('[data-testid="source-row"]')
+    expect(rows.map(r => r.findAll('td').length)).toEqual([7, 7])
+    expect(rows[0].findAll('td').map(td => td.text())).toEqual(['OSAC-9', 'UIX', 'In Progress', 'Epic Owner', 'Normal', '0.4', 'UX In Progress · UI Not Started'])
+    expect(rows[1].findAll('td')[5].text()).toBe('—')
+  })
+
+  it('keeps the column layout with a placeholder when a legacy payload omits Epic fields', () => {
+    const legacy = sourceRow('OSAC-9', { status: undefined, assignee: undefined, priority: undefined, resolution: undefined })
+    const cells = mountPanel([card('OSAC-1', { sources: [legacy] })]).get('[data-testid="source-row"]').findAll('td')
+    expect(cells).toHaveLength(7)
+    expect([2, 3, 4].map(i => cells[i].text())).toEqual(['—', '—', '—'])
+  })
+
+  it('shows the Feature fields under their labels and captions the badges as the Epic rollup', () => {
+    const text = mountPanel([card('OSAC-1')]).get('[data-testid="feature-card"]').text()
+    expect(text).toContain('Epic rollup')
+    expect(text).toMatch(/Status\s*In Progress/)
+    expect(text).toMatch(/Priority\s*Major/)
+    expect(text).toMatch(/Assignee\s*Feature Owner/)
+  })
+
   it('highlights matched source rows and states how the card matched', () => {
     const wrapper = mountPanel([card('OSAC-1', {
       sources: [sourceRow('OSAC-9', { matched: true }), sourceRow('OSAC-10')],
