@@ -88,9 +88,11 @@ describe('FeatureComponentPanel', () => {
     expect([2, 3, 4].map(i => cells[i].text())).toEqual(['—', '—', '—'])
   })
 
-  it('shows the Feature fields under their labels and captions the badges as the Epic rollup', () => {
-    const text = mountPanel([card('OSAC-1')]).get('[data-testid="feature-card"]').text()
-    expect(text).toContain('Epic rollup')
+  it('shows the Feature fields under their labels and captions the badges as the Feature-wide Epic rollup', () => {
+    const wrapper = mountPanel([card('OSAC-1')])
+    const text = wrapper.get('[data-testid="feature-card"]').text()
+    expect(text).toContain('Feature-wide Epic rollup')
+    expect(wrapper.get('[data-testid="rollup"]').attributes('title')).toContain('regardless of Release or Component')
     expect(text).toMatch(/Status\s*In Progress/)
     expect(text).toMatch(/Priority\s*Major/)
     expect(text).toMatch(/Assignee\s*Feature Owner/)

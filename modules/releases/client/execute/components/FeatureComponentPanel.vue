@@ -112,8 +112,12 @@ function matchedViaText(via) {
                   </span>
                 </div>
               </div>
-              <div class="flex-shrink-0 rounded-md border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20 px-2 py-1">
-                <span class="block text-[9px] font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Epic rollup</span>
+              <div
+                class="flex-shrink-0 rounded-md border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20 px-2 py-1"
+                data-testid="rollup"
+                title="Feature-wide rollup across all of this Feature's UI/UX Epics, regardless of Release or Component."
+              >
+                <span class="block text-[9px] font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Feature-wide Epic rollup</span>
                 <div class="flex items-center gap-3">
                   <UiUxStatusBadge label="UX" :status="card.ux.status" :conflict="card.ux.conflict" data-testid="ux-badge" />
                   <UiUxStatusBadge label="UI" :status="card.ui.status" :conflict="card.ui.conflict" data-testid="ui-badge" />

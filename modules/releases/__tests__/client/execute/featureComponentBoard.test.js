@@ -394,6 +394,23 @@ describe('labels and component filter', () => {
     expect(panelKeys(board([f], '0.5', { labels: ['customer:other'] }).result, 'Core')).toEqual([])
   })
 
+  it('does not match a Feature through Epic stage, routing or workflow labels', () => {
+    const owner = feature('F-1', { labels: ['customer:telus'] })
+    const viaStage = feature('F-2', { sources: [source('E-2', { stageLabels: ['customer:telus'] })] })
+    const viaRouting = feature('F-3', { sources: [source('E-3', { routingLabels: ['customer:telus'] })] })
+    const viaWorkflow = feature('F-4', {
+      workflowLabelSources: [{ epicKey: 'E-4', labels: ['customer:telus'] }]
+    })
+    const { result } = board([owner, viaStage, viaRouting, viaWorkflow], '0.5', { labels: ['customer:telus'] })
+    expect(panelKeys(result, 'Core')).toEqual(['F-1'])
+  })
+
+  it('matches Feature labels case-insensitively', () => {
+    const f = feature('F-1', { labels: ['Customer:Telus'] })
+    expect(panelKeys(board([f], '0.5', { labels: ['customer:telus'] }).result, 'Core')).toEqual(['F-1'])
+    expect(panelKeys(board([f], '0.5', { labels: [' CUSTOMER:TELUS '] }).result, 'Core')).toEqual(['F-1'])
+  })
+
   it('narrows panels by component without changing membership counts', () => {
     const f = feature('F-1', { components: ['Core', 'Storage'] })
     const { result } = board([f], '0.5', { components: ['Storage'] })

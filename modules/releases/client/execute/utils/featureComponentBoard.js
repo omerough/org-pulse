@@ -1,4 +1,4 @@
-import { uiEvidenceOf, uxEvidenceOf, matchesLabelQuery } from '../composables/useUiUxFilter'
+import { uiEvidenceOf, uxEvidenceOf } from '../composables/useUiUxFilter'
 import {
   collectStatusOptions,
   collectAssigneeOptions,
@@ -33,6 +33,14 @@ function resolutionName(resolution) {
 }
 
 const foldedSet = list => new Set((list || []).map(fold))
+
+// Only the Feature's own Jira labels count, matching the label options the board offers; Epic
+// stage, routing and workflow labels never place a Feature under another Feature's label.
+function matchesFeatureLabels(feature, selectedLabels) {
+  if (!selectedLabels || selectedLabels.length === 0) return true
+  const wanted = foldedSet(selectedLabels)
+  return (feature.labels || []).some(label => wanted.has(fold(label)))
+}
 
 // Release names are strings; any other value normalizes to '' (no release).
 function normalizeRelease(version) {
@@ -197,7 +205,7 @@ function evaluateCard(card, filters, matchOn) {
   }
 
   const via = { feature: false, epics: new Set() }
-  let passes = matchesLabelQuery(feature, filters.labels) &&
+  let passes = matchesFeatureLabels(feature, filters.labels) &&
     matchesWorkstream(uiEvidenceOf(feature).status, filters.uiStatuses) &&
     matchesWorkstream(uxEvidenceOf(feature).status, filters.uxStatuses)
 

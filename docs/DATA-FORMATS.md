@@ -1642,7 +1642,9 @@ Derived summary index of all features in the unified feature store. Rebuilt auto
   identically to that same default, never as an error or a different Unknown variant. A consumer
   resolving status for a selected Release/Component must read the matching `scopes[]` entry, never the
   top-level `status` — that aggregate can hide a per-release split (e.g. one child Epic done in one
-  release while a sibling Epic is still in progress in another).
+  release while a sibling Epic is still in progress in another). A consumer that instead presents the
+  aggregate explicitly as Feature-wide, as the Releases → Execute "UI/UX by Component" board does, is
+  not resolving status for a Release/Component.
 
 ## Releases — Execution Feature Detail (`data/releases/execution/features/{KEY}.json`)
 
@@ -1967,6 +1969,13 @@ fields, with `status: "unknown"`.
   they were evidence for one specific release/component; always resolve against the matching
   `scopes[]` entry once a Release or Component is selected. A scope's own `status`/`conflict` can
   differ from the feature-wide aggregate (e.g. one release done, a sibling release still in progress).
+- **Feature-wide display:** the "UI/UX by Component" board places a Feature by its own Fix Version and
+  Components and shows the top-level `status`/`conflict` as a Feature-wide rollup across all of the
+  Feature's UI/UX Epics, labelled as such on the card, the UX/UI status filters and the board header.
+  Those statuses are not Release- or Component-specific: a Feature can show a rollup that differs from
+  the matching `scopes[]` entry (e.g. one release done, a sibling release still in progress). The board
+  never reads `scopes[]`, so the card badge, the status filters and their option lists all use the same
+  aggregate.
 - `enclaveOnly` (on `uiEvidence` only) is a routing flag set by the project's configured
   `enclaveOnlyLabel`, not a status — it does not hide or demote the Feature by itself; a consumer may
   use it to route the Feature differently when also filtering by Component.
