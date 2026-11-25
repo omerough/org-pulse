@@ -33,6 +33,43 @@ describe('EpicBreakdown', () => {
     expect(wrapper.text()).toContain('OSAC-102')
   })
 
+  describe('label chips', () => {
+    const labels = ['customer:a', 'design', 'ux-needed', 'ui-needed']
+    const chipTexts = wrapper => wrapper.findAll('span.bg-purple-100').map(c => c.text())
+
+    it('shows two labels and a +N toggle that reveals the rest and collapses again', async () => {
+      const wrapper = mount(EpicBreakdown, { props: { epics: [makeEpic({ labels })] } })
+      const toggle = () => wrapper.get('[data-testid="toggle-labels"]')
+
+      expect(chipTexts(wrapper)).toEqual(['customer:a', 'design'])
+      expect(toggle().text()).toBe('+2')
+      expect(toggle().attributes('aria-expanded')).toBe('false')
+
+      await toggle().trigger('click')
+      expect(chipTexts(wrapper)).toEqual(labels)
+      expect(toggle().text()).toBe('Show fewer')
+      expect(toggle().attributes('aria-expanded')).toBe('true')
+
+      await toggle().trigger('click')
+      expect(chipTexts(wrapper)).toEqual(['customer:a', 'design'])
+    })
+
+    it('expands one epic without affecting another', async () => {
+      const wrapper = mount(EpicBreakdown, {
+        props: { epics: [makeEpic({ key: 'OSAC-1', labels }), makeEpic({ key: 'OSAC-2', labels })] }
+      })
+
+      await wrapper.findAll('[data-testid="toggle-labels"]')[0].trigger('click')
+      const toggles = wrapper.findAll('[data-testid="toggle-labels"]')
+      expect(toggles.map(t => t.text())).toEqual(['Show fewer', '+2'])
+    })
+
+    it('renders no toggle when all labels already fit', () => {
+      const wrapper = mount(EpicBreakdown, { props: { epics: [makeEpic({ labels: labels.slice(0, 2) })] } })
+      expect(wrapper.find('[data-testid="toggle-labels"]').exists()).toBe(false)
+    })
+  })
+
   it('renders progress, blocker count, and issue count from the epic\'s own issues', () => {
     const wrapper = mount(EpicBreakdown, { props: { epics: [makeEpic()] } })
 
