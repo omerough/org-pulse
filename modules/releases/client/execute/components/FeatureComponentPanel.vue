@@ -14,7 +14,7 @@ const props = defineProps({
   expandedKeys: { type: Object, default: () => new Set() }
 })
 
-const emit = defineEmits(['open-feature', 'toggle-epics'])
+const emit = defineEmits(['toggle-epics'])
 
 const JIRA_BASE = 'https://redhat.atlassian.net/browse/'
 
@@ -95,15 +95,7 @@ function matchedViaText(via) {
           <li v-for="card in visibleCards" :key="card.key" data-testid="feature-card" class="px-4 py-2.5 space-y-1.5">
             <div class="flex items-start gap-3">
               <div class="min-w-0 flex-1 space-y-0.5">
-                <div class="flex items-baseline gap-2">
-                  <a :href="JIRA_BASE + card.key" target="_blank" rel="noopener" class="text-primary-600 dark:text-blue-400 hover:underline font-mono text-xs font-semibold">{{ card.key }}</a>
-                  <button
-                    type="button"
-                    data-testid="open-feature"
-                    class="text-[10px] font-medium text-primary-600 dark:text-primary-400 hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded"
-                    @click="emit('open-feature', card.key)"
-                  >Details</button>
-                </div>
+                <a :href="JIRA_BASE + card.key" target="_blank" rel="noopener" class="text-primary-600 dark:text-blue-400 hover:underline font-mono text-xs font-semibold">{{ card.key }}</a>
                 <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ card.summary }}</p>
                 <div class="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs">
                   <span class="inline-flex items-center gap-1.5">

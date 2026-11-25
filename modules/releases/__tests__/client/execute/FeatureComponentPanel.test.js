@@ -33,10 +33,15 @@ describe('FeatureComponentPanel', () => {
     expect(wrapper.get('[data-testid="ui-badge"]').text()).toContain('Not Started')
   })
 
-  it('emits open-feature from the Details button', async () => {
-    const wrapper = mountPanel([card('OSAC-1')])
-    await wrapper.get('[data-testid="open-feature"]').trigger('click')
-    expect(wrapper.emitted('open-feature')).toEqual([['OSAC-1']])
+  it('links the Feature and its Epics to Jira and offers no Feature Detail entry point', () => {
+    const wrapper = mountPanel([card('OSAC-1', { sources: [sourceRow('OSAC-9')] })])
+    const links = wrapper.findAll('a').map(a => [a.text(), a.attributes('href')])
+    expect(links).toEqual([
+      ['OSAC-1', 'https://redhat.atlassian.net/browse/OSAC-1'],
+      ['OSAC-9', 'https://redhat.atlassian.net/browse/OSAC-9']
+    ])
+    expect(wrapper.find('[data-testid="open-feature"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Details')
   })
 
   it('lists every source Epic with its own status, local workstream status and Fix Version', () => {
@@ -149,7 +154,7 @@ describe('FeatureComponentPanel', () => {
       const wrapper = mountPanel([card('OSAC-1', { sources: [sourceRow('OSAC-9')] })])
       expect(wrapper.get('[data-testid="epics-toggle"]').text()).toBe('1 Epic')
       expect(wrapper.get('[data-testid="ux-badge"]').isVisible()).toBe(true)
-      expect(wrapper.get('[data-testid="open-feature"]').isVisible()).toBe(true)
+      expect(wrapper.get('a[href$="/OSAC-1"]').isVisible()).toBe(true)
     })
 
     it('expands the listed Features and asks the parent to toggle on click', async () => {

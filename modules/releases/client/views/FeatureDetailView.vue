@@ -201,7 +201,6 @@ const fromRfe = computed(() => nav.params.value.fromRfe)
 const fromFeatureReview = computed(() => nav.params.value.fromFeatureReview)
 const fromPlan = computed(() => nav.params.value.from === 'plan')
 const fromPlanFeatures = computed(() => nav.params.value.from === 'plan-features')
-const fromUiUxBoard = computed(() => nav.params.value.from === 'ui-epics-by-component')
 const fromHygieneReport = computed(() => nav.params.value.from === 'hygiene-report')
 const fromForYou = computed(() => nav.params.value.from === 'sotu' || nav.params.value.from === 'state-of-the-union')
 
@@ -216,9 +215,6 @@ function goBack() {
     nav.navigateTo('plan', { tab: 'feature-readiness' })
   } else if (fromPlan.value) {
     nav.navigateTo('plan')
-  } else if (fromUiUxBoard.value) {
-    const release = nav.params.value.boardRelease
-    nav.navigateTo('execute', { tab: 'ui-epics-by-component', ...(release ? { release } : {}) })
   } else if (fromHygieneReport.value) {
     const params = { report: 'program-hygiene' }
     if (nav.params.value.product) params.product = nav.params.value.product

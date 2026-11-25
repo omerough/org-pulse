@@ -171,14 +171,6 @@ function onSelectRelease(event) {
   writeReleaseParam(selectedVersion.value)
 }
 
-function openFeature(key) {
-  nav.navigateTo('feature-detail', {
-    key,
-    from: 'ui-epics-by-component',
-    ...(selectedVersion.value ? { boardRelease: selectedVersion.value } : {})
-  })
-}
-
 let initializeToken = 0
 
 // Applies the URL release when valid, else the registry default. A release the user
@@ -409,7 +401,6 @@ onBeforeUnmount(() => {
             :cards="panel.cards"
             :member-count="panel.memberCount"
             :expanded-keys="expandedKeys"
-            @open-feature="openFeature"
             @toggle-epics="toggleEpics"
           />
         </div>

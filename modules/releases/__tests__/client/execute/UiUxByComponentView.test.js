@@ -276,12 +276,11 @@ describe('UiUxByComponentView', () => {
     expect(cardKeys(wrapper, 'Core')).toEqual(['OSAC-2'])
   })
 
-  it('opens Feature Detail, remembering the board release for the way back', async () => {
+  it('links Features to Jira without any in-app Feature Detail navigation', async () => {
     const { wrapper, nav } = await mountView()
-    await panel(wrapper, 'Storage').get('[data-testid="open-feature"]').trigger('click')
-    expect(nav.navigateTo).toHaveBeenCalledWith('feature-detail', {
-      key: 'OSAC-1', from: 'ui-epics-by-component', boardRelease: '0.5'
-    })
+    expect(panel(wrapper, 'Storage').get('a').attributes('href')).toBe('https://redhat.atlassian.net/browse/OSAC-1')
+    expect(wrapper.find('[data-testid="open-feature"]').exists()).toBe(false)
+    expect(nav.navigateTo).not.toHaveBeenCalled()
   })
 
   it('shows the release prompt rather than an empty board when the inventory is unavailable', async () => {
