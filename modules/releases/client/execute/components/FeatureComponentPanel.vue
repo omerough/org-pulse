@@ -86,9 +86,9 @@ function matchedViaText(via) {
 
       <template v-else>
         <ul class="divide-y divide-gray-100 dark:divide-gray-700/60">
-          <li v-for="card in visibleCards" :key="card.key" data-testid="feature-card" class="px-4 py-3 space-y-2">
+          <li v-for="card in visibleCards" :key="card.key" data-testid="feature-card" class="px-4 py-2.5 space-y-1.5">
             <div class="flex items-start gap-3">
-              <div class="min-w-0 flex-1">
+              <div class="min-w-0 flex-1 space-y-0.5">
                 <div class="flex items-baseline gap-2">
                   <a :href="JIRA_BASE + card.key" target="_blank" rel="noopener" class="text-primary-600 dark:text-blue-400 hover:underline font-mono text-xs font-semibold">{{ card.key }}</a>
                   <button
@@ -99,27 +99,28 @@ function matchedViaText(via) {
                   >Details</button>
                 </div>
                 <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ card.summary }}</p>
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs">
+                  <span class="inline-flex items-center gap-1.5">
+                    <span class="text-gray-400 dark:text-gray-500">Status</span>
+                    <StatusBadge :status="card.status" />
+                  </span>
+                  <span class="inline-flex items-center gap-1.5">
+                    <span class="text-gray-400 dark:text-gray-500">Priority</span>
+                    <span :class="card.priority && card.priority !== 'Undefined' ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'">{{ card.priority || 'Undefined' }}</span>
+                  </span>
+                  <span class="inline-flex items-center gap-1.5">
+                    <span class="text-gray-400 dark:text-gray-500">Assignee</span>
+                    <span :class="card.assignee ? 'text-gray-700 dark:text-gray-300' : 'italic text-gray-500 dark:text-gray-400'">{{ card.assignee || 'Unassigned' }}</span>
+                  </span>
+                </div>
               </div>
-              <div class="flex-shrink-0 flex flex-col items-end gap-1">
-                <span class="text-[9px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Epic rollup</span>
-                <UiUxStatusBadge label="UX" :status="card.ux.status" :conflict="card.ux.conflict" data-testid="ux-badge" />
-                <UiUxStatusBadge label="UI" :status="card.ui.status" :conflict="card.ui.conflict" data-testid="ui-badge" />
+              <div class="flex-shrink-0 rounded-md border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20 px-2 py-1">
+                <span class="block text-[9px] font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Epic rollup</span>
+                <div class="flex items-center gap-3">
+                  <UiUxStatusBadge label="UX" :status="card.ux.status" :conflict="card.ux.conflict" data-testid="ux-badge" />
+                  <UiUxStatusBadge label="UI" :status="card.ui.status" :conflict="card.ui.conflict" data-testid="ui-badge" />
+                </div>
               </div>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-              <span class="inline-flex items-center gap-1.5">
-                <span class="text-gray-400 dark:text-gray-500">Status</span>
-                <StatusBadge :status="card.status" />
-              </span>
-              <span class="inline-flex items-center gap-1.5">
-                <span class="text-gray-400 dark:text-gray-500">Priority</span>
-                <span :class="card.priority && card.priority !== 'Undefined' ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'">{{ card.priority || 'Undefined' }}</span>
-              </span>
-              <span class="inline-flex items-center gap-1.5">
-                <span class="text-gray-400 dark:text-gray-500">Assignee</span>
-                <span :class="card.assignee ? 'text-gray-700 dark:text-gray-300' : 'italic text-gray-500 dark:text-gray-400'">{{ card.assignee || 'Unassigned' }}</span>
-              </span>
             </div>
 
             <div v-if="card.labels.length > 0 || card.alsoIn.length > 0 || card.otherReason || card.matchedVia" class="flex flex-wrap items-center gap-1">
