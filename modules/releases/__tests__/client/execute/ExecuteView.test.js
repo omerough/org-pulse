@@ -14,7 +14,7 @@ const ALL_TABS = ['Feature List', 'Feature Tracking', 'Epics by Release', 'UI/UX
 
 function mountView(projectId, tab = undefined) {
   mockProjectId.value = projectId
-  const nav = { params: ref({ tab }), updateParams: () => {} }
+  const nav = { params: ref({ tab }), updateParams: vi.fn() }
   const wrapper = shallowMount(ExecuteView, { global: { provide: { moduleNav: nav } } })
   return { wrapper, nav }
 }
@@ -37,6 +37,18 @@ describe('shared Execute presentation', () => {
     expect(wrapper.find('epics-by-release-view-stub').exists()).toBe(true)
     await wrapper.findAll('nav button')[3].trigger('click')
     expect(wrapper.find('ui-ux-by-component-view-stub').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('clears the board release from the URL in the same update that changes the tab', async () => {
+    const { wrapper, nav } = mountView('osac', 'ui-epics-by-component')
+    await nextTick()
+    await nextTick()
+    await wrapper.findAll('nav button')[2].trigger('click')
+    const [params] = nav.updateParams.mock.calls.at(-1)
+    expect(params.tab).toBe('epics-by-release')
+    expect(Object.keys(params)).toContain('release')
+    expect(params.release).toBeUndefined()
     wrapper.unmount()
   })
 

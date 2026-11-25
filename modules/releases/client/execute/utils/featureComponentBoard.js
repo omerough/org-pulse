@@ -41,6 +41,13 @@ export function releasesOf(feature) {
   return seen.size > 0 ? [...seen.values()] : [UNSCHEDULED]
 }
 
+/** The option matching a requested release under the same folding that places Features; null when none. */
+export function resolveReleaseOption(options, requested) {
+  if (requested === undefined || requested === null || requested === '') return null
+  const target = fold(stripZStream(requested).trim())
+  return (options || []).find(option => fold(option) === target) ?? null
+}
+
 function compareReleases(a, b) {
   if (a === UNSCHEDULED || b === UNSCHEDULED) return (a === UNSCHEDULED) - (b === UNSCHEDULED)
   return a.localeCompare(b, 'en', { numeric: true })
@@ -61,25 +68,28 @@ function compareRanked(rankList, a, b) {
 
 const compareKeys = (a, b) => String(a).localeCompare(String(b), 'en', { numeric: true })
 
-/** One row per distinct source Epic across UI and UX evidence, with each workstream's own status. */
+const EPIC_FIELDS = ['epicType', 'status', 'assignee', 'priority', 'resolution']
+const EPIC_LISTS = ['fixVersions', 'components']
+
+/**
+ * One row per distinct source Epic across UI and UX evidence, with each workstream's own status.
+ * Both entries describe the same Epic, so a field one entry lacks (undefined) is taken from the other;
+ * an explicit null is a value and is kept.
+ */
 function mergeSources(feature, noWork) {
   const rows = new Map()
   for (const [workstream, evidence] of [['ui', uiEvidenceOf(feature)], ['ux', uxEvidenceOf(feature)]]) {
     for (const source of evidence.sources || []) {
-      const row = rows.get(source.epicKey) || {
-        epicKey: source.epicKey,
-        epicType: source.epicType,
-        status: source.status,
-        assignee: source.assignee,
-        priority: source.priority,
-        resolution: source.resolution,
-        fixVersions: source.fixVersions || [],
-        components: source.components || [],
-        ui: null,
-        ux: null
+      let row = rows.get(source.epicKey)
+      if (!row) {
+        row = { epicKey: source.epicKey, fixVersions: [], components: [], ui: null, ux: null }
+        rows.set(source.epicKey, row)
+      }
+      for (const field of EPIC_FIELDS) if (row[field] === undefined) row[field] = source[field]
+      for (const field of EPIC_LISTS) {
+        for (const value of source[field] || []) if (!row[field].includes(value)) row[field].push(value)
       }
       row[workstream] = source.localStatus
-      rows.set(source.epicKey, row)
     }
   }
   return [...rows.values()].map(row => ({ ...row, noWork: noWork.has(fold(resolutionName(row.resolution))) }))
@@ -138,15 +148,21 @@ export function analyzeFeatures(features, config, terminalOutcomeProfile = null)
       notShown.push({ key: feature.key, summary: feature.summary, resolution, reason: 'no-live-source', releases })
       continue
     }
-    if (uiEvidenceOf(feature).status === 'not-applicable') continue
+    if (uiEvidenceOf(feature).status === 'not-applicable') {
+      notShown.push({ key: feature.key, summary: feature.summary, resolution, reason: 'no-ui', releases })
+      continue
+    }
 
     const { panels, otherReason } = routeToPanels(feature, liveSources, config)
     cards.push({ feature, resolution, releases, sources, liveSources, panels, otherReason })
   }
 
-  const releaseOptions = [...new Set(cards.flatMap(card => card.releases))].sort(compareReleases)
+  const releasesWithCards = [...new Set(cards.flatMap(card => card.releases))].sort(compareReleases)
+  // Every release with an eligible or excluded Feature is selectable, so its Not shown list stays reachable.
+  const releaseOptions = [...new Set([...releasesWithCards, ...notShown.flatMap(entry => entry.releases)])]
+    .sort(compareReleases)
   const hasEpicFields = cards.some(card => card.liveSources.some(source => source.status !== undefined))
-  return { cards, notShown, releaseOptions, hasEpicFields }
+  return { cards, notShown, releaseOptions, releasesWithCards, hasEpicFields }
 }
 
 const matchesPriority = (priority, selected) =>

@@ -28,7 +28,8 @@ const userCollapsed = ref(null)
 const collapsed = computed(() => userCollapsed.value ?? isEmpty.value)
 const showAll = ref(false)
 
-watch(() => props.cards, () => { showAll.value = false })
+// Reset paging only when the listed Features change, not when the array is rebuilt with the same content.
+watch(() => props.cards.map(card => card.key).join('\n'), () => { showAll.value = false })
 
 const visibleCards = computed(() => showAll.value ? props.cards : props.cards.slice(0, props.pageSize))
 const hiddenCount = computed(() => props.cards.length - visibleCards.value.length)

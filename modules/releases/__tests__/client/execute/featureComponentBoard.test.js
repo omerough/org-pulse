@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { resolveComponentDashboard } from '../../../client/execute/utils/componentDashboardConfig'
 import {
-  analyzeFeatures, buildFeatureBoard, releasesOf, UNSCHEDULED, OTHER_REASONS
+  analyzeFeatures, buildFeatureBoard, releasesOf, resolveReleaseOption, UNSCHEDULED, OTHER_REASONS
 } from '../../../client/execute/utils/featureComponentBoard'
 
 const CONFIG = resolveComponentDashboard('osac').config
@@ -84,6 +84,60 @@ describe('placement', () => {
   })
 })
 
+describe('release options', () => {
+  it('include releases whose Features are all excluded, and the board shows their Not shown list', () => {
+    const features = [
+      feature('F-1', { fixVersions: ['0.5'] }),
+      feature('F-2', { fixVersions: ['0.4'], resolution: 'Obsolete' }),
+      feature('F-3', { fixVersions: ['0.3'], ui: evidence('not-applicable', [source('E-3')]) })
+    ]
+    const { analysis, result } = board(features, '0.4')
+    expect(analysis.releaseOptions).toEqual(['0.3', '0.4', '0.5'])
+    expect(analysis.releasesWithCards).toEqual(['0.5'])
+    expect(result.rowCount).toBe(0)
+    expect(result.notShown.map(e => e.key)).toEqual(['F-2'])
+  })
+})
+
+describe('resolveReleaseOption', () => {
+  const options = ['0.5', 'Backlog', UNSCHEDULED]
+
+  it('matches under the same folding that places Features', () => {
+    expect(resolveReleaseOption(options, '0.5.Z')).toBe('0.5')
+    expect(resolveReleaseOption(options, ' backlog ')).toBe('Backlog')
+    expect(resolveReleaseOption(options, 'unscheduled')).toBe(UNSCHEDULED)
+  })
+
+  it('returns null for blank or unknown requests', () => {
+    expect(resolveReleaseOption(options, '9.9')).toBeNull()
+    expect(resolveReleaseOption(options, '')).toBeNull()
+    expect(resolveReleaseOption(options, undefined)).toBeNull()
+  })
+})
+
+describe('source merging', () => {
+  it('keeps Epic metadata defined on either workstream entry and unions its lists', () => {
+    const uiEntry = source('E-1', { epicType: 'bootstrap', status: undefined, assignee: undefined, fixVersions: ['0.5'], components: ['Core'] })
+    const uxEntry = source('E-1', { status: 'Closed', assignee: 'Ada', fixVersions: ['0.5', '0.6'], components: ['Storage'] })
+    const { analysis } = board([feature('F-1', {
+      ui: evidence('in-progress', [uiEntry]), ux: evidence('in-progress', [uxEntry])
+    })])
+    const [merged] = analysis.cards[0].sources
+    expect(merged).toMatchObject({
+      epicType: 'bootstrap', status: 'Closed', assignee: 'Ada', fixVersions: ['0.5', '0.6'], components: ['Core', 'Storage']
+    })
+  })
+
+  it('keeps an explicit null rather than replacing it from the other entry', () => {
+    const uiEntry = source('E-1', { assignee: null })
+    const uxEntry = source('E-1', { assignee: 'Ada' })
+    const { analysis } = board([feature('F-1', {
+      ui: evidence('in-progress', [uiEntry]), ux: evidence('in-progress', [uxEntry])
+    })])
+    expect(analysis.cards[0].sources[0].assignee).toBeNull()
+  })
+})
+
 describe('eligibility', () => {
   it('excludes configured non-delivery resolutions and lists them as not shown', () => {
     const features = [
@@ -110,11 +164,16 @@ describe('eligibility', () => {
     expect(panelKeys(result, 'Core')).toEqual(['F-1'])
   })
 
-  it('excludes a Feature whose published UI evidence is not-applicable without listing it', () => {
+  it('excludes a Feature whose published UI evidence is not-applicable and lists it as no-ui', () => {
     const noUi = feature('F-1', { ui: evidence('not-applicable', [source('E-1')]) })
     const { result } = board([noUi])
     expect(panelKeys(result, 'Core')).toEqual([])
-    expect(result.notShown).toEqual([])
+    expect(result.notShown.map(e => [e.key, e.reason])).toEqual([['F-1', 'no-ui']])
+  })
+
+  it('keeps non-delivery as the reason when a Feature is both non-delivery and no-ui', () => {
+    const f = feature('F-1', { resolution: 'Obsolete', ui: evidence('not-applicable', [source('E-1')]) })
+    expect(board([f]).result.notShown.map(e => e.reason)).toEqual(['non-delivery'])
   })
 
   it('excludes a Feature whose only source Epics are no-work, and lists it', () => {

@@ -56,7 +56,8 @@ const activeTab = ref(DEFAULT_TAB)
 let updatingFromUrl = false
 
 watch(activeTab, (tab) => {
-  if (!updatingFromUrl) nav.updateParams({ tab: tab === DEFAULT_TAB ? undefined : tab })
+  // `release` belongs to the UI/UX by Component tab; changing tabs clears it in the same URL update.
+  if (!updatingFromUrl) nav.updateParams({ tab: tab === DEFAULT_TAB ? undefined : tab, release: undefined })
 })
 
 watch([() => nav.params.value?.tab, validTabs], ([tabParam]) => {
