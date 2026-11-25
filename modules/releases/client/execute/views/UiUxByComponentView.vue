@@ -35,6 +35,8 @@ const selectedPriorities = ref([])
 const selectedLabels = ref([])
 const selectedUiStatuses = ref([])
 const selectedUxStatuses = ref([])
+const ROLLUP_FILTER_HINT = 'Filters on the Feature-wide rollup across all UI/UX Epics, not the status for the selected Release or Component.'
+
 const searchQuery = ref('')
 const matchOn = ref('either')
 
@@ -310,6 +312,7 @@ onBeforeUnmount(() => {
         <UiUxStatusFilter
           label="UX status"
           all-label="All UX statuses"
+          :title="ROLLUP_FILTER_HINT"
           :options="filterOptions.uxStatuses"
           :selected="selectedUxStatuses"
           @toggle="toggleUxStatus"
@@ -317,6 +320,7 @@ onBeforeUnmount(() => {
         <UiUxStatusFilter
           label="UI status"
           all-label="All UI statuses"
+          :title="ROLLUP_FILTER_HINT"
           :options="filterOptions.uiStatuses"
           :selected="selectedUiStatuses"
           @toggle="toggleUiStatus"

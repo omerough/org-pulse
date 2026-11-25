@@ -382,6 +382,8 @@ describe('UiUxByComponentView Epic disclosure, search and status filters', () =>
     const filters = wrapper.findAllComponents({ name: 'UiUxStatusFilter' })
     expect(filters.map(f => f.props('label'))).toEqual(['UX status', 'UI status'])
     expect(filters[0].props('options')).toEqual(['design', 'in-progress'])
+    for (const filter of filters) expect(filter.attributes('title')).toContain('Feature-wide rollup')
+    expect(wrapper.text()).toContain('Feature-wide rollups across all of the Feature')
 
     filters[0].vm.$emit('toggle', 'design')
     await flushPromises()

@@ -8,7 +8,7 @@ function panel(component, { notInComponents = [] } = {}) {
 // CaaS/BMaaS/VMaaS defer to Connectivity&Fabric when the Feature itself carries that
 // Component, and an enclave-only Feature appears only under the Enclave panel.
 const OSAC_COMPONENT_DASHBOARD = {
-  scopeDescription: 'One card per Feature with UI/UX work, placed by the Feature\'s own Fix Version and by its Components and those of its UI/UX Epics. Features labelled no-ui are excluded, and enclave-only Features appear only under Enclave.',
+  scopeDescription: 'One card per Feature with UI/UX work, placed by the Feature\'s own Fix Version and by its Components and those of its UI/UX Epics. Features labelled no-ui are excluded, and enclave-only Features appear only under Enclave. UX and UI statuses are Feature-wide rollups across all of the Feature\'s UI/UX Epics, not statuses for the selected Release or Component.',
   panels: [
     panel('Enclave'),
     panel('CaaS', { notInComponents: [OSAC_CONNECTIVITY_COMPONENT] }),
