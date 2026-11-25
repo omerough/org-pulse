@@ -25,6 +25,7 @@ const REGISTRY_RELEASES = [
 ];
 
 // One UIX source Epic per Feature; the Epic mirrors the Feature's status unless overridden.
+// Default Epic keys must not contain the Feature key, or a Feature-key search would also match the Epic.
 function source(epicKey, overrides = {}) {
   return {
     epicKey, epicType: 'uix', fixVersions: ['1.1'], components: [], localStatus: 'in-progress',
@@ -35,7 +36,7 @@ function source(epicKey, overrides = {}) {
 
 function feature(key, { status = 'Closed', components = [], fixVersions = ['1.1'], labels = [], resolution = null,
   assignee = null, sources, ui = 'in-progress', ux = 'in-progress', enclaveOnly = false } = {}) {
-  const epics = sources || [source(`${key}-E`, { status, fixVersions })];
+  const epics = sources || [source(key.replace('OSAC-', 'OSAC-E'), { status, fixVersions })];
   const evidence = (value, extra = {}) => ({ status: value, conflict: false, scopes: [], sources: epics, ...extra });
   return {
     key, summary: `${key} summary`, status, statusCategory: 'In Progress', resolution, priority: 'Normal',
