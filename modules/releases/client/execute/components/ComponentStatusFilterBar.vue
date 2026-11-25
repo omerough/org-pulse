@@ -7,17 +7,19 @@ const props = defineProps({
   statusOptions: { type: Array, default: () => [] },
   teamOptions: { type: Array, default: () => [] },
   assigneeOptions: { type: Array, default: () => [] },
+  priorityOptions: { type: Array, default: () => [] },
   labelOptions: { type: Array, default: () => [] },
   selectedComponents: { type: Array, default: () => [] },
   selectedStatuses: { type: Array, default: () => [] },
   selectedTeams: { type: Array, default: () => [] },
   selectedAssignees: { type: Array, default: () => [] },
+  selectedPriorities: { type: Array, default: () => [] },
   selectedLabels: { type: Array, default: () => [] },
   // Current user's Jira display name for the "Assigned to me" shortcut; null hides it.
   meAssignee: { type: String, default: null }
 })
 
-const emit = defineEmits(['toggle-component', 'toggle-status', 'toggle-team', 'toggle-assignee', 'toggle-label', 'set-assignee-me', 'clear'])
+const emit = defineEmits(['toggle-component', 'toggle-status', 'toggle-team', 'toggle-assignee', 'toggle-priority', 'toggle-label', 'set-assignee-me', 'clear'])
 
 const assigneeSearch = ref('')
 
@@ -32,11 +34,13 @@ const componentOpen = ref(false)
 const statusOpen = ref(false)
 const teamOpen = ref(false)
 const assigneeOpen = ref(false)
+const priorityOpen = ref(false)
 const labelOpen = ref(false)
 const componentRef = ref(null)
 const statusRef = ref(null)
 const teamRef = ref(null)
 const assigneeRef = ref(null)
+const priorityRef = ref(null)
 const labelRef = ref(null)
 
 function closeAll() {
@@ -44,11 +48,12 @@ function closeAll() {
   statusOpen.value = false
   teamOpen.value = false
   assigneeOpen.value = false
+  priorityOpen.value = false
   labelOpen.value = false
 }
 
 function toggleDropdown(name) {
-  const map = { component: componentOpen, status: statusOpen, team: teamOpen, assignee: assigneeOpen, label: labelOpen }
+  const map = { component: componentOpen, status: statusOpen, team: teamOpen, assignee: assigneeOpen, priority: priorityOpen, label: labelOpen }
   const wasOpen = map[name].value
   closeAll()
   if (!wasOpen) {
@@ -58,7 +63,7 @@ function toggleDropdown(name) {
 }
 
 function handleClickOutside(event) {
-  const refs = [componentRef, statusRef, teamRef, assigneeRef, labelRef]
+  const refs = [componentRef, statusRef, teamRef, assigneeRef, priorityRef, labelRef]
   for (const r of refs) {
     if (r.value && r.value.contains(event.target)) return
   }
@@ -71,7 +76,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 const hasActiveFilters = computed(() =>
   props.selectedComponents.length > 0 || props.selectedStatuses.length > 0 ||
   props.selectedTeams.length > 0 || props.selectedAssignees.length > 0 ||
-  props.selectedLabels.length > 0
+  props.selectedPriorities.length > 0 || props.selectedLabels.length > 0
 )
 
 function multiLabel(selected, allLabel) {
@@ -172,6 +177,23 @@ const optionClass = 'flex items-center gap-2 px-3 py-1.5 text-xs text-gray-900 d
             </label>
             <div v-if="assigneeOptions.length === 0" class="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">No options available</div>
             <div v-else-if="filteredAssigneeOptions.length === 0" class="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">No matches for "{{ assigneeSearch }}"</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Priority -->
+      <div v-if="priorityOptions.length > 0" class="flex flex-col gap-0.5">
+        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">Priority</label>
+        <div ref="priorityRef" class="relative">
+          <button type="button" @click="toggleDropdown('priority')" @keydown.escape="priorityOpen = false" :aria-expanded="priorityOpen" aria-haspopup="listbox" :class="selectedPriorities.length ? btnActiveClass : btnClass">
+            <span class="truncate max-w-[140px]">{{ multiLabel(selectedPriorities, 'All priorities') }}</span>
+            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          <div v-if="priorityOpen" role="group" :class="dropdownClass" @keydown.escape="priorityOpen = false">
+            <label v-for="p in priorityOptions" :key="p" :class="optionClass">
+              <input type="checkbox" :checked="selectedPriorities.includes(p)" @change="emit('toggle-priority', p)" class="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500" />
+              <span class="truncate">{{ p }}</span>
+            </label>
           </div>
         </div>
       </div>

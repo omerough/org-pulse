@@ -1,18 +1,16 @@
-const OSAC_EXCLUDED_LABELS = ['no-ui', 'ui-enclave-only']
 const OSAC_CONNECTIVITY_COMPONENT = 'Connectivity&Fabric'
 
-function panel(component, { excludedLabels = OSAC_EXCLUDED_LABELS, notInComponents = [] } = {}) {
-  return { id: component, component, excludedLabels, notInComponents }
+function panel(component, { notInComponents = [] } = {}) {
+  return { id: component, component, notInComponents }
 }
 
-// Panels follow the saved Jira filters: only Enclave shows `ui-enclave-only` Epics, and
-// CaaS/BMaaS/VMaaS leave Connectivity&Fabric Epics to their own panel.
+// A Feature joins a panel through its own Components or those of its live source Epics.
+// CaaS/BMaaS/VMaaS defer to Connectivity&Fabric when the Feature itself carries that
+// Component, and an enclave-only Feature appears only under the Enclave panel.
 const OSAC_COMPONENT_DASHBOARD = {
-  jiraProjectKey: 'OSAC',
-  scopeLabel: 'bootstrap',
-  scopeDescription: 'Bootstrap Epics only (label bootstrap). Epics labelled no-ui are excluded, and ui-enclave-only Epics appear only under Enclave.',
+  scopeDescription: 'One card per Feature with UI/UX work, placed by the Feature\'s own Fix Version and by its Components and those of its UI/UX Epics. Features labelled no-ui are excluded, and enclave-only Features appear only under Enclave.',
   panels: [
-    panel('Enclave', { excludedLabels: ['no-ui'] }),
+    panel('Enclave'),
     panel('CaaS', { notInComponents: [OSAC_CONNECTIVITY_COMPONENT] }),
     panel('BMaaS', { notInComponents: [OSAC_CONNECTIVITY_COMPONENT] }),
     panel('VMaaS', { notInComponents: [OSAC_CONNECTIVITY_COMPONENT] }),
@@ -22,7 +20,14 @@ const OSAC_COMPONENT_DASHBOARD = {
     panel('Storage'),
     panel('Observability')
   ],
-  // Highest first, mirroring the saved filters' `ORDER BY status DESC, priority DESC`.
+  enclavePanel: 'Enclave',
+  otherPanel: 'Other',
+  // Feature resolutions that mean no delivery. A project profile's terminalOutcomes.nonDelivery
+  // takes precedence when it defines one.
+  nonDeliveryResolutions: ['Duplicate', "Won't Do", 'Obsolete', 'Cannot Reproduce', 'Declined'],
+  // Epic resolutions the collector treats as no work; such source Epics are labelled, not hidden.
+  noWorkResolutions: ["Won't Do", 'Obsolete', 'Duplicate', 'Cannot Reproduce'],
+  // Highest first.
   statusRank: ['Closed', 'In Progress', 'Backlog', 'New'],
   priorityRank: ['Blocker', 'Critical', 'Major', 'Normal', 'Minor', 'Undefined']
 }

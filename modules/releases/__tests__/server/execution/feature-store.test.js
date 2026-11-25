@@ -1125,6 +1125,39 @@ describe('rebuildIndex', () => {
   })
 })
 
+describe('rebuildIndex — evidence source projection', () => {
+  const projectedSource = async (source) => {
+    const storage = makeStorage({
+      'releases/execution/features/X-1.json': {
+        key: 'X-1',
+        uiEvidence: { status: 'in-progress', conflict: false, scopes: [], sources: [source] }
+      }
+    })
+    await rebuildIndex(storage)
+    return storage._files['releases/execution/index.json'].features[0].uiEvidence.sources[0]
+  }
+
+  const collectorSource = {
+    epicKey: 'X-9', epicType: 'uix',
+    status: 'In Progress', assignee: 'Ada Lovelace', priority: 'Major', resolution: null,
+    fixVersions: ['0.5'], components: ['Core'], localStatus: 'in-progress',
+    stageLabels: ['ux-in-progress'], routingLabels: []
+  }
+
+  it('equals the collector lean source, including Epic Jira fields and explicit nulls', async () => {
+    expect(await projectedSource({ ...collectorSource, labels: ['x'], localBasis: [] })).toEqual(collectorSource)
+  })
+
+  it('does not fabricate Epic Jira fields for a payload that predates them', async () => {
+    const legacy = { ...collectorSource }
+    for (const field of ['status', 'assignee', 'priority', 'resolution']) delete legacy[field]
+    const projected = await projectedSource(legacy)
+    expect(projected).toEqual(legacy)
+    expect(Object.keys(projected)).not.toContain('status')
+    expect(Object.keys(projected)).not.toContain('resolution')
+  })
+})
+
 describe('writeFeatures', () => {
   it('writes feature files and rebuilds index', async () => {
     const storage = makeStorage({})

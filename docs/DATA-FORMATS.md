@@ -1632,6 +1632,7 @@ Derived summary index of all features in the unified feature store. Rebuilt auto
   configured, or on a payload predating this contract.
 - `uiEvidence`/`uxEvidence` are a lean, filterable projection of the full detail-file evidence (see
   "Optional — UI/UX Evidence" below): `status`, `conflict`, `scopes[]`, `sources[]` (with
+  `status`/`assignee`/`priority`/`resolution` of the source Epic and
   `fixVersions`/`components`/`localStatus`/`stageLabels`/`routingLabels` per source), and `enclaveOnly`
   on `uiEvidence` when the source evidence carries it. `basis[]` and per-source `labels`/`localConflict`/
   `localBasis` — the full provenance trail — are detail-file only, not duplicated into the index. A
@@ -1924,6 +1925,7 @@ fields, with `status: "unknown"`.
     "basis": [ { "signal": "label:ui-completed | status", "epicKey": "OSAC-3595" } ],
     "sources": [
       { "epicKey": "OSAC-3595", "epicType": "bootstrap | ui-impl | uix",
+        "status": "In Progress", "assignee": "Ada Lovelace", "priority": "Major", "resolution": null,
         "fixVersions": ["0.4"], "components": ["Dashboard"], "labels": ["ui-completed"],
         "stageLabels": ["ui-completed"], "routingLabels": [],
         "localStatus": "completed", "localConflict": false, "localBasis": ["label:ui-completed"] }
@@ -1948,6 +1950,10 @@ fields, with `status: "unknown"`.
   non-prep children are PRD/design/misc support work, never UI-implementation evidence), `ui-impl`
   (summary/label identifies it as UI implementation work), or `uix` (contributes to both `uiEvidence`
   and `uxEvidence`). An Epic with none of these signals is excluded from both fields entirely.
+- `sources[].status`/`assignee`/`priority`/`resolution` are the source Epic's own Jira values (`null`
+  when unset; `assignee` is a display name). They are present in both the detail file and the index
+  projection and are absent from payloads that predate them, which consumers must treat as "not
+  carried", never as "unset". The app's index projection copies them only when present.
 - `sources[].labels` are the Epic's full raw label set; `stageLabels`/`routingLabels` are the subset
   that are UI/UX stage or routing labels respectively (e.g. the project's configured `noUiLabel`,
   `enclaveOnlyLabel`). `localStatus`/`localConflict`/`localBasis` are that single source's own

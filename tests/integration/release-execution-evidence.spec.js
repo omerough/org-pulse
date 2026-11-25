@@ -211,11 +211,11 @@ function installExecuteApi(page, { delayOsacFeatures = false } = {}) {
   };
 }
 
-// Feature Tracking, Epics by Release and UI Epics by Component are offered for OSAC only.
+// Feature Tracking, Epics by Release and UI/UX by Component are offered for OSAC only.
 async function expectSharedTabs(page, projectId) {
   const tabs = page.locator('nav[aria-label="Execute sub-tabs"] button');
   await expect(tabs).toHaveText(projectId === 'osac'
-    ? ['Feature List', 'Feature Tracking', 'Epics by Release', 'UI Epics by Component']
+    ? ['Feature List', 'Feature Tracking', 'Epics by Release', 'UI/UX by Component']
     : ['Feature List']);
 }
 

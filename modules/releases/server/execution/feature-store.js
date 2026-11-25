@@ -39,6 +39,10 @@ const PIPELINE_INDEX_FIELDS = [
 // Epics, so an absent field and a genuinely empty one render identically.
 const DEFAULT_UI_UX_EVIDENCE = { status: 'unknown', conflict: false, scopes: [], sources: [] };
 
+// Epic Jira fields the collector copies onto each evidence source. Passed through only
+// when present so payloads that predate them project byte-identically.
+const UI_UX_SOURCE_EPIC_FIELDS = ['status', 'assignee', 'priority', 'resolution'];
+
 // Lean index projection (mirrors the collector's project_evidence_for_index):
 // enough per-scope/per-source data to filter without fetching the detail
 // file, which keeps the full basis[]/localBasis provenance.
@@ -57,7 +61,7 @@ function projectUiUxEvidenceForIndex(evidence) {
       };
     }),
     sources: (e.sources || []).map(function(s) {
-      return {
+      const source = {
         epicKey: s.epicKey,
         epicType: s.epicType || null,
         fixVersions: s.fixVersions || [],
@@ -66,6 +70,11 @@ function projectUiUxEvidenceForIndex(evidence) {
         stageLabels: s.stageLabels || [],
         routingLabels: s.routingLabels || []
       };
+      for (let i = 0; i < UI_UX_SOURCE_EPIC_FIELDS.length; i++) {
+        const field = UI_UX_SOURCE_EPIC_FIELDS[i];
+        if (Object.prototype.hasOwnProperty.call(s, field)) source[field] = s[field];
+      }
+      return source;
     })
   };
   if (Object.prototype.hasOwnProperty.call(e, 'enclaveOnly')) {

@@ -66,12 +66,14 @@
     "sources": [
       {
         "epicKey": "TEST9-3001", "epicType": "ui-impl",
+        "status": "Done", "assignee": "Priya Natarajan", "priority": "Normal", "resolution": "Done",
         "fixVersions": ["rhoai-3.4"], "components": ["Dashboard"], "labels": ["ui-completed"],
         "stageLabels": ["ui-completed"], "routingLabels": [],
         "localStatus": "completed", "localConflict": false, "localBasis": ["label:ui-completed"]
       },
       {
         "epicKey": "TEST9-3002", "epicType": "ui-impl",
+        "status": "New", "assignee": "Priya Natarajan", "priority": "Normal", "resolution": null,
         "fixVersions": ["rhoai-3.5"], "components": ["Dashboard"], "labels": ["no-ui"],
         "stageLabels": [], "routingLabels": ["no-ui"],
         "localStatus": "not-started", "localConflict": false, "localBasis": ["status:to-do"]
@@ -91,6 +93,7 @@
     "sources": [
       {
         "epicKey": "TEST9-3004", "epicType": "uix",
+        "status": "In Progress", "assignee": "Priya Natarajan", "priority": "Normal", "resolution": null,
         "fixVersions": ["rhoai-3.4"], "components": ["Backend"], "labels": ["ux-in-progress"],
         "stageLabels": ["ux-in-progress"], "routingLabels": [],
         "localStatus": "in-progress", "localConflict": false, "localBasis": ["label:ux-in-progress"]
