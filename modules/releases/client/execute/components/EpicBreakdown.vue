@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import StatusBadge from './StatusBadge.vue'
 import { componentDisplayLabel } from '../composables/useComponentStatusFilter'
 
@@ -91,6 +91,20 @@ function progressBarColor(pct) {
   if (pct >= 70) return 'bg-green-500'
   if (pct >= 40) return 'bg-yellow-500'
   return 'bg-red-500'
+}
+
+const LABEL_PREVIEW_COUNT = 2
+const expandedLabelEpics = ref(new Set())
+
+function visibleLabels(epic) {
+  const labels = epic.labels || []
+  return expandedLabelEpics.value.has(epic.key) ? labels : labels.slice(0, LABEL_PREVIEW_COUNT)
+}
+
+function toggleLabels(key) {
+  const next = new Set(expandedLabelEpics.value)
+  if (!next.delete(key)) next.add(key)
+  expandedLabelEpics.value = next
 }
 
 const epicData = computed(() =>
@@ -268,14 +282,18 @@ const epicData = computed(() =>
 
         <!-- Labels -->
         <span
-          v-for="label in (epic.labels || []).slice(0, 2)"
+          v-for="label in visibleLabels(epic)"
           :key="label"
           class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-400"
         >{{ label }}</span>
-        <span
-          v-if="(epic.labels || []).length > 2"
-          class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
-        >+{{ epic.labels.length - 2 }}</span>
+        <button
+          v-if="(epic.labels || []).length > LABEL_PREVIEW_COUNT"
+          type="button"
+          data-testid="toggle-labels"
+          :aria-expanded="expandedLabelEpics.has(epic.key)"
+          class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+          @click="toggleLabels(epic.key)"
+        >{{ expandedLabelEpics.has(epic.key) ? 'Show fewer' : `+${epic.labels.length - LABEL_PREVIEW_COUNT}` }}</button>
 
         <!-- Age -->
         <span
