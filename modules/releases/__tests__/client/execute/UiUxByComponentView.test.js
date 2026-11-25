@@ -169,6 +169,29 @@ describe('UiUxByComponentView', () => {
     expect(entries[1].text()).toContain('no-ui')
   })
 
+  it('defaults to a selectable release when no release has visible cards', async () => {
+    featuresResponse = () => ({
+      state: 'supported',
+      features: [
+        feature('OSAC-2', { fixVersions: ['0.5'], resolution: "Won't Do", status: 'Closed' }),
+        feature('OSAC-4', { fixVersions: ['0.4'], uiStatus: 'not-applicable' })
+      ]
+    })
+    const { wrapper } = await mountView()
+    expect(wrapper.get('#ui-ux-board-release').element.value).toBe('0.5')
+    expect(wrapper.findAll('[data-testid="not-shown-entry"]').map(e => e.get('a').text())).toEqual(['OSAC-2'])
+  })
+
+  it('tolerates registry releases with malformed Fix Versions', async () => {
+    REGISTRY_RELEASES.push({ id: 'fx-bad', fixVersions: '0.9', state: 'active', milestones: { ga: isoDay(5) } })
+    try {
+      const { wrapper } = await mountView()
+      expect(wrapper.get('#ui-ux-board-release').element.value).toBe('0.5')
+    } finally {
+      REGISTRY_RELEASES.pop()
+    }
+  })
+
   it('does not rewrite the route when it unmounts', async () => {
     const { wrapper, nav } = await mountView({ release: '0.5' })
     nav.updateParams.mockClear()

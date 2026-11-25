@@ -52,6 +52,41 @@ describe('shared Execute presentation', () => {
     wrapper.unmount()
   })
 
+  it.each([
+    ['another tab', 'feature-tracking'],
+    ['an unknown tab', 'no-such-tab'],
+    ['the default tab', undefined]
+  ])('drops a stale release from a URL that resolves to %s, in place', async (_, tab) => {
+    mockProjectId.value = 'osac'
+    const nav = { params: ref({ tab, release: '0.5' }), updateParams: vi.fn() }
+    const wrapper = shallowMount(ExecuteView, { global: { provide: { moduleNav: nav } } })
+    await nextTick()
+    expect(nav.updateParams).toHaveBeenCalledWith({ release: undefined }, { push: false })
+    wrapper.unmount()
+  })
+
+  it('drops a stale release when a URL-driven change leaves the board tab', async () => {
+    const { wrapper, nav } = mountView('osac', 'ui-epics-by-component')
+    nav.params.value = { tab: 'ui-epics-by-component', release: '0.5' }
+    await nextTick()
+    expect(nav.updateParams).not.toHaveBeenCalled()
+
+    nav.params.value = { tab: 'epics-by-release', release: '0.5' }
+    await nextTick()
+    expect(nav.updateParams).toHaveBeenCalledWith({ release: undefined }, { push: false })
+    wrapper.unmount()
+  })
+
+  it('keeps the release of a board URL, such as the Feature Detail return', async () => {
+    const nav = { params: ref({ tab: 'ui-epics-by-component', release: '0.5' }), updateParams: vi.fn() }
+    mockProjectId.value = 'osac'
+    const wrapper = shallowMount(ExecuteView, { global: { provide: { moduleNav: nav } } })
+    await nextTick()
+    expect(nav.updateParams).not.toHaveBeenCalled()
+    expect(wrapper.find('ui-ux-by-component-view-stub').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
   it('shows only Feature List for Flight Control', () => {
     const { wrapper } = mountView('flightctl')
 
