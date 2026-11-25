@@ -44,12 +44,12 @@ function source(epicKey, overrides = {}) {
   }
 }
 
-function feature(key, { sources = [source(`${key}-E`)], uiStatus = 'in-progress', ...overrides } = {}) {
+function feature(key, { sources = [source(`${key}-E`)], uiStatus = 'in-progress', uxStatus = 'in-progress', ...overrides } = {}) {
   const evidence = status => ({ status, conflict: false, scopes: [], sources })
   return {
     key, summary: `${key} summary`, status: 'In Progress', resolution: null, priority: 'Major',
     assignee: 'Feature Owner', fixVersions: ['0.5'], components: ['Core'], labels: [],
-    uiEvidence: evidence(uiStatus), uxEvidence: evidence('in-progress'), ...overrides
+    uiEvidence: evidence(uiStatus), uxEvidence: evidence(uxStatus), ...overrides
   }
 }
 
@@ -276,12 +276,11 @@ describe('UiUxByComponentView', () => {
     expect(cardKeys(wrapper, 'Core')).toEqual(['OSAC-2'])
   })
 
-  it('opens Feature Detail, remembering the board release for the way back', async () => {
+  it('links Features to Jira without any in-app Feature Detail navigation', async () => {
     const { wrapper, nav } = await mountView()
-    await panel(wrapper, 'Storage').get('[data-testid="open-feature"]').trigger('click')
-    expect(nav.navigateTo).toHaveBeenCalledWith('feature-detail', {
-      key: 'OSAC-1', from: 'ui-epics-by-component', boardRelease: '0.5'
-    })
+    expect(panel(wrapper, 'Storage').get('a').attributes('href')).toBe('https://redhat.atlassian.net/browse/OSAC-1')
+    expect(wrapper.find('[data-testid="open-feature"]').exists()).toBe(false)
+    expect(nav.navigateTo).not.toHaveBeenCalled()
   })
 
   it('shows the release prompt rather than an empty board when the inventory is unavailable', async () => {
@@ -290,3 +289,128 @@ describe('UiUxByComponentView', () => {
     expect(wrapper.text()).toContain('Select a release')
   })
 })
+
+describe('UiUxByComponentView Epic disclosure, search and status filters', () => {
+  const MULTI = () => ({
+    state: 'supported',
+    features: [
+      feature('OSAC-1', { assignee: 'Linus', summary: 'Provisioning wizard', sources: [source('EPIC-9', { assignee: 'Ada' }), source('EPIC-10')] }),
+      feature('OSAC-2', { assignee: 'Grace', fixVersions: ['0.4', '0.5'], summary: 'Storage tiers', uxStatus: 'design', uiStatus: 'not-started', sources: [source('EPIC-20')] })
+    ]
+  })
+
+  const cardFor = (wrapper, key) => wrapper.findAll('[data-testid="feature-card"]').find(card => card.get('a').text() === key)
+  const epicsOpen = (wrapper, key) => cardFor(wrapper, key).get('[data-testid="epics-toggle"]').attributes('aria-expanded') === 'true'
+  const search = (wrapper, text) => wrapper.get('#ui-ux-board-search').setValue(text)
+
+  beforeEach(() => { featuresResponse = MULTI })
+
+  it('collapses every Epic table by default and toggles one Feature at a time', async () => {
+    const { wrapper } = await mountView()
+    expect(epicsOpen(wrapper, 'OSAC-1')).toBe(false)
+    expect(epicsOpen(wrapper, 'OSAC-2')).toBe(false)
+    await cardFor(wrapper, 'OSAC-1').get('[data-testid="epics-toggle"]').trigger('click')
+    expect(epicsOpen(wrapper, 'OSAC-1')).toBe(true)
+    expect(epicsOpen(wrapper, 'OSAC-2')).toBe(false)
+  })
+
+  it('expands and collapses all, with a manual toggle overriding the bulk choice', async () => {
+    const { wrapper } = await mountView()
+    await wrapper.get('[data-testid="expand-all"]').trigger('click')
+    expect(epicsOpen(wrapper, 'OSAC-1') && epicsOpen(wrapper, 'OSAC-2')).toBe(true)
+    await cardFor(wrapper, 'OSAC-2').get('[data-testid="epics-toggle"]').trigger('click')
+    expect(epicsOpen(wrapper, 'OSAC-2')).toBe(false)
+    await wrapper.get('[data-testid="collapse-all"]').trigger('click')
+    expect(epicsOpen(wrapper, 'OSAC-1') || epicsOpen(wrapper, 'OSAC-2')).toBe(false)
+  })
+
+  it('reveals and highlights Epic rows matched by an Epic-level filter, not Feature-only matches', async () => {
+    const { wrapper } = await mountView()
+    wrapper.getComponent(ComponentStatusFilterBar).vm.$emit('toggle-assignee', 'Ada')
+    await flushPromises()
+    expect(epicsOpen(wrapper, 'OSAC-1')).toBe(true)
+    const rows = cardFor(wrapper, 'OSAC-1').findAll('[data-testid="source-row"]')
+    expect(rows.map(r => r.attributes('data-matched'))).toEqual(['true', undefined])
+    expect(cardFor(wrapper, 'OSAC-1').get('[data-testid="epics-match-count"]').text()).toContain('1 match')
+
+    wrapper.getComponent(ComponentStatusFilterBar).vm.$emit('toggle-assignee', 'Ada')
+    wrapper.getComponent(ComponentStatusFilterBar).vm.$emit('toggle-assignee', 'Linus')
+    await flushPromises()
+    expect(epicsOpen(wrapper, 'OSAC-1')).toBe(false)
+  })
+
+  it('resets manual and bulk expansion when a filter, the search or the release changes', async () => {
+    const { wrapper } = await mountView()
+    await wrapper.get('[data-testid="expand-all"]').trigger('click')
+    await search(wrapper, 'wizard')
+    expect(epicsOpen(wrapper, 'OSAC-1')).toBe(false)
+
+    await cardFor(wrapper, 'OSAC-1').get('[data-testid="epics-toggle"]').trigger('click')
+    wrapper.getComponent(ComponentStatusFilterBar).vm.$emit('toggle-priority', 'Major')
+    await flushPromises()
+    expect(epicsOpen(wrapper, 'OSAC-1')).toBe(false)
+
+    await wrapper.get('[data-testid="expand-all"]').trigger('click')
+    await wrapper.get('#ui-ux-board-release').setValue('0.4')
+    await wrapper.get('#ui-ux-board-release').setValue('0.5')
+    await flushPromises()
+    expect(epicsOpen(wrapper, 'OSAC-1')).toBe(false)
+  })
+
+  it('searches by Feature key, summary and Epic key within the release', async () => {
+    const { wrapper } = await mountView()
+    const listed = () => wrapper.findAll('[data-testid="feature-card"]').map(card => card.get('a').text())
+    await search(wrapper, 'osac-2')
+    expect(listed()).toEqual(['OSAC-2'])
+    await search(wrapper, 'wizard')
+    expect(listed()).toEqual(['OSAC-1'])
+    await search(wrapper, 'nothing here')
+    expect(wrapper.get('[data-testid="no-features-note"]').text()).toBe('No Features match the current filters.')
+  })
+
+  it('reveals only the Epic row whose key matched the search', async () => {
+    const { wrapper } = await mountView()
+    await search(wrapper, 'EPIC-10')
+    expect(epicsOpen(wrapper, 'OSAC-1')).toBe(true)
+    expect(cardFor(wrapper, 'OSAC-1').findAll('[data-testid="source-row"]').map(r => r.attributes('data-matched'))).toEqual([undefined, 'true'])
+    await search(wrapper, 'wizard')
+    expect(epicsOpen(wrapper, 'OSAC-1')).toBe(false)
+  })
+
+  it('filters on Feature-level UX and UI status and clears them from the toolbar', async () => {
+    const { wrapper } = await mountView()
+    const filters = wrapper.findAllComponents({ name: 'UiUxStatusFilter' })
+    expect(filters.map(f => f.props('label'))).toEqual(['UX status', 'UI status'])
+    expect(filters[0].props('options')).toEqual(['design', 'in-progress'])
+
+    filters[0].vm.$emit('toggle', 'design')
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="feature-card"]').map(c => c.get('a').text())).toEqual(['OSAC-2'])
+    expect(wrapper.get('[data-testid="clear-board-filters"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="clear-board-filters"]').trigger('click')
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(2)
+    expect(wrapper.find('[data-testid="clear-board-filters"]').exists()).toBe(false)
+  })
+
+  it('leaves Clear to the filter bar when one of its filters is active', async () => {
+    const { wrapper } = await mountView()
+    await search(wrapper, 'wizard')
+    expect(wrapper.find('[data-testid="clear-board-filters"]').exists()).toBe(true)
+    wrapper.getComponent(ComponentStatusFilterBar).vm.$emit('toggle-priority', 'Major')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="clear-board-filters"]').exists()).toBe(false)
+    wrapper.getComponent(ComponentStatusFilterBar).vm.$emit('clear')
+    await flushPromises()
+    expect(wrapper.get('#ui-ux-board-search').element.value).toBe('')
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(2)
+  })
+
+  it('names the Jira status control and its Match on selector', async () => {
+    const { wrapper } = await mountView()
+    expect(wrapper.getComponent(ComponentStatusFilterBar).props('statusLabel')).toBe('Jira status')
+    expect(wrapper.get('label[for="ui-ux-board-match-on"]').text()).toBe('Match Jira status, assignee, priority on')
+    expect(wrapper.findAll('label').map(l => l.text())).toContain('Jira status')
+  })
+})
+

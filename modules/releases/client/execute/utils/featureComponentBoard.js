@@ -9,6 +9,13 @@ import {
 export const UNSCHEDULED = 'Unscheduled'
 export const MATCH_ON_VALUES = ['either', 'feature', 'epics']
 
+// Display order and labels for the published UI/UX workstream statuses.
+export const UI_UX_STATUS_LABELS = {
+  'not-started': 'Not Started', design: 'Design', 'in-progress': 'In Progress', completed: 'Completed',
+  mixed: 'Mixed', unknown: 'Unknown', 'not-applicable': 'N/A'
+}
+const UI_UX_STATUS_ORDER = Object.keys(UI_UX_STATUS_LABELS)
+
 export const OTHER_REASONS = {
   enclaveWithoutComponent: 'enclave-only label, no Enclave component',
   noComponent: 'no component on Feature or source epics',
@@ -170,7 +177,12 @@ export function analyzeFeatures(features, config, terminalOutcomeProfile = null)
 const matchesPriority = (priority, selected) =>
   selected.length === 0 || selected.includes(priority || 'Undefined')
 
-/** Which of the Feature and its live source Epics satisfy every active status/assignee/priority filter. */
+const matchesWorkstream = (status, selected) => selected.length === 0 || selected.includes(status)
+
+/**
+ * Whether the card passes every active filter, and which Epics matched: `via` for the Feature/Epic
+ * status, assignee and priority filters, `searchEpics` for Epic keys matching the search text.
+ */
 function evaluateCard(card, filters, matchOn) {
   const { feature, liveSources } = card
   const tests = []
@@ -185,7 +197,20 @@ function evaluateCard(card, filters, matchOn) {
   }
 
   const via = { feature: false, epics: new Set() }
-  let passes = matchesLabelQuery(feature, filters.labels)
+  let passes = matchesLabelQuery(feature, filters.labels) &&
+    matchesWorkstream(uiEvidenceOf(feature).status, filters.uiStatuses) &&
+    matchesWorkstream(uxEvidenceOf(feature).status, filters.uxStatuses)
+
+  const query = filters.search.trim().toLowerCase()
+  const searchEpics = new Set()
+  if (query) {
+    const featureHit = [feature.key, feature.summary].some(text => String(text ?? '').toLowerCase().includes(query))
+    for (const source of card.sources) {
+      if (String(source.epicKey).toLowerCase().includes(query)) searchEpics.add(source.epicKey)
+    }
+    if (!featureHit && searchEpics.size === 0) passes = false
+  }
+
   for (const { test } of tests) {
     const featureHit = matchOn !== 'epics' && test(feature)
     const epicHits = matchOn === 'feature' ? [] : liveSources.filter(test)
@@ -193,10 +218,10 @@ function evaluateCard(card, filters, matchOn) {
     via.feature ||= featureHit
     for (const source of epicHits) via.epics.add(source.epicKey)
   }
-  return { passes, via: tests.length > 0 ? via : null }
+  return { passes, via: tests.length > 0 ? via : null, searchEpics }
 }
 
-function toBoardCard(card, panelComponent, config, via) {
+function toBoardCard(card, panelComponent, config, { via, searchEpics }) {
   const { feature } = card
   const sortedSources = [...card.sources].sort((a, b) =>
     compareRanked(config.statusRank, a.status, b.status) ||
@@ -216,7 +241,10 @@ function toBoardCard(card, panelComponent, config, via) {
     components: feature.components || [],
     ui: { status: ui.status, conflict: !!ui.conflict },
     ux: { status: ux.status, conflict: !!ux.conflict },
-    sources: sortedSources.map(source => ({ ...source, matched: !!via && via.epics.has(source.epicKey) })),
+    sources: sortedSources.map(source => ({
+      ...source,
+      matched: (!!via && via.epics.has(source.epicKey)) || searchEpics.has(source.epicKey)
+    })),
     alsoIn: card.panels.filter(component => component !== panelComponent),
     otherReason: panelComponent === null ? card.otherReason : null,
     matchedVia: via ? { feature: via.feature, epics: [...via.epics].sort(compareKeys) } : null
@@ -234,6 +262,12 @@ function collectPriorityOptions(items, config) {
   return values.sort((a, b) => compareRanked(config.priorityRank, a, b))
 }
 
+function collectWorkstreamStatuses(cards, evidenceOf) {
+  const present = new Set(cards.map(({ feature }) => evidenceOf(feature).status))
+  const unlisted = [...present].filter(status => !UI_UX_STATUS_ORDER.includes(status)).sort()
+  return [...UI_UX_STATUS_ORDER.filter(status => present.has(status)), ...unlisted]
+}
+
 function collectFeatureLabelOptions(cards) {
   const byFolded = new Map()
   for (const { feature } of cards) {
@@ -248,10 +282,11 @@ function collectFeatureLabelOptions(cards) {
 /** Groups the analyzed Feature cards of one release into component panels plus Other. */
 export function buildFeatureBoard(analysis, config, release, filters = {}) {
   const {
-    components = [], statuses = [], assignees = [], priorities = [], labels = [], matchOn = 'either'
+    components = [], statuses = [], assignees = [], priorities = [], labels = [], matchOn = 'either',
+    uiStatuses = [], uxStatuses = [], search = ''
   } = filters
   const effectiveMatchOn = analysis.hasEpicFields ? matchOn : 'feature'
-  const normalized = { statuses, assignees, priorities, labels }
+  const normalized = { statuses, assignees, priorities, labels, uiStatuses, uxStatuses, search }
   const target = fold(release)
   const inRelease = analysis.cards.filter(card => card.releases.some(r => fold(r) === target))
   const evaluated = new Map(inRelease.map(card => [card, evaluateCard(card, normalized, effectiveMatchOn)]))
@@ -271,7 +306,7 @@ export function buildFeatureBoard(analysis, config, release, filters = {}) {
     const narrowed = wantedComponents.length > 0 && !wantedComponents.includes(fold(def.component))
     const cards = narrowed ? [] : members
       .filter(card => evaluated.get(card).passes)
-      .map(card => toBoardCard(card, isOther ? null : def.component, config, evaluated.get(card).via))
+      .map(card => toBoardCard(card, isOther ? null : def.component, config, evaluated.get(card)))
       .sort((a, b) => compareBoardCards(config, a, b))
     for (const card of cards) distinct.add(card.key)
     rowCount += cards.length
@@ -291,7 +326,9 @@ export function buildFeatureBoard(analysis, config, release, filters = {}) {
       statuses: collectStatusOptions(optionItems, item => item.status),
       assignees: collectAssigneeOptions(optionItems, item => item.assignee),
       priorities: collectPriorityOptions(optionItems, config),
-      labels: collectFeatureLabelOptions(inRelease)
+      labels: collectFeatureLabelOptions(inRelease),
+      uiStatuses: collectWorkstreamStatuses(inRelease, uiEvidenceOf),
+      uxStatuses: collectWorkstreamStatuses(inRelease, uxEvidenceOf)
     }
   }
 }

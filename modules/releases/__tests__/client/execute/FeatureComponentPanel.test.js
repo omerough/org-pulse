@@ -33,10 +33,15 @@ describe('FeatureComponentPanel', () => {
     expect(wrapper.get('[data-testid="ui-badge"]').text()).toContain('Not Started')
   })
 
-  it('emits open-feature from the Details button', async () => {
-    const wrapper = mountPanel([card('OSAC-1')])
-    await wrapper.get('[data-testid="open-feature"]').trigger('click')
-    expect(wrapper.emitted('open-feature')).toEqual([['OSAC-1']])
+  it('links the Feature and its Epics to Jira and offers no Feature Detail entry point', () => {
+    const wrapper = mountPanel([card('OSAC-1', { sources: [sourceRow('OSAC-9')] })])
+    const links = wrapper.findAll('a').map(a => [a.text(), a.attributes('href')])
+    expect(links).toEqual([
+      ['OSAC-1', 'https://redhat.atlassian.net/browse/OSAC-1'],
+      ['OSAC-9', 'https://redhat.atlassian.net/browse/OSAC-9']
+    ])
+    expect(wrapper.find('[data-testid="open-feature"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Details')
   })
 
   it('lists every source Epic with its own status, local workstream status and Fix Version', () => {
@@ -45,7 +50,8 @@ describe('FeatureComponentPanel', () => {
     expect(row.find('a[href="https://redhat.atlassian.net/browse/OSAC-9"]').exists()).toBe(true)
     expect(row.text()).toContain('UIX')
     expect(row.text()).toContain('Epic Owner')
-    expect(row.get('[data-testid="source-local-status"]').text()).toBe('UX In Progress · UI Not Started')
+    expect(row.get('[data-testid="source-ux"]').text()).toBe('In Progress')
+    expect(row.get('[data-testid="source-ui"]').text()).toBe('Not Started')
     expect(row.text()).toContain('0.4')
   })
 
@@ -62,6 +68,32 @@ describe('FeatureComponentPanel', () => {
     const text = wrapper.get('[data-testid="source-row"]').text()
     expect(text).not.toContain('Unassigned')
     expect(text).toContain('OSAC-9')
+  })
+
+  it('aligns every source Epic into the same fixed columns under labelled headers', () => {
+    const wrapper = mountPanel([card('OSAC-1', {
+      sources: [sourceRow('OSAC-9'), sourceRow('OSAC-10', { epicType: 'bootstrap', fixVersions: [] })]
+    })])
+    expect(wrapper.findAll('thead th').map(th => th.text())).toEqual(['Epic', 'Type', 'Status', 'Assignee', 'Priority', 'Release', 'UX', 'UI'])
+    const rows = wrapper.findAll('[data-testid="source-row"]')
+    expect(rows.map(r => r.findAll('td').length)).toEqual([8, 8])
+    expect(rows[0].findAll('td').map(td => td.text())).toEqual(['OSAC-9', 'UIX', 'In Progress', 'Epic Owner', 'Normal', '0.4', 'In Progress', 'Not Started'])
+    expect(rows[1].findAll('td')[5].text()).toBe('—')
+  })
+
+  it('keeps the column layout with a placeholder when a legacy payload omits Epic fields', () => {
+    const legacy = sourceRow('OSAC-9', { status: undefined, assignee: undefined, priority: undefined, resolution: undefined })
+    const cells = mountPanel([card('OSAC-1', { sources: [legacy] })]).get('[data-testid="source-row"]').findAll('td')
+    expect(cells).toHaveLength(8)
+    expect([2, 3, 4].map(i => cells[i].text())).toEqual(['—', '—', '—'])
+  })
+
+  it('shows the Feature fields under their labels and captions the badges as the Epic rollup', () => {
+    const text = mountPanel([card('OSAC-1')]).get('[data-testid="feature-card"]').text()
+    expect(text).toContain('Epic rollup')
+    expect(text).toMatch(/Status\s*In Progress/)
+    expect(text).toMatch(/Priority\s*Major/)
+    expect(text).toMatch(/Assignee\s*Feature Owner/)
   })
 
   it('highlights matched source rows and states how the card matched', () => {
@@ -103,5 +135,77 @@ describe('FeatureComponentPanel', () => {
 
     await wrapper.setProps({ cards: make(11) })
     expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(10)
+  })
+
+  describe('Epic disclosure', () => {
+    const withEpics = overrides => card('OSAC-1', { sources: [sourceRow('OSAC-9'), sourceRow('OSAC-10')], ...overrides })
+    const table = wrapper => wrapper.get('[data-testid="feature-card"] table').element.parentElement
+
+    it('collapses the Epic table by default behind a count button', () => {
+      const wrapper = mountPanel([withEpics()])
+      const toggle = wrapper.get('[data-testid="epics-toggle"]')
+      expect(toggle.text()).toBe('2 Epics')
+      expect(toggle.attributes('aria-expanded')).toBe('false')
+      expect(table(wrapper).style.display).toBe('none')
+      expect(toggle.attributes('aria-controls')).toBe(table(wrapper).id)
+    })
+
+    it('uses the singular for one Epic and keeps the Feature header visible while collapsed', () => {
+      const wrapper = mountPanel([card('OSAC-1', { sources: [sourceRow('OSAC-9')] })])
+      expect(wrapper.get('[data-testid="epics-toggle"]').text()).toBe('1 Epic')
+      expect(wrapper.get('[data-testid="ux-badge"]').isVisible()).toBe(true)
+      expect(wrapper.get('a[href$="/OSAC-1"]').isVisible()).toBe(true)
+    })
+
+    it('expands the listed Features and asks the parent to toggle on click', async () => {
+      const wrapper = mountPanel([withEpics()], { expandedKeys: new Set(['OSAC-1']) })
+      const toggle = wrapper.get('[data-testid="epics-toggle"]')
+      expect(toggle.attributes('aria-expanded')).toBe('true')
+      expect(table(wrapper).style.display).not.toBe('none')
+      await toggle.trigger('click')
+      expect(wrapper.emitted('toggle-epics')).toEqual([['OSAC-1']])
+    })
+
+    it('shows how many Epic rows matched next to the count', () => {
+      const one = mountPanel([withEpics({ sources: [sourceRow('OSAC-9', { matched: true }), sourceRow('OSAC-10')] })])
+      expect(one.get('[data-testid="epics-match-count"]').text()).toContain('1 match')
+      const two = mountPanel([withEpics({ sources: [sourceRow('OSAC-9', { matched: true }), sourceRow('OSAC-10', { matched: true })] })])
+      expect(two.get('[data-testid="epics-match-count"]').text()).toContain('2 matches')
+      expect(mountPanel([withEpics()]).find('[data-testid="epics-match-count"]').exists()).toBe(false)
+    })
+  })
+
+  describe('UX and UI columns', () => {
+    const dotOf = cell => cell.get('span[aria-hidden="true"]')
+
+    it('pairs readable text with a status dot and keeps neutral states unfilled', () => {
+      const row = mountPanel([card('OSAC-1', { sources: [sourceRow('OSAC-9', { ux: 'in-progress', ui: 'not-started' })] })])
+        .get('[data-testid="source-row"]')
+      const ux = row.get('[data-testid="source-ux"]')
+      const ui = row.get('[data-testid="source-ui"]')
+      expect(ux.text()).toBe('In Progress')
+      expect(dotOf(ux).classes()).toContain('bg-blue-500')
+      expect(ui.text()).toBe('Not Started')
+      expect(dotOf(ui).classes()).not.toContain('bg-blue-500')
+      expect(dotOf(ui).classes().some(c => c.startsWith('bg-'))).toBe(false)
+      expect(ui.get('span').classes()).toContain('text-gray-500')
+    })
+
+    it('colours design, completed and unknown from the shared status vocabulary', () => {
+      const row = mountPanel([card('OSAC-1', { sources: [sourceRow('OSAC-9', { ux: 'design', ui: 'completed' })] })])
+        .get('[data-testid="source-row"]')
+      expect(dotOf(row.get('[data-testid="source-ux"]')).classes()).toContain('bg-indigo-500')
+      expect(dotOf(row.get('[data-testid="source-ui"]')).classes()).toContain('bg-emerald-500')
+      const unknown = mountPanel([card('OSAC-1', { sources: [sourceRow('OSAC-9', { ux: 'unknown', ui: 'unknown' })] })])
+      expect(unknown.get('[data-testid="source-ux"]').text()).toBe('Unknown')
+      expect(unknown.findAll('[data-testid="source-row"] span[aria-hidden="true"]').every(dot => !dot.classes().some(c => c.startsWith('bg-')))).toBe(true)
+    })
+
+    it('shows a dash for a workstream the Epic does not feed', () => {
+      const row = mountPanel([card('OSAC-1', { sources: [sourceRow('OSAC-9', { ux: 'in-progress', ui: null })] })])
+        .get('[data-testid="source-row"]')
+      expect(row.get('[data-testid="source-ui"]').text()).toBe('—')
+      expect(row.get('[data-testid="source-ux"]').text()).toBe('In Progress')
+    })
   })
 })
