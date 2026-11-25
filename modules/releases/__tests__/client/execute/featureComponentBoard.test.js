@@ -416,3 +416,66 @@ describe('ordering', () => {
     expect(panelKeys(board(features).result, 'Core')).toEqual(['F-1', 'F-2', 'F-10', 'F-3'])
   })
 })
+
+describe('search', () => {
+  const features = () => [
+    feature('F-1', { summary: 'Cluster Provisioning wizard', sources: [source('E-100'), source('E-200')] }),
+    feature('F-2', { summary: 'Storage tiers', sources: [source('E-300')] })
+  ]
+
+  it('matches Feature key, summary and source Epic keys, case-insensitively', () => {
+    expect(panelKeys(board(features(), '0.5', { search: 'f-2' }).result, 'Core')).toEqual(['F-2'])
+    expect(panelKeys(board(features(), '0.5', { search: 'PROVISIONING' }).result, 'Core')).toEqual(['F-1'])
+    expect(panelKeys(board(features(), '0.5', { search: 'e-300' }).result, 'Core')).toEqual(['F-2'])
+    expect(panelKeys(board(features(), '0.5', { search: '  ' }).result, 'Core')).toEqual(['F-1', 'F-2'])
+    expect(panelKeys(board(features(), '0.5', { search: 'nothing' }).result, 'Core')).toEqual([])
+  })
+
+  it('marks only the Epics whose key matched, and none for a Feature-only hit', () => {
+    const epicHit = board(features(), '0.5', { search: 'E-200' }).result.panels.find(p => p.component === 'Core').cards[0]
+    expect(epicHit.sources.map(s => [s.epicKey, s.matched])).toEqual([['E-100', false], ['E-200', true]])
+    expect(epicHit.matchedVia).toBeNull()
+    const featureHit = board(features(), '0.5', { search: 'wizard' }).result.panels.find(p => p.component === 'Core').cards[0]
+    expect(featureHit.sources.every(s => !s.matched)).toBe(true)
+  })
+
+  it('combines with the other filters', () => {
+    const { result } = board(features(), '0.5', { search: 'f-', labels: ['none'] })
+    expect(panelKeys(result, 'Core')).toEqual([])
+  })
+
+  it('searches within the selected release only', () => {
+    const other = feature('F-9', { fixVersions: ['0.6'] })
+    expect(panelKeys(board([...features(), other], '0.5', { search: 'F-9' }).result, 'Core')).toEqual([])
+  })
+})
+
+describe('UX and UI status filters', () => {
+  const features = () => [
+    feature('F-1', { ux: evidence('design', [source('E-1')]), ui: evidence('in-progress', [source('E-1')]) }),
+    feature('F-2', { ux: evidence('completed', [source('E-2')]), ui: evidence('not-started', [source('E-2')]) }),
+    feature('F-3', { ux: evidence('not-applicable', [source('E-3')]), ui: evidence('in-progress', [source('E-3')]) })
+  ]
+
+  it('filters on the published Feature-level status of each workstream independently', () => {
+    expect(panelKeys(board(features(), '0.5', { uxStatuses: ['design'] }).result, 'Core')).toEqual(['F-1'])
+    expect(panelKeys(board(features(), '0.5', { uiStatuses: ['in-progress'] }).result, 'Core')).toEqual(['F-1', 'F-3'])
+    expect(panelKeys(board(features(), '0.5', { uiStatuses: ['in-progress'], uxStatuses: ['not-applicable'] }).result, 'Core')).toEqual(['F-3'])
+    expect(panelKeys(board(features(), '0.5', { uxStatuses: ['design', 'completed'] }).result, 'Core')).toEqual(['F-1', 'F-2'])
+  })
+
+  it('offers the statuses present in the release in display order', () => {
+    const { options } = board(features()).result
+    expect(options.uxStatuses).toEqual(['design', 'completed', 'not-applicable'])
+    expect(options.uiStatuses).toEqual(['not-started', 'in-progress'])
+  })
+
+  it('does not depend on Match on and never marks Epic rows', () => {
+    const { result } = board(features(), '0.5', { uxStatuses: ['design'], matchOn: 'epics' })
+    const [card] = result.panels.find(p => p.component === 'Core').cards
+    expect(card.key).toBe('F-1')
+    expect(card.matchedVia).toBeNull()
+    expect(card.sources.every(s => !s.matched)).toBe(true)
+  })
+})
+

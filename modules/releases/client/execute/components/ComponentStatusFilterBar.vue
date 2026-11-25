@@ -15,6 +15,7 @@ const props = defineProps({
   selectedAssignees: { type: Array, default: () => [] },
   selectedPriorities: { type: Array, default: () => [] },
   selectedLabels: { type: Array, default: () => [] },
+  statusLabel: { type: String, default: 'Status' },
   // Current user's Jira display name for the "Assigned to me" shortcut; null hides it.
   meAssignee: { type: String, default: null }
 })
@@ -115,7 +116,7 @@ const optionClass = 'flex items-center gap-2 px-3 py-1.5 text-xs text-gray-900 d
 
       <!-- Status -->
       <div v-if="statusOptions.length > 0" class="flex flex-col gap-0.5">
-        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">Status</label>
+        <label class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ statusLabel }}</label>
         <div ref="statusRef" class="relative">
           <button type="button" @click="toggleDropdown('status')" @keydown.escape="statusOpen = false" :aria-expanded="statusOpen" aria-haspopup="listbox" :class="selectedStatuses.length ? btnActiveClass : btnClass">
             <span class="truncate max-w-[140px]">{{ multiLabel(selectedStatuses, 'All statuses') }}</span>

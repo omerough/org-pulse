@@ -10,6 +10,7 @@ import { analyzeFeatures, buildFeatureBoard, resolveReleaseOption, UNSCHEDULED }
 import { pickDefaultRelease } from '../utils/releaseDefault'
 import ComponentStatusFilterBar from '../components/ComponentStatusFilterBar.vue'
 import FeatureComponentPanel from '../components/FeatureComponentPanel.vue'
+import UiUxStatusFilter from '../components/UiUxStatusFilter.vue'
 
 const JIRA_BASE = 'https://redhat.atlassian.net/browse/'
 
@@ -32,6 +33,9 @@ const {
 } = useComponentStatusFilter()
 const selectedPriorities = ref([])
 const selectedLabels = ref([])
+const selectedUiStatuses = ref([])
+const selectedUxStatuses = ref([])
+const searchQuery = ref('')
 const matchOn = ref('either')
 
 const { user } = useAuth()
@@ -42,11 +46,16 @@ const selectedVersion = ref('')
 const releaseNotice = ref('')
 const initializing = ref(false)
 
-const isFiltered = computed(() =>
+// Filters rendered by ComponentStatusFilterBar, which owns their Clear button.
+const barFiltered = computed(() =>
   selectedComponents.value.length > 0 || selectedStatuses.value.length > 0 ||
   selectedAssignees.value.length > 0 || selectedPriorities.value.length > 0 ||
   selectedLabels.value.length > 0
 )
+const boardFiltered = computed(() =>
+  selectedUiStatuses.value.length > 0 || selectedUxStatuses.value.length > 0 || searchQuery.value.trim() !== ''
+)
+const isFiltered = computed(() => barFiltered.value || boardFiltered.value)
 
 function clearAllFilters() {
   selectedComponents.value = []
@@ -54,6 +63,9 @@ function clearAllFilters() {
   selectedAssignees.value = []
   selectedPriorities.value = []
   selectedLabels.value = []
+  selectedUiStatuses.value = []
+  selectedUxStatuses.value = []
+  searchQuery.value = ''
 }
 
 function toggleInList(listRef, value) {
@@ -64,6 +76,8 @@ function toggleInList(listRef, value) {
 
 const togglePriority = value => toggleInList(selectedPriorities, value)
 const toggleLabel = value => toggleInList(selectedLabels, value)
+const toggleUiStatus = value => toggleInList(selectedUiStatuses, value)
+const toggleUxStatus = value => toggleInList(selectedUxStatuses, value)
 
 function selectMeAssignee() {
   if (meAssignee.value) setAssignees([meAssignee.value])
@@ -83,12 +97,55 @@ const result = computed(() => {
     assignees: selectedAssignees.value,
     priorities: selectedPriorities.value,
     labels: selectedLabels.value,
+    uiStatuses: selectedUiStatuses.value,
+    uxStatuses: selectedUxStatuses.value,
+    search: searchQuery.value,
     matchOn: matchOn.value
   })
 })
 
+// Epic tables are collapsed unless an Epic matched the filters or search. Manual toggles and the
+// bulk override last until the release, filters or search change.
+const manualExpanded = ref({})
+const bulkExpansion = ref(null)
+
+const expandedKeys = computed(() => {
+  const keys = new Set()
+  for (const panel of result.value?.panels || []) {
+    for (const card of panel.cards) {
+      const open = manualExpanded.value[card.key] ??
+        (bulkExpansion.value === null ? card.sources.some(source => source.matched) : bulkExpansion.value === 'expand')
+      if (open) keys.add(card.key)
+    }
+  }
+  return keys
+})
+
+function toggleEpics(key) {
+  manualExpanded.value = { ...manualExpanded.value, [key]: !expandedKeys.value.has(key) }
+}
+
+function setAllExpanded(expanded) {
+  manualExpanded.value = {}
+  bulkExpansion.value = expanded ? 'expand' : 'collapse'
+}
+
+watch(
+  () => JSON.stringify([
+    selectedVersion.value, selectedComponents.value, selectedStatuses.value, selectedAssignees.value,
+    selectedPriorities.value, selectedLabels.value, selectedUiStatuses.value, selectedUxStatuses.value,
+    searchQuery.value, matchOn.value
+  ]),
+  () => {
+    manualExpanded.value = {}
+    bulkExpansion.value = null
+  }
+)
+
 // The toolbar always renders for the Release selector; filters appear only once data is loaded.
-const NO_FILTER_OPTIONS = { components: [], statuses: [], assignees: [], priorities: [], labels: [] }
+const NO_FILTER_OPTIONS = {
+  components: [], statuses: [], assignees: [], priorities: [], labels: [], uiStatuses: [], uxStatuses: []
+}
 const filterOptions = computed(() => (result.value && !loading.value && !error.value ? result.value.options : NO_FILTER_OPTIONS))
 
 const featuresUnavailable = computed(() => !!featureState.value && !['supported', 'empty'].includes(featureState.value))
@@ -226,6 +283,7 @@ onBeforeUnmount(() => {
       :selected-priorities="selectedPriorities"
       :selected-labels="selectedLabels"
       :me-assignee="meAssignee"
+      status-label="Jira status"
       @toggle-component="toggleComponent"
       @toggle-status="toggleStatus"
       @toggle-assignee="toggleAssignee"
@@ -247,8 +305,32 @@ onBeforeUnmount(() => {
             <option v-for="version in releaseOptions" :key="version" :value="version">{{ version }}</option>
           </select>
         </div>
+        <div v-if="result" class="flex flex-col gap-0.5 min-w-0 max-w-full">
+          <label for="ui-ux-board-search" class="text-xs font-medium text-gray-600 dark:text-gray-400">Search</label>
+          <input
+            id="ui-ux-board-search"
+            v-model="searchQuery"
+            type="search"
+            placeholder="Key, summary or Epic key"
+            class="min-w-0 w-48 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400"
+          />
+        </div>
+        <UiUxStatusFilter
+          label="UX status"
+          all-label="All UX statuses"
+          :options="filterOptions.uxStatuses"
+          :selected="selectedUxStatuses"
+          @toggle="toggleUxStatus"
+        />
+        <UiUxStatusFilter
+          label="UI status"
+          all-label="All UI statuses"
+          :options="filterOptions.uiStatuses"
+          :selected="selectedUiStatuses"
+          @toggle="toggleUiStatus"
+        />
         <div class="flex flex-col gap-0.5 min-w-0 max-w-full">
-          <label for="ui-ux-board-match-on" class="text-xs font-medium text-gray-600 dark:text-gray-400">Match status, assignee, priority on</label>
+          <label for="ui-ux-board-match-on" class="text-xs font-medium text-gray-600 dark:text-gray-400">Match Jira status, assignee, priority on</label>
           <select
             id="ui-ux-board-match-on"
             v-model="matchOn"
@@ -259,6 +341,16 @@ onBeforeUnmount(() => {
             <option value="feature">Feature</option>
             <option value="epics" :disabled="!epicFieldsAvailable">Epics</option>
           </select>
+        </div>
+        <!-- The bar's Clear button only reacts to the filters it renders. -->
+        <div v-if="boardFiltered && !barFiltered" class="flex flex-col gap-0.5 justify-end">
+          <span class="text-xs font-medium text-transparent select-none">Clear</span>
+          <button
+            type="button"
+            data-testid="clear-board-filters"
+            class="inline-flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400"
+            @click="clearAllFilters"
+          >Clear filters</button>
         </div>
       </template>
     </ComponentStatusFilterBar>
@@ -298,6 +390,10 @@ onBeforeUnmount(() => {
       <template v-else-if="result && !error">
         <div class="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
           <span data-testid="summary-counts">{{ result.distinctFeatureCount }} Feature{{ result.distinctFeatureCount === 1 ? '' : 's' }} &middot; {{ result.rowCount }} row{{ result.rowCount === 1 ? '' : 's' }}</span>
+          <span v-if="result.rowCount > 0" class="inline-flex items-center gap-2 text-xs">
+            <button type="button" data-testid="expand-all" class="font-medium text-primary-600 dark:text-primary-400 hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded" @click="setAllExpanded(true)">Expand all</button>
+            <button type="button" data-testid="collapse-all" class="font-medium text-primary-600 dark:text-primary-400 hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 rounded" @click="setAllExpanded(false)">Collapse all</button>
+          </span>
           <span v-if="fetchedAt" data-testid="fetched-at" class="text-xs text-gray-500 dark:text-gray-400">Data as of {{ formatDate(fetchedAt) }}</span>
         </div>
 
@@ -312,7 +408,9 @@ onBeforeUnmount(() => {
             :component="panel.component"
             :cards="panel.cards"
             :member-count="panel.memberCount"
+            :expanded-keys="expandedKeys"
             @open-feature="openFeature"
+            @toggle-epics="toggleEpics"
           />
         </div>
 

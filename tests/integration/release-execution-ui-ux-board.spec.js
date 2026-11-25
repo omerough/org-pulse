@@ -34,13 +34,13 @@ function source(epicKey, overrides = {}) {
 }
 
 function feature(key, { status = 'Closed', components = [], fixVersions = ['1.1'], labels = [], resolution = null,
-  assignee = null, sources, ui = 'in-progress', enclaveOnly = false } = {}) {
+  assignee = null, sources, ui = 'in-progress', ux = 'in-progress', enclaveOnly = false } = {}) {
   const epics = sources || [source(`${key}-E`, { status, fixVersions })];
   const evidence = (value, extra = {}) => ({ status: value, conflict: false, scopes: [], sources: epics, ...extra });
   return {
     key, summary: `${key} summary`, status, statusCategory: 'In Progress', resolution, priority: 'Normal',
     assignee, fixVersions, components, labels, team: null, coverage: null,
-    uiEvidence: evidence(ui, { enclaveOnly }), uxEvidence: evidence('in-progress')
+    uiEvidence: evidence(ui, { enclaveOnly }), uxEvidence: evidence(ux)
   };
 }
 
@@ -55,8 +55,8 @@ const FEATURES = [
     status: 'In Progress', components: ['CaaS', 'Core'],
     sources: [source('OSAC-3211', { status: 'In Progress', assignee: 'Ilya Skornyakov', components: ['CaaS', 'Core'] })]
   }),
-  feature('OSAC-3301', { status: 'Backlog', components: ['BMaaS'], labels: ['customer:telus'] }),
-  feature('OSAC-3401', { components: ['Enclave'], enclaveOnly: true }),
+  feature('OSAC-3301', { status: 'Backlog', components: ['BMaaS'], labels: ['customer:telus'], ux: 'design' }),
+  feature('OSAC-3401', { components: ['Enclave'], enclaveOnly: true, ui: 'not-started' }),
   // Unscheduled, and in Other because nothing names a panel.
   feature('OSAC-3501', { fixVersions: [], components: [] }),
   // Not on the board: no-ui (listed under Not shown), and no UI/UX Epic.
@@ -152,7 +152,9 @@ test.describe('Releases UI/UX by Component @releases', () => {
     // Feature labels, published UX/UI badges and the source Epic's own status are on the card.
     await expect(panelCards(page, 'BMaaS').first()).toContainText('customer:telus');
     await expect(panelCards(page, 'Core').first().locator('[data-testid="ux-badge"]')).toContainText('In Progress');
+    await panelCards(page, 'Core').first().locator('[data-testid="epics-toggle"]').click();
     await expect(panelCards(page, 'Core').first().locator('[data-testid="source-row"]')).toContainText('OSAC-3211');
+    await expect(panelCards(page, 'Core').first().locator('[data-testid="source-ux"]')).toContainText('In Progress');
 
     // Not on the board: no-ui, no UI/UX Epic, other release.
     for (const key of ['OSAC-3901', 'OSAC-3904', 'OSAC-2101']) {
@@ -182,7 +184,9 @@ test.describe('Releases UI/UX by Component @releases', () => {
 
     const toolbar = page.locator('div.flex-wrap', { has: releaseSelect(page) });
     await expect(toolbar.locator('label').first()).toHaveText('Release');
-    await expect(toolbar.locator('label').nth(2)).toHaveText('Component');
+    for (const name of ['Search', 'UX status', 'UI status', 'Component', 'Jira status']) {
+      await expect(toolbar.locator('label').filter({ hasText: new RegExp(`^${name}$`) })).toHaveCount(1);
+    }
 
     // Controls wrap onto several rows and none spills out of the toolbar.
     await page.setViewportSize({ width: 640, height: 800 });
@@ -267,9 +271,62 @@ test.describe('Releases UI/UX by Component @releases', () => {
     await chooseFilterOption(page, 'All assignees', 'Ilya Skornyakov');
     await expect(summary(page)).toHaveText('1 Feature · 2 rows');
     await expect(panelCards(page, 'CaaS').first().locator('[data-testid="matched-via"]')).toHaveText('Matched via OSAC-3211');
+    // The matching Epic is revealed and highlighted without any click.
+    await expect(panelCards(page, 'CaaS').first().locator('[data-testid="source-row"][data-matched="true"]')).toBeVisible();
 
     await page.locator('#ui-ux-board-match-on').selectOption('feature');
     await expect(page.getByText('No Features match the current filters.')).toBeVisible();
+  });
+
+  test('collapses Epic tables by default and expands them one at a time or all at once', async ({ page }) => {
+    installApi(page);
+    await openDashboard(page);
+
+    const first = panelCards(page, 'CaaS').first();
+    await expect(first.locator('[data-testid="epics-toggle"]')).toHaveText('1 Epic');
+    await expect(first.locator('table')).toBeHidden();
+    await expect(first.locator('[data-testid="ux-badge"]')).toBeVisible();
+
+    await first.locator('[data-testid="epics-toggle"]').click();
+    await expect(first.locator('table')).toBeVisible();
+    await expect(first.locator('[data-testid="source-row"]')).toContainText('OSAC-3211');
+
+    await page.locator('[data-testid="expand-all"]').click();
+    await expect(page.locator('[data-testid="epics-toggle"][aria-expanded="false"]')).toHaveCount(0);
+    await page.locator('[data-testid="collapse-all"]').click();
+    await expect(page.locator('[data-testid="epics-toggle"][aria-expanded="true"]')).toHaveCount(0);
+  });
+
+  test('search matches Feature and Epic keys, reveals the matching Epic and resets with Clear filters', async ({ page }) => {
+    installApi(page);
+    await openDashboard(page);
+
+    await page.locator('#ui-ux-board-search').fill('OSAC-3211');
+    await expect(summary(page)).toHaveText('1 Feature · 2 rows');
+    await expect(panelCards(page, 'CaaS').first().locator('[data-testid="source-row"][data-matched="true"]')).toBeVisible();
+
+    await page.locator('#ui-ux-board-search').fill('OSAC-3301');
+    await expect(summary(page)).toHaveText('1 Feature · 1 row');
+    await expect(panelCards(page, 'BMaaS').first().locator('table')).toBeHidden();
+
+    await page.getByRole('button', { name: 'Clear filters' }).click();
+    await expect(page.locator('#ui-ux-board-search')).toHaveValue('');
+    await expect(summary(page)).toHaveText('15 Features · 16 rows');
+  });
+
+  test('UX status and UI status filter on the published Feature-level rollup', async ({ page }) => {
+    installApi(page);
+    await openDashboard(page);
+
+    await chooseFilterOption(page, 'All UX statuses', 'Design');
+    await expect(summary(page)).toHaveText('1 Feature · 1 row');
+    await expect(panelCards(page, 'BMaaS')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Clear filters' }).click();
+    await expect(summary(page)).toHaveText('15 Features · 16 rows');
+
+    await chooseFilterOption(page, 'All UI statuses', 'Not Started');
+    await expect(summary(page)).toHaveText('1 Feature · 1 row');
+    await expect(panelCards(page, 'Enclave')).toHaveCount(1);
   });
 
   test('Show more reveals the remaining cards and Show fewer collapses them', async ({ page }) => {
