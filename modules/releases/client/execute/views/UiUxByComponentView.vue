@@ -143,12 +143,15 @@ async function initialize({ honorUrl }) {
   initializing.value = false
   if (selectedVersion.value) return
 
+  // Defaults come from releases with visible cards; when there are none, any selectable release.
+  const withCards = analysis.value?.releasesWithCards || []
+  const available = (withCards.length > 0 ? withCards : releaseOptions.value).filter(version => version !== UNSCHEDULED)
   // Registry versions are matched under the board's own release normalization.
-  const available = (analysis.value?.releasesWithCards || []).filter(version => version !== UNSCHEDULED)
   const defaultPick = pickDefaultRelease({
     registryReleases: (registryReleases.value || []).map(release => ({
       ...release,
-      fixVersions: (release.fixVersions || []).map(version => resolveReleaseOption(available, version) ?? version)
+      fixVersions: (Array.isArray(release?.fixVersions) ? release.fixVersions : [])
+        .map(version => resolveReleaseOption(available, version) ?? version)
     })),
     availableVersions: available,
     today: new Date()

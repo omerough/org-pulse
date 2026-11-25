@@ -27,15 +27,17 @@ function resolutionName(resolution) {
 
 const foldedSet = list => new Set((list || []).map(fold))
 
-function stripZStream(version) {
-  return String(version).replace(/\.z\b/gi, '')
+// Release names are strings; any other value normalizes to '' (no release).
+function normalizeRelease(version) {
+  return typeof version === 'string' ? version.replace(/\.z\b/gi, '').trim() : ''
 }
 
 // A Feature's own Fix Versions only; none means Unscheduled. Epic releases never place it.
 export function releasesOf(feature) {
   const seen = new Map()
-  for (const version of feature?.fixVersions || []) {
-    const stripped = stripZStream(version).trim()
+  const versions = Array.isArray(feature?.fixVersions) ? feature.fixVersions : []
+  for (const version of versions) {
+    const stripped = normalizeRelease(version)
     if (stripped && !seen.has(fold(stripped))) seen.set(fold(stripped), stripped)
   }
   return seen.size > 0 ? [...seen.values()] : [UNSCHEDULED]
@@ -43,8 +45,8 @@ export function releasesOf(feature) {
 
 /** The option matching a requested release under the same folding that places Features; null when none. */
 export function resolveReleaseOption(options, requested) {
-  if (requested === undefined || requested === null || requested === '') return null
-  const target = fold(stripZStream(requested).trim())
+  const target = fold(normalizeRelease(requested))
+  if (!target) return null
   return (options || []).find(option => fold(option) === target) ?? null
 }
 

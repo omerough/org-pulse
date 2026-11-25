@@ -42,6 +42,11 @@ describe('releasesOf', () => {
     expect(releasesOf({ fixVersions: ['Backlog', 'backlog'] })).toEqual(['Backlog'])
   })
 
+  it('ignores non-string and non-array Fix Version values', () => {
+    expect(releasesOf({ fixVersions: [null, 5, {}, '0.5'] })).toEqual(['0.5'])
+    expect(releasesOf({ fixVersions: '0.5' })).toEqual([UNSCHEDULED])
+  })
+
   it('places a Feature with no own Fix Version in Unscheduled', () => {
     expect(releasesOf({ fixVersions: [] })).toEqual([UNSCHEDULED])
     expect(releasesOf({})).toEqual([UNSCHEDULED])
@@ -106,6 +111,12 @@ describe('resolveReleaseOption', () => {
     expect(resolveReleaseOption(options, '0.5.Z')).toBe('0.5')
     expect(resolveReleaseOption(options, ' backlog ')).toBe('Backlog')
     expect(resolveReleaseOption(options, 'unscheduled')).toBe(UNSCHEDULED)
+  })
+
+  it('returns null for non-string requests', () => {
+    for (const value of [5, {}, ['0.5'], true, Object.create(null)]) {
+      expect(resolveReleaseOption(options, value)).toBeNull()
+    }
   })
 
   it('returns null for blank or unknown requests', () => {

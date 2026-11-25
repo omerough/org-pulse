@@ -51,6 +51,7 @@ const tabs = computed(() => ALL_TABS.filter(tab =>
 ))
 const validTabs = computed(() => tabs.value.map(tab => tab.id))
 const DEFAULT_TAB = 'feature-list'
+const RELEASE_TAB = 'ui-epics-by-component'
 const activeTab = ref(DEFAULT_TAB)
 
 let updatingFromUrl = false
@@ -62,6 +63,10 @@ watch(activeTab, (tab) => {
 
 watch([() => nav.params.value?.tab, validTabs], ([tabParam]) => {
   const tab = tabParam && validTabs.value.includes(tabParam) ? tabParam : DEFAULT_TAB
+  // A `release` left in a URL that resolves to another tab is dropped in place (no history entry).
+  if (tab !== RELEASE_TAB && nav.params.value?.release !== undefined) {
+    nav.updateParams({ release: undefined }, { push: false })
+  }
   if (activeTab.value !== tab) {
     updatingFromUrl = true
     activeTab.value = tab
