@@ -130,6 +130,52 @@ describe('UiUxByComponentView', () => {
     expect(wrapper.text()).toContain('Release 9.9 is not available')
   })
 
+  it('resolves the URL release under the board normalization and rewrites it to the canonical option', async () => {
+    const { wrapper, nav } = await mountView({ release: '0.4.Z' })
+    expect(wrapper.get('#ui-ux-board-release').element.value).toBe('0.4')
+    expect(wrapper.text()).not.toContain('is not available')
+    expect(nav.updateParams).toHaveBeenCalledWith({ release: '0.4' }, { push: false })
+  })
+
+  it('opens Unscheduled from a differently cased URL release', async () => {
+    const { wrapper } = await mountView({ release: 'unscheduled' })
+    expect(wrapper.get('#ui-ux-board-release').element.value).toBe('Unscheduled')
+  })
+
+  it('picks the registry default when the registry version is a z-stream spelling of an option', async () => {
+    REGISTRY_RELEASES[1].fixVersions = ['0.5.z']
+    try {
+      const { wrapper } = await mountView()
+      expect(wrapper.get('#ui-ux-board-release').element.value).toBe('0.5')
+    } finally {
+      REGISTRY_RELEASES[1].fixVersions = ['0.5']
+    }
+  })
+
+  it('offers and opens a release whose Features are all excluded, listing them under Not shown', async () => {
+    featuresResponse = () => ({
+      state: 'supported',
+      features: [
+        feature('OSAC-1'),
+        feature('OSAC-2', { fixVersions: ['0.3'], resolution: "Won't Do", status: 'Closed' }),
+        feature('OSAC-4', { fixVersions: ['0.3'], uiStatus: 'not-applicable' })
+      ]
+    })
+    const { wrapper } = await mountView({ release: '0.3' })
+    expect(wrapper.findAll('#ui-ux-board-release option').map(o => o.text())).toContain('0.3')
+    expect(wrapper.get('#ui-ux-board-release').element.value).toBe('0.3')
+    const entries = wrapper.findAll('[data-testid="not-shown-entry"]')
+    expect(entries.map(e => e.get('a').text())).toEqual(['OSAC-2', 'OSAC-4'])
+    expect(entries[1].text()).toContain('no-ui')
+  })
+
+  it('does not rewrite the route when it unmounts', async () => {
+    const { wrapper, nav } = await mountView({ release: '0.5' })
+    nav.updateParams.mockClear()
+    wrapper.unmount()
+    expect(nav.updateParams).not.toHaveBeenCalled()
+  })
+
   it('does not render a project without a dashboard config', async () => {
     mockProjectId.value = 'flightctl'
     const { wrapper } = await mountView()

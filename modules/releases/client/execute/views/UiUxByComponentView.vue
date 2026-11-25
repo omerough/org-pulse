@@ -6,7 +6,7 @@ import { useFeatureTraffic } from '../composables/useFeatureTraffic'
 import { useReleaseRegistry } from '../composables/useReleaseRegistry'
 import { useComponentStatusFilter } from '../composables/useComponentStatusFilter'
 import { resolveComponentDashboard } from '../utils/componentDashboardConfig'
-import { analyzeFeatures, buildFeatureBoard, UNSCHEDULED } from '../utils/featureComponentBoard'
+import { analyzeFeatures, buildFeatureBoard, resolveReleaseOption, UNSCHEDULED } from '../utils/featureComponentBoard'
 import { pickDefaultRelease } from '../utils/releaseDefault'
 import ComponentStatusFilterBar from '../components/ComponentStatusFilterBar.vue'
 import FeatureComponentPanel from '../components/FeatureComponentPanel.vue'
@@ -95,7 +95,8 @@ const featuresUnavailable = computed(() => !!featureState.value && !['supported'
 
 const NOT_SHOWN_REASONS = {
   'non-delivery': entry => `Resolution: ${entry.resolution}`,
-  'no-live-source': () => 'Every UI/UX Epic has a no-work resolution'
+  'no-live-source': () => 'Every UI/UX Epic has a no-work resolution',
+  'no-ui': () => 'UI evidence is not applicable (no-ui)'
 }
 
 function formatDate(iso) {
@@ -142,15 +143,21 @@ async function initialize({ honorUrl }) {
   initializing.value = false
   if (selectedVersion.value) return
 
+  // Registry versions are matched under the board's own release normalization.
+  const available = (analysis.value?.releasesWithCards || []).filter(version => version !== UNSCHEDULED)
   const defaultPick = pickDefaultRelease({
-    registryReleases: registryReleases.value,
-    availableVersions: releaseOptions.value.filter(version => version !== UNSCHEDULED),
+    registryReleases: (registryReleases.value || []).map(release => ({
+      ...release,
+      fixVersions: (release.fixVersions || []).map(version => resolveReleaseOption(available, version) ?? version)
+    })),
+    availableVersions: available,
     today: new Date()
   })
   const requested = honorUrl ? nav.params.value?.release : null
+  const requestedOption = resolveReleaseOption(releaseOptions.value, requested)
   let next = defaultPick.version || ''
-  if (requested && releaseOptions.value.includes(requested)) {
-    next = requested
+  if (requestedOption) {
+    next = requestedOption
   } else if (requested) {
     releaseNotice.value = `Release ${requested} is not available for this project; showing the default instead.`
   }
@@ -161,9 +168,8 @@ async function initialize({ honorUrl }) {
 watch(selectedVersion, clearAllFilters)
 
 watch(() => nav.params.value?.release, (requested) => {
-  if (requested && requested !== selectedVersion.value && releaseOptions.value.includes(requested)) {
-    selectedVersion.value = requested
-  }
+  const option = resolveReleaseOption(releaseOptions.value, requested)
+  if (option && option !== selectedVersion.value) selectedVersion.value = option
 })
 
 watch(projectId, () => {
@@ -175,7 +181,6 @@ onMounted(() => initialize({ honorUrl: true }))
 
 onBeforeUnmount(() => {
   initializeToken += 1
-  if (nav.params.value?.release !== undefined) writeReleaseParam(null)
 })
 </script>
 

@@ -91,4 +91,17 @@ describe('FeatureComponentPanel', () => {
     await many.get('[data-testid="show-more-toggle"]').trigger('click')
     expect(many.findAll('[data-testid="feature-card"]')).toHaveLength(12)
   })
+
+  it('stays expanded when the cards array is rebuilt with the same Features, and resets when they change', async () => {
+    const make = count => Array.from({ length: count }, (_, i) => card(`OSAC-${i + 1}`))
+    const wrapper = mountPanel(make(12))
+    await wrapper.get('[data-testid="show-more-toggle"]').trigger('click')
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(12)
+
+    await wrapper.setProps({ cards: make(12) })
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(12)
+
+    await wrapper.setProps({ cards: make(11) })
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(10)
+  })
 })

@@ -59,7 +59,7 @@ const FEATURES = [
   feature('OSAC-3401', { components: ['Enclave'], enclaveOnly: true }),
   // Unscheduled, and in Other because nothing names a panel.
   feature('OSAC-3501', { fixVersions: [], components: [] }),
-  // Never on the board: no-ui, no UI/UX Epic.
+  // Not on the board: no-ui (listed under Not shown), and no UI/UX Epic.
   feature('OSAC-3901', { components: ['Core'], ui: 'not-applicable' }),
   feature('OSAC-3904', { components: ['Storage'], sources: [] }),
   // Listed under Not shown: non-delivery resolution, only no-work Epics.
@@ -154,23 +154,25 @@ test.describe('Releases UI/UX by Component @releases', () => {
     await expect(panelCards(page, 'Core').first().locator('[data-testid="ux-badge"]')).toContainText('In Progress');
     await expect(panelCards(page, 'Core').first().locator('[data-testid="source-row"]')).toContainText('OSAC-3211');
 
-    // Never on the board: no-ui, no UI/UX Epic, other release.
+    // Not on the board: no-ui, no UI/UX Epic, other release.
     for (const key of ['OSAC-3901', 'OSAC-3904', 'OSAC-2101']) {
       await expect(page.locator('[data-testid="feature-card"]', { hasText: key })).toHaveCount(0);
     }
   });
 
-  test('lists non-delivery and no-live-source Features under Not shown', async ({ page }) => {
+  test('lists non-delivery, no-live-source and no-ui Features under Not shown', async ({ page }) => {
     installApi(page);
     await openDashboard(page);
 
     const notShown = page.locator('[data-testid="not-shown"]');
-    await expect(notShown.locator('summary')).toHaveText('Not shown (2)');
+    await expect(notShown.locator('summary')).toHaveText('Not shown (3)');
     await notShown.locator('summary').click();
-    await expect(notShown.locator('[data-testid="not-shown-entry"]')).toHaveCount(2);
+    await expect(notShown.locator('[data-testid="not-shown-entry"]')).toHaveCount(3);
     await expect(notShown).toContainText('OSAC-3903');
     await expect(notShown).toContainText('Resolution: Duplicate');
     await expect(notShown).toContainText('OSAC-3902');
+    await expect(notShown).toContainText('OSAC-3901');
+    await expect(notShown).toContainText('no-ui');
     await expect(page.locator('[data-testid="feature-card"]', { hasText: 'OSAC-3903' })).toHaveCount(0);
   });
 
