@@ -1969,9 +1969,20 @@ fields, with `status: "unknown"`.
   they were evidence for one specific release/component; always resolve against the matching
   `scopes[]` entry once a Release or Component is selected. A scope's own `status`/`conflict` can
   differ from the feature-wide aggregate (e.g. one release done, a sibling release still in progress).
-- **Feature-wide display:** the "UI/UX by Component" board places a Feature by its own Fix Version and
-  Components and shows the top-level `status`/`conflict` as a Feature-wide rollup across all of the
-  Feature's UI/UX Epics, labelled as such on the card, the UX/UI status filters and the board header.
+- **Board routing:** the "UI/UX by Component" board places a Feature in a Release by the Feature's own
+  Fix Version only, then routes it to component panels by the union of the Feature's own `components` and
+  the `components` of its live source Epics (those whose `resolution` is not a no-work value). A Feature
+  can therefore appear under a panel through a source Epic's Component alone, and under several panels
+  at once (each card names the other panels it is in). Two rules narrow the union. When `uiEvidence.enclaveOnly`
+  is true (and the UI status is not `not-applicable`), only the Enclave panel is eligible, and only if
+  the Feature or a live source Epic carries an Enclave Component. A panel's `notInComponents` Components
+  (OSAC: CaaS, BMaaS and VMaaS defer to Connectivity&Fabric) exclude the Feature from that panel when
+  the Feature's own `components` include one of them; source Epic Components do not trigger that
+  exclusion. A Feature left with no panel is shown under the **Other** panel with its reason, never
+  dropped: enclave-only label without an Enclave Component, no Component on the Feature or its live
+  source Epics, Components that map to no panel, or exclusion by panel rules.
+- **Feature-wide display:** the board shows the top-level `status`/`conflict` as a Feature-wide rollup
+  across all of the Feature's UI/UX Epics, labelled as such on the card, the UX/UI status filters and the board header.
   Those statuses are not Release- or Component-specific: a Feature can show a rollup that differs from
   the matching `scopes[]` entry (e.g. one release done, a sibling release still in progress). The board
   never reads `scopes[]`, so the card badge, the status filters and their option lists all use the same
